@@ -56,8 +56,15 @@ what was built; each entry says what the design said, what was done, and why.
   tauri-utils' HTML handling; `option-ext` through `dirs`). `deny.toml` allows MPL-2.0
   only for those five (`[licenses] exceptions`), and `dependency-review.yml` lists the
   same five in `allow-dependencies-licenses`. Everything else must be permissive.
-- **No advisory is ignored.** With `[graph] targets = ["aarch64-apple-darwin"]` and
-  `unmaintained = "workspace"`, `cargo deny check` passes with an empty `ignore` list.
+- **No cargo-deny advisory is ignored.** With `[graph] targets = ["aarch64-apple-darwin"]`
+  and `unmaintained = "workspace"`, `cargo deny check` passes with an empty `ignore` list.
+- **OSV-Scanner ignores (`osv-scanner.toml`, all expiring 2026-12-27):**
+  - RUSTSEC-2024-0429 / GHSA-wrw7-89jp-8q8g (`glib`) and RUSTSEC-2024-0370
+    (`proc-macro-error`): Linux-only crates of Tauri's GTK stack, absent from
+    `cargo tree --target aarch64-apple-darwin`.
+  - RUSTSEC-2025-0075, -0080, -0081, -0098, -0100 (`unic-*`): shipped through
+    `tauri-utils` → `urlpattern`, unmaintained, no fixed release; tracked in
+    https://github.com/tomada1114/tauri-template/issues/3.
 - **`shellcheck` is pinned in `mise.toml`** although no `.sh` file exists: actionlint
   runs it over every workflow `run:` block, and an unpinned shim broke actionlint.
 - **Actions pinned one release back where the newest was under seven days old**
