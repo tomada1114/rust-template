@@ -160,24 +160,29 @@ Rust, three layers, each able to fail on its own:
 
 1. **Compile time.** `myapp-core`'s `Cargo.toml` lists no tauri, OS, or platform crate, so
    code there cannot name them.
-2. **cargo-deny `[bans]` with `wrappers`.** `tauri` and every `tauri-plugin-*` may be a
-   direct dependency of `myapp` only; `myapp-platform` may be a dependency of `myapp` and
-   `myapp-cli` only; macOS binding crates (`objc2*`, `core-foundation*`,
-   `security-framework*`) of `myapp-platform` only. Adding one to core fails `cargo deny
-   check bans` in CI (Linux).
+2. **The dependency closure, checked.** A harness check reads `cargo metadata` and fails
+   if `myapp-core`'s normal (non-dev) dependency closure contains `tauri*`, `wry`, `tao`,
+   `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform` — the
+   counterpart of macos-app-template's `ArchitectureBoundaryTests`. cargo-deny `[bans]`
+   with `wrappers` adds a second, direct-edge rule: `tauri` may be a direct dependency of
+   `myapp` only (plus any `tauri-plugin-*` crate an app later adds, listed in the same
+   entry), and `myapp-platform` of `myapp` and `myapp-cli` only. macOS binding crates are
+   *not* put under `wrappers`: Tauri's own dependencies (`wry`, `tao`) depend on them
+   directly, so a wrapper list could never pass; the closure check covers them.
 3. **clippy in core.** `crates/myapp-core/clippy.toml` sets `disallowed-macros`
    (`std::println`, `std::eprintln`, `std::dbg`), `disallowed-types`
    (`std::process::Command`, `std::fs::File`), and `disallowed-methods` (`std::fs::*` read
    and write functions, `std::time::SystemTime::now`, `std::time::Instant::now`,
    `std::env::var`, `std::thread::sleep`) — I/O, time, and environment reach core only
    through ports. `clippy::wildcard_enum_match_arm` is denied in core (issue #134:
-   exhaustive matches on core enums). The implementation run confirms clippy reads a
-   crate-local `clippy.toml`; if it does not, the bans move to the workspace file with
-   `#[expect]`-free per-crate scoping recorded as a deviation.
+   exhaustive matches on core enums). The implementation run proves clippy reads the
+   crate-local `clippy.toml` by adding a banned call and watching clippy fail; if it does
+   not, a harness check that scans core's sources for the banned paths replaces it, and
+   the switch is recorded as a deviation.
 
-A harness check keeps layers 2 and 3 honest the way macos-app-template's
-`core-ban-lists-agree.sh` does: the crates the boundary section of `AGENTS.md` names
-match `deny.toml`'s wrapper lists.
+A harness check keeps the lists honest the way macos-app-template's
+`core-ban-lists-agree.sh` does: the forbidden crates the boundary section of `AGENTS.md`
+names match the closure check's list and `deny.toml`'s wrapper entries.
 
 TypeScript: ESLint `no-restricted-imports` (core rules, no plugin — typescript-template's
 approach) forbids `@tauri-apps/*` outside `ui/src/ipc/`, and forbids importing
