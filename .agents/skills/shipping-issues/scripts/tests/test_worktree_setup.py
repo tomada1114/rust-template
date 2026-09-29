@@ -133,22 +133,19 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertEqual(before, "")
         self.assertEqual(after, "", "worktree_setup.sh must never dirty the main checkout")
 
-    def test_copies_untracked_local_config_only(self):
+    def test_copies_settings_local_json_and_no_secret_shaped_file(self):
+        # AGENTS.md: never read a secret-shaped file, even to check it -- so a
+        # worktree gets none of them by default, untracked or not.
+        secret_shaped = [".env", ".env.local", ".envrc", ".dev.vars", "local.settings.json"]
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
             repo = td / "repo"
             repo.mkdir()
             make_repo(repo)
-            (repo / ".env").write_text("A=1\n", encoding="utf-8")
-            (repo / ".env.local").write_text("B=2\n", encoding="utf-8")
-            (repo / ".env.example").write_text("C=3\n", encoding="utf-8")
+            for name in secret_shaped:
+                (repo / name).write_text("SECRET=1\n", encoding="utf-8")
             (repo / ".claude").mkdir()
             (repo / ".claude" / "settings.local.json").write_text("{}\n", encoding="utf-8")
-            # .envrc matches a copy pattern but is tracked, so it must be
-            # left to the normal `git worktree add` checkout, not re-copied.
-            (repo / ".envrc").write_text("export D=4\n", encoding="utf-8")
-            git(repo, "add", ".envrc")
-            git(repo, "commit", "-qm", "track envrc")
             root = td / "worktrees"
 
             proc = run_script(
@@ -157,18 +154,34 @@ class WorktreeSetupTest(unittest.TestCase):
             )
             wt = root / "9"
             self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertEqual((wt / ".env").read_text(encoding="utf-8"), "A=1\n")
-            self.assertEqual((wt / ".env.local").read_text(encoding="utf-8"), "B=2\n")
             self.assertEqual(
                 (wt / ".claude" / "settings.local.json").read_text(encoding="utf-8"), "{}\n"
             )
-            self.assertFalse((wt / ".env.example").exists())
+            for name in secret_shaped:
+                with self.subTest(file=name):
+                    self.assertFalse((wt / name).exists(), f"{name} was copied")
+                    self.assertNotIn(f"copied: {name}\n", proc.stdout)
 
-        self.assertIn("copied: .env\n", proc.stdout)
-        self.assertIn("copied: .env.local\n", proc.stdout)
         self.assertIn("copied: .claude/settings.local.json\n", proc.stdout)
-        self.assertNotIn("copied: .env.example\n", proc.stdout)
-        self.assertNotIn("copied: .envrc\n", proc.stdout)
+
+    def test_tracked_local_config_is_left_to_the_checkout(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            (repo / ".claude").mkdir()
+            (repo / ".claude" / "settings.local.json").write_text("{}\n", encoding="utf-8")
+            git(repo, "add", "-f", ".claude/settings.local.json")
+            git(repo, "commit", "-qm", "track settings")
+            root = td / "worktrees"
+
+            proc = run_script(
+                ["--issue", "9", "--branch", "feat/9", "--base", "main", "--root", str(root)],
+                repo,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("copied: none\n", proc.stdout)
 
     def test_reentry_against_existing_worktree_is_idempotent(self):
         with tempfile.TemporaryDirectory() as td:

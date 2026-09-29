@@ -72,7 +72,7 @@ already covered -- do not also file that.
 python3 .agents/skills/shipping-issues/scripts/file_followup.py \
     --title "<type(scope): summary>" --body-file <path> \
     --tier P2 --area <area> --touches <paths> --label <type label> \
-    --found-while <n> [--needs-design]
+    --found-while <n> [--blocked-by <n,n>] [--needs-design]
 ```
 
 The title follows this repository's Conventional Commits convention, and the
@@ -81,8 +81,14 @@ The title follows this repository's Conventional Commits convention, and the
 `--needs-design` -- the moment the design is decided the issue must already rank
 correctly. `--area` and `--touches` become the issue's
 ship contract (`ship-contract.md`). `--needs-design` is for an open design
-question, not a verified fix ([below](#design-not-settled)). Exit 2
-(`NO_WRITE_ACCESS`) -> report the finding at step 10 instead.
+question, not a verified fix ([below](#design-not-settled)). `--blocked-by`
+writes what `triaging-issues` asks of a waiting issue: a `## Dependencies`
+section with a `Depends on #N` line per blocker, and the `blocked: dependency`
+label. Exit 2 (`NO_WRITE_ACCESS`) -> report the finding at step 10 instead.
+Exit 4 -> a label it needs is not defined in the repository, so nothing was
+filed: fix a misspelled `--label`, otherwise report the finding at step 10 with
+`just labels` as the human's next step. The script never creates a label
+definition; that write is outside this skill's sign-off.
 
 File as you go, right after the PR that surfaced it lands; record
 `--event followup`, and pass `--refresh` on the next plan so the new issue is in

@@ -143,9 +143,10 @@ run that merged on a knowingly red baseline has to show its work.
 absent, and `worktree_setup.sh` handles the first two:
 
 - **Untracked local config** -- in this repository `.claude/settings.local.json`
-  (a developer's own permission overrides); generically also `.env`, `.env.local`,
-  `*.local`, `.envrc`. Copied from the main checkout. `.example` / `.sample` /
-  `.template` variants are skipped, and so is anything actually tracked.
+  (a developer's own permission overrides), copied from the main checkout unless
+  it is tracked. Nothing secret-shaped is copied (`.env`, `.env.*`, `.envrc`,
+  `*.local`): `AGENTS.md` › "Security and human approval" forbids reading one even
+  to check it, and this app's gates need none.
 - **Dependencies** -- `node_modules` is empty; the script clones the main
   checkout's with `cp -Rc` (APFS clonefile, cheap) and then runs
   `pnpm install --frozen-lockfile` from `pnpm-lock.yaml`. Crates need no install

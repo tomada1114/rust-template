@@ -12,14 +12,16 @@
 #   while a check was still unsettled -- never a green
 #
 # Two ways to read a PR's CI, because one of them needs a permission not every
-# token can hold. GitHub's fine-grained PATs have no Checks permission at all --
-# it is absent from the permission list and from the token-creation UI -- so for
-# such a token `gh pr checks` and `gh pr view --json statusCheckRollup` both
-# fail with "Resource not accessible by personal access token". This script
-# probes the check-runs API once and, when it is unreadable, falls back to what
-# a fine-grained PAT can read: the Actions runs for the PR's head commit
-# (Actions permission) plus that commit's statuses (Commit statuses
-# permission). `check_source` always says which one answered.
+# token can hold. GitHub's list of the permissions fine-grained PATs can hold
+# names no Checks permission and no check-runs endpoint, while it lists the
+# Actions runs and the commit statuses endpoints
+# (https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens,
+# checked 2026-09-29). So for such a token `gh pr view --json
+# statusCheckRollup` can fail while the PR itself reads fine. This script
+# probes that read once and, when it fails, falls back to what a fine-grained
+# PAT can read: the Actions runs for the PR's head commit (Actions permission)
+# plus that commit's statuses (Commit statuses permission). `check_source`
+# always says which one answered.
 #
 # Exit codes: 0 = PASS, 1 = FAIL, 2 = TIMEOUT, 3 = NO_CHECKS,
 #             4 = usage/lookup error or ERROR

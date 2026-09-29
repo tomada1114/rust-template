@@ -14,10 +14,14 @@ Two ways to write them, both cheap for the caller:
                     references/priority-rubric.md judged differently. Run by the
                     triage sub-agent that did the judging, not by the parent.
 
-Missing label definitions are created first (name, color, description from
-issue_digest.TIER_LABELS). Applying a tier removes any other tier label the
-issue carries, including legacy spellings like `critical` or `priority/high`,
-so an issue always ends with exactly one.
+Applying a tier removes any other tier label the issue carries, including
+legacy spellings like `critical` or `priority/high`, so an issue always ends
+with exactly one.
+
+This script applies labels and never creates a label definition: creating one
+is `just labels`' write, outside the remote writes invoking shipping-issues
+authorizes. Every label a call would apply is checked before the first write;
+a missing one stops the call with nothing written (exit 4).
 
 Usage:
     apply_priority_labels.py --backfill [--quiet] [--dry-run] [--json]
@@ -25,7 +29,7 @@ Usage:
     apply_priority_labels.py --set-design 12 [--set-design 9 ...] [--dry-run]
     apply_priority_labels.py --clear-design 12 [--dry-run]
     apply_priority_labels.py --clear-dependency 12 [--clear-dependency 9 ...] [--dry-run]
-    apply_priority_labels.py --ensure-labels [--dry-run]
+    apply_priority_labels.py --check-labels
 
 `--set-design`/`--clear-design` mark or clear the soft "design not settled"
 block (`blocked: design` or a recognized equivalent) that excludes an issue
@@ -38,7 +42,9 @@ issue records as closed -- see its `stale_dependency_labels` field and
 references/dependency-triage.md. Readiness never reads this label; clearing it
 only corrects what a human reading the backlog sees. It may be combined with
 --set-design/--clear-design in one call, but not with --backfill/--set/
---ensure-labels.
+--check-labels.
+
+`--check-labels` only reports whether the four tier labels exist.
 
 Exit codes:
     0 = labels applied (possibly zero changes)
@@ -46,6 +52,9 @@ Exit codes:
     2 = no write access to this repo -- labels cannot be used here; rank from the
         digest's suggested tiers instead and do not retry
     3 = invalid argument (unknown tier, unparsable --set)
+    4 = a label this call would apply is not defined in the repo -- nothing was
+        written; next: `just labels` (a remote write a human signs off), then
+        re-run
 """
 
 from __future__ import annotations
@@ -62,9 +71,8 @@ from typing import Any
 # there, which `just agents-check` reports as drift.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from issue_digest import (DEPENDENCY_BLOCK_LABELS, DESIGN_BLOCK_LABELS, DESIGN_LABEL,
-                          TIER_ALIASES, TIER_LABELS, TIER_ORDER, normalize_label,
-                          resolve_design_label)
+from issue_digest import (DEPENDENCY_BLOCK_LABELS, DESIGN_BLOCK_LABELS, TIER_ALIASES,
+                          TIER_LABELS, TIER_ORDER, normalize_label, resolve_design_label)
 
 DIGEST = Path(__file__).resolve().parent / "issue_digest.py"
 
@@ -106,20 +114,27 @@ def load_digest() -> dict[str, Any]:
     return json.loads(proc.stdout)
 
 
-def ensure_labels(dry_run: bool) -> list[str]:
-    """Create whichever of the four tier labels this repo is missing."""
-    existing = {lbl["name"].lower()
-                for lbl in json.loads(gh(["label", "list", "--limit", "500",
-                                          "--json", "name"]).stdout or "[]")}
-    created = []
-    for tier in TIER_ORDER:
-        name, color, desc = TIER_LABELS[tier]
-        if name.lower() in existing:
-            continue
-        created.append(name)
-        if not dry_run:
-            gh(["label", "create", name, "--color", color, "--description", desc])
-    return created
+MISSING_LABEL_EXIT = 4
+
+
+def missing_tier_labels(tiers: list[str]) -> list[str]:
+    """The canonical tier labels among `tiers` this repo does not define.
+    GitHub matches label names without regard to case, and so does this."""
+    existing = {name.lower() for name in repo_labels()}
+    return [TIER_LABELS[t][0] for t in dict.fromkeys(tiers)
+            if TIER_LABELS[t][0].lower() not in existing]
+
+
+def stop_on_missing(missing: list[str]) -> None:
+    """Exit 4, naming `just labels` as the next step, when `missing` is not empty."""
+    if not missing:
+        return
+    print(f"verdict: MISSING_LABELS\nerror: not defined in this repo: "
+          f"{', '.join(missing)} -- nothing was written\n"
+          "next: `just labels` creates the labels .github/labels.yml declares; it "
+          "is a remote write a human signs off (AGENTS.md > Security and human "
+          "approval). Report this and re-run once it has run.", file=sys.stderr)
+    raise SystemExit(MISSING_LABEL_EXIT)
 
 
 def parse_sets(pairs: list[str]) -> dict[int, str]:
@@ -144,16 +159,20 @@ def issue_labels(number: int) -> list[str]:
     return [lbl["name"] for lbl in json.loads(raw).get("labels", [])]
 
 
-def set_design(number: int, dry_run: bool) -> str:
-    """Add the design-not-settled label to an issue, creating the repo's
-    definition first if it has no equivalent yet. Returns the label name used.
-    Idempotent: re-applying to an issue that already carries it is a no-op add.
+def design_label() -> str:
+    """The design-not-settled label this repo defines (or an equivalent);
+    exits 4 when it has neither."""
+    name, absent = resolve_design_label(repo_labels())
+    stop_on_missing([name] if absent else [])
+    return name
+
+
+def set_design(number: int, name: str, dry_run: bool) -> str:
+    """Add the design-not-settled label `name` (from design_label()) to an
+    issue. Returns the label name used. Idempotent: re-applying to an issue that
+    already carries it is a no-op add.
     """
-    name, needs_create = resolve_design_label(repo_labels())
     if not dry_run:
-        if needs_create:
-            gh(["label", "create", name, "--color", DESIGN_LABEL[1],
-               "--description", DESIGN_LABEL[2]])
         gh(["issue", "edit", str(number), "--add-label", name])
     return name
 
@@ -228,8 +247,9 @@ def main() -> int:
                    help="remove the dependency-block label once every "
                         "dependency has closed (repeatable); a no-op if not "
                         "present")
-    p.add_argument("--ensure-labels", action="store_true",
-                   help="only create the four label definitions")
+    p.add_argument("--check-labels", action="store_true",
+                   help="only report whether the four tier labels exist "
+                        "(exit 4 when one is missing)")
     p.add_argument("--dry-run", action="store_true",
                    help="print the plan without touching GitHub")
     p.add_argument("--quiet", action="store_true",
@@ -238,13 +258,13 @@ def main() -> int:
     args = p.parse_args()
 
     if not (args.backfill or args.set or args.set_design or args.clear_design
-            or args.clear_dependency or args.ensure_labels):
+            or args.clear_dependency or args.check_labels):
         p.error("one of --backfill, --set, --set-design, --clear-design, "
-                "--clear-dependency, or --ensure-labels is required")
+                "--clear-dependency, or --check-labels is required")
     if (args.set_design or args.clear_design or args.clear_dependency) and \
-            (args.backfill or args.set or args.ensure_labels):
+            (args.backfill or args.set or args.check_labels):
         p.error("--set-design/--clear-design/--clear-dependency run standalone "
-                "-- combine with --backfill, --set, or --ensure-labels in "
+                "-- combine with --backfill, --set, or --check-labels in "
                 "separate calls")
     if not shutil.which("gh"):
         print("error: gh CLI not found", file=sys.stderr)
@@ -253,7 +273,9 @@ def main() -> int:
     # Design-block and dependency-block state are independent of the tier
     # machinery below -- no digest fetch needed.
     if args.set_design or args.clear_design or args.clear_dependency:
-        design_set = [(n, set_design(n, args.dry_run)) for n in dict.fromkeys(args.set_design)]
+        name = design_label() if args.set_design else ""
+        design_set = [(n, set_design(n, name, args.dry_run))
+                      for n in dict.fromkeys(args.set_design)]
         design_cleared = [(n, clear_design(n, args.dry_run))
                           for n in dict.fromkeys(args.clear_design)]
         dependency_cleared = [(n, clear_dependency(n, args.dry_run))
@@ -282,9 +304,9 @@ def main() -> int:
                   f"dependency-cleared: {len(dependency_cleared)}")
         return 0
 
-    created = ensure_labels(args.dry_run)
-    if args.ensure_labels and not (args.backfill or args.set):
-        print(f"verdict: OK\ncreated: {', '.join(created) or 'none (all four existed)'}")
+    if args.check_labels and not (args.backfill or args.set):
+        stop_on_missing(missing_tier_labels(TIER_ORDER))
+        print("verdict: OK\nmissing-labels: none (all four exist)")
         return 0
 
     payload = load_digest()
@@ -308,6 +330,11 @@ def main() -> int:
         plan = [row for row in plan if row[0] != number]
         plan.append((number, tier, "explicit"))
 
+    # Checked before the first write, so a missing label never leaves the
+    # backlog half-labeled.
+    if plan:
+        stop_on_missing(missing_tier_labels([tier for _, tier, _ in plan]))
+
     changed, unchanged, missing = [], [], []
     for number, tier, why in sorted(plan):
         rec = issues.get(number)
@@ -330,7 +357,6 @@ def main() -> int:
     )
     if args.as_json:
         json.dump({"verdict": "OK", "dry_run": args.dry_run,
-                   "created_labels": created,
                    "changed": [{"number": n, "tier": t, "why": w, "was": was}
                                for n, t, w, was in changed],
                    "unchanged": unchanged, "not_open": missing},
@@ -347,8 +373,6 @@ def main() -> int:
     # an already-labeled issue does not, and a closed one is not counted here.
     after = coverage["labeled"] + sum(1 for _, _, _, was in changed if was == "none")
     print(f"verdict: OK\n"
-          f"labels-{'to-create' if args.dry_run else 'created'}: "
-          f"{', '.join(created) or 'none'}\n"
           f"{verb}: {len(changed)}{f' ({breakdown})' if breakdown else ''} | "
           f"already-correct: {len(unchanged)} | "
           f"coverage: {min(after, coverage['total'])}/{coverage['total']} open issues labeled")

@@ -117,11 +117,11 @@ diagnosis, is a **failed outcome**, not a green one.
   still running; it proves nothing either way. Run the same watch again until
   3600 seconds of watching have passed in total, then treat it as `ERROR`
   (`pr-ci-merge.md`). A
-  foreground watch killed by the Bash tool's 600-second cap leaves no verdict at
-  all -- that is a watch run wrongly, not a CI result; re-run it the way that
-  section says.
-- `land_pr.sh` has six possible results and one of them must never read as
-  success: `landing-outcomes.md`.
+  foreground watch that outlives the Bash tool's timeout returns no verdict in
+  that call -- that is a watch run wrongly, not a CI result; re-run it the way
+  that section says.
+- `land_pr.sh` has twelve possible results, and only `MERGED` and
+  `ALREADY_MERGED` mean the PR merged: `landing-outcomes.md`.
 
 ## Bringing the rest of a parallel batch up to date
 
@@ -136,9 +136,10 @@ git -C <runstate>/worktrees/<m> push
 ```
 
 **Merge, not rebase** -- step 3 already pushed these branches, so a rebase would
-need a force-push, and this run does not force-push. A repo that requires linear
-history is the one exception: there, rebase and push with `--force-with-lease`,
-and only ever on a branch this run created that has no PR open on it yet.
+need a force push, which invoking this skill does not authorize (`AGENTS.md` ›
+"Security and human approval"). A repository whose rules require linear history
+and refuse the merge is no exception: record `--event blocked --field
+reason=linear-history` and ask the human.
 
 ## A merge conflict
 

@@ -18,7 +18,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _fakegh import FakeGh  # noqa: E402
+from _fakegh import FakeGh, label_writes  # noqa: E402
 import apply_priority_labels as apl  # noqa: E402
 
 
@@ -30,6 +30,13 @@ def issue(number, labels, updated="2026-01-01T00:00:00Z", title=None, body=""):
             "labels": [{"name": n} for n in labels],
             "assignees": [], "milestone": None, "body": body, "createdAt": updated,
             "updatedAt": updated, "url": f"https://x/{number}"}
+
+
+# The four tier labels and the blocked: labels, as a repo that ran `just labels`
+# defines them.
+ALL_LABELS = json.dumps([{"name": n} for n in (
+    "priority: P0", "priority: P1", "priority: P2", "priority: P3",
+    "blocked: design", "blocked: dependency")])
 
 
 class ParseSetsTest(unittest.TestCase):
@@ -92,60 +99,65 @@ class ApplyTest(unittest.TestCase):
         self.assertIn("critical", args)
 
 
-class EnsureLabelsTest(unittest.TestCase):
-    """ensure_labels() shells out to the real `gh` on PATH -- route PATH at a
-    fake one instead of mocking subprocess, so the real subprocess.run stays
-    untouched (mocking it here would recurse into gh()'s own call)."""
+class MissingTierLabelsTest(unittest.TestCase):
+    """missing_tier_labels() shells out to the real `gh` on PATH -- route PATH
+    at a fake one instead of mocking subprocess, so the real subprocess.run
+    stays untouched (mocking it here would recurse into gh()'s own call)."""
 
-    def test_creates_only_missing_labels(self):
-        existing = json.dumps([{"name": "priority: P0"}, {"name": "priority: P1"}])
+    def test_names_only_the_missing_labels_and_creates_none(self):
+        existing = json.dumps([{"name": "priority: P0"}, {"name": "Priority: p1"}])
         with FakeGh({("label", "list"): existing}) as fake:
             with patch.dict("os.environ", fake.env, clear=False):
-                created = apl.ensure_labels(dry_run=False)
-        self.assertEqual(sorted(created), ["priority: P2", "priority: P3"])
+                missing = apl.missing_tier_labels(apl.TIER_ORDER)
+            writes = label_writes(fake.calls)
+        self.assertEqual(missing, ["priority: P2", "priority: P3"])
+        self.assertEqual(writes, [])
 
-    def test_dry_run_creates_nothing_but_reports_plan(self):
-        with FakeGh({("label", "list"): "[]"}) as fake:
+    def test_only_the_tiers_asked_about_are_checked(self):
+        with FakeGh({("label", "list"): json.dumps([{"name": "priority: P2"}])}) as fake:
             with patch.dict("os.environ", fake.env, clear=False):
-                created = apl.ensure_labels(dry_run=True)
-            calls = [c for c in fake.calls if c[:2] == ["label", "create"]]
-        self.assertEqual(sorted(created), ["priority: P0", "priority: P1",
-                                            "priority: P2", "priority: P3"])
-        self.assertEqual(calls, [])
+                missing = apl.missing_tier_labels(["P2", "P2"])
+        self.assertEqual(missing, [])
 
 
 class SetClearDesignTest(unittest.TestCase):
     """set_design()/clear_design() shell out to the real `gh` on PATH -- route
-    PATH at a fake one instead of mocking subprocess, same as EnsureLabelsTest."""
+    PATH at a fake one instead of mocking subprocess, same as MissingTierLabelsTest."""
 
-    def test_set_design_creates_label_when_repo_has_none(self):
-        with FakeGh({("label", "list"): "[]",
-                    ("label", "create"): "", ("issue", "edit"): ""}) as fake:
+    def test_design_label_missing_exits_4_and_creates_nothing(self):
+        with FakeGh({("label", "list"): "[]"}) as fake:
+            err = io.StringIO()
+            with patch.dict("os.environ", fake.env, clear=False), redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    apl.design_label()
+            writes = label_writes(fake.calls)
+        self.assertEqual(cm.exception.code, apl.MISSING_LABEL_EXIT)
+        self.assertIn("blocked: design", err.getvalue())
+        self.assertIn("just labels", err.getvalue())
+        self.assertEqual(writes, [])
+
+    def test_design_label_reuses_existing_alias(self):
+        existing = json.dumps([{"name": "needs-design"}])
+        with FakeGh({("label", "list"): existing}) as fake:
             with patch.dict("os.environ", fake.env, clear=False):
-                name = apl.set_design(12, dry_run=False)
-            creates = [c for c in fake.calls if c[:2] == ["label", "create"]]
+                name = apl.design_label()
+        self.assertEqual(name, "needs-design")
+
+    def test_set_design_adds_the_label(self):
+        with FakeGh({("issue", "edit"): ""}) as fake:
+            with patch.dict("os.environ", fake.env, clear=False):
+                name = apl.set_design(12, "blocked: design", dry_run=False)
             edits = [c for c in fake.calls if c[:2] == ["issue", "edit"]]
         self.assertEqual(name, "blocked: design")
-        self.assertEqual(len(creates), 1)
         self.assertEqual(edits, [["issue", "edit", "12", "--add-label", "blocked: design"]])
 
-    def test_set_design_reuses_existing_alias_without_creating(self):
-        existing = json.dumps([{"name": "needs-design"}])
-        with FakeGh({("label", "list"): existing, ("issue", "edit"): ""}) as fake:
-            with patch.dict("os.environ", fake.env, clear=False):
-                name = apl.set_design(12, dry_run=False)
-            created = any(c[:2] == ["label", "create"] for c in fake.calls)
-        self.assertEqual(name, "needs-design")
-        self.assertFalse(created)
-
     def test_set_design_dry_run_makes_no_gh_mutations(self):
-        with FakeGh({("label", "list"): "[]"}) as fake:
+        with FakeGh({}) as fake:
             with patch.dict("os.environ", fake.env, clear=False):
-                name = apl.set_design(12, dry_run=True)
-            mutating = [c for c in fake.calls if c[:2] in
-                       (["issue", "edit"], ["label", "create"])]
+                name = apl.set_design(12, "blocked: design", dry_run=True)
+            calls = list(fake.calls)
         self.assertEqual(name, "blocked: design")
-        self.assertEqual(mutating, [])
+        self.assertEqual(calls, [])
 
     def test_clear_design_removes_carried_alias(self):
         view = json.dumps({"labels": [{"name": "needs-design"}, {"name": "priority: P1"}]})
@@ -236,11 +248,10 @@ class MainEndToEndTest(unittest.TestCase):
         rc, out, err, fake = self._run(
             ["--backfill", "--json"],
             {
-                ("label", "list"): "[]",
+                ("label", "list"): ALL_LABELS,
                 ("issue", "list"): issues,
                 ("pr", "list"): "[]",
                 ("issue", "edit"): "",
-                ("label", "create"): "",
             },
         )
         self.assertEqual(rc, 0, err)
@@ -257,11 +268,10 @@ class MainEndToEndTest(unittest.TestCase):
         rc, out, err, fake = self._run(
             ["--set", "9=P0", "--json"],
             {
-                ("label", "list"): "[]",
+                ("label", "list"): ALL_LABELS,
                 ("issue", "list"): issues,
                 ("pr", "list"): "[]",
                 ("issue", "edit"): "",
-                ("label", "create"): "",
             },
         )
         self.assertEqual(rc, 0, err)
@@ -274,11 +284,10 @@ class MainEndToEndTest(unittest.TestCase):
         rc, out, err, fake = self._run(
             ["--backfill", "--quiet"],
             {
-                ("label", "list"): "[]",
+                ("label", "list"): ALL_LABELS,
                 ("issue", "list"): issues,
                 ("pr", "list"): "[]",
                 ("issue", "edit"): "",
-                ("label", "create"): "",
             },
         )
         self.assertEqual(rc, 0, err)
@@ -290,15 +299,14 @@ class MainEndToEndTest(unittest.TestCase):
         rc, out, err, fake = self._run(
             ["--backfill", "--dry-run"],
             {
-                ("label", "list"): "[]",
+                ("label", "list"): ALL_LABELS,
                 ("issue", "list"): issues,
                 ("pr", "list"): "[]",
             },
         )
         self.assertEqual(rc, 0, err)
-        mutating = [c for c in fake.calls if c[:2] in
-                    (["issue", "edit"], ["label", "create"])]
-        self.assertEqual(mutating, [])
+        mutating = [c for c in fake.calls if c[:2] == ["issue", "edit"]]
+        self.assertEqual(mutating + label_writes(fake.calls), [])
 
     def test_no_arguments_is_a_usage_error(self):
         rc, out, err, fake = self._run([], {})
@@ -314,16 +322,56 @@ class MainEndToEndTest(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("gh CLI not found", err)
 
-    def test_ensure_labels_only_skips_the_digest(self):
-        rc, out, err, fake = self._run(
-            ["--ensure-labels"],
-            {("label", "list"): "[]", ("label", "create"): ""},
-        )
+    def _run_with_calls(self, args, responses):
+        """Like _run, but reads fake.calls while the FakeGh block is open (see
+        test_set_design_via_main_never_calls_the_digest)."""
+        with FakeGh(responses) as fake:
+            out, err = io.StringIO(), io.StringIO()
+            with patch.dict("os.environ", fake.env, clear=False), \
+                    patch.object(sys, "argv", ["apply_priority_labels.py", *args]), \
+                    redirect_stdout(out), redirect_stderr(err):
+                try:
+                    rc = apl.main()
+                except SystemExit as exc:
+                    rc = exc.code
+            calls = list(fake.calls)
+        return rc, out.getvalue(), err.getvalue(), calls
+
+    def test_check_labels_only_skips_the_digest(self):
+        rc, out, err, calls = self._run_with_calls(
+            ["--check-labels"], {("label", "list"): ALL_LABELS})
         self.assertEqual(rc, 0, err)
         self.assertIn("verdict: OK", out)
         # No issue/pr calls means load_digest() (and thus issue_digest.py)
-        # never ran -- --ensure-labels alone must not touch the backlog.
-        self.assertFalse(any(c[:2] == ["issue", "list"] for c in fake.calls))
+        # never ran -- --check-labels alone must not touch the backlog.
+        self.assertFalse(any(c[:2] == ["issue", "list"] for c in calls))
+
+    def test_check_labels_reports_missing_with_just_labels_as_next_step(self):
+        rc, out, err, calls = self._run_with_calls(
+            ["--check-labels"], {("label", "list"): json.dumps([{"name": "priority: P0"}])})
+        self.assertEqual(rc, apl.MISSING_LABEL_EXIT)
+        self.assertIn("priority: P1", err)
+        self.assertIn("just labels", err)
+        self.assertEqual(label_writes(calls), [])
+
+    def test_backfill_with_a_missing_tier_label_writes_nothing(self):
+        issues = json.dumps([issue(12, [])])
+        rc, out, err, calls = self._run_with_calls(
+            ["--backfill"],
+            {("label", "list"): "[]", ("issue", "list"): issues, ("pr", "list"): "[]",
+             ("issue", "edit"): ""},
+        )
+        self.assertEqual(rc, apl.MISSING_LABEL_EXIT, err)
+        self.assertIn("just labels", err)
+        self.assertFalse(any(c[:2] == ["issue", "edit"] for c in calls))
+        self.assertEqual(label_writes(calls), [])
+
+    def test_set_design_with_no_design_label_writes_nothing(self):
+        rc, out, err, calls = self._run_with_calls(
+            ["--set-design", "12"], {("label", "list"): "[]", ("issue", "edit"): ""})
+        self.assertEqual(rc, apl.MISSING_LABEL_EXIT, err)
+        self.assertFalse(any(c[:2] == ["issue", "edit"] for c in calls))
+        self.assertEqual(label_writes(calls), [])
 
     def test_set_on_issue_not_in_open_digest_still_labels_it(self):
         # #99 is a valid --set target that the digest does not return (closed,
@@ -332,11 +380,10 @@ class MainEndToEndTest(unittest.TestCase):
         rc, out, err, fake = self._run(
             ["--set", "99=P1", "--json"],
             {
-                ("label", "list"): "[]",
+                ("label", "list"): ALL_LABELS,
                 ("issue", "list"): issues,
                 ("pr", "list"): "[]",
                 ("issue", "edit"): "",
-                ("label", "create"): "",
             },
         )
         self.assertEqual(rc, 0, err)
@@ -353,8 +400,7 @@ class MainEndToEndTest(unittest.TestCase):
         # vacuously true/false regardless of what actually ran. Read calls
         # here, inside the block, while the log file still exists.
         responses = {
-            ("label", "list"): "[]",
-            ("label", "create"): "",
+            ("label", "list"): ALL_LABELS,
             ("issue", "edit"): "",
         }
         with FakeGh(responses) as fake:
@@ -453,7 +499,7 @@ class MainEndToEndTest(unittest.TestCase):
         rc, out, err, fake = self._run(
             ["--set", "12=P0", "--json"],
             {
-                ("label", "list"): "[]",
+                ("label", "list"): ALL_LABELS,
                 ("issue", "list"): issues,
                 ("pr", "list"): "[]",
             },
@@ -507,7 +553,7 @@ class GhErrorBranchesTest(unittest.TestCase):
             mock_run.side_effect = subprocess.CalledProcessError(
                 1, ["gh"], output="", stderr="HTTP 403: Resource not accessible")
             with self.assertRaises(SystemExit) as cm:
-                apl.gh(["label", "create", "x"])
+                apl.gh(["issue", "edit", "12", "--add-label", "x"])
             self.assertEqual(cm.exception.code, 2)
 
 

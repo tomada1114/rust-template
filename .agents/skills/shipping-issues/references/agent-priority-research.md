@@ -42,7 +42,9 @@ Then write the tiers -- one call, both halves:
 each `--set` overrides one you did, including any `P2(~P0)` you confirmed. Do not
 re-tier an issue you have no evidence about -- the suggestion is better than a
 guess. Exit code 2 means the token cannot write labels here: report that instead,
-and rank from the suggestions.
+and rank from the suggestions. Exit code 4 means a `priority:` label is not
+defined in the repository and nothing was written: do not create it -- report it,
+with `just labels` as the human's next step, and rank from the suggestions.
 
 Do not write `blocked: design` (or `--set-design`) on anything -- that decision
 belongs to the run that takes the issue on deliberately, not to this pass.

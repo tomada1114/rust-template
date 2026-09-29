@@ -9,8 +9,16 @@ finding survives the run as a ranked backlog entry.
 
 The tier label is resolved against what the repo *already uses*. A repo whose
 convention is `p2` gets `p2`, not a second parallel `priority: P2` vocabulary
-that would split its own backlog in two. Only a repo with no tier label at all
-gets the canonical name created.
+that would split its own backlog in two. This script never creates a label
+definition: that is `just labels`' write, outside the remote writes invoking
+shipping-issues authorizes. Every label the issue needs -- the tier, each
+`--label`, `blocked: design`, `blocked: dependency` -- must already exist, or
+nothing is filed and the missing names are reported (exit 4).
+
+`--blocked-by` writes the edge where `triaging-issues` asks for it: a
+`## Dependencies` section with one `Depends on #N` line per blocker (and a
+`Blocks #N` line per `--blocks` number), plus the `blocked: dependency` label.
+The ship contract repeats it for the next run's planner.
 
 The target repo is resolved once and echoed on every line of output. This
 script writes to GitHub from whatever directory it is invoked in, and a
@@ -22,7 +30,7 @@ Usage:
     file_followup.py --title T --body-file F --tier P2 [--label L ...]
                      [--area SLUG] [--touches PATHS] [--blocked-by N,N]
                      [--blocks N,N] [--needs-design] [--found-while N]
-                     [--needs-design] [--found-while N] [--repo OWNER/NAME]
+                     [--repo OWNER/NAME]
                      [--dry-run] [--json]
 
 `--needs-design` marks the new issue design-not-settled (`blocked: design` or
@@ -37,6 +45,9 @@ Exit codes:
     2 = no write access to this repo -- report the finding in the run summary
         instead, and do not retry
     3 = invalid argument (unknown tier, missing body file)
+    4 = a label the issue needs is not defined in this repo -- nothing was
+        filed; next: check the spelling, then `just labels` (a remote write a
+        human signs off), then re-run
 """
 
 from __future__ import annotations
@@ -53,8 +64,11 @@ from typing import Any
 # there, which `just agents-check` reports as drift.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from issue_digest import (DESIGN_LABEL, TIER_ALIASES, TIER_LABELS, TIER_ORDER,
-                          normalize_label, resolve_design_label)
+from issue_digest import (DEPENDENCY_BLOCK_LABELS, TIER_ALIASES, TIER_LABELS,
+                          TIER_ORDER, normalize_label, resolve_design_label)
+
+DEPENDENCY_LABEL = "blocked: dependency"
+MISSING_LABEL_EXIT = 4
 
 PERMISSION_MARKERS = ("HTTP 403", "Resource not accessible", "must have admin",
                       "does not have permission", "HTTP 404: Not Found")
@@ -91,33 +105,37 @@ def repo_labels() -> list[str]:
     return [lbl["name"] for lbl in json.loads(raw)]
 
 
-def resolve_tier_label(tier: str, existing: list[str], dry_run: bool) -> str:
-    """Return the label name this repo uses for `tier`, creating it if absent.
+def resolve_existing(canonical: str, alias_keys: set[str],
+                     existing: list[str]) -> str | None:
+    """The name this repo uses for `canonical`, or None when it has neither
+    the canonical name nor an alias (`alias_keys` are normalize_label() keys).
 
-    Preference order: the canonical `priority: P<n>` if the repo already has it,
-    then any existing alias that means the same tier (`p2`, `high priority`,
-    ...), then create the canonical one. Picking an alias the repo already
-    carries is the whole point -- `issue_digest.py` ranks by whatever spelling
-    is present, so introducing a second one would leave half the backlog
-    ranked by a label nobody else writes.
+    Picking an alias the repo already carries is the whole point --
+    `issue_digest.py` ranks by whatever spelling is present, so introducing a
+    second one would leave half the backlog ranked by a label nobody else
+    writes. Shortest alias wins: `p2` over `priority: medium` when a repo has
+    drifted into carrying both, since the shorter form is the one being typed.
     """
-    canonical = TIER_LABELS[tier][0]
     by_norm = {normalize_label(name): name for name in existing}
-
     if normalize_label(canonical) in by_norm:
         return by_norm[normalize_label(canonical)]
+    aliases = [name for norm, name in by_norm.items() if norm in alias_keys]
+    return min(aliases, key=lambda n: (len(n), n)) if aliases else None
 
-    aliases = [name for norm, name in by_norm.items()
-               if TIER_ALIASES.get(norm) == tier]
-    if aliases:
-        # Shortest wins: `p2` over `priority: medium` when a repo has drifted
-        # into carrying both, since the shorter form is the one being typed.
-        return min(aliases, key=lambda n: (len(n), n))
 
-    name, color, desc = TIER_LABELS[tier]
-    if not dry_run:
-        gh(["label", "create", name, "--color", color, "--description", desc])
-    return name
+def resolve_tier_label(tier: str, existing: list[str]) -> str | None:
+    """The label name this repo uses for `tier`, or None when it has none."""
+    keys = {norm for norm, t in TIER_ALIASES.items() if t == tier}
+    return resolve_existing(TIER_LABELS[tier][0], keys, existing)
+
+
+def dependency_section(args: Any) -> str:
+    """The `## Dependencies` section `triaging-issues` defines, or "" when the
+    finding has no edge. One `Depends on #N` / `Blocks #N` per line: that is
+    the spelling issue_digest.py and the issue forms parse."""
+    lines = [f"Depends on #{n}" for n in re.findall(r"\d+", args.blocked_by or "")]
+    lines += [f"Blocks #{n}" for n in re.findall(r"\d+", args.blocks or "")]
+    return "## Dependencies\n\n" + "\n".join(lines) if lines else ""
 
 
 def ship_contract(args: Any) -> str:
@@ -158,7 +176,8 @@ def main() -> int:
     p.add_argument("--tier", required=True, choices=TIER_ORDER,
                    help="priority tier for the finding, per references/priority-rubric.md")
     p.add_argument("--label", action="append", default=[], metavar="NAME",
-                   help="extra label (repeatable); silently skipped if the repo lacks it")
+                   help="extra label, such as the type label (repeatable); it must "
+                        "exist in the repo, or nothing is filed (exit 4)")
     p.add_argument("--needs-design", action="store_true",
                    help="mark the new issue design-not-settled (blocked: "
                         "design or this repo's equivalent) -- excludes it "
@@ -173,7 +192,8 @@ def main() -> int:
                         "omitted value reads as 'touches nothing', which is why "
                         "'*' exists to say the honest thing instead")
     p.add_argument("--blocked-by", metavar="NUMBERS",
-                   help="comma-separated issue numbers this waits on")
+                   help="comma-separated issue numbers this waits on; writes a "
+                        "Depends on #N line each and the blocked: dependency label")
     p.add_argument("--blocks", metavar="NUMBERS",
                    help="comma-separated issue numbers waiting on this")
     p.add_argument("--found-while", type=int, metavar="N",
@@ -208,40 +228,59 @@ def main() -> int:
     if not body:
         print(f"error: --body-file is empty: {args.body_file}", file=sys.stderr)
         return 3
+    dependencies = dependency_section(args)
+    if dependencies:
+        body += "\n\n" + dependencies
     if args.found_while:
         body += f"\n\n---\n\n*Found while shipping #{args.found_while}.*\n"
     contract = ship_contract(args)
     body += "\n" + contract + "\n"
 
+    # Every label is resolved before anything is written, and a missing one
+    # stops the filing: an issue filed without its type or blocked: label reads
+    # as triaged when it is not, and creating the definition is not ours to do.
     existing = repo_labels()
-    tier_label = resolve_tier_label(args.tier, existing, args.dry_run)
+    labels, missing = [], []
 
-    design_label = None
+    def need(name: str | None, wanted: str) -> None:
+        if name:
+            labels.append(name)
+        else:
+            missing.append(wanted)
+
+    need(resolve_tier_label(args.tier, existing), TIER_LABELS[args.tier][0])
     if args.needs_design:
-        design_label, needs_create = resolve_design_label(existing)
-        if needs_create and not args.dry_run:
-            name, color, desc = DESIGN_LABEL
-            gh(["label", "create", name, "--color", color, "--description", desc])
-
+        design_label, absent = resolve_design_label(existing)
+        need(None if absent else design_label, design_label)
+    if re.search(r"\d", args.blocked_by or ""):
+        need(resolve_existing(DEPENDENCY_LABEL, DEPENDENCY_BLOCK_LABELS, existing),
+             DEPENDENCY_LABEL)
     by_norm = {normalize_label(n): n for n in existing}
-    extra, missing = [], []
     for name in args.label:
-        match = by_norm.get(normalize_label(name))
-        (extra.append(match) if match else missing.append(name))
+        need(by_norm.get(normalize_label(name)), name)
+    labels = list(dict.fromkeys(labels))
 
-    labels = [tier_label, *([design_label] if design_label else []), *dict.fromkeys(extra)]
+    if missing:
+        print(f"error: label(s) not defined in {REPO}: {', '.join(missing)} -- "
+              "nothing was filed\n"
+              "next: check the spelling against .github/labels.yml; a declared "
+              "label missing here needs `just labels`, a remote write a human "
+              "signs off (AGENTS.md > Security and human approval). Until then, "
+              "report the finding instead of filing it.", file=sys.stderr)
+        return MISSING_LABEL_EXIT
 
     if args.dry_run:
         out = {"dry_run": True, "repo": REPO, "title": args.title,
-               "labels": labels, "skipped_labels": missing,
-               "contract": contract, "body_chars": len(body)}
+               "labels": labels, "contract": contract,
+               "dependencies": dependencies, "body_chars": len(body)}
         # The contract is shown, not just counted: a dry run exists to be read
         # before the write, and the contract is the half of the body a caller is
         # most likely to have got wrong.
         print(json.dumps(out, ensure_ascii=False) if args.json
               else f"would file in {REPO}: {args.title}\n  labels: {', '.join(labels)}"
                    + f"\n  contract: {contract}"
-                   + (f"\n  skipped (not in repo): {', '.join(missing)}" if missing else ""))
+                   + (f"\n  dependencies: {'; '.join(dependencies.splitlines()[2:])}"
+                      if dependencies else ""))
         return 0
 
     # gh reads the body from a file so no shell quoting can mangle it.
@@ -264,11 +303,10 @@ def main() -> int:
         tmp.unlink(missing_ok=True)
 
     if args.json:
-        print(json.dumps({"url": url, "repo": REPO, "labels": labels,
-                          "skipped_labels": missing}, ensure_ascii=False))
+        print(json.dumps({"url": url, "repo": REPO, "labels": labels},
+                         ensure_ascii=False))
     else:
-        print(f"filed: {url}  [{', '.join(labels)}]"
-              + (f"  skipped: {', '.join(missing)}" if missing else ""))
+        print(f"filed: {url}  [{', '.join(labels)}]")
     return 0
 
 

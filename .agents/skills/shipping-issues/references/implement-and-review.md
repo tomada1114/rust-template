@@ -40,8 +40,8 @@ over the developer's Mac").
 
 ### Parallel
 
-The script creates each branch, copies untracked local config
-(`.claude/settings.local.json`, and the other patterns in
+The script creates each branch, copies the untracked
+`.claude/settings.local.json` (never a secret-shaped file such as `.env`;
 `worktree-parallelism.md`),
 installs dependencies when a lockfile asks for them, and runs the baseline, bounded. It
 **reports and does not decide**:

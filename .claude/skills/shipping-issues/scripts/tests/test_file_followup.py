@@ -18,38 +18,30 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _fakegh import FakeGh  # noqa: E402
+from _fakegh import FakeGh, label_writes  # noqa: E402
 import file_followup as ff  # noqa: E402
 import issue_digest as idg  # noqa: E402
 
 
 class ResolveTierLabelTest(unittest.TestCase):
     def test_prefers_canonical_when_present(self):
-        label = ff.resolve_tier_label("P2", ["priority: P2", "bug"], dry_run=True)
+        label = ff.resolve_tier_label("P2", ["priority: P2", "bug"])
         self.assertEqual(label, "priority: P2")
 
-    def test_reuses_repo_alias_instead_of_creating_canonical(self):
+    def test_reuses_repo_alias_instead_of_the_canonical_name(self):
         # A repo that already spells the tier as "p2" must not also gain a
         # parallel "priority: P2" -- that would split its own backlog in two.
-        label = ff.resolve_tier_label("P2", ["p2", "bug"], dry_run=True)
+        label = ff.resolve_tier_label("P2", ["p2", "bug"])
         self.assertEqual(label, "p2")
 
     def test_shortest_alias_wins_when_repo_carries_several(self):
-        label = ff.resolve_tier_label(
-            "P2", ["p2", "priority: medium"], dry_run=True)
+        label = ff.resolve_tier_label("P2", ["p2", "priority: medium"])
         self.assertEqual(label, "p2")
 
-    def test_creates_canonical_when_repo_has_no_alias(self):
+    def test_missing_tier_label_resolves_to_none_and_creates_nothing(self):
         with patch("file_followup.gh") as mock_gh:
-            label = ff.resolve_tier_label("P1", ["bug"], dry_run=False)
-        self.assertEqual(label, "priority: P1")
-        mock_gh.assert_called_once()
-        self.assertEqual(mock_gh.call_args[0][0][:2], ["label", "create"])
-
-    def test_dry_run_never_creates(self):
-        with patch("file_followup.gh") as mock_gh:
-            label = ff.resolve_tier_label("P1", ["bug"], dry_run=True)
-        self.assertEqual(label, "priority: P1")
+            label = ff.resolve_tier_label("P1", ["bug"])
+        self.assertIsNone(label)
         mock_gh.assert_not_called()
 
 
@@ -70,24 +62,149 @@ class MainEndToEndTest(unittest.TestCase):
                     rc = exc.code
             return rc, out.getvalue(), err.getvalue(), fake
 
-    def test_files_issue_with_resolved_tier_and_dropped_missing_label(self):
+    def _run_capturing_calls(self, args, responses):
+        """Like _run, but reads fake.calls (and the filed body) while the
+        FakeGh block is still open -- see the analogous note in
+        test_apply_priority_labels.py's test_set_design_via_main_never_calls_the_digest."""
+        filed = {}
+        real_gh = ff.gh
+
+        def capture(gh_args, check=True):
+            if gh_args[:2] == ["issue", "create"]:
+                path = gh_args[gh_args.index("--body-file") + 1]
+                filed["body"] = Path(path).read_text(encoding="utf-8")
+            return real_gh(gh_args, check=check)
+
+        with FakeGh(responses) as fake, patch("file_followup.gh", side_effect=capture):
+            out, err = io.StringIO(), io.StringIO()
+            with patch.dict("os.environ", fake.env, clear=False), \
+                    patch.object(sys, "argv", ["file_followup.py", *args]), \
+                    redirect_stdout(out), redirect_stderr(err):
+                try:
+                    rc = ff.main()
+                except SystemExit as exc:
+                    rc = exc.code
+            calls = fake.calls
+        return rc, out.getvalue(), err.getvalue(), calls, filed.get("body")
+
+    def test_files_issue_with_resolved_tier_and_type_label(self):
         with tempfile.TemporaryDirectory() as td:
             body = Path(td) / "body.txt"
             body.write_text("Observed defect at foo.py:12.")
             rc, out, err, fake = self._run(
                 ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--label", "area:db", "--repo", "acme/widgets", "--json"],
+                 "--label", "Bug", "--repo", "acme/widgets", "--json"],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): json.dumps([{"name": "priority: P2"}]),
+                    ("label", "list"): json.dumps([{"name": "priority: P2"},
+                                                    {"name": "bug"}]),
                     ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
                 },
             )
         self.assertEqual(rc, 0, err)
         payload = json.loads(out)
         self.assertEqual(payload["url"], "https://github.com/acme/widgets/issues/99")
+        self.assertEqual(payload["labels"], ["priority: P2", "bug"])
+
+    def test_unknown_type_label_fails_and_files_nothing(self):
+        # A typo'd type label used to be skipped silently, filing an issue with
+        # no type at all.
+        with tempfile.TemporaryDirectory() as td:
+            body = Path(td) / "body.txt"
+            body.write_text("Observed defect at foo.py:12.")
+            rc, out, err, calls, filed = self._run_capturing_calls(
+                ["--title", "t", "--body-file", str(body), "--tier", "P2",
+                 "--label", "bgu", "--repo", "acme/widgets"],
+                {
+                    ("repo", "view"): "acme/widgets\n",
+                    ("label", "list"): json.dumps([{"name": "priority: P2"},
+                                                    {"name": "bug"}]),
+                    ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
+                },
+            )
+        self.assertEqual(rc, ff.MISSING_LABEL_EXIT, err)
+        self.assertIn("bgu", err)
+        self.assertIn("just labels", err)
+        self.assertIsNone(filed)
+        self.assertFalse(any(c[:2] == ["issue", "create"] for c in calls))
+        self.assertEqual(label_writes(calls), [])
+
+    def test_missing_tier_label_is_reported_never_created(self):
+        with tempfile.TemporaryDirectory() as td:
+            body = Path(td) / "body.txt"
+            body.write_text("x")
+            rc, out, err, calls, filed = self._run_capturing_calls(
+                ["--title", "t", "--body-file", str(body), "--tier", "P2",
+                 "--repo", "acme/widgets"],
+                {
+                    ("repo", "view"): "acme/widgets\n",
+                    ("label", "list"): json.dumps([{"name": "bug"}]),
+                },
+            )
+        self.assertEqual(rc, ff.MISSING_LABEL_EXIT, err)
+        self.assertIn("priority: P2", err)
+        self.assertIn("just labels", err)
+        self.assertFalse(any(c[:2] == ["issue", "create"] for c in calls))
+        self.assertEqual(label_writes(calls), [])
+
+    def test_blocked_by_writes_depends_on_lines_and_the_dependency_label(self):
+        with tempfile.TemporaryDirectory() as td:
+            body = Path(td) / "body.txt"
+            body.write_text("Observed defect at foo.py:12.")
+            rc, out, err, calls, filed = self._run_capturing_calls(
+                ["--title", "t", "--body-file", str(body), "--tier", "P2",
+                 "--label", "bug", "--blocked-by", "12,#13", "--blocks", "98",
+                 "--repo", "acme/widgets"],
+                {
+                    ("repo", "view"): "acme/widgets\n",
+                    ("label", "list"): json.dumps(
+                        [{"name": n} for n in ("priority: P2", "bug",
+                                               "blocked: dependency")]),
+                    ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
+                },
+            )
+        self.assertEqual(rc, 0, err)
+        self.assertIn("## Dependencies\n\nDepends on #12\nDepends on #13\nBlocks #98",
+                      filed)
+        creates = [c for c in calls if c[:2] == ["issue", "create"]]
+        self.assertEqual(len(creates), 1)
+        applied = [creates[0][i + 1] for i, a in enumerate(creates[0]) if a == "--label"]
+        self.assertEqual(applied, ["priority: P2", "blocked: dependency", "bug"])
+        # The ship contract carries the same edges for the next run's planner.
+        self.assertEqual(idg.parse_ship_contract(filed)["depends_on"], [12, 13])
+
+    def test_blocked_by_without_a_dependency_label_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            body = Path(td) / "body.txt"
+            body.write_text("x")
+            rc, out, err, calls, filed = self._run_capturing_calls(
+                ["--title", "t", "--body-file", str(body), "--tier", "P2",
+                 "--blocked-by", "12", "--repo", "acme/widgets"],
+                {
+                    ("repo", "view"): "acme/widgets\n",
+                    ("label", "list"): json.dumps([{"name": "priority: P2"}]),
+                },
+            )
+        self.assertEqual(rc, ff.MISSING_LABEL_EXIT, err)
+        self.assertIn("blocked: dependency", err)
+        self.assertIsNone(filed)
+
+    def test_no_blocked_by_writes_no_dependencies_section(self):
+        with tempfile.TemporaryDirectory() as td:
+            body = Path(td) / "body.txt"
+            body.write_text("x")
+            rc, out, err, fake = self._run(
+                ["--title", "t", "--body-file", str(body), "--tier", "P2",
+                 "--repo", "acme/widgets", "--dry-run", "--json"],
+                {
+                    ("repo", "view"): "acme/widgets\n",
+                    ("label", "list"): json.dumps([{"name": "priority: P2"}]),
+                },
+            )
+        self.assertEqual(rc, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["dependencies"], "")
         self.assertEqual(payload["labels"], ["priority: P2"])
-        self.assertEqual(payload["skipped_labels"], ["area:db"])
 
     def test_missing_tier_is_a_usage_error(self):
         with tempfile.TemporaryDirectory() as td:
@@ -101,8 +218,6 @@ class MainEndToEndTest(unittest.TestCase):
         self.assertIn("--tier", err)
 
     def test_no_write_access_exits_2(self):
-        # label list is empty, so resolve_tier_label must create the
-        # canonical label -- simulate the write-access failure right there.
         with tempfile.TemporaryDirectory() as td:
             body = Path(td) / "body.txt"
             body.write_text("x")
@@ -111,11 +226,11 @@ class MainEndToEndTest(unittest.TestCase):
                  "--repo", "acme/widgets"],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): "[]",
-                    ("label", "create"): "",
+                    ("label", "list"): json.dumps([{"name": "priority: P2"}]),
+                    ("issue", "create"): "",
                 },
-                exits={("label", "create"): 1},
-                stderrs={("label", "create"): "HTTP 403: Resource not accessible"},
+                exits={("issue", "create"): 1},
+                stderrs={("issue", "create"): "HTTP 403: Resource not accessible"},
             )
         self.assertEqual(rc, 2, err)
 
@@ -149,7 +264,7 @@ class MainEndToEndTest(unittest.TestCase):
                  "--json"],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): "[]",
+                    ("label", "list"): json.dumps([{"name": "priority: P3"}]),
                 },
             )
         self.assertEqual(rc, 0, err)
@@ -195,7 +310,8 @@ class MainEndToEndTest(unittest.TestCase):
                  "--needs-design", "--repo", "acme/widgets", "--dry-run", "--json"],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): "[]",
+                    ("label", "list"): json.dumps([{"name": "priority: P2"},
+                                                    {"name": "blocked: design"}]),
                 },
             )
         self.assertEqual(rc, 0, err)
@@ -228,46 +344,29 @@ class MainEndToEndTest(unittest.TestCase):
                  "--repo", "acme/widgets", "--dry-run", "--json"],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): "[]",
+                    ("label", "list"): json.dumps([{"name": "priority: P2"}]),
                 },
             )
         self.assertEqual(rc, 0, err)
         payload = json.loads(out)
         self.assertEqual(payload["labels"], ["priority: P2"])
 
-    def test_needs_design_files_with_label_and_creates_it_when_absent(self):
-        # Written without self._run(): fake.calls must be read while the
-        # FakeGh block is still open -- see the analogous note in
-        # test_apply_priority_labels.py's test_set_design_via_main_never_calls_the_digest.
+    def test_needs_design_without_the_label_fails_and_creates_nothing(self):
         with tempfile.TemporaryDirectory() as td:
             body = Path(td) / "body.txt"
             body.write_text("Observed defect, approach undecided.")
-            responses = {
-                ("repo", "view"): "acme/widgets\n",
-                # priority: P2 already exists so the only label this test's
-                # assertion needs to isolate is the design one.
-                ("label", "list"): json.dumps([{"name": "priority: P2"}]),
-                ("label", "create"): "",
-                ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
-            }
-            with FakeGh(responses) as fake:
-                out, err = io.StringIO(), io.StringIO()
-                args = ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                       "--needs-design", "--repo", "acme/widgets"]
-                with patch.dict("os.environ", fake.env, clear=False), \
-                        patch.object(sys, "argv", ["file_followup.py", *args]), \
-                        redirect_stdout(out), redirect_stderr(err):
-                    try:
-                        rc = ff.main()
-                    except SystemExit as exc:
-                        rc = exc.code
-                creates = [c for c in fake.calls if c[:2] == ["label", "create"]]
-                issue_creates = [c for c in fake.calls if c[:2] == ["issue", "create"]]
-        self.assertEqual(rc, 0, err.getvalue())
-        self.assertEqual(len(creates), 1)
-        self.assertEqual(creates[0][2], "blocked: design")
-        self.assertEqual(len(issue_creates), 1)
-        self.assertIn("blocked: design", issue_creates[0])
+            rc, out, err, calls, filed = self._run_capturing_calls(
+                ["--title", "t", "--body-file", str(body), "--tier", "P2",
+                 "--needs-design", "--repo", "acme/widgets"],
+                {
+                    ("repo", "view"): "acme/widgets\n",
+                    ("label", "list"): json.dumps([{"name": "priority: P2"}]),
+                },
+            )
+        self.assertEqual(rc, ff.MISSING_LABEL_EXIT, err)
+        self.assertIn("blocked: design", err)
+        self.assertFalse(any(c[:2] == ["issue", "create"] for c in calls))
+        self.assertEqual(label_writes(calls), [])
 
     def test_unresolvable_repo_exits_1(self):
         rc, out, err, fake = self._run(

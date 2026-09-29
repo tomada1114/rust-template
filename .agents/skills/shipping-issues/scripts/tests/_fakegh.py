@@ -121,3 +121,10 @@ class FakeGh:
             return []
         lines = self._calls_path.read_text(encoding="utf-8").splitlines()
         return [json.loads(ln) for ln in lines if ln.strip()]
+
+
+def label_writes(calls: list[list[str]]) -> list[list[str]]:
+    """Every `gh label` call other than `gh label list`: a label definition
+    created, edited, or deleted. The skill's scripts never make one -- that is
+    `just labels`' write -- so a test asserts this list is empty."""
+    return [c for c in calls if c[:1] == ["label"] and c[1:2] != ["list"]]
