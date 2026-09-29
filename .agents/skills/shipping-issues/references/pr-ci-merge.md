@@ -8,7 +8,7 @@ issue's PR -> CI -> merge before opening the next.
 
 - [5. Open the PR](#5-open-the-pr)
 - [6. CI to green](#6-ci-to-green)
-  - [Waiting inside the 600-second cap](#waiting-inside-the-600-second-cap)
+  - [Waiting inside the Bash tool's timeout](#waiting-inside-the-bash-tools-timeout)
   - [Reading the verdict](#reading-the-verdict)
 - [7. Merge and confirm the issue closed](#7-merge-and-confirm-the-issue-closed)
   - [Held for a human's evidence](#held-for-a-humans-evidence)
@@ -54,13 +54,16 @@ grep -E '^(verdict|mergeable|merge_state|review_decision):' <runstate>/ci/<pr>.l
 
 One watch per PR; keep the log's `failed_checks:` for repair. Record `--event ci`.
 
-### Waiting inside the 600-second cap
+### Waiting inside the Bash tool's timeout
 
-The Bash tool kills a foreground call after at most 600 seconds, while this repository's
-CI (`Rust Core`, `Frontend`, `Repo Lint & Harness`, and `macOS Build & Smoke`, whose
-`timeout-minutes` is 60) routinely runs longer. A
-`--timeout 3600` watch in the foreground would be killed mid-wait, with no verdict and a
-truncated log. So pick one of these, in this order:
+Claude Code's Bash tool gives a foreground call at most ten minutes out of the box
+(`BASH_MAX_TIMEOUT_MS` moves that ceiling), and moves a command that reaches its timeout
+to the background instead of returning its result
+(https://code.claude.com/docs/en/tools-reference, checked 2026-09-29). This
+repository's CI (`Rust Core`, `Frontend`, `Repo Lint & Harness`, and
+`macOS Build & Smoke`, whose `timeout-minutes` is 60) routinely runs longer, so a
+`--timeout 3600` watch started in the foreground returns no verdict in that call. So
+pick one of these, in this order:
 
 1. **Background, then wait for the notification (Claude Code).** Start the command
    above with the Bash tool's `run_in_background`. The host re-invokes this session when
@@ -97,8 +100,8 @@ actual CI state before deciding anything.
 ```
 
 Merge as soon as step 6 reports `verdict: PASS`, unless the PR is held for a human's
-evidence (below). Read `result:` and `issue:` -- six
-results, one of which must never read as success:
+evidence (below). Read `result:` and `issue:` -- twelve
+results, and only `MERGED` and `ALREADY_MERGED` mean the PR merged:
 `landing-outcomes.md`. Record `--event merged`. Then:
 
 ```bash
@@ -150,8 +153,8 @@ in `triaging-issues` requires one; report it at step 10 rather than guess). Do n
 **Serial `all`:** the same re-plan's `select:` line is the next issue; start its step 3
 from this up-to-date branch, without pausing. **Parallel `all`:** the batch's remaining
 branches are now behind; bring each up to date in its own worktree **before its own
-step 5**, rather than after a CI failure, and merge rather than rebase
-(`recovery.md` says how). A conflict
+step 5**, rather than after a CI failure, by merging the default branch in -- never a
+rebase and force push (`recovery.md` says how). A conflict
 either way means the grouping call was wrong for that pair
 (`recovery.md`). Only when the whole batch has merged
 does the run group the next batch. With no argument or an explicit number, step 8c is

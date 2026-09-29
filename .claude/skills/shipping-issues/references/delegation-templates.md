@@ -46,8 +46,14 @@ of implementation still runs one PR at a time in the parent.
 `subagent_type` -- `executor`, `architect`, or `worker` -- never a bare `model`,
 which keeps the model but loses the tier's effort and instructions. Which step
 takes which tier, and why: `cost-discipline.md`.
-Under Codex CLI, which has neither the tiers nor `SendMessage`, read the prompt
-body below as the brief for doing that step inline in the main session.
+Codex CLI has neither these tiers nor `SendMessage`: it reads custom agents from
+`~/.codex/agents/` and `.codex/agents/`, not `.claude/agents/`, and steers a subagent through requests made in the main
+session rather than a `SendMessage` tool
+(https://learn.chatgpt.com/docs/agent-configuration/subagents, checked
+2026-09-29; `SendMessage` is Claude Code's,
+https://code.claude.com/docs/en/tools-reference, checked 2026-09-29). Under
+Codex CLI, read the prompt body below as the brief for doing that step inline in
+the main session.
 
 ## Standing prohibitions for every spawn
 

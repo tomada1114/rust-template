@@ -75,8 +75,8 @@ dependency phrasings (`Depends on #N`, the spelling `triaging-issues` asks for).
 - **Shared-cause duplication** -- two issues that are symptoms of one underlying
   defect (the same rename, the same missing guard) produce the same hunks
   independently. If two shortlisted issues name the same symbol or the same
-  failure, ship one first and rebase the other on the result -- or report them
-  as one issue.
+  failure, ship one first and start the other from the result -- or report
+  them as one issue.
 - **Umbrella issues** -- an epic listing `- [ ] #A #B #C` is not itself
   implementable. Treat it as a container: ship the children, leave the epic.
   A `tracking` (or `epic`) label makes `issue_digest.py` drop it mechanically.

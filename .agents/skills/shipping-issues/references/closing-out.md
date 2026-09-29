@@ -89,26 +89,33 @@ sometimes `wget` or a publish command). This skill runs unattended, so every
 such prompt raised mid-run parks the whole run until someone answers it, and
 several of them turn an unattended run into one the user has to sit through.
 The rule is not "never need approval" -- it is **ask once, at the end, for
-everything that could wait**. Check each such command against three questions,
-in order:
+everything that could wait**. A prompted or denied command is never re-spelled
+to get past its prompt (another tool for the same job, a wrapper, another
+spelling): `AGENTS.md` › "Security and human approval" forbids that, and the
+prompt is how the human keeps the decision. Check each such command against
+three questions, in order:
 
-1. **Is there an equivalent that raises no prompt?** Take it. Above all:
-   **`mv` into the holding area instead of deleting.** A move needs no
-   approval, is instant on the same filesystem, and doubles as a backup -- the
-   content is still there if the change turns out to be wrong. `curl` instead
-   of `wget`; `git checkout -- <path>` instead of deleting a probe edit.
+1. **Is deleting really the step, or only getting it out of the way?** Getting
+   it out of the way is a different action, not a re-spelled deletion: **`mv`
+   it into the holding area.** A move deletes nothing, is instant on the same
+   filesystem, and doubles as a backup -- the content is still there if the
+   change turns out to be wrong -- and the deletion itself still comes to the
+   human in [the final confirmation](#the-final-confirmation). Never
+   `git checkout -- <path>` a file to make it go away: it discards whatever
+   uncommitted edit the file holds, with no copy kept. Use it only on a probe
+   edit of your own that `git diff <path>` shows holds nothing else.
 2. **Can it wait until the last merge?** Most can: clearing a scratch
    directory, a stale build output, a throwaway fixture, a leftover clone --
-   nothing the issue's result depends on. Move it to the holding area, or, when
-   moving is not the equivalent (a non-deletion command), append the exact
-   command and why to `<runstate>/deferred.md`. Both are offered together in
+   nothing the issue's result depends on. Move it to the holding area, or, for a
+   command that is not a deletion, append the exact command and why to
+   `<runstate>/deferred.md`. Both are offered together in
    [the final confirmation](#the-final-confirmation).
 3. **Does the issue's goal require it now?** Then it may run mid-run -- an issue
    whose acceptance criterion *is* removing an existing directory, say. Even
    then, reach for step 1 first: moving the directory into the holding area
-   achieves the same working-tree result with no prompt and a copy kept. For
-   tracked content, `git rm -r <dir>` is equally prompt-free and the commit
-   history is the backup; `mv` is for what git does not hold (untracked or
+   achieves the same working-tree result and keeps a copy. For tracked content,
+   `git rm -r <dir>` records the removal in the commit, and the history is the
+   backup; `mv` is for what git does not hold (untracked or
    gitignored content, generated trees, local data). Only a case neither covers
    -- the content is too large to keep, or lives where a move cannot reach --
    takes the prompt mid-run, and the step 10 report says why.
