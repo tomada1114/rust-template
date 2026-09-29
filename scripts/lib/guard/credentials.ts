@@ -17,8 +17,9 @@
  * assignment; a `password` whose value is a `$VAR` or `${{ … }}` reference, a
  * masked `***`, or shorter than six characters — the release workflow names its
  * secrets that way — or whose key is camelCase code (`confirmPassword = …`); an
- * `.npmrc` `_authToken` that is a `${VAR}` reference; and a public certificate's base64
- * body, which is neither assigned to a `CERTIFICATE` key nor a PKCS#12.
+ * `.npmrc` `_authToken` that is a `${VAR}` reference; Slack's documented webhook
+ * placeholder (an all-zero `T0…/B0…/` path followed by `X`s); and a public
+ * certificate's base64 body, which is neither assigned to a `CERTIFICATE` key nor a PKCS#12.
  */
 
 interface CredentialRule {
@@ -43,7 +44,7 @@ export const CREDENTIAL_RULES: readonly CredentialRule[] = [
   { category: "slack-token", pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}/ },
   {
     category: "slack-webhook",
-    pattern: /hooks\.slack\.com\/(?:services|workflows|triggers)\/[A-Za-z0-9+/]{43,}/,
+    pattern: /hooks\.slack\.com\/(?:services|workflows|triggers)\/(?!T0+\/B0+\/)[A-Za-z0-9+/]{43,}/,
   },
   { category: "google-api-key", pattern: /\bAIza[0-9A-Za-z_-]{35}/ },
   { category: "stripe-live-key", pattern: /\b[spr]k_live_[0-9A-Za-z]{16,}/ },
@@ -61,7 +62,10 @@ export const CREDENTIAL_RULES: readonly CredentialRule[] = [
     category: "signing-certificate",
     pattern: /CERTIFICATE['"]?\s*[:=]\s*['"]?MII[A-Za-z0-9+/]{100,}/,
   },
-  { category: "signing-certificate", pattern: /\bMII[A-Za-z0-9+/]{3}IBAzCC[A-Za-z0-9+/]{100,}/ },
+  {
+    category: "signing-certificate",
+    pattern: /\bMI[IJKL][A-Za-z0-9+/]{3}IBAzCC[A-Za-z0-9+/]{100,}/,
+  },
 ];
 
 /** The first credential category the text matches (never the matched text), or `null`. */
