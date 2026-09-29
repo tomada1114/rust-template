@@ -28,14 +28,15 @@ interface Call {
 }
 
 /**
- * A fake machine: `pnpm tauri build` creates the bundle, `codesign` answers, and running
- * the app writes a startup line for its pid into today's log — unless told otherwise.
+ * A fake machine: `pnpm tauri build` creates the bundle, `codesign` answers, running the
+ * app without HOME exits 1 with its reason, and running it with HOME writes a startup
+ * line for its pid into today's log — unless told otherwise.
  */
 function fakeMachine(
   home: string,
   root: string,
   overrides: Partial<
-    Record<"build" | "verify" | "entitlements" | "app" | "cli", Partial<RunResult>>
+    Record<"build" | "verify" | "entitlements" | "app" | "homeless" | "cli", Partial<RunResult>>
   > & {
     readonly logLine?: string;
   } = {},
@@ -61,6 +62,14 @@ function fakeMachine(
     if (command === "codesign") return { ...ok, ...overrides.verify };
     if (command.endsWith("/myapp-cli"))
       return { ...ok, stdout: "myapp-cli 0.1.0\n", ...overrides.cli };
+    if (command.endsWith("/myapp") && options?.env?.["HOME"] === undefined) {
+      return {
+        status: 1,
+        stdout: "",
+        stderr: "error: the app could not start: HOME is not set\n",
+        ...overrides.homeless,
+      };
+    }
     if (command.endsWith("/myapp")) {
       mkdirSync(join(home, LOG_DIR), { recursive: true });
       writeFileSync(
@@ -174,8 +183,16 @@ describe("main", () => {
       "codesign",
       join(app, "Contents/MacOS/myapp-cli"),
       join(app, "Contents/MacOS/myapp"),
+      join(app, "Contents/MacOS/myapp"),
     ]);
+    const homeless = calls.at(-2);
+    expect(homeless?.options?.env).not.toHaveProperty("HOME");
+    expect(homeless?.options?.env?.["MYAPP_SMOKE"]).toBe("1");
+    expect(homeless?.options?.env?.["APPLE_SIGNING_IDENTITY"]).toBeUndefined();
+    expect(homeless?.options?.timeoutMs).toBeGreaterThan(0);
+    expect(lines).toContainEqual(expect.stringContaining("HOME unset the app exits 1"));
     const launch = calls.at(-1);
+    expect(launch?.options?.env?.["HOME"]).toBe(home);
     expect(launch?.options?.env?.["MYAPP_SMOKE"]).toBe("1");
     expect(launch?.options?.timeoutMs).toBeGreaterThan(0);
     expect(lines.at(-1)).toContain(`startup complete pid=${String(PID)}`);
@@ -204,6 +221,21 @@ describe("main", () => {
       /ERR_SMOKE_ENTITLEMENTS/,
     ],
     ["the bundled helper does not run", { cli: { status: 1 } }, /ERR_SMOKE_SIDECAR/],
+    [
+      "the app starts without HOME",
+      { homeless: { status: 0, stderr: "" } },
+      /ERR_SMOKE_STARTUP_ERROR/,
+    ],
+    [
+      "the app dies by a signal without HOME",
+      { homeless: { status: null, stderr: "" } },
+      /ERR_SMOKE_STARTUP_ERROR/,
+    ],
+    [
+      "the app exits 1 without HOME but does not say why",
+      { homeless: { stderr: "" } },
+      /ERR_SMOKE_STARTUP_ERROR/,
+    ],
     ["the app exits non-zero", { app: { status: 1 } }, /ERR_SMOKE_EXIT/],
     ["the app times out", { app: { status: null, stderr: "ETIMEDOUT" } }, /ERR_SMOKE_EXIT/],
     ["the startup line is missing", { logLine: "INFO something else\n" }, /ERR_SMOKE_STARTUP_LINE/],

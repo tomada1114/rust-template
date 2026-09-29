@@ -27,6 +27,7 @@ tracing = { workspace = true }
 myapp-test-support = { workspace = true }
 serde_json = { workspace = true }
 tauri = { workspace = true, features = ["test"] }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true
