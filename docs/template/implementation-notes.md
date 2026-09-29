@@ -140,3 +140,10 @@ what was built; each entry says what the design said, what was done, and why.
   `osv-scanner.toml` ignores: `glib` is absent from `cargo tree --target
   aarch64-apple-darwin`. The alert stays open; dismissing it is a repository write outside
   the run's authority.
+- macOS's `/bin/bash` is still 3.2, and on a Mac without Homebrew's bash first on
+  `PATH` a `#!/usr/bin/env bash` script runs under it (CI's macOS runners included).
+  bash 3.2 fails to parse a here-document inside `"$(...)"` whose body holds a backtick,
+  which the Template Bootstrap Smoke job caught in the ported
+  `shipping-issues/scripts/preflight.sh`. Its two Python helpers now sit in functions
+  called from the substitution, and `tests/test_shell_syntax.py` parses every bundled
+  script with `/bin/bash -n`, so the Linux job's bash 5 no longer hides the problem.
