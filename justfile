@@ -34,6 +34,12 @@ install:
     mise install
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable pnpm
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile
+    lefthook install
+    node scripts/verify-hooks.ts
+
+# Fail when lefthook's pre-commit hook is not installed (ALLOW_MISSING_GIT_HOOKS=1 opts out)
+verify-hooks:
+    node scripts/verify-hooks.ts
 
 # Run the app with hot reload (opens a window: a human's recipe, never part of `just check`)
 dev: sidecar
