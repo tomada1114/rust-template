@@ -4,10 +4,10 @@
 # already green there -- BEFORE any implementation agent is spawned.
 #
 # A fresh `git worktree add` gives tracked files only: no
-# .claude/settings.local.json, no .env, no node_modules, no cargo target/, so the
+# .claude/settings.local.json, no node_modules, no cargo target/, so the
 # project's verification command can fail -- or build differently -- before it
-# reads a line of code. This script copies the untracked local config the
-# worktree is missing, installs dependencies, and (with --verify) runs the
+# reads a line of code. This script copies the one untracked local config file
+# the worktree is missing, installs dependencies, and (with --verify) runs the
 # project's verification command once as a baseline. A red baseline is the
 # repository's problem, not the issue's -- finding it here costs one command
 # instead of a wasted implementation run, so a red baseline is reported as a
@@ -34,7 +34,7 @@
 #
 # This script REPORTS; it does not decide. A red baseline in a fresh worktree
 # usually means the repo is not worktree-viable right now -- a fresh worktree
-# holds tracked files and nothing else: no .env beyond what got copied, no
+# holds tracked files and nothing else: no .env, no
 # pre-warmed cache, no locally-running service it depends on -- but "usually" is
 # not "always", and telling the two apart needs the diff, the log, and the
 # repo's own conventions in view. So the baseline is a warning here and the
@@ -44,6 +44,11 @@
 # keeps the decision where it can actually be made.
 #
 # Two facts worth writing down:
+#   * No secret-shaped file is ever copied: .env, .env.*, .envrc, *.local,
+#     .dev.vars, local.settings.json. AGENTS.md forbids reading one even to
+#     check it, and this app's gates need none. .claude/settings.local.json is
+#     the only file copied: a developer's own permission overrides, not a
+#     secret.
 #   * .venv is never copied. A virtualenv bakes absolute paths into
 #     pyvenv.cfg and its bin/ shims, so a copy of one is broken the moment
 #     it lives at a different path. Python deps are always re-created by
@@ -382,10 +387,9 @@ provision_one() {
   fi
 
   # --- 4. copy the untracked local config the worktree is missing --------
-  # .claude/settings.local.json is this repository's one expected local file
-  # (a developer's own permission overrides); the other patterns cover
-  # repositories with another toolchain.
-  local config_patterns=(".env" ".env.*" "*.local" ".envrc" ".dev.vars" ".claude/settings.local.json" "local.settings.json")
+  # Only .claude/settings.local.json: a secret-shaped file (.env*, .envrc, ...)
+  # is never read, so never copied -- see the header.
+  local config_patterns=(".claude/settings.local.json")
   local copied_any=0 pat candidate rel dest
   for pat in "${config_patterns[@]}"; do
     # shellcheck disable=SC2231 # $pat is a glob on purpose: quoting it would stop the expansion
@@ -393,9 +397,6 @@ provision_one() {
       [[ -f "$candidate" ]] || continue
       rel="${candidate#"$repo_root"/}"
       git -C "$repo_root" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 && continue
-      case "$rel" in
-        *.example|*.sample|*.template|*.dist) continue ;;
-      esac
       if [[ $DRY -eq 1 ]]; then
         echo "DRY: copied: $rel"
       else
