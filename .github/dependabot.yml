@@ -1,0 +1,53 @@
+version: 2
+# Weekly, with a 7-day cooldown equal to Renovate's and pnpm's minimumReleaseAge (a
+# harness check keeps the three equal). Minor and patch updates arrive grouped, one PR
+# per ecosystem; a major stays out of every group and gets its own PR, reviewed against
+# its migration notes (merging-dependency-prs). The tauri crates and the @tauri-apps
+# npm packages must land at the same minor: a harness check fails on a mismatch.
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps:"
+    labels:
+      - "dependencies"
+    groups:
+      cargo-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps:"
+    labels:
+      - "dependencies"
+    groups:
+      npm-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "ci:"
+    labels:
+      - "dependencies"
+    groups:
+      # One upstream release pinned in several workflows (codeql-action's init,
+      # analyze, and upload-sarif) arrives as one PR.
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

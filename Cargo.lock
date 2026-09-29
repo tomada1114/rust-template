@@ -1908,7 +1908,6 @@ dependencies = [
  "myapp-core",
  "myapp-platform",
  "myapp-test-support",
- "serde",
  "serde_json",
  "tauri",
  "tauri-build",

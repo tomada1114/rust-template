@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate covers only what Dependabot has no ecosystem for: mise.toml's tool pins and rust-toolchain.toml. Cargo, npm, and Actions stay with .github/dependabot.yml.",
+  "enabledManagers": ["mise", "rust-toolchain"],
+  "schedule": ["* 0-3 * * 1"],
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "dependencyDashboard": false,
+  "commitMessagePrefix": "deps:",
+  "labels": ["dependencies"],
+  "separateMinorPatch": false,
+  "prConcurrentLimit": 5
+}

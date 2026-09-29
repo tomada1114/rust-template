@@ -19,7 +19,6 @@ tauri-build = { workspace = true }
 [dependencies]
 myapp-core = { workspace = true }
 myapp-platform = { workspace = true }
-serde = { workspace = true }
 tauri = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

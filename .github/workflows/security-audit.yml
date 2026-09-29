@@ -1,0 +1,42 @@
+name: Security audit
+
+on:
+  schedule:
+    # Weekly: a credential that predates the pre-commit guard is found here.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A manual dispatch queues behind the scheduled run rather than cancelling it.
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  secret-scan:
+    name: Scan history for leaked credentials
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history: the staged guard already covers every new commit.
+          fetch-depth: 0
+
+      # gitleaks is pinned in mise.toml (Renovate bumps it): no third-party action and
+      # no organisation licence (gitleaks-action wraps the MIT CLI in its own EULA).
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: gitleaks
+
+      - name: Scan git history for secrets
+        run: gitleaks git --no-banner --redact .
