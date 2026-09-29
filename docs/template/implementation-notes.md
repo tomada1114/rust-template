@@ -34,6 +34,23 @@ what was built; each entry says what the design said, what was done, and why.
   semver 7's attested releases. The exclusion names the exact version, so any other
   semver release is still checked. Dev-only lint path; nothing ships in the app.
 
+- **Prettier leaves Markdown alone** (`*.md` in `.prettierignore`). The design documents
+  are hand-wrapped at ~90 columns with compact tables; Prettier would re-pad every table.
+  Markdown is still spell-checked (typos) and link-checked. No hand-written logic is
+  excluded.
+- **`checkJs` is off in the root `tsconfig.json`.** It covers only the root config files;
+  `eslint.config.mjs` is still linted with type information, but type-checking it fails
+  on `eslint-plugin-react-hooks` 7.1's published types, which do not match ESLint 10's
+  `Plugin` type. The TypeScript config files (`vite.config.ts`, `vitest.config.ts`) are
+  type-checked.
+- **Test-only IPC helpers live in `ui/src/ipc/testing.ts`**, so the rule "only
+  `ui/src/ipc/` imports `@tauri-apps/*`" holds for tests too, with no lint exception.
+  `rejectWith()` there returns a promise rejected with Rust's plain `{ code }` object,
+  the shape Tauri really delivers, without a lint suppression.
+- **Native controls follow the system accent (`accent-color: auto`); `--color-accent` is
+  fixed.** A user-chosen accent cannot be contrast-checked, so custom components use the
+  fixed token (D23's "the user's accent color through `accent-color` and an accent token").
+
 ## Facts confirmed during the run
 
 - clippy reads `crates/myapp-core/clippy.toml`: a temporary `println!` and a temporary

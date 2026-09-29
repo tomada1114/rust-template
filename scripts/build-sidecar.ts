@@ -49,7 +49,8 @@ export function parseOptions(
       release = true;
     } else if (arg === "--target") {
       const value = argv[i + 1];
-      if (value === undefined || value.startsWith("--")) throw argsError("--target without a value");
+      if (value === undefined || value.startsWith("--"))
+        throw argsError("--target without a value");
       triple = value;
       i += 1;
     } else {
@@ -74,7 +75,15 @@ export function buildSidecar(
   run: RunCommand,
 ): string {
   const { root, triple, release } = options;
-  const args = ["build", "--locked", "-p", HELPER, "--target", triple, ...(release ? ["--release"] : [])];
+  const args = [
+    "build",
+    "--locked",
+    "-p",
+    HELPER,
+    "--target",
+    triple,
+    ...(release ? ["--release"] : []),
+  ];
   const { status } = run("cargo", args);
   if (status !== 0) {
     throw new ScriptError({

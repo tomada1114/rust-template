@@ -1,0 +1,139 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import { emitEvent, eventInternals, mockCommands, rejectWith } from "../ipc/testing";
+import type { CounterView } from "../ipc/types";
+import { useCounter } from "./useCounter";
+
+const ONE: CounterView = { value: 1, lastChangedAt: null };
+const TWO: CounterView = { value: 2, lastChangedAt: 1_700_000_000_000 };
+
+describe("useCounter", () => {
+  it("starts loading, then shows the counter Rust returns", async () => {
+    mockCommands({ get_counter: () => ONE });
+    const { result } = renderHook(() => useCounter());
+    expect(result.current.state).toEqual({ status: "loading" });
+    await waitFor(() => {
+      expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+    });
+  });
+
+  it("shows the new view after increment", async () => {
+    const calls = mockCommands({ get_counter: () => ONE, increment: () => TWO });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    await act(() => result.current.increment());
+    expect(result.current.state).toEqual({ status: "ready", view: TWO, error: null });
+    expect(calls).toContain("increment");
+  });
+
+  it("calls decrement and reset", async () => {
+    const calls = mockCommands({
+      get_counter: () => TWO,
+      decrement: () => ONE,
+      reset: () => ({ value: 0, lastChangedAt: 5 }),
+    });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    await act(() => result.current.decrement());
+    expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+    await act(() => result.current.reset());
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: { value: 0, lastChangedAt: 5 },
+      error: null,
+    });
+    expect(calls).toEqual(expect.arrayContaining(["decrement", "reset"]));
+  });
+
+  it("keeps the view and holds the error code when Rust rejects a change", async () => {
+    mockCommands({
+      get_counter: () => TWO,
+      increment: () => rejectWith({ code: "atMaximum" }),
+    });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    await act(() => result.current.increment());
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: TWO,
+      error: { code: "atMaximum" },
+    });
+  });
+
+  it("clears the error after the next successful change", async () => {
+    let first = true;
+    mockCommands({
+      get_counter: () => TWO,
+      increment: () => rejectWith({ code: "atMaximum" }),
+      decrement: () => {
+        const view = first ? ONE : TWO;
+        first = false;
+        return view;
+      },
+    });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    await act(() => result.current.increment());
+    await act(() => result.current.decrement());
+    expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+  });
+
+  it("fails with the error code when the first load is rejected", async () => {
+    mockCommands({ get_counter: () => rejectWith({ code: "storage", kind: "corrupt" }) });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state).toEqual({
+        status: "failed",
+        error: { code: "storage", kind: "corrupt" },
+      });
+    });
+  });
+
+  it("fails without a code, and logs, when the rejection is not a CounterError", async () => {
+    const calls = mockCommands({
+      get_counter: () => rejectWith(new Error("bridge down")),
+      log_from_ui: () => null,
+    });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state).toEqual({ status: "failed", error: null });
+    });
+    await waitFor(() => {
+      expect(calls).toContain("log_from_ui");
+    });
+  });
+
+  it("follows counter-changed events from other windows or the helper CLI", async () => {
+    mockCommands({ get_counter: () => ONE });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    await act(() => emitEvent("counter-changed", TWO));
+    await waitFor(() => {
+      expect(result.current.state).toEqual({ status: "ready", view: TWO, error: null });
+    });
+  });
+
+  it("stops listening when unmounted", async () => {
+    mockCommands({ get_counter: () => ONE });
+    const unregister = vi.spyOn(eventInternals(), "unregisterListener");
+    const { result, unmount } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    unmount();
+    await waitFor(() => {
+      expect(unregister).toHaveBeenCalledWith("counter-changed", expect.any(Number));
+    });
+  });
+});

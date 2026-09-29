@@ -14,3 +14,7 @@ sidecar *args:
 bindings:
     rm -rf ui/src/ipc/generated
     cargo test --locked -p myapp-core --lib export_bindings --quiet
+
+# UI tests with the ui/src coverage floors (lines 80, functions 80)
+test-ui:
+    pnpm test:ui

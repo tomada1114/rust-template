@@ -1,0 +1,12 @@
+.counter-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--space-5);
+}
+
+.counter-screen__panel {
+  width: 100%;
+  max-width: 360px;
+}

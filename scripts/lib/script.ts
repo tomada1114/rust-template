@@ -48,8 +48,8 @@ export const runCommand: Run = (command, args, options = {}) => {
   });
   return {
     status: result.error === undefined ? result.status : null,
-    stdout: result.stdout ?? "",
-    stderr: result.stderr ?? (result.error?.message ?? ""),
+    stdout: result.error === undefined ? result.stdout : "",
+    stderr: result.error === undefined ? result.stderr : result.error.message,
   };
 };
 

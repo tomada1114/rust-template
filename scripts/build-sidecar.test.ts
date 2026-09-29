@@ -41,7 +41,9 @@ describe("parseOptions", () => {
   });
 
   it("takes --release and --target from the arguments", () => {
-    expect(parseOptions(["--release", "--target", "x86_64-apple-darwin"], {}, () => "host")).toEqual({
+    expect(
+      parseOptions(["--release", "--target", "x86_64-apple-darwin"], {}, () => "host"),
+    ).toEqual({
       triple: "x86_64-apple-darwin",
       release: true,
     });
@@ -49,7 +51,10 @@ describe("parseOptions", () => {
 
   it("takes the triple and profile Tauri exports to beforeBuildCommand", () => {
     const env = { TAURI_ENV_TARGET_TRIPLE: "aarch64-apple-darwin", TAURI_ENV_DEBUG: "false" };
-    expect(parseOptions([], env, () => "host")).toEqual({ triple: "aarch64-apple-darwin", release: true });
+    expect(parseOptions([], env, () => "host")).toEqual({
+      triple: "aarch64-apple-darwin",
+      release: true,
+    });
     expect(parseOptions([], { ...env, TAURI_ENV_DEBUG: "true" }, () => "host").release).toBe(false);
   });
 
@@ -66,10 +71,22 @@ describe("buildSidecar", () => {
   it("builds the helper with cargo and copies it next to the Tauri crate, suffixed with the triple", () => {
     const root = tempRoot();
     const calls: string[][] = [];
-    const out = buildSidecar({ root, triple: "aarch64-apple-darwin", release: true }, fakeCargo(root, calls));
+    const out = buildSidecar(
+      { root, triple: "aarch64-apple-darwin", release: true },
+      fakeCargo(root, calls),
+    );
 
     expect(calls).toEqual([
-      ["cargo", "build", "--locked", "-p", "myapp-cli", "--target", "aarch64-apple-darwin", "--release"],
+      [
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "myapp-cli",
+        "--target",
+        "aarch64-apple-darwin",
+        "--release",
+      ],
     ]);
     expect(out).toBe(sidecarPath(root, "aarch64-apple-darwin"));
     expect(out).toBe(join(root, "src-tauri", "binaries", "myapp-cli-aarch64-apple-darwin"));
@@ -80,7 +97,10 @@ describe("buildSidecar", () => {
   it("builds a debug helper without --release", () => {
     const root = tempRoot();
     const calls: string[][] = [];
-    const out = buildSidecar({ root, triple: "aarch64-apple-darwin", release: false }, fakeCargo(root, calls));
+    const out = buildSidecar(
+      { root, triple: "aarch64-apple-darwin", release: false },
+      fakeCargo(root, calls),
+    );
     expect(calls[0]).not.toContain("--release");
     expect(readFileSync(out, "utf8")).toBe("built for aarch64-apple-darwin debug");
   });
@@ -108,7 +128,12 @@ describe("buildSidecar", () => {
 });
 
 describe("main", () => {
-  function context(root: string, calls: string[][], lines: string[], rustc = { status: 0, stdout: "aarch64-apple-darwin\n" }): ScriptContext {
+  function context(
+    root: string,
+    calls: string[][],
+    lines: string[],
+    rustc = { status: 0, stdout: "aarch64-apple-darwin\n" },
+  ): ScriptContext {
     const cargo = fakeCargo(root, calls);
     return {
       argv: ["--release"],
@@ -118,7 +143,9 @@ describe("main", () => {
         if (command === "rustc") return { ...rustc, stderr: "" };
         return { ...cargo(command, args), stdout: "", stderr: "" };
       },
-      log: (line) => lines.push(line),
+      log: (line) => {
+        lines.push(line);
+      },
     };
   }
 
@@ -134,6 +161,8 @@ describe("main", () => {
 
   it("fails with ERR_SIDECAR_TRIPLE when rustc cannot answer", () => {
     const root = tempRoot();
-    expect(() => main(context(root, [], [], { status: 1, stdout: "" }))).toThrow(/ERR_SIDECAR_TRIPLE/);
+    expect(() => {
+      main(context(root, [], [], { status: 1, stdout: "" }));
+    }).toThrow(/ERR_SIDECAR_TRIPLE/);
   });
 });

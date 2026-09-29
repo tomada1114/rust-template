@@ -7,14 +7,20 @@ import { REPO_ROOT, processContext, runCommand, runScript, type ScriptContext } 
 
 describe("runCommand", () => {
   it("captures stdout and the exit status", () => {
-    const result = runCommand(process.execPath, ["-e", "process.stdout.write('hi'); process.exit(3)"]);
+    const result = runCommand(process.execPath, [
+      "-e",
+      "process.stdout.write('hi'); process.exit(3)",
+    ]);
     expect(result).toEqual({ status: 3, stdout: "hi", stderr: "" });
   });
 
   it("passes input, cwd, and env to the child", () => {
     const result = runCommand(
       process.execPath,
-      ["-e", "process.stdin.on('data', d => process.stdout.write(d + process.cwd() + process.env.PROBE))"],
+      [
+        "-e",
+        "process.stdin.on('data', d => process.stdout.write(d + process.cwd() + process.env.PROBE))",
+      ],
       { input: "in:", cwd: REPO_ROOT, env: { ...process.env, PROBE: ":env" } },
     );
     expect(result.stdout).toBe(`in:${REPO_ROOT}:env`);
@@ -46,10 +52,10 @@ describe("processContext", () => {
   it("logs a line to stdout", () => {
     const written: string[] = [];
     const original = process.stdout.write.bind(process.stdout);
-    process.stdout.write = ((chunk: string) => {
+    process.stdout.write = (chunk: string) => {
       written.push(chunk);
       return true;
-    }) as typeof process.stdout.write;
+    };
     try {
       processContext().log("hello");
     } finally {
@@ -62,10 +68,19 @@ describe("processContext", () => {
 describe("runScript", () => {
   it("calls main with the context", async () => {
     const seen: ScriptContext[] = [];
-    const context: ScriptContext = { argv: ["x"], env: {}, root: "/r", run: runCommand, log: () => undefined };
-    await runScript((ctx) => {
-      seen.push(ctx);
-    }, () => context);
+    const context: ScriptContext = {
+      argv: ["x"],
+      env: {},
+      root: "/r",
+      run: runCommand,
+      log: () => undefined,
+    };
+    await runScript(
+      (ctx) => {
+        seen.push(ctx);
+      },
+      () => context,
+    );
     expect(seen).toEqual([context]);
   });
 });

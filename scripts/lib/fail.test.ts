@@ -67,10 +67,10 @@ describe("runMain", () => {
   it("writes to stderr and sets the exit code by default", async () => {
     const written: string[] = [];
     const original = process.stderr.write.bind(process.stderr);
-    process.stderr.write = ((chunk: string) => {
+    process.stderr.write = (chunk: string) => {
       written.push(chunk);
       return true;
-    }) as typeof process.stderr.write;
+    };
     try {
       await runMain(() => {
         throw new ScriptError(details);

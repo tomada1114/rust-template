@@ -1,0 +1,111 @@
+/*
+ * The design system's values (design D23). The only file in ui/src/ that may hold a
+ * raw color, a font family, or a pixel font size: components reach every value through
+ * var(--…). A harness check enforces that, and tokens.test.ts checks that every
+ * semantic color has a dark value and that every declared pair meets WCAG contrast.
+ *
+ * Two layers: primitives (--palette-*, raw values) and semantic tokens (--color-*,
+ * --font-*, --space-*, …), which name a role. Components use semantic tokens only. An
+ * app replaces values here — never role names — when it adopts its own design system
+ * (docs/design/design-system.md).
+ *
+ * The base is macOS-native and neutral, after Apple's Human Interface Guidelines:
+ * https://developer.apple.com/design/human-interface-guidelines/ (checked 2026-09-28).
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Primitives: light */
+  --palette-white: #ffffff;
+  --palette-gray-50: #f5f5f7;
+  --palette-gray-100: #e8e8ed;
+  --palette-gray-500: #6e6e73;
+  --palette-gray-450: #86868b;
+  --palette-gray-900: #1d1d1f;
+  --palette-blue-600: #0062cc;
+  --palette-red-600: #d70015;
+
+  /* Primitives: dark */
+  --palette-gray-dark-950: #1e1e1e;
+  --palette-gray-dark-900: #2a2a2c;
+  --palette-gray-dark-800: #3a3a3c;
+  --palette-gray-dark-400: #8e8e93;
+  --palette-gray-dark-300: #a1a1a6;
+  --palette-gray-dark-100: #e5e5ea;
+  --palette-gray-dark-50: #f5f5f7;
+  --palette-blue-dark-500: #3d8bfd;
+  --palette-blue-dark-600: #2f6fd0;
+  --palette-red-dark-400: #ff6961;
+
+  /* Semantic colors: light */
+  --color-bg-window: var(--palette-gray-50);
+  --color-bg-panel: var(--palette-white);
+  --color-text-primary: var(--palette-gray-900);
+  --color-text-secondary: var(--palette-gray-500);
+  --color-text-danger: var(--palette-red-600);
+  --color-accent: var(--palette-blue-600);
+  --color-text-on-accent: var(--palette-white);
+  --color-control-bg: var(--palette-gray-100);
+  --color-control-text: var(--palette-gray-900);
+  --color-control-border: var(--palette-gray-450);
+  --color-focus-ring: var(--palette-blue-600);
+
+  /* Typography: the system font and a scale mirroring macOS text styles */
+  --font-family-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-family-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-large-title: 26px;
+  --font-size-title1: 22px;
+  --font-size-title2: 17px;
+  --font-size-title3: 15px;
+  --font-size-headline: 13px;
+  --font-size-body: 13px;
+  --font-size-callout: 12px;
+  --font-size-footnote: 10px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-body: 1.4;
+
+  /* Spacing and shape */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --border-width: 1px;
+  --focus-ring-width: 3px;
+  --control-height: 28px;
+
+  /* Motion: collapses to nothing under prefers-reduced-motion */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-window: var(--palette-gray-dark-950);
+    --color-bg-panel: var(--palette-gray-dark-900);
+    --color-text-primary: var(--palette-gray-dark-50);
+    --color-text-secondary: var(--palette-gray-dark-300);
+    --color-text-danger: var(--palette-red-dark-400);
+    --color-accent: var(--palette-blue-dark-600);
+    --color-text-on-accent: var(--palette-white);
+    --color-control-bg: var(--palette-gray-dark-800);
+    --color-control-text: var(--palette-gray-dark-100);
+    --color-control-border: var(--palette-gray-dark-400);
+    --color-focus-ring: var(--palette-blue-dark-500);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+  }
+}
