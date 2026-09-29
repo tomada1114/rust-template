@@ -10,8 +10,9 @@ that is constant for the repository.
 
 This script answers all of it once and prints a single block: where the repo
 stands, what the backlog ranks to, which issues can be worked in parallel, and
-the exact next command. It makes exactly one `gh` fetch pair (and none at all on
-a warm digest cache), and it never puts issue prose in the caller's context --
+the exact next command. It makes exactly one `gh` fetch pair (plus a numbers-only
+fetch when a filter is passed, and none at all on a warm digest cache), and it
+never puts issue prose in the caller's context --
 `issue_digest.py --detail-top` is the separate, deliberate call for that.
 
 What it does NOT do is decide anything it cannot decide mechanically. The

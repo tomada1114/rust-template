@@ -93,6 +93,17 @@ class ExtractDepsTest(unittest.TestCase):
         deps = idg.extract_deps("Blocked by: #3, #4, and #5\nRequires: #6 and #7", "t", self_number=9)
         self.assertEqual(deps["depends_on"], [3, 4, 5, 6, 7])
 
+    def test_a_word_ending_in_a_keyword_is_not_an_edge(self):
+        # "thereafter" ends in "after", and "prerequires" in "requires".
+        deps = idg.extract_deps("thereafter #5 landed; prerequires #6", "t",
+                                self_number=1)
+        self.assertEqual(deps["depends_on"], [])
+        self.assertEqual(deps["mentions"], [5, 6])
+
+    def test_after_and_requires_as_words_are_still_edges(self):
+        deps = idg.extract_deps("After #5\nrequires #6", "t", self_number=1)
+        self.assertEqual(deps["depends_on"], [5, 6])
+
     def test_blocks_pattern(self):
         deps = idg.extract_deps("this blocks #9", "t", self_number=1)
         self.assertEqual(deps["blocks"], [9])
@@ -366,14 +377,16 @@ class DigestRunner:
     each of them."""
 
     def _run(self, args, issues, prs=None, path_override=None,
-             state_dir=None, cache=False):
+             state_dir=None, cache=False, extra=None):
         """Run main() once. `cache=True` re-enables the digest cache (FakeGh
         disables it by default) and `state_dir` pins where it lives, so a test
-        can drive two calls through one cache and count the gh invocations."""
+        can drive two calls through one cache and count the gh invocations.
+        `extra` adds routes, such as the answer to a filtered fetch."""
         responses = {
             ("issue", "list"): json.dumps(issues),
             ("pr", "list"): json.dumps(prs or []),
         }
+        responses.update(extra or {})
         with FakeGh(responses) as fake:
             env = dict(fake.env)
             if path_override is not None:
@@ -547,6 +560,74 @@ class MainEndToEndTest(DigestRunner, unittest.TestCase):
         self.assertEqual([r["number"] for r in payload["issues"]], [1])
         # #1 still gets credit for unblocking #2 even though #2 is filtered out.
         self.assertEqual(payload["issues"][0]["unblocks_open"], [2])
+
+    def test_label_filter_keeps_a_blocker_outside_the_filter_open(self):
+        # #2 is open but carries no `area: ui`: the filter must narrow what is
+        # ranked, not the set of open issues the dependency edge is read from.
+        issues = [
+            gh_issue(1, title="ui work",
+                     labels=["area: ui", "priority: P1", "blocked: dependency"],
+                     body="Depends on #2"),
+            gh_issue(2, title="core work", labels=["area: core"]),
+        ]
+        rc, out, err = self._run(
+            ["--label", "area: ui", "--json"], issues,
+            extra={("issue", "list", "--label", "area: ui"):
+                   json.dumps([{"number": 1}])})
+        self.assertEqual(rc, 0, err)
+        payload = json.loads(out)
+        self.assertEqual([r["number"] for r in payload["issues"]], [1])
+        self.assertEqual(payload["ranking"][0]["readiness"], "BLOCKED-BY:#2")
+        self.assertEqual(payload["stale_dependency_labels"], [])
+        self.assertEqual(payload["issues"][0]["stale_dependency_labels"], [])
+
+    def test_label_filter_is_applied_by_gh_not_by_the_graph_fetch(self):
+        issues = [gh_issue(1), gh_issue(2)]
+        rc, out, err = self._run(
+            ["--label", "area: ui", "--assignee", "@me", "--milestone", "v1",
+             "--json"], issues,
+            extra={("issue", "list", "--label", "area: ui"):
+                   json.dumps([{"number": 2}])})
+        self.assertEqual(rc, 0, err)
+        self.assertEqual([r["number"] for r in json.loads(out)["issues"]], [2])
+        lists = [c for c in self.gh_calls if c[:2] == ["issue", "list"]]
+        self.assertEqual(len(lists), 2)
+        self.assertNotIn("--label", lists[0])
+        self.assertEqual(lists[1][:8], ["issue", "list", "--label", "area: ui",
+                                        "--assignee", "@me", "--milestone", "v1"])
+
+    def test_a_backlog_larger_than_the_limit_fails_loudly(self):
+        issues = [gh_issue(n, labels=["priority: P2"]) for n in (1, 2, 3)]
+        rc, out, err = self._run(["--limit", "2", "--select"], issues)
+        self.assertEqual(rc, 1)
+        self.assertIn("more than 2 open issues", err)
+        self.assertIn("--limit", err)
+        self.assertNotIn("select:", out)
+        # One more than the limit is asked for, so a full page is detectable.
+        issue_list = next(c for c in self.gh_calls if c[:2] == ["issue", "list"])
+        self.assertEqual(issue_list[issue_list.index("--limit") + 1], "3")
+
+    def test_a_backlog_of_exactly_the_limit_is_ranked(self):
+        issues = [gh_issue(n, labels=["priority: P2"]) for n in (1, 2)]
+        rc, out, err = self._run(["--limit", "2", "--select"], issues)
+        self.assertEqual(rc, 0, err)
+        self.assertIn("select: #1", out)
+
+    def test_a_limit_below_one_is_a_usage_error(self):
+        rc, out, err = self._run(["--limit", "0"], [gh_issue(1)])
+        self.assertEqual(rc, 2)
+        self.assertIn("--limit must be at least 1", err)
+
+    def test_on_hold_and_blocked_external_labels_hold_the_issue(self):
+        # The readiness strings plan.py's --mode <N> refuses on.
+        issues = [gh_issue(1, labels=["priority: P0", "on hold"]),
+                  gh_issue(2, labels=["priority: P0", "blocked: external"])]
+        rc, out, err = self._run(["--json", "--include-design"], issues)
+        self.assertEqual(rc, 0, err)
+        readiness = {r["number"]: r["readiness"]
+                     for r in json.loads(out)["ranking"]}
+        self.assertEqual(readiness, {1: "LABEL:on hold",
+                                     2: "LABEL:blocked: external"})
 
     def test_label_coverage_complete_when_all_labeled(self):
         issues = [gh_issue(1, labels=["priority: P1"])]
@@ -820,7 +901,11 @@ class DigestCacheTest(DigestRunner, unittest.TestCase):
                   state_dir=self.state, cache=True)
         self._run(["--select", "--label", "bug", "--cache-ttl", "300"], issues,
                   state_dir=self.state, cache=True)
-        self.assertEqual(len(self._gh_fetches()), 2)
+        # A miss, and a filtered call costs three fetches: the whole open
+        # backlog (the dependency graph), the filter's numbers, and the PRs.
+        fetches = self._gh_fetches()
+        self.assertEqual(len(fetches), 3)
+        self.assertEqual(fetches[1][:4], ["issue", "list", "--label", "bug"])
 
     def test_expired_cache_refetches(self):
         issues = [gh_issue(1, labels=["priority: P0"])]
