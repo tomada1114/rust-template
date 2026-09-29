@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -28,6 +28,13 @@ async function lint(file: string, code: string): Promise<(string | null)[]> {
   const results = await eslint.lintText(code, { filePath: join(ROOT, file) });
   return results.flatMap((result) => result.messages.map((message) => message.ruleId));
 }
+
+// The first lint loads the ui/ TypeScript program and every plugin: seconds alone, but
+// past the per-test budget when the whole suite competes for the CPU under coverage.
+// Paying it here keeps each case's own timeout about that case.
+beforeAll(async () => {
+  await lint(SCREEN, "export {};\n");
+}, 300_000);
 
 const KIND = 'import type { StorageErrorKind } from "../ipc/types";\n';
 
