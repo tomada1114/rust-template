@@ -50,8 +50,8 @@ shows, what a result means) is core's, tested with the fake; a new port is an AD
 Take the first that answers the question. Each step down costs more: a binding crate,
 `unsafe`, a grant the user must give, and code no Linux runner can compile.
 
-1. **The standard library or an existing dependency.** Files, directories, the clock:
-   `JsonFileCounterStore` needs nothing else.
+1. **The standard library or an existing dependency.** Files, directories, the clock.
+   In the sample, `JsonFileCounterStore` needs nothing else.
 2. **A system command**, through `std::process::Command`: `launchctl` for launchd jobs,
    `plutil` to read or convert a property list, `defaults` for preferences. No `unsafe`,
    no new crate, and the tool's behaviour is in its man page. Core cannot do this
@@ -70,6 +70,14 @@ Take the first that answers the question. Each step down costs more: a binding c
 
 Between two mechanisms that both work, take the one whose TCC grant is cheaper: a grant
 is a prompt the user may refuse, and each one is support work (see "TCC" below).
+
+The choice also fixes the sandbox posture. Apple lists what a sandboxed app may not do,
+among it using accessibility APIs in assistive apps, sending Apple Events to arbitrary
+apps, and reading or changing another app's preferences
+(<https://developer.apple.com/documentation/security/protecting-user-data-with-app-sandbox>,
+checked 2026-09-29; the same page makes the sandbox an App Store requirement), so an
+adapter that needs one keeps the app out of both for as long as it ships. Turning the sandbox on is a human's ADR decision
+(`starting-an-app`); name the adapter's effect on it in the pull request.
 
 ## A system command, done right
 

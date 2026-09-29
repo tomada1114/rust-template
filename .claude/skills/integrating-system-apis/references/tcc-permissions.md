@@ -117,7 +117,9 @@ another app, which an agent never drives (`AGENTS.md` › "Never taking over the
 developer's Mac"). Ask once, in one message, before the loop starts:
 
 - which permission, and for which process: the app itself, or, for `just test-local`,
-  the terminal that runs the tests, since a test process inherits its launcher's grants;
+  the terminal that runs the tests, since macOS judges a privacy request by its
+  responsible code, and for a tool run from Terminal that is Terminal
+  (<https://developer.apple.com/forums/thread/760964>, checked 2026-09-29);
 - the order of the steps (build, run, grant, run again) and the recipe for each
   (`just run` and `just test-local` are human recipes);
 - what to send back: the `just test-local` output, and what the window showed.
@@ -128,7 +130,8 @@ Asking once per iteration turns a five-minute check into an afternoon. Then read
 ## Tests that need a grant
 
 A test that needs a grant carries `#[ignore = "local machine: <grant> for <process>"]`,
-so `just test-macos` and CI report it as ignored and only `just test-local` runs it.
+so `just test-macos` and CI report it as ignored and only `just test-local` (a human's
+recipe) runs it.
 When the grant is missing the OS answers "no" rather than failing, so make the test's
 failure message name the grant and where to give it: a bare `false` reads as a broken
 adapter.

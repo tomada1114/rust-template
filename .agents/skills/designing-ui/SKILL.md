@@ -93,7 +93,8 @@ decides on top of them and links the HIG for the rest.
 - Standard shortcuts keep their meaning; a custom shortcut is only for the most frequent
   app-specific commands, with Command as the main modifier and Control avoided
   (<https://developer.apple.com/design/human-interface-guidelines/keyboards>, checked
-  2026-09-29).
+  2026-09-29). Settings, when the app has any, open in their own window from the app
+  menu's Settings item with Command-Comma, the standard shortcut on the same page.
 - **The menu is built in Rust**, in the shell's setup in `src-tauri/src/lib.rs`, with
   Tauri's `MenuBuilder`, `SubmenuBuilder`, and `PredefinedMenuItem` for the standard
   Edit items; on macOS every item must sit in a submenu, and the first submenu becomes
@@ -167,5 +168,6 @@ No gate sees what a screen looks like. The agent's part: `just test-ui` (contras
 primitives), `just check-harness` (literals). The human's part, asked for once
 (`running-the-app`): `just run` or `just dev` (human recipes: they open the app),
 looking at the screen in light and dark, at the window's minimum size, with Increase
-Contrast and Reduce Motion on (HIG dark mode page above), compared against the lock; the
-pull request carries what they saw.
+Contrast and Reduce Transparency on (HIG dark mode page above) and with Reduce Motion
+on (motion page above), compared against the lock; the pull request carries what they
+saw.

@@ -25,8 +25,9 @@ current values.
 - Core's file adds the bans that keep I/O, time, the environment, processes, and sleeping
   behind ports (`disallowed-macros`, `disallowed-methods`, `disallowed-types`, each with a
   `reason` clippy prints).
-- clippy reads the nearest `clippy.toml` only, so a crate-local file replaces the root
-  one entirely. That is why core's file repeats the two test settings; a new crate-local
+- clippy uses the first `clippy.toml` it finds walking up from the crate's directory
+  and merges nothing (https://doc.rust-lang.org/clippy/configuration.html, checked
+  2026-09-29), so a crate-local file replaces the root one entirely. That is why core's file repeats the two test settings; a new crate-local
   file must do the same.
 - Core also denies `clippy::wildcard_enum_match_arm` in its source, so a `match` on a
   core enum names every variant and a new variant is a compile error wherever a decision
@@ -91,9 +92,10 @@ only what each job names.
 ## `eslint.config.mjs`
 
 - `no-restricted-imports` keeps `@tauri-apps/*` and `ui/src/ipc/generated/` inside
-  `ui/src/ipc/`. A rule's options **replace** rather than merge across config objects:
-  the `ui/ipc-boundary` block switches the rule off for `ui/src/ipc/` for that reason,
-  and a new block that sets `no-restricted-imports` for other files silently drops both
+  `ui/src/ipc/`, where the `ui/ipc-boundary` block switches the rule off. A later config
+  object that gives a rule options **replaces** the earlier options rather than merging
+  them (https://eslint.org/docs/latest/use/configure/rules, checked 2026-09-29), so a
+  new block that sets `no-restricted-imports` for other files silently drops both
   patterns there unless it restates them (`TAURI_ONLY_IN_IPC`, `GENERATED_ONLY_IN_IPC`).
 - `no-console` is an error except in `ui/src/ipc/log.ts` and `scripts/`.
 - `linterOptions.reportUnusedDisableDirectives: "error"` makes a stale disable comment
@@ -117,12 +119,15 @@ file in that tree.
 - `thresholds` are per glob (`ui/src/**` 80/80, `scripts/**` 85/90,
   `scripts/lib/guard/**` 90/100) so one tree cannot subsidise another.
 - `coverage.include` counts every source file, tested or not, so a new untested file
-  shows as 0% rather than disappearing. Each `exclude` entry carries a reason; a new one
-  is weakening unless the file holds nothing to decide (generated code, an entry point).
+  shows as 0% rather than disappearing. Each `exclude` entry that takes source code out
+  carries a reason; a new one is weakening unless the file holds nothing to decide
+  (generated code, an entry point).
 - `allowOnly: false` fails a focused test; the mock-restoring options keep a stub from
   outliving its test.
-- `extends: true` in a project is what carries those shared options into it; a project
-  written without it drops them silently.
+- A project inherits those shared options from the root config: `extends: true` is the
+  default since Vitest 5.0 (https://vitest.dev/guide/projects, checked 2026-09-29), and
+  the config writes it anyway so the inheritance is visible. A project with
+  `extends: false` drops them silently.
 
 ## `.prettierrc.json`, `.prettierignore`, `typos.toml`
 
@@ -163,7 +168,8 @@ What every workflow follows, checked by `actionlint`, `zizmor`, and `just check-
 - `concurrency` that cancels a superseded pull-request run but never a push to `main`,
   which is the only CI record a merged commit gets;
 - no `pull_request_target` (it runs fork code with a writable token);
-- a fail-closed shell (`defaults.run.shell` with `-euo pipefail`), and `--locked` /
+- a fail-closed shell (`defaults.run.shell` with `-euo pipefail`), so a failure before
+  a `|` or an unset variable stops the step instead of passing it, and `--locked` /
   `--frozen-lockfile` on every cargo and pnpm install, so a lockfile drift fails
   instead of resolving silently;
 - no Rust build cache on the release path, where a poisoned cache would reach a shipped
@@ -178,5 +184,6 @@ narrows a security-relevant step says why the protection no longer applies.
 Each required context is a job `name:` in a `pull_request` workflow, and
 `just check-harness` fails when one names no job. Renaming or splitting a required job,
 or adding one, edits this file in the same pull request; `just ruleset` then applies it
-to the live repository, which is a human's step. `bypass_actors` stays empty: a bypass
+to the live repository, which is a human's step. A new job is not required until the
+owner decides it is: adding one never adds its context here on its own. `bypass_actors` stays empty: a bypass
 lets an admin token merge without the checks the ruleset exists to require.

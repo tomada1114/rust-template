@@ -78,6 +78,7 @@ questions until decided.
 | Shape | Corner radii for controls and panels, or "system default" | `--radius-control`, `--radius-panel` |
 | Iconography | Glyphs only, or which icon set and its licence | the `glyph` of `IconButton`; an icon set is a dependency |
 | Motion | "Transitions only on state change", or which animations exist and what each says | `--duration-*`, `--easing-standard`; the reduced-motion block |
+| Materials | "None": opaque surfaces from the tokens, or where a translucent window or panel is used and why | the surface tokens; a translucent window is also a window setting in `src-tauri/tauri.conf.json` (`changing-gates`) |
 | Window sizing | Default and minimum size; for a menu-bar agent, the panel's fixed size | `app.windows` in `src-tauri/tauri.conf.json` |
 | Menus | The app-specific menus and the shortcuts they carry | the menu built in `src-tauri/src/lib.rs` |
 | Copy style | Title or sentence case per element type; the app's voice in one sentence | `ui/src/copy/` |

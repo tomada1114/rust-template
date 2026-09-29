@@ -23,8 +23,10 @@ neither and stays as the dependency-vulnerability check.
 
 `.github/workflows/release.yml` publishes a build-provenance attestation
 (`actions/attest-build-provenance`) with an `attestations: write` permission. Remove the
-step and the permission unless the repository's plan supports artifact attestations on
-private repositories. The release itself still works, visible only to people with
+step and the permission unless the repository is on GitHub Enterprise Cloud, the plan
+artifact attestations need on a private repository
+(https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations,
+checked 2026-09-29). The release itself still works, visible only to people with
 access to the repository.
 
 ## 3. Drop the matching required context

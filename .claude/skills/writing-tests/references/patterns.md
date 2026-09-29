@@ -9,7 +9,8 @@ and its own tests become the examples.
 Build the service from fakes, act once, assert the returned value and the state the
 fake recorded. Expected values are literals.
 
-In the sample, `crates/myapp-core/tests/counter_service.rs`:
+In the sample, `crates/myapp-core/tests/counter_service.rs` (shown with
+`CounterService::new` inlined; the file builds it through its `service_over` helper):
 
 ```rust
 const T0: UnixMillis = FixedClock::DEFAULT;

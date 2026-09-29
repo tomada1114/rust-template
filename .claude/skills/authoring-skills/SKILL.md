@@ -36,6 +36,14 @@ skill says about its own subject.
   and real files let `just agents-check` compare bytes. The sync refuses a symlink.
 - Being generated, the mirror is skipped by `typos`, Prettier, and ESLint, and
   `.gitattributes` collapses it in a PR diff. Review and spell-check `.agents/skills/`.
+  Markdown has no formatter here (`.prettierignore` lists `*.md`): wrap prose by hand at
+  the width the neighboring skills use. When `typos` flags a real technical term, add
+  it to `typos.toml`'s `[default.extend-words]` rather than rewording around the checker
+  (a gate file: `changing-gates`).
+- Skills live in this repository, never in a committed plugin marketplace: a plugin's
+  skill sits outside `.agents/skills/`, so Codex CLI, `just agents-check`, and CI never
+  see it; an unpinned plugin update changes behavior without a pull request; and a
+  public template cannot ask its users to trust a personal marketplace.
 
 ## Layout
 
@@ -150,9 +158,12 @@ of an active skill competes with the task for the agent's context.
 ## Scripts bundled inside a skill
 
 A script under `.agents/skills/<name>/scripts/` follows `AGENTS.md` › "Repository
-scripts", and its tests run under `just test-scripts`; the first skill to ship one wires
-its suite in within the same pull request. **REQUIRED:** `writing-repo-scripts`. Keep it
-a thin dispatcher: branching logic belongs in `scripts/`, where the coverage floors apply.
+scripts", and its tests run under `just test-scripts`. A TypeScript script's
+`*.test.ts` joins Vitest's `scripts` project by its path; a suite in another language
+(`shipping-issues`' Python and shell) is added to the `test-scripts` recipe in the same
+pull request. **REQUIRED:** `writing-repo-scripts`. Keep it a thin dispatcher: no
+coverage floor applies under `.agents/skills/`, so branching logic belongs in `scripts/`,
+where the floors do.
 
 ## Before committing a skill
 

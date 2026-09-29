@@ -62,6 +62,11 @@ machine it is fixed, because macOS keys the app's data, logs, and privacy grants
   **fails** with the Product-section code (the check must fire on an app nobody has
   described yet), then writes a stub Product section in that copy and runs `just check`
   there. It runs on every pull request, so the bootstrap cannot rot unnoticed.
+- The generated tree, not this checkout, is what a bootstrap change is tested against.
+  Build the temporary copy from the tracked files (`git ls-files`), never the working
+  directory, so ignored build output (`target/`, `node_modules/`) cannot change a
+  verdict; and a test that survives the bootstrap never asserts a literal that is only
+  true before it runs.
 - A change to the script, to a placeholder site, or to any file the script rewrites is
   proven by that job and by `just test-scripts`; a new mention of the app's name in a
   file the list does not cover fails the leftover check there.

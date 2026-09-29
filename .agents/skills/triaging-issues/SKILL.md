@@ -78,9 +78,12 @@ ranks nothing; each sub-issue carries its own tier and says `Part of #N`.
 `.github/labels.yml` is the source for the label set: name, color, and description. This
 skill holds only what each label means for triage. A label is added or renamed there
 first, then here; when the file and this skill disagree, fix the mismatch rather than
-picking one. The `priority:`, `blocked:`, `chore`, `ci`, `tracking`, and `security`
-labels are not GitHub defaults, and GitHub silently drops a label an issue form applies
-when the repository lacks it. `just labels` (`scripts/sync-labels.ts`) creates or updates
+picking one. Of these labels only `bug`, `enhancement`, and `documentation` are GitHub
+defaults
+(https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/managing-labels,
+checked 2026-09-29), and an issue form's label that the repository lacks is not added
+(https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms,
+checked 2026-09-29). `just labels` (`scripts/sync-labels.ts`) creates or updates
 every declared label and never deletes one; running it is a remote write that needs a
 human's sign-off (`AGENTS.md` › "Security and human approval").
 
@@ -103,8 +106,9 @@ Two things nothing else can recover later:
 
 Write an ordering constraint as `Depends on #N`, one per line under a `## Dependencies`
 heading, with `Blocks #N` for the reverse edge. This is the spelling automation parses
-(`shipping-issues` reads it); prose such as "after the logging work lands" is not
-machine-readable and is not picked up.
+(`shipping-issues` reads it, and `task.yml`'s `Depends on: #N` placeholder parses the
+same); prose such as "after the logging work lands" is not machine-readable and is not
+picked up.
 
 An issue with a `Depends on` line also carries `blocked: dependency` while the blocker is
 open. The label is not removed automatically when the blocker closes: whoever lands the

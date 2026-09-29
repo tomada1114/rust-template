@@ -4,11 +4,12 @@ description: >
   Covers how logic in crates/myapp-core is shaped so it stays deterministic and tested:
   time, randomness, the environment, files, and processes reached only through ports or
   arguments (the Clock port and UnixMillis; the bans on SystemTime::now, Instant::now,
-  std::env::var, std::fs, std::process::Command, thread::sleep, and println in
-  crates/myapp-core/clippy.toml), when a new port is justified, tunable numbers in one
-  Tuning struct, state transitions as methods that take self and return a new value or
-  a typed error, a service running load, decide, save, a ...View struct as the only
-  thing that crosses IPC, no async in core, and the patterns deliberately not adopted.
+  std::env::var, std::fs reads and writes, std::process::Command, thread::sleep, and
+  println in crates/myapp-core/clippy.toml), when a new port is justified, tunable
+  numbers in one Tuning struct, state transitions as methods that take self and return
+  a new value or a typed error, a service running load, decide, save, a ...View struct
+  as the only thing that crosses IPC, no async in core, and the patterns deliberately
+  not adopted.
   Use when adding a type, a rule, a use case, a timer, a debounce, a threshold, a limit,
   or anything random or time-dependent to core, when clippy reports a disallowed method
   in core, or when reaching for async, a repository trait, a DI container, an event bus,
@@ -50,7 +51,7 @@ and `disallowed-types` (run by `just lint`). The judgment is what to do instead:
 | Another process | a port whose adapter runs it | `std::process::Command` |
 | Randomness | a seed or an already-drawn value as an argument, like time | a random-number crate in core (a new dependency) |
 | "Today", a formatted date or number | nothing: core returns `UnixMillis` and numbers; the UI formats with the user's locale and time zone (`ui/src/copy/`) | a formatted string from Rust |
-| To log | nothing: core returns what happened, and the shell logs it | `println!`, `eprintln!`, `dbg!` |
+| To log | the `tracing` macros, which emit and never install a subscriber (the shell and the CLI do); core has no `tracing` dependency yet, so until one is added (`managing-dependencies`) core returns what happened and the shell logs it | `println!`, `eprintln!`, `dbg!` |
 
 In the sample, `CounterService` is handed an `Arc<dyn Clock>` and stamps a change with
 `self.clock.now()`; a test hands it `FixedClock` and moves time with `advance`.
@@ -83,10 +84,11 @@ reading the clock is banned, not representing time.
   is a field of one `Tuning` struct, never a literal in a method body. It derives
   `Debug, Clone, Copy, PartialEq, Eq`, implements `Default` with the shipped values,
   and each field's `///` says why it has that value.
-- The shell builds it and passes it in (`Tuning::default()` in `src-tauri/src/lib.rs`
-  and `crates/myapp-cli/src/main.rs`), so a test passes a tiny one to reach a boundary
+- The shell builds it and passes it in, so a test passes a tiny one to reach a boundary
   in one step. In the sample, `Tuning { min, max }` lives in
-  `crates/myapp-core/src/counter/mod.rs` and the tests use `Tuning { min: 0, max: 2 }`.
+  `crates/myapp-core/src/counter/mod.rs`, `src-tauri/src/lib.rs` and
+  `crates/myapp-cli/src/main.rs` pass `Tuning::default()`, and
+  `crates/myapp-core/tests/counter_service.rs` uses `Tuning { min: 0, max: 2 }`.
 - A domain invariant is not a tunable. Ask: would changing it be a product tweak
   (`Tuning`) or change what the type means (a constant or a parameter of the type)?
 - A value from outside is never trusted to be well formed: code that receives a

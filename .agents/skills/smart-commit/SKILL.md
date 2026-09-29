@@ -106,7 +106,9 @@ These always travel in one commit, whatever the grouping otherwise says:
   deriving `ts_rs::TS` that produced it (`just bindings`); CI fails on a commit where
   the two disagree.
 - **A skill and its mirror:** `.agents/skills/<name>/` with `.claude/skills/<name>/`
-  after `just agents-sync`; the hook's skills-mirror job refuses one without the other.
+  after `just agents-sync`. The hook's skills-mirror job compares the two trees on
+  disk, not what is staged, so it cannot catch a commit that stages only one side:
+  stage both yourself.
 
 ## Step 4: Write the commits
 
@@ -163,5 +165,5 @@ Report every file left uncommitted and why.
 The hook only checks; it never rewrites a file, so a refused commit did not happen and
 the staged files are still staged. Fix the cause, re-stage, and commit again with the
 same message. Never `--no-verify`, never `--amend` a commit you did not make, and never
-relax the rule that fired. The fix for each job is in
-[references/pre-commit-hook.md](references/pre-commit-hook.md).
+relax the rule that fired. **REQUIRED:**
+[references/pre-commit-hook.md](references/pre-commit-hook.md), for the fix for each job.

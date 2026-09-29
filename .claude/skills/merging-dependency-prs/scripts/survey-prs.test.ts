@@ -253,6 +253,23 @@ describe("tauriReport", () => {
     ]);
   });
 
+  it("holds a plugin pair to one exact version, not one minor", () => {
+    const withPlugin = new Map([
+      ...current,
+      ["tauri-plugin-log", "2.10.0"],
+      ["@tauri-apps/plugin-log", "~2.10.0"],
+    ]);
+    const bump = (number: number, name: string, to: string) =>
+      row({ number, bumps: [{ name, from: "2.10.0", to }] });
+    const patchApart = [bump(21, "tauri-plugin-log", "2.10.1")];
+    expect(tauriReport(patchApart, withPlugin).pairs[0]?.aligned).toBe(false);
+    const together = [
+      bump(21, "tauri-plugin-log", "2.10.1"),
+      bump(22, "@tauri-apps/plugin-log", "2.10.1"),
+    ];
+    expect(tauriReport(together, withPlugin).pairs[0]?.aligned).toBe(true);
+  });
+
   it("lists a Tauri major separately, whatever else moves", () => {
     const rows = [
       row({ number: 30, bumps: [{ name: "tauri-build", from: "2.7.0", to: "3.0.0" }] }),

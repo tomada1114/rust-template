@@ -92,6 +92,8 @@ comment giving its reason.
 
 ## How the backlog feeds it
 
+**REQUIRED:** `triaging-issues`, for every issue filed, parked, promoted, or closed below.
+
 - **A Now outcome's issues are all closed.** Check its "Done when" yourself with what
   an agent may run: the recipe, `just smoke`, `just logs`. When only the window can show
   it, ask the human to run `just run` (a human's recipe: it opens the app) and say what
@@ -138,8 +140,8 @@ Never, without the owner saying so:
 - add a line that contradicts a Product non-goal: that is a change to the Product
   section first, and a human's call;
 - treat a line as the go-ahead for an architecture change: a line that hits a trigger in
-  `AGENTS.md` › "Before changing the architecture" says "Before it moves up: an ADR",
-  and `recording-architecture-decisions` writes it.
+  `AGENTS.md` › "Before changing the architecture" says "Before it moves up: an ADR"
+  (**REQUIRED:** `recording-architecture-decisions` writes it).
 
 ## Answering "what is next?"
 

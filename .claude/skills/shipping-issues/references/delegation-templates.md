@@ -91,7 +91,7 @@ back. In `all` mode it also returns proposed parallel-safe groups -- a
 proposal, not a decision: [step 2c](../SKILL.md#2c-confirm-the-proposed-batch)
 still has to clear the repository's own viability gate before any of it runs.
 
-Prompt body: references/agents/priority-research.md (`agent-priority-research.md`).
+Prompt body: `agent-priority-research.md`.
 Fill its `{brace}` placeholders from the current repo and run count, then
 spawn it as `architect`.
 
@@ -108,7 +108,7 @@ issue every prompt in the batch **in one message** -- spawned one after another
 they run one after another, which is the whole thing this mode exists to
 avoid.
 
-Prompt body: references/agents/implementation.md (`agent-implementation.md`).
+Prompt body: `agent-implementation.md`.
 
 ## Review fix, parallel mode
 
@@ -120,7 +120,7 @@ here instead. See [SKILL.md step 4](../SKILL.md#4-review-the-branch).
 Zero accepted findings -> no spawn. Spawn one **`executor`** per branch that
 has any.
 
-Prompt body: references/agents/review-fix.md (`agent-review-fix.md`).
+Prompt body: `agent-review-fix.md`.
 
 ## Review fallback
 
@@ -128,7 +128,7 @@ Only when this session's host will not let it launch `/code-review`
 directly -- see [SKILL.md step 4](../SKILL.md#4-review-the-branch).
 Spawn one independent, **read-only** `architect` against the branch.
 
-Prompt body: references/agents/review-fallback.md (`agent-review-fallback.md`).
+Prompt body: `agent-review-fallback.md`.
 
 ## CI repair (step 6, only on `FAIL`)
 
@@ -140,7 +140,7 @@ Spawn an **`executor`** (a fresh **`architect`** once the same failure has
 survived two attempts in a row), one PR at a time; attempt 2 goes to the same
 repair agent by `SendMessage` while it is reachable.
 
-Prompt body: references/agents/ci-repair.md (`agent-ci-repair.md`).
+Prompt body: `agent-ci-repair.md`.
 
 ## Design decision (step 8b)
 
@@ -153,7 +153,7 @@ writes: one comment on the issue and one label clear. It writes nothing in the
 checkout, so `{workdir}` is the repo's main checkout even while a parallel batch
 is running -- it reads there, it never touches the tree.
 
-Prompt body: references/agents/design-decision.md (`agent-design-decision.md`).
+Prompt body: `agent-design-decision.md`.
 
 `VERDICT: DEFERRED` is a result, not a failure -- it is the run declining to
 invent a product decision, and its `OPEN-QUESTION` is what the step 10 report

@@ -44,9 +44,9 @@ The only pauses: the [stop conditions](#stop-conditions), a tied top two (step 2
 | a number | That issue, once nothing it depends on is open. |
 
 A count sets `--max-parallel`, default **2**: every worktree of this Cargo workspace
-builds into its own `target/` from cold, gigabytes each (5.3 GB here, observed with
-`du -sh target`, 2026-09-29) and a full compile before its baseline says anything. A
-`blocked: design` issue ships only when named, or with `--include-design` (step 2b).
+builds into its own `target/` from cold, gigabytes each (5.3 GB: observed on this Mac
+with `du -sh target`, 2026-09-29) and a full compile before its baseline says anything.
+A `blocked: design` issue ships only when named, or with `--include-design` (step 2b).
 
 ## Working rules
 
@@ -60,6 +60,8 @@ builds into its own `target/` from cold, gigabytes each (5.3 GB here, observed w
   `just test-local`, and the rest `AGENTS.md` › "Never taking over the developer's Mac"
   lists); `just smoke` and `just logs` are the run's evidence.
 - Every issue starts from, and every merge returns to, an up-to-date `main`.
+- **REQUIRED:** the reference a step links, read when that step starts: each step
+  below is only the summary of its procedure.
 
 ## Sub-agents and run state
 
@@ -82,8 +84,8 @@ python3 .agents/skills/shipping-issues/scripts/plan.py --mode <all|single|N> \
 ```
 
 Read the block; do not re-derive it ([plan-output.md](references/plan-output.md),
-[ship-contract.md](references/ship-contract.md)). `preflight: BLOCKED` and `existing-worktrees: BLOCKED` stop the run; `tree: DIRTY` is a
-question to ask now. `verify-check:` is a guess to confirm: here the gate is
+[ship-contract.md](references/ship-contract.md)). `preflight: BLOCKED` and
+`existing-worktrees: BLOCKED` stop the run; `tree: DIRTY` is a question to ask now. `verify-check:` is a guess to confirm: here the gate is
 `just check`, since `just test` skips lint, the harness, the macOS tests, the build, and
 the smoke. `needs-design:` spawns step 8b now; `stale-labels:` runs unasked;
 `labels: COMPLETE` skips step 2; `github: write=no` reports instead of writing.

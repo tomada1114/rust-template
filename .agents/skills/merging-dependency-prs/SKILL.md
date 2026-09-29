@@ -6,7 +6,7 @@ description: >
   github-actions bumps, and Renovate's mise.toml and rust-toolchain.toml bumps. Surveys
   them with scripts/survey-prs.ts, runs the security review (release notes, workflow
   permissions, maintainer changes, crates whose build.rs or proc-macro runs at build
-  time), keeps the tauri crates and @tauri-apps/* npm packages on one minor, holds a
+  time), keeps each tauri crate and its @tauri-apps/* npm package in step, holds a
   Tauri major as a migration issue, asks the human for one approval of a listed batch,
   then merges or builds one combined branch. Use when clearing a backlog of bump PRs,
   when a bot PR fails CI after a clippy, ESLint, TypeScript, or Rust toolchain bump, or
@@ -17,8 +17,10 @@ description: >
 
 **Owns:** landing bot pull requests that already exist: the survey, the security review,
 the approval gate, individual merges, the combined branch, and the cleanup. **Does not
-own:** which bot bumps what, the `deps:`/`ci:` prefixes, and the 7-day cooldown
-(`.claude/rules/project.md` › "Tool Pinning", stated once there); adding a dependency
+own:** which bot bumps what and the 7-day cooldown (`.claude/rules/project.md` › "Tool
+Pinning", stated once there), or the `deps:`/`ci:` title prefixes the bots write
+(`commit-message` in `.github/dependabot.yml`, `commitMessagePrefix` in
+`.github/renovate.json`); adding a dependency
 that is not there yet, which needs a human's sign-off and its review record
 (`managing-dependencies`); the Release impact line a runtime bump's PR carries
 (`create-pr`).
@@ -67,26 +69,30 @@ gh pr checks <number>
 
 ## Step 2: Review every PR before the plan
 
-Run [references/review-checklist.md](references/review-checklist.md) against each PR:
+**REQUIRED:** [references/review-checklist.md](references/review-checklist.md), run
+against each PR:
 release notes for every major and every 0.x minor, workflow permissions and SHA pins on
 an Actions bump, maintainer and source changes, supply-chain settings left alone, crates
 whose build-time code changed, and the Tauri rule below. A failing PR is diagnosed
-before it is judged: [references/failure-modes.md](references/failure-modes.md).
+before it is judged: **REQUIRED:** [references/failure-modes.md](references/failure-modes.md).
 
 ## The Tauri rule
 
-The `tauri` crate and the `@tauri-apps/api` and `@tauri-apps/cli` npm packages move
-together at the same minor, as does each `tauri-plugin-<x>` crate with its
-`@tauri-apps/plugin-<x>` package: the JavaScript API calls into the Rust side, so a
-minor apart is a mismatch no single test run catches (Tauri says to keep them synced:
-https://v2.tauri.app/develop/updating-dependencies/, checked 2026-09-29). Dependabot
-opens the cargo and npm sides as separate PRs, so:
+The `tauri` crate and the `@tauri-apps/api` npm package stay on the same minor, and
+each `tauri-plugin-<x>` crate and its `@tauri-apps/plugin-<x>` package on the same
+exact version, because the JavaScript side calls into the Rust side and Tauri ships
+breaking changes to plugins in patch releases
+(https://v2.tauri.app/develop/updating-dependencies/, checked 2026-09-29). This
+repository also keeps `@tauri-apps/cli` on `tauri`'s minor, so the CLI that builds the
+app matches the crate it builds. A mismatch is one no single test run catches.
+Dependabot opens the cargo and npm sides as separate PRs, so:
 
 - **Both sides land in one combined branch**, never one PR at a time, even when each is
-  green alone. `survey-prs.ts` prints `MISMATCH` for a pair the open PRs would leave on
-  two minors; the combined branch moves the missing side by hand (Step 4b).
+  green alone. `survey-prs.ts` prints `MISMATCH` for a pair the open PRs would leave
+  apart; the combined branch moves the missing side by hand (Step 4b).
 - **A Tauri major (`3.x`) is never part of a batch.** Hold the PR and propose filing a
-  migration issue for it (`triaging-issues`), with the upstream migration guide linked;
+  migration issue for it (**REQUIRED:** `triaging-issues`), with the upstream migration
+  guide linked;
   `Cargo.toml` pins `tauri = "2"` until a migration ADR moves it.
 
 ## Step 3: Choose the landing mode
@@ -125,18 +131,21 @@ Apply each PR's version change with the tool that owns the file, never by hand-e
 a lockfile or by merging bot branches:
 
 - **cargo:** `cargo update -p <crate> --precise <version>` per crate the PRs moved.
-  `Cargo.toml` changes only when a PR changed a requirement.
+  `Cargo.toml` changes only when a PR changed a requirement. Read the `Cargo.lock`
+  diff: a crate no PR named that moved too is reverted, since only what the bots
+  proposed was reviewed.
 - **npm:** `pnpm add <package>@<range>` (`pnpm add -D` for a devDependency), keeping the
-  range style `package.json` uses (`~2.12.0` for the Tauri packages).
+  range style `package.json` uses (a tilde range for the Tauri packages).
 - **mise:** edit the pin in `mise.toml`, then `mise install`, so the version exists for
   this platform.
 - **rust-toolchain:** edit `channel` in `rust-toolchain.toml`, then `mise install`.
 - **Actions:** copy the new 40-character SHA and its `# vX.Y.Z` comment exactly.
 
-Commit each lockfile with its manifest (`smart-commit`), then run `just check`. A new
+Commit each lockfile with its manifest (**REQUIRED:** `smart-commit`), then run
+`just check`. A new
 clippy, ESLint, or TypeScript finding is fixed in the code on this branch (`just fix`,
 then hand edits), never silenced: an `#[allow]`, an `eslint-disable`, or a relaxed
-config is weakening a gate. Open the PR with `create-pr`, titled
+config is weakening a gate. Open the PR with **REQUIRED:** `create-pr`, titled
 `deps: combine dependency bumps`, listing each superseded PR in the Summary. Opening and
 merging it are inside the approved batch only when the plan named it.
 
@@ -160,7 +169,7 @@ gh pr close <number> --comment "Superseded by #<combined-number>." --delete-bran
   that needs a new dependency.
 - A bump that goes green only by relaxing a lint, lowering a floor, ignoring an advisory,
   or editing another gate file.
-- A Tauri major, or a Tauri pair that cannot be brought to one minor.
+- A Tauri major, or a Tauri pair that cannot be brought back in step.
 - Anything the review checklist marks as held for the human.
 
 Never `--admin`, `--no-verify`, or a force push; never unpin a SHA-pinned Action to make
@@ -170,4 +179,5 @@ a bump apply.
 
 Merged PRs; the combined PR and what it superseded; held PRs with the reason each; any
 issue filed; any CI failure with its real error line, not a summary. A partly completed
-run says so.
+run says so. An unrelated problem noticed on the way goes in the report, never into the
+combined branch.

@@ -57,8 +57,8 @@ being implied rather than stated.
 
 Deleting worktrees mid-run to stay under the concurrency cap is the one
 tempting exception, and it is not worth it: each intermediate call is another
-approval, and the disk a few worktrees hold is cheap next to interrupting a
-long unattended run. Carry them to the end and clean once. If disk genuinely
+approval, and the disk a few worktrees hold, several gigabytes of `target/` each
+here, is still cheaper than interrupting a long unattended run. Carry them to the end and clean once. If disk genuinely
 is the constraint, that is a reason to shrink the batch, not to add cleanup
 calls. The script touches only: worktrees under an
 explicitly given `--worktree-root`; harness `worktree-agent-*` branches (a

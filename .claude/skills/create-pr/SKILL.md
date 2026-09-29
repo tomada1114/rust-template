@@ -34,8 +34,8 @@ gh pr list --head "$(git rev-parse --abbrev-ref HEAD)" --json number,title,url
 ```
 
 - On `main`: stop. A pull request comes from a feature branch.
-- Uncommitted changes: stop and hand over to `smart-commit` first. The gate would judge a
-  tree the pull request does not contain.
+- Uncommitted changes: stop. **REQUIRED:** `smart-commit` first, since the gate would
+  judge a tree the pull request does not contain.
 - A pull request already open for this branch: update it (`gh pr edit`), never open a
   second one.
 
@@ -82,10 +82,14 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
   a coverage exclusion, an `#[ignore]` or `.skip` on a failing test, an ignore-list
   entry. Any of these leaves "No gate weakened" unchecked, and the PR stops until a
   human decides.
+- **Doc comments.** A new `pub` item without a `///` comment saying why it exists, or a
+  new wrapper in `ui/src/ipc/` without a TSDoc comment (`AGENTS.md` › "Review
+  Checklist"). `missing_docs` catches an absent `///`, not one that only restates the
+  signature, and nothing checks the TSDoc.
 - **CHANGELOG.** A user-visible change without an entry under `[Unreleased]` in
   `CHANGELOG.md` (`AGENTS.md` › "Review Checklist").
-- **Docs.** A change to public behavior or a contract without the doc that describes it
-  (`updating-docs` owns which surface).
+- **Docs.** A change to public behavior or a contract without the doc that describes it.
+  **REQUIRED:** `updating-docs`, to decide which surface owes the update.
 
 ## Step 3: The title
 
@@ -102,7 +106,8 @@ Fill `.github/PULL_REQUEST_TEMPLATE.md` in order.
 
 - **Summary.** One to three lines on why the change exists, then `Closes #N` when an
   issue is known (a bare `#N` closes nothing). Name any breaking change.
-- **Release impact.** One line, in one of the two forms in
+- **Release impact.** The template has no heading for it: end the Summary with one
+  line in one of the two forms in **REQUIRED:**
   [references/release-impact.md](references/release-impact.md), which also holds the
   MAJOR/MINOR/PATCH table. A missing line is not a "no": it is an unfinished PR.
 - **Test Plan.** The commands that ran and what they printed: `just check` always, the

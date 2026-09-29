@@ -74,7 +74,8 @@ elsewhere, including this skill. Detail, traps, and the judgment each needs are 
 - **rustfmt and Prettier**: an option change reformats the tree; land the option and
   the `just fmt` result in one commit.
 - **Supply chain**: `deny.toml`'s licence allow-list and `dependency-review.yml`'s
-  `allow-licenses` agree, a per-crate exception goes in both, and an advisory ignore in
+  `allow-licenses` agree (the workflow adds two licences npm packages use), a per-crate
+  exception goes in both, and an advisory ignore in
   `deny.toml` or `osv-scanner.toml` carries a reason, a 90-day expiry, and, for a
   shipped crate, a tracking issue.
 - **Pins**: `rust-toolchain.toml` and `mise.toml` are bumped by Renovate; a bump that
@@ -119,7 +120,10 @@ deletion (a deletion cannot add a secret, and blocking one would block the commi
 removes a secret). A new pattern starts from a real false negative and lands with a
 test case whose secret-shaped value is assembled at runtime, so no committed file,
 including the test, is itself secret-shaped. Removing a pattern is weakening a gate.
-`paths.ts`'s list and `AGENTS.md`'s never-read list change together. Enforced by:
+What the guard deliberately does not block, and why (a public certificate, a `.key`
+that may be a Keynote document, a bare `.envrc`), is listed in `paths.ts`'s header; no
+entropy heuristic, since whether a commit *should* contain what it contains stays in
+review. `paths.ts`'s list and `AGENTS.md`'s never-read list change together. Enforced by:
 `vitest.config.ts` "scripts/lib/guard/**" (lines 90, functions 100).
 
 ## What no gate here sees

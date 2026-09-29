@@ -21,8 +21,12 @@ the one bumped.
 
 **Cause:** `pnpm-workspace.yaml` sets `strictPeerDependencies: true`, so an unmet peer
 range is an error. The standing case is TypeScript: `typescript-eslint` caps the
-TypeScript versions it supports, which is why `package.json` pins `typescript` to
-`~6.0.x`. A PR proposing a TypeScript past that cap fails here and is right to fail.
+TypeScript versions it accepts with an upper bound in its `peerDependencies`
+(`>=4.8.4 <6.1.0` for 8.70: observed on this Mac with
+`node -p "require('typescript-eslint/package.json').peerDependencies.typescript"`,
+2026-09-29; its policy is https://typescript-eslint.io/users/dependency-versions/,
+checked 2026-09-29), which is why `package.json` keeps `typescript` on a tilde range.
+A PR proposing a TypeScript past that cap fails here and is right to fail.
 
 **Fix:** hold it. Raising the cap is a coordinated upgrade of `typescript` and
 `typescript-eslint` together, not a bump; never add an override or relax the setting.
@@ -64,7 +68,8 @@ change to get past it (`AGENTS.md` › "Security and human approval").
 ## F5: `cargo deny` or `cargo shear`
 
 **Symptom:** the `Rust Core` job fails at `cargo deny` (a new advisory, a licence outside
-the allow-list, a duplicate that `[bans]` refuses, a source other than crates.io) or at
+the allow-list, a `[bans]` rule such as a wildcard requirement or a crate outside its
+`wrappers`, a source other than crates.io; a duplicate version only warns) or at
 `cargo shear` (an unused dependency).
 
 **Fix:** a licence or source failure is a new dependency decision: hold it for the human
@@ -110,3 +115,19 @@ usually a run superseded by a newer event on the same PR (`pr-label.yml` and
 run, find why it did not complete, and `gh run rerun <run-id>`. A state that should pass
 and does not is a bug to fix in `survey-prs.ts` with a test, never a reason to merge past
 the verdict.
+
+## Not a failure mode here: the PR-title check
+
+`check-pr-title.yml` skips a pull request labelled `dependencies`, which both bots apply,
+so a bot title never fails `Validate PR title`. Its prefix still becomes the squash
+commit on `main`, so the prefixes (`commit-message` in `.github/dependabot.yml`,
+`commitMessagePrefix` in `.github/renovate.json`) stay within the accepted types; the
+harness check that keeps them agreeing is `just check-harness`'s, and changing either
+side is a gate change (`changing-gates`).
+
+## F10: A mise or rust-toolchain PR is green but `mise install` fails here
+
+**Cause:** the pinned version has no build for this Mac yet, though CI's Linux runner
+found one.
+
+**Fix:** hold it until it has; never pin a different version than the bot proposed.

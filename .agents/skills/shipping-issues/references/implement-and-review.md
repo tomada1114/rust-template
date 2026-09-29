@@ -66,7 +66,7 @@ Fill `agent-implementation.md` per issue and spawn it as
 `executor` -- or `architect` when the issue is foundational: blast radius, not
 difficulty (`cost-discipline.md`).
 A change small enough that the handoff costs more than the work is implemented here
-(the floor (`cost-discipline.md`)). In parallel mode issue
+(the floor in `cost-discipline.md`). In parallel mode issue
 every spawn of the batch **in one message**, each with its own worktree path, never the
 main checkout -- spawned one after another, they run one after another.
 
@@ -130,7 +130,7 @@ findings list, check what the review actually read.
 
 `--fix` applies the findings to this session's working tree, which in serial mode is the
 branch under review. It is **serial-mode only**
-(why (`recovery.md`)). Host will not launch
+(`recovery.md` says why). Host will not launch
 `/code-review` at all -> `agent-review-fallback.md` on
 `architect`, triaged the same way.
 

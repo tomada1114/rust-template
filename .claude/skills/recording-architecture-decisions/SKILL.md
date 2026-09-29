@@ -45,7 +45,7 @@ request.
 The template ships the index empty on purpose: its own reasoning is README's Design
 Philosophy, and ADRs belong to the apps cut from it. So:
 
-- In the template itself, before the bootstrap has run (the tree still carries
+- In the template itself, before the bootstrap has run (`README.md` still carries
   `<!-- template-only -->` blocks), a change that hits a trigger below updates README's
   Design Philosophy (`updating-docs`), never the ADR tree. Never seed the template's
   index with an ADR.
@@ -54,8 +54,10 @@ Philosophy, and ADRs belong to the apps cut from it. So:
 ## When a change owes an ADR
 
 A decision owes one when it is expensive to reverse, or when someone outside the change
-will build on it. `AGENTS.md` › "Before changing the architecture" is the list; here is
-why each one is expensive:
+will build on it. `AGENTS.md` › "Before changing the architecture" is the list, and the
+last four entries below are ADR decisions other documents name (`docs/architecture.md`'s
+contract table, `docs/architecture/README.md`, README's Design Philosophy, and the
+comment on `tauri` in `Cargo.toml`); here is why each one is expensive:
 
 - **A new crate, or a new port in core.** A crate fixes a dependency direction every
   later file obeys, and the boundary checks (`deny.toml`'s `wrappers`, the closure
@@ -65,7 +67,9 @@ why each one is expensive:
   `tray-icon` feature, no Dock icon), changes startup, the window config, how the app is
   quit, and what the launch smoke and a human's check can see.
 - **The sandbox posture.** The App Sandbox on or off, or any entitlement. It decides
-  which APIs work at all, and whether the Mac App Store is open to the app.
+  which APIs work at all, and whether the Mac App Store is open to the app, which
+  requires the sandbox (https://developer.apple.com/documentation/security/app-sandbox,
+  checked 2026-09-29).
 - **Persistence.** Where state lives and in what format. Stored data outlives the code
   that wrote it, so a later change is a migration, and a format is contract
   (`docs/architecture.md` › "On-disk file formats").
@@ -123,10 +127,13 @@ approval" asks for, whether or not an ADR exists.
   Application Support. Proposed: the JSON layout.").
 - Add or update the ADR's row in `docs/architecture/README.md`'s Decisions table in the
   same change as the ADR.
+- When an Accepted ADR and the code disagree, neither is quietly edited to match the
+  other: the next change moves the code toward the ADR, or a new ADR changes the
+  decision.
 
 ## Fact discipline
 
-Keep three kinds of statement apart, in every file of the tree:
+Keep four kinds of statement apart, in every file of the tree:
 
 - **Verified fact**: a primary-source URL and "checked YYYY-MM-DD", listed under the
   ADR's Sources, and the author opened the page that day. The primary source is the

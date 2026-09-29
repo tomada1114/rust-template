@@ -96,8 +96,12 @@ the changes an agent shape needs, including keeping the smoke run invisible.
 
 The App Sandbox is off, Tauri's default (`docs/distribution.md` › "The App Sandbox is
 off"): the first app cut from this template writes `~/Library/LaunchAgents` and runs
-`launchctl`, which the sandbox forbids. It stays off unless the new app can live inside
-it; turning it on, or adding any entitlement, is an edit to `src-tauri/Entitlements.plist`,
+`launchctl`, which the sandbox forbids. The sandbox limits an app to the resources its
+entitlements request, and the Mac App Store requires it
+(https://developer.apple.com/documentation/security/app-sandbox, checked 2026-09-29), so
+judge by what the new app must reach: another app, global input, or files and system
+tools the user never chose each have to be found on that entitlement list before the app
+can be sandboxed. It stays off unless the new app can live inside it; turning it on, or adding any entitlement, is an edit to `src-tauri/Entitlements.plist`,
 which only a human makes (`AGENTS.md` › "Security and human approval"). Propose it with
 the reason and let the owner decide. A privacy (TCC) permission the app will need is
 decided here too, each its own ADR (`integrating-system-apis`).

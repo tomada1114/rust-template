@@ -72,7 +72,7 @@ fn increment_by_stops_with_an_error_past_the_maximum() {
 
 ```bash
 just test-fast increment_by              # core: cargo nextest, filtered by test name
-pnpm exec vitest run --project ui ui/src/counter/useCounter.test.tsx   # one UI file
+pnpm exec vitest run --project ui ui/src/counter/useCounter.test.tsx   # one UI file (the sample's)
 ```
 
 Read the failure. For a function that does not exist yet, the compile error naming it
@@ -85,8 +85,8 @@ behavior. **Do not skip this run**: a test that has never failed may never be ab
 
 Write the smallest change in core that makes the test pass, following `writing-rust`
 (no `unwrap`, a typed error, `self` in and a new value out). Re-run the same filter,
-then a broader one that covers every test the change could touch
-(`just test-fast counter`). All must pass, the new ones and the old.
+then a broader one that covers every test the change could touch; in the sample,
+`just test-fast counter`. All must pass, the new ones and the old.
 
 ## Step 4: REFACTOR — with the gates on
 

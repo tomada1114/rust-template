@@ -55,7 +55,8 @@ Judge the diff since the last release against what is contract, the table in
 | A fix, a wording change, a dependency bump with no visible change, documentation | PATCH |
 
 The level is the highest row any change touches. While the app is below `1.0.0`, a
-MAJOR change ships as a minor bump and its changelog entry says what a user must do.
+MAJOR change ships as a minor bump; its changelog entry says what a user must do and
+names it as breaking, so the minor number does not hide it.
 Read the current version from `Cargo.toml` rather than assuming which period applies.
 A new bundle identifier is not a version at all: to macOS it is a different app, and it
 is an ADR.
@@ -95,7 +96,8 @@ The script checks the same agreement while it is still cheap.
 
 ## 4. The release pull request
 
-Branch, commit the five files, open the pull request, and merge it once CI is green:
+Branch, commit the five files, open the pull request, and let a human merge it once CI
+is green:
 `docs/distribution.md` › "Preparing the version" has the exact commands. Nothing else
 rides in a release pull request, so its diff is the release.
 
@@ -153,13 +155,13 @@ use.
 The workflow fails before upload unless the built app passes: `codesign --verify --deep
 --strict`, its entitlements equal `src-tauri/Entitlements.plist`, the bundled helper is
 signed and runs, the launch smoke passes on it, and, for Developer ID only, `spctl
---assess` accepts it. An agent's local evidence for the same checks is `just smoke`,
+--assess` accepts it. An agent's local evidence for all but the last is `just smoke`,
 which runs them on a local release `.app` without a window.
 
-Checking a downloaded release is a human's step, because it means opening what was
-downloaded: `docs/distribution.md` › "Verifying a build" has the `shasum -a 256 -c
-SHA256SUMS` and `gh attestation verify` commands, and "Opening an ad-hoc build" the
-Privacy & Security path and the `xattr` alternative.
+A downloaded release is checked with `shasum -a 256 -c SHA256SUMS` and
+`gh attestation verify` (`docs/distribution.md` › "Verifying a build"). Opening one is a
+human's step, because a quarantined download raises a Gatekeeper prompt: "Opening an
+ad-hoc build" there has the Privacy & Security path and the `xattr` alternative.
 
 ## After the release
 

@@ -74,9 +74,10 @@ has the code for every step, taken from the sample.
 
 - **Async, with borrowed state, returns `Result`.** A command that needs the app state
   takes `state: State<'_, AppState>`. Tauri runs an `async` command on its async runtime
-  and a plain `fn` command on the main thread, and an async command that borrows an
-  argument must return a `Result` (<https://v2.tauri.app/develop/calling-rust/>,
-  checked 2026-09-29). So anything that touches I/O is `async` and returns `Result`;
+  and a plain `fn` command on the main thread, and an async command whose argument is
+  borrowed, as `State<'_, …>` is, has to return a `Result`: the page's other remedy,
+  an owned argument, does not exist for state
+  (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29). So anything that touches I/O is `async` and returns `Result`;
   only a command that does no slow work and cannot fail may be a plain `fn`
   (`log_from_ui` only emits a `tracing` event).
 - **A slow port runs on a blocking thread.** Core is synchronous by design (no async to
@@ -89,10 +90,11 @@ has the code for every step, taken from the sample.
   services, built once in `build_state` (`lib.rs`) from the real adapters and given to
   Tauri with `app.manage`. A test builds the same struct over fakes. A second service
   is a second field, not a second managed type.
-- **Generic over the runtime when it names `AppHandle`.** `increment<R: Runtime>` takes
-  `AppHandle<R>`, so the same handler list compiles for the real app and for
-  `tauri::test::MockRuntime`. A bare `AppHandle` means the real runtime's handle only,
-  and `with_commands`, which is generic over the runtime, stops compiling.
+- **Generic over the runtime when it names `AppHandle`.** A command that takes the app
+  handle declares `<R: Runtime>` and takes `AppHandle<R>`, so the same handler list
+  compiles for the real app and for `tauri::test::MockRuntime`. A bare `AppHandle`
+  means the real runtime's handle only, and `with_commands`, which is generic over the
+  runtime, stops compiling. In the sample, `increment<R: Runtime>` is the example.
 - **Arguments** arrive as a JSON object whose keys are camelCase by default
   (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29): a Rust parameter
   `entry` is `invoke("log_from_ui", { entry })`, and a parameter `max_value` would be
@@ -100,8 +102,9 @@ has the code for every step, taken from the sample.
   is rejected by deserialization before the function runs
   (`log_from_ui_rejects_an_unknown_level`). Validate meaning in core, not in the command.
 - **Log one line** per call with the command's name and the outcome, and no field that
-  could hold user data (`log_outcome` logs the new value, which is none); for a failure
-  the error's code is enough.
+  could hold user data; for a failure, the error's `Display`, which `designing-errors`
+  keeps free of it. In the sample, `log_outcome` logs the new value, a number core
+  computed, or the error.
 
 ## Events
 
@@ -109,9 +112,10 @@ An event carries a value that changed outside the call that asked for it: anothe
 window's command, or a file watcher an app adds (the sample has none, so a change the
 helper CLI makes shows when the window next loads or changes the value).
 
-- **The name is a `pub const`** beside the commands that emit it (`COUNTER_CHANGED =
-  "counter-changed"`, kebab-case), re-exported from `lib.rs` for the tests.
-  `ui/src/ipc/events.ts` declares the same string and the harness check compares them.
+- **The name is a kebab-case `pub const`** beside the commands that emit it,
+  re-exported from `lib.rs` for the tests (in the sample,
+  `COUNTER_CHANGED = "counter-changed"`). `ui/src/ipc/events.ts` declares the same
+  string and the harness check compares them.
 - **The payload is a core DTO**, the same one the command returns where possible, so the
   UI has one type to render. Tauri's `emit` needs it to be `Serialize + Clone`
   (<https://v2.tauri.app/develop/calling-frontend/>, checked 2026-09-29).
@@ -120,9 +124,11 @@ helper CLI makes shows when the window next loads or changes the value).
 - **One typed listener per event** in `events.ts`, returning the `Promise<UnlistenFn>`;
   the hook calls it on unmount, or every remount adds a listener
   (`useCounter.test.tsx` checks it).
-- Test both sides: `record_events` in `src-tauri/tests/commands.rs` and
-  `increment_at_the_maximum_rejects_with_a_code_and_emits_nothing`, and `emitEvent` in
-  `ui/src/ipc/testing.ts`.
+- Test both sides: a command test that records the emitted payloads, including one
+  asserting a rejection emits nothing, and a UI test that delivers the event with
+  `emitEvent` from `ui/src/ipc/testing.ts`. In the sample, `record_events` and
+  `increment_at_the_maximum_rejects_with_a_code_and_emits_nothing` in
+  `src-tauri/tests/commands.rs`.
 - A stream of ordered data (progress, a child process's output) is a Tauri `Channel`
   passed as a command argument, not a burst of events: Tauri documents channels as the
   fast, ordered path (<https://v2.tauri.app/develop/calling-frontend/>, checked

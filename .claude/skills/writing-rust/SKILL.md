@@ -65,7 +65,7 @@ formats. None of them opens a window.
   `[workspace.lints.clippy]` `unwrap_used`/`expect_used`, with `clippy.toml`
   `allow-unwrap-in-tests`. The reason is harder than style: the release profile sets
   `panic = "abort"` (root `Cargo.toml`), so a panic ends the whole app at once, with no
-  error shown and nothing unwound
+  error the UI can show and nothing unwound
   (https://doc.rust-lang.org/cargo/reference/profiles.html#panic, checked 2026-09-29).
 - Return `Result<T, E>` and propagate with `?`. Turn an `Option` into an error with
   `.ok_or(E)?` (`home_dir().ok_or(StartupError::NoHome)?` in `src-tauri/src/lib.rs`),
@@ -81,14 +81,16 @@ formats. None of them opens a window.
   enum has, and what crosses IPC: **REQUIRED:** `designing-errors`, before adding or
   changing a variant.
 - Never swallow an error. `let _ = fallible();` carries a comment saying why the failure
-  does not matter (`write_atomically` in `crates/myapp-platform/src/counter_store.rs`).
+  does not matter. In the sample, `write_atomically` in
+  `crates/myapp-platform/src/counter_store.rs` ignores a failed temp-file cleanup and says
+  why.
 
 ## `Option`
 
 `None` is an ordinary answer, not a failure: a store that holds nothing returns
 `Ok(None)`, and a value never set is `None`. Read it with `match`, `if let`, `map`,
-`ok_or`, or `let … else`, never `unwrap`. In JSON it is `null`
-(`CounterView::last_changed_at` serializes as `"lastChangedAt": null`).
+`ok_or`, or `let … else`, never `unwrap`. In JSON it is `null`; in the sample,
+`CounterView::last_changed_at` serializes as `"lastChangedAt": null`.
 
 ## Enums and `match`
 
@@ -110,10 +112,11 @@ formats. None of them opens a window.
   (`docs/architecture.md` › "What is contract and what is private").
 - Every `pub` item has a `///` comment saying why it exists and what it promises
   (`missing_docs`); a fallible `pub fn` has an `# Errors` section and one that can
-  panic a `# Panics` section (clippy pedantic). How to write them: `updating-docs`.
-- One module per concern: a directory with `mod.rs` when it has submodules
-  (`crates/myapp-core/src/counter/mod.rs` and `store.rs` beside it). A constant sits
-  beside the code that uses it; there is no `constants.rs` and no `static mut`. The
+  panic a `# Panics` section (clippy pedantic). Whether a change owes other
+  documentation, and where, is `updating-docs`.
+- One module per concern: a directory with `mod.rs` when it has submodules. In the
+  sample, `crates/myapp-core/src/counter/mod.rs` has `store.rs` beside it. A constant
+  sits beside the code that uses it; there is no `constants.rs` and no `static mut`. The
   Book on modules:
   https://doc.rust-lang.org/book/ch07-00-managing-growing-projects-with-packages-crates-and-modules.html
 
@@ -146,8 +149,9 @@ formats. None of them opens a window.
 ## Logging and `unsafe`
 
 - Log with the `tracing` macros and structured fields (`tracing::warn!(command,
-  %error, "…")`), never `println!`, `eprintln!`, or `dbg!`: a `.app` launched from
-  Finder discards stdout. The helper CLI's own output to its user is the exception.
+  %error, "…")`), never `println!`, `eprintln!`, or `dbg!`: a `.app` started from
+  Finder has no terminal, so nobody reads its stdout, while the log file stays. The
+  helper CLI's own output to its user is the exception.
 - `unsafe` is forbidden in every crate (`unsafe_code = "forbid"`) and is never the fix
   for a borrow-checker error. Edition 2024 makes `std::env::set_var` unsafe
   (https://doc.rust-lang.org/edition-guide/rust-2024/newly-unsafe-functions.html,

@@ -42,6 +42,11 @@ In the sample, `ui/src/counter/CounterScreen.tsx` renders over
   `ui/src/ipc/types.ts`; a missing wrapper is added there first (`designing-ipc`).
 - No state library: React state and one hook per Rust-owned model. Adding one is a new
   dependency and an ADR.
+- The UI reads no environment variable. Vite writes every `VITE_`-prefixed value into
+  the bundle at build time (<https://vite.dev/guide/env-and-mode>, checked 2026-09-29),
+  so it ships inside every copy of the `.app`: that is publication, not configuration.
+  A setting reaches a screen from Rust through a command; a first `VITE_` name is a
+  decision stated in its pull request, and never a credential.
 
 ## The hook
 
@@ -102,20 +107,23 @@ Every screen renders each state, and a test reaches each one:
 - **Keyboard:** every action is a native `button` (the primitives are), so Tab reaches it
   and Enter or Space presses it. Never a clickable `div`. The focus ring comes from
   `base.css`; never remove an outline to tidy a control. An action the user repeats
-  also gets a menu item with a shortcut (`designing-ui` › menus).
+  also gets a menu item with a shortcut (`designing-ui` › "Menus and keyboard
+  shortcuts").
 - **Motion:** a transition uses `var(--duration-fast)` or `var(--duration-base)` with
   `var(--easing-standard)`; the tokens become `0ms` under `prefers-reduced-motion:
   reduce`, so the rule holds without code in the component. Nothing is communicated by
   motion or color alone.
-- Enforced by: ESLint's React hooks rules only; the rest is held by the tests below,
-  which find every control by role and name, and by review.
+- Enforced by: `eslint.config.mjs` "react-hooks" (the hooks rules only; no
+  accessibility lint runs). The rest is held by the tests below, which find every
+  control by role and name, and by review.
 
 ## Styling and wording
 
 - Build from the primitives in `ui/src/design/` (`Button`, `IconButton`, `Stack`,
   `Panel`, `Text`); `docs/design/design-system.md` lists each one's recipe. Space with
   `Stack`'s `gap`, never with margins on the children.
-- A screen's CSS is layout only and reaches every value through `var(--…)`. Enforced by:
+- A screen's CSS is layout only and reaches every color, font, size, and spacing value
+  through `var(--…)`. Enforced by:
   the harness literal check (`just check-harness`), which fails on a raw color, a
   `font-family`, or a pixel font size anywhere in `ui/src/` outside `tokens.css`.
 - A screen that needs a value or a part the design system lacks gets it there first, as
@@ -138,8 +146,10 @@ Every screen renders each state, and a test reaches each one:
 2. `just lint`: types, the hook rules, the exhaustive switches.
 3. `just check-harness`: the literal check, and the IPC names.
 4. Only when the human wants to see it: ask them to run `just dev` or `just run`, in
-   both appearances and at the window's minimum size (`running-the-app`). An agent never
-   opens the window itself.
+   both appearances and at the window's minimum size (`running-the-app`), with a
+   VoiceOver pass when a control or its name changed, since no gate hears what
+   VoiceOver reads. The pull request says what was checked. An agent never opens the
+   window itself.
 
 ## Checklist
 

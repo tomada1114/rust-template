@@ -26,7 +26,7 @@ reference while another part of the code changes the same value.
 - Split the work into two statements instead of one expression that borrows twice.
 - Prefer a method that takes `self` and returns a new value over one that mutates
   through `&mut self`; most of these conflicts then disappear
-  (`designing-core-logic` › state transitions).
+  (`designing-core-logic` › "State transitions and use cases").
 
 **E0505, moved while still borrowed** (https://doc.rust-lang.org/error_codes/E0505.html).
 A reference is still in use when the value it points at is moved away. Finish using the

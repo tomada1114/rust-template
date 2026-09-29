@@ -43,6 +43,16 @@ table is the one list of what is contract; read it there rather than from a copy
   ("Without Just"), or the pull request process changes.
 - Neither changes for a refactor, a test, a rule `AGENTS.md` owns, or an edit to a skill.
 
+A skill is documentation for an agent, so it is held to the same prose rules as the files
+below; but editing one is not observable by a user and obliges no README, CONTRIBUTING,
+or `AGENTS.md` edit, except when the skill set changes shape (see the last bullet of
+"Changes that move two files at once").
+
+The mechanical items that fire most often already have a home: `AGENTS.md`'s Review
+Checklist (`///` on new public items, a TSDoc comment on a new IPC wrapper, the
+changelog entry) and the Checklist in `.github/PULL_REQUEST_TEMPLATE.md` (documentation
+and `CHANGELOG.md`). Work from those; this skill does not restate their items.
+
 ## Purpose per file
 
 Each surface has one job. Do not blur them, and do not let one grow a second copy of
@@ -89,6 +99,8 @@ files that changed, under a Keep a Changelog heading (`Added`, `Changed`, `Fixed
 `Removed`, `Security`, `Deprecated`). `just release-prep` later moves the whole section
 under the version heading; the notes GitHub generates from `.github/release.yml` are a
 supplement, not a substitute. Prettier skips `CHANGELOG.md`, so keep its wrapping by hand.
+`CHANGELOG.md` and `docs/` are maintained surfaces, not leftovers: keep them current
+rather than folding their content into a pull request description.
 
 ## Doc comments
 
@@ -99,7 +111,8 @@ supplement, not a substitute. Prettier skips `CHANGELOG.md`, so keep its wrappin
   the body. When a change alters what an item promises, the comment changes in the same
   commit.
 - An exported wrapper in `ui/src/ipc/` and an exported helper in `scripts/lib/` carry a
-  TSDoc comment. No lint enforces this; the Review Checklist and review do.
+  TSDoc comment. No lint enforces this: the Review Checklist asks for it on an IPC
+  wrapper, and review alone holds it for a `scripts/lib/` helper.
 
 ## Template-only material
 

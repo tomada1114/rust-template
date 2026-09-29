@@ -37,8 +37,9 @@ not restate the list, so the two cannot drift.
   removes types and never rewrites code, so syntax that needs a transform (`enum`, a
   `namespace` with runtime code, parameter properties) is an error, and an import names
   the `.ts` file (https://nodejs.org/api/typescript.html, checked 2026-09-29). Enforced
-  by: `scripts/tsconfig.json` "erasableSyntaxOnly" and "allowImportingTsExtensions", so
-  tsc reports both before Node does.
+  by: `scripts/tsconfig.json` "erasableSyntaxOnly" and "module": "NodeNext" (an
+  extensionless relative import is TS2835), so tsc reports both before Node does;
+  "allowImportingTsExtensions" is what lets the `.ts` spelling pass.
 - A script runs after `just install`, so it may import the parsers in `package.json`'s
   `devDependencies`. A package it would newly need is a new dependency, with the review
   and sign-off that implies.
@@ -61,8 +62,10 @@ if (import.meta.main) await runScript(main);
 ```
 
 - `import.meta.main` is true only for the module Node was started with, so a test that
-  imports `main` never triggers a run. Do not wrap it in a helper: a helper sees its own
-  module, never its caller's.
+  imports `main` never triggers a run. It arrived in Node 24.2.0, which `mise.toml`'s Node
+  pin passes, and is still marked early development
+  (https://nodejs.org/api/esm.html#importmetamain, checked 2026-09-29). Do not wrap it
+  in a helper: a helper sees its own module, never its caller's.
 - `main` receives everything from the process through the context (argv, env, the
   repository root, a `run` function for child processes, a logger, stdin), so its test
   calls it with fakes instead of spawning real tools.
@@ -70,12 +73,14 @@ if (import.meta.main) await runScript(main);
   recipe, `jdx/mise-action` in CI). A script never calls `mise exec` itself: a CI job
   installs only the tools its `install_args` name, and asking mise for another would
   start a download mid-run instead of failing on the missing tool. `git` and `gh` are
-  assumed on PATH, and tests stub both.
+  assumed on PATH, and tests stub both. A missing tool fails with a named code rather
+  than a spawn error (`scripts/apply-ruleset.ts`'s `ERR_RULESET_GH_MISSING`).
 
 ## Spawning git
 
-Git exports `GIT_DIR` to every hook, and `git commit -- <path>` also exports a
-temporary `GIT_INDEX_FILE`. An inherited `GIT_DIR` outranks both the child's working
+Git exports `GIT_DIR` and its siblings to every hook, and says a hook that runs git
+elsewhere must clear them (https://git-scm.com/docs/githooks, checked 2026-09-29);
+`git commit -- <path>` also exports a temporary `GIT_INDEX_FILE`. An inherited `GIT_DIR` outranks both the child's working
 directory and `git -C`, so a git command meant for another repository (a test's
 throwaway repository) writes into the outer one instead. Every spawned git therefore
 gets `gitEnv(env)` from `scripts/lib/git-env.ts`, which drops every `GIT_*` variable:
@@ -110,10 +115,12 @@ that is safe to run, and it never echoes a secret or the matched content (the st
 guard names a path and a rule, never the text). Throw a `ScriptError`
 (`scripts/lib/fail.ts`); `runScript` prints it and sets the exit code, and turns any
 other exception into `ERR_INTERNAL_UNEXPECTED`. The exit code is 1, or 2 for a Claude
-Code hook, the code that feeds stderr back to the agent (`scripts/format-edited-file.ts`).
-List every code in the header.
+Code `PostToolUse` hook, the code whose stderr is shown to the agent
+(https://code.claude.com/docs/en/hooks, checked 2026-09-29;
+`scripts/format-edited-file.ts`). List every code in the header.
 
-`scripts/verify-hooks.ts` in a clone where `just install` never ran:
+`scripts/verify-hooks.ts` in a clone where `just install` never ran (the checkout's
+absolute path shortened to `<repo>`):
 
 ```text
 ERR_HOOKS_NOT_INSTALLED: lefthook's pre-commit hook is not installed

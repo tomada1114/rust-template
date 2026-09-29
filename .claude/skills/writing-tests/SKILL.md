@@ -3,10 +3,9 @@ name: writing-tests
 description: >
   Covers how one test is written, in Rust and in TypeScript: naming it after behavior,
   an expected value that is independent of the implementation, asserting an error
-  variant or code (Err(CounterError::AtMaximum), { code: "atMaximum" }) instead of its
+  variant or code (assert_eq! on an Err variant, a { code } object) instead of its
   message, the contract suite a port's fake and real adapter share (<port>_contract in
-  myapp-test-support), fakes such as FixedClock and InMemoryCounterStore instead of
-  mocks, an injected clock and never a sleep, tempfile::tempdir per test, commands
+  myapp-test-support), fakes such as FixedClock instead of mocks, an injected clock and never a sleep, tempfile::tempdir per test, commands
   driven through tauri::test get_ipc_response, Testing Library queries by role and
   accessible name, and mockCommands / rejectWith / emitEvent over mockIPC. Use when
   writing or reviewing a #[test], a file under crates/*/tests or src-tauri/tests, a
@@ -38,6 +37,10 @@ Worked examples of every pattern below, in both languages, are in
   case, since the standard test harness has no parameterized tests. A crate for that
   (`rstest`) is a new dependency (`managing-dependencies`).
 - Cover the happy path and the error path of every public function and every command.
+- Build a case's data with a helper that takes what varies, never a shared mutable
+  fixture another test can change. In the sample, `app_holding(Some(2))` in
+  `src-tauri/tests/commands.rs` builds an app whose store holds 2. Files under
+  `scripts/**/fixtures/` are data under test, never imported as modules.
 
 ## Test through an interface
 
@@ -111,7 +114,8 @@ serde's derive (`crates/myapp-core/tests/serialization.rs`).
 At each bound, one step inside, and one step outside; the operation repeated at a
 bound; the state after an error; `0`, `1`, a negative number, `i64::MAX` and `i64::MIN`
 where arithmetic happens — an overflow panics in a debug build and wraps silently in a
-release build (https://doc.rust-lang.org/book/ch03-02-data-types.html#integer-overflow);
+release build (https://doc.rust-lang.org/book/ch03-02-data-types.html#integer-overflow,
+checked 2026-09-29);
 `None` and `Some`, and `null` in JSON; an empty collection and one element; long,
 Unicode, and emoji strings; in TypeScript, an absent property against an explicit
 `undefined`.
@@ -119,9 +123,10 @@ Unicode, and emoji strings; in TypeScript, an absent property against an explici
 ## Fakes, not mocks
 
 A port is replaced in a test by its fake from `crates/myapp-test-support`, never by a
-mocking framework. A fake is a working implementation configured per case
-(`InMemoryCounterStore::holding(…)`, `FailingCounterStore::save_fails(…)`) that
-records what happened in a plain value the test reads afterwards (`store.saved()`).
+mocking framework. A fake is a working implementation, configured per case, that
+records what happened in a plain value the test reads afterwards. In the sample,
+`InMemoryCounterStore::holding(…)` and `FailingCounterStore::save_fails(…)` configure
+one, and `store.saved()` reads it.
 Every test of a port uses that one fake, so its test-time behavior is defined once.
 Assert the state the code produced, not the calls it made, unless asking is itself the
 behavior (the UI logged a bridge failure: `expect(calls).toContain("log_from_ui")`).
@@ -146,9 +151,12 @@ Do not add a trait, or a fake for it, until something actually varies across it.
   restores after every test, as it restores mocks. An `afterEach` whose only job is
   `vi.restoreAllMocks()` is noise; `ui/src/test/setup.ts` already unmounts and clears
   the IPC mocks.
-- Tests are independent: no shared mutable state and no order. nextest runs each test
-  in its own process (https://nexte.st/docs/design/how-it-works/, checked 2026-09-29),
-  and Vitest runs files in parallel.
+- Tests are independent: no shared mutable state, no order, and no dependence on the
+  machine's time zone, locale, or CPU count. nextest runs each test in its own process
+  (https://nexte.st/docs/design/how-it-works/, checked 2026-09-29), and Vitest runs
+  files in parallel. A flaky test is fixed, never retried or skipped.
+- What the runner does not clean up (a listener, a child process, a thread) the test
+  cleans up itself, on the failure path too.
 
 ## The UI
 

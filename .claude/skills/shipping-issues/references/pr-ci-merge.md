@@ -24,7 +24,9 @@ report `SKIPPED(<why>)`, and in `all` mode move on.
 Open a PR from `<branch>` against `<default_branch>`, titled `<PR-TITLE>`. The body must
 carry **`Closes #N`** after the summary (a bare `#N` closes nothing) and target the
 **default branch** (auto-close only fires there). Build it from `PR-SUMMARY`,
-`Closes #N`, and `TEST-PLAN`, in the shape of `.github/PULL_REQUEST_TEMPLATE.md` --
+`Closes #N`, the Release impact line (decided here from `CHANGED`, in one of the
+`create-pr` skill's two forms), and `TEST-PLAN`, in the shape of
+`.github/PULL_REQUEST_TEMPLATE.md` --
 Summary, Test Plan, and its Checklist ticked only for what actually ran. Record
 `--event pr-created --field issue=<n> --field pr=<url>`, then:
 
@@ -149,7 +151,7 @@ in `triaging-issues` requires one; report it at step 10 rather than guess). Do n
 from this up-to-date branch, without pausing. **Parallel `all`:** the batch's remaining
 branches are now behind; bring each up to date in its own worktree **before its own
 step 5**, rather than after a CI failure, and merge rather than rebase
-(how (`recovery.md`)). A conflict
+(`recovery.md` says how). A conflict
 either way means the grouping call was wrong for that pair
 (`recovery.md`). Only when the whole batch has merged
 does the run group the next batch. With no argument or an explicit number, step 8c is

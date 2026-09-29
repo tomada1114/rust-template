@@ -2,7 +2,7 @@
 name: writing-typescript
 description: >
   Covers type-system judgment in the TypeScript under ui/src and scripts: narrowing
-  unknown instead of any, a type guard such as isCounterError, satisfies vs as, as const
+  unknown instead of any, a type guard (value is T), satisfies vs as, as const
   satisfies for an exhaustive table, interface vs type, a discriminated union with an
   exhaustive switch and no default (switch-exhaustiveness-check), inline import type
   under verbatimModuleSyntax, noUncheckedIndexedAccess, exactOptionalPropertyTypes and
@@ -81,9 +81,9 @@ open. The language itself is the TypeScript handbook
   and never write a TypeScript copy of a type Rust already sends. Change the Rust type,
   run `just bindings`, and commit both; a hand-written twin drifts silently, where the
   generated one fails `tsc` at every place the change matters.
-- Derive what you need from a generated type instead of restating it:
-  `CounterError["code"]` is the union of codes, and `Extract<CounterError, { code:
-  "storage" }>` is one member.
+- Derive what you need from a generated type (an indexed access, `Extract`) instead of
+  restating it. In the sample, `CounterError["code"]` is the union of codes, and
+  `Extract<CounterError, { code: "storage" }>` is one member.
 - A 64-bit Rust integer arrives as `number` (`TS_RS_LARGE_INT` in
   `.cargo/config.toml`); a time is milliseconds since the epoch, formatted only in
   `ui/src/copy/`.
@@ -92,9 +92,11 @@ open. The language itself is the TypeScript handbook
 
 - An object shape is an `interface`, and composition is `interface X extends Y`:
   `@typescript-eslint/consistent-type-definitions` (from the stylistic set) prefers it,
-  and `&` intersections are slower to check and give worse errors. A union is a `type`,
-  since an interface cannot express one. In the sample, `UseCounter` is an interface
-  and `CounterState` is a union `type` (`ui/src/counter/useCounter.ts`).
+  and `&` intersections are slower to check and give worse errors
+  (https://github.com/microsoft/TypeScript/wiki/Performance#preferring-interfaces-over-intersections,
+  checked 2026-09-29). A union is a `type`, since an interface cannot express one. In
+  the sample, `UseCounter` is an interface and `CounterState` is a union `type`
+  (`ui/src/counter/useCounter.ts`).
 - Mark props, state, and options `readonly` unless the code mutates them.
 
 ## Discriminated unions and exhaustiveness
@@ -126,7 +128,7 @@ open. The language itself is the TypeScript handbook
 - No `enum` and no `namespace`. `scripts/` rejects them at `tsc`
   (`erasableSyntaxOnly`), because Node strips types without compiling; `ui/` follows the
   same rule by review, and a string-literal union is what ts-rs generates from a Rust
-  enum anyway (`StorageErrorKind` is `"unavailable" | "corrupt"`).
+  enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
 
 ## Function boundaries
 

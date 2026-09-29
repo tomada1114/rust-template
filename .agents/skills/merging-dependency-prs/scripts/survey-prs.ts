@@ -2,8 +2,8 @@
  * Surveys the open Dependabot and Renovate pull requests for the `merging-dependency-prs`
  * skill: each one's ecosystem, the versions it moves and their semver level, its check
  * rollup, its merge state, the files it touches, the files two of them contest, and
- * whether the batch keeps the Tauri crates and the `@tauri-apps/*` npm packages on one
- * minor. Read-only: it runs `gh pr list` and reads `Cargo.lock` and `package.json`, and it
+ * whether the batch keeps each Tauri crate in step with its `@tauri-apps/*` npm packages.
+ * Read-only: it runs `gh pr list` and reads `Cargo.lock` and `package.json`, and it
  * is the one step of the skill that runs before the human's approval.
  *
  *   node .agents/skills/merging-dependency-prs/scripts/survey-prs.ts [--json]
@@ -228,13 +228,20 @@ function isTauriFamily(name: string): boolean {
   return name === "tauri" || name.startsWith("tauri-") || name.startsWith("@tauri-apps/");
 }
 
-function minorOf(version: string): string | undefined {
+/**
+ * What a pair must agree on: `tauri` and its npm packages share a minor, but a plugin's
+ * crate and package must share the exact version, since Tauri ships breaking plugin
+ * changes in patch releases (https://v2.tauri.app/develop/updating-dependencies/).
+ */
+function stepOf(key: string, version: string): string | undefined {
   const match = VERSION.exec(version);
-  return match === null ? undefined : `${match[1] ?? ""}.${match[2] ?? ""}`;
+  if (match === null) return undefined;
+  const minor = `${match[1] ?? ""}.${match[2] ?? ""}`;
+  return key === "tauri" ? minor : `${minor}.${match[3] ?? "0"}`;
 }
 
 /**
- * Whether the batch leaves each Tauri pair on one minor, from the versions the checkout
+ * Whether the batch leaves each Tauri pair in step, from the versions the checkout
  * has now plus every move the open PRs make; and every Tauri major, which is a migration
  * rather than a bump.
  */
@@ -263,8 +270,8 @@ export function tauriReport(
       .map(([name, { version, pr }]) =>
         pr === undefined ? { name, version } : { name, version, pr },
       );
-    const minors = new Set(versions.map(({ version }) => minorOf(version)));
-    return { key, prs: [...prs].sort((a, b) => a - b), aligned: minors.size === 1, versions };
+    const steps = new Set(versions.map(({ version }) => stepOf(key, version)));
+    return { key, prs: [...prs].sort((a, b) => a - b), aligned: steps.size === 1, versions };
   });
   return { pairs, majors };
 }
@@ -393,7 +400,9 @@ function report(
   }
   if (tauri.pairs.length > 0) {
     context.log("");
-    context.log("Tauri family (every member lands in one branch, on one minor):");
+    context.log(
+      "Tauri family (one branch; tauri on its packages' minor, a plugin on its package's version):",
+    );
     for (const pair of tauri.pairs) {
       const members = pair.versions
         .map(

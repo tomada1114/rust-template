@@ -100,7 +100,8 @@ yet, not that a detail is left for later.
 - `dependencies` are bundled into the UI that ships; `devDependencies` are tools and
   tests. The pnpm project publishes nothing, so it declares no `peerDependencies`.
 - Add or bump with `pnpm add <package>` (or `pnpm add -D`), never by typing a version
-  into `package.json`, and commit `pnpm-lock.yaml` with it. A caret or tilde range lets
+  into `package.json`, and commit `pnpm-lock.yaml` with it; the lockfile is regenerated
+  (`pnpm install --lockfile-only` when only it should change), never hand-edited. A caret or tilde range lets
   the cooldown resolve to an older, already-cooled release; an exact pin on a release
   younger than the cooldown fails the install outright.
 - `pnpm-workspace.yaml` holds the supply-chain settings: `minimumReleaseAge` (a version
@@ -111,7 +112,12 @@ yet, not that a detail is left for later.
 - An urgent security fix younger than the cooldown may get one exact
   `package@version` entry in `minimumReleaseAgeExclude`, approved by a human, in a pull
   request that cites the advisory, says why waiting is riskier, and says when the entry
-  comes out. Never a wildcard or an unversioned name.
+  comes out. Never a wildcard or an unversioned name. `trustPolicyExclude` takes the same
+  shape: one exact `package@version`, its reason in a comment, and a human's approval.
+- A peer or resolution failure is not answered with `peerDependencyRules` or
+  `overrides` to quiet it. If one is genuinely needed, name the single `parent>child`
+  edge, say why the package works against the version it did not declare, and say what
+  lets the entry be dropped; it is a sign-off change like a new dependency.
 - TypeScript is held below the version `typescript-eslint` supports, and
   `strictPeerDependencies` makes a bump past it fail the install. Read the real ceiling
   before proposing a TypeScript change:
@@ -120,8 +126,8 @@ yet, not that a detail is left for later.
 
 ## Tauri moves as one
 
-The `tauri` crates and the `@tauri-apps/*` npm packages stay on the same minor (a CI
-check fails on a mismatch), so the JavaScript API the UI calls and the Rust runtime
+The `tauri` crates and the `@tauri-apps/*` npm packages stay on the same minor (a
+harness check under `just check-harness` fails on a mismatch), so the JavaScript API the UI calls and the Rust runtime
 that answers it come from one release line. A Tauri major is a migration issue and an ADR, never a batch
 merge.
 

@@ -69,8 +69,10 @@ almost always contains one.
 
 ## The Tauri family
 
-- The survey's Tauri section says `aligned` for every pair the batch moves, or the
-  combined branch moves the missing side (`merging-dependency-prs` "The Tauri rule").
+- The survey's Tauri section says `aligned` for every pair the batch moves (`tauri`
+  and `@tauri-apps/api`/`cli` on one minor, a plugin crate and its package on one exact
+  version), or the combined branch moves the missing side (`merging-dependency-prs`
+  "The Tauri rule").
 - A Tauri major is held and becomes a migration issue; it is never merged in a batch.
 - A new `tauri-plugin-*` crate or `@tauri-apps/plugin-*` package appearing in a bump is
   a new dependency and a new capability, not a bump: stop and ask.

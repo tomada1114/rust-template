@@ -39,6 +39,7 @@ fewest machines while still able to fail for the behavior:
 | The helper CLI | `crates/myapp-cli/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
 | A hook, a component, an IPC wrapper, copy | `ui/src/**/<name>.test.ts(x)`, beside the source | `just test-ui` | `ui/src/**` floor |
 | A repository script | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor, and `scripts/lib/guard/**` for the staged guard |
+| A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | none: counted in the report, no floor |
 | What only the assembled app shows | no test file: `just smoke`, then the manual check | `just smoke`; `just run` + `just logs` by a human | none |
 
 A domain decision tested only in a row that no floor measures is in the wrong place:
@@ -92,8 +93,9 @@ only invite tests of glue.
 ## Commands: `src-tauri/tests/`
 
 Command tests build the app with `with_commands(mock_builder())` and core's service
-over fakes, so they touch no disk and open no window. The Tauri crate builds only on
-macOS, so they run in `just test-macos` and CI's macOS job, not in `just test-core`.
+over fakes, so they touch no disk and open no window. This repository builds the Tauri
+crate only on macOS (CI's Linux jobs never compile it), so they run in
+`just test-macos` and CI's macOS job, not in `just test-core`.
 
 ## The UI and scripts: Vitest projects
 
@@ -102,9 +104,9 @@ macOS, so they run in `just test-macos` and CI's macOS job, not in `just test-co
 - **`ui`** — `ui/src/**/*.test.{ts,tsx}`, under jsdom, with `ui/src/test/setup.ts`
   (Testing Library's matchers and cleanup, then the IPC mocks cleared) and a
   10-second budget. A test here does no real I/O: the Rust side is `mockCommands`.
-- **`scripts`** — `scripts/**/*.test.ts` (the project's `include` is the full list),
-  under Node, with a 60-second budget: script tests create temporary directories and
-  throwaway repositories.
+- **`scripts`** — `scripts/**/*.test.ts` and a skill's
+  `.agents/skills/*/scripts/**/*.test.ts`, under Node, with a 60-second budget: script
+  tests create temporary directories and throwaway repositories.
 
 The budgets differ because a hang means different things: a UI test has no I/O, so a
 short budget surfaces an unresolved promise in seconds; a script test legitimately

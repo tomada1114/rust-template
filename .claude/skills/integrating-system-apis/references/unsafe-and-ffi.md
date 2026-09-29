@@ -24,7 +24,12 @@ safe crate covers. Then, in one pull request:
    crate declared for macOS only.
 3. **The gate change** (`changing-gates`): lifting `forbid` for `myapp-platform` only,
    and turning on `clippy::undocumented_unsafe_blocks` there in the same change, so a
-   block without a `// SAFETY:` comment fails `just lint`.
+   block without a `// SAFETY:` comment fails `just lint`. It is more than one line: an
+   `#[allow(unsafe_code)]` cannot lower a `forbid`
+   (<https://doc.rust-lang.org/rustc/lints/levels.html>), and cargo refuses a crate that
+   inherits `[workspace.lints]` and also overrides one of them ("cannot override
+   `workspace.lints` in `lints`": observed with cargo 1.98.1, 2026-09-29), so the
+   crate's `[lints]` table stops inheriting and restates the list itself.
 
 Lifting `forbid` to get past a borrow-checker error is weakening a gate
 (`AGENTS.md` › "Security and human approval"), whatever the ADR says.
@@ -97,6 +102,9 @@ pointer the registration passed in.
 - **The callback translates and hands off.** It turns the framework's arguments into a
   core value and sends it (a channel, or a callback the shell supplied), then returns.
   It does no work of its own: a slow callback can make the OS switch the source off.
+  When a framework reports that it disabled the source (an event tap receives it as an
+  event type through the same callback), re-enable it there; ignored, the adapter
+  silently stops receiving anything.
 - **No panic reaches the boundary.** With `panic = "abort"` in release a panic in the
   callback ends the app; in a debug build, unwinding out of an `extern "C"` function is
   governed by the Nomicon's rules above. Handle every `Result` inside.

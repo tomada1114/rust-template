@@ -99,7 +99,7 @@ claims that cite it.
 Write: "Run `just test-fast <filter>` while iterating, then `just test-core`." Both are
 recipes, so `just check-harness` keeps them honest.
 
-Avoid: a recipe name the `justfile` lacks (the harness check fails the commit), or the
+Avoid: a recipe name the `justfile` lacks (`just check-harness` and CI fail on it), or the
 raw command a recipe wraps when the recipe exists (it drifts when the recipe's flags
 change, and nothing checks it). `just --list` shows every recipe, and
 `just --show <recipe>` prints the commands inside one.

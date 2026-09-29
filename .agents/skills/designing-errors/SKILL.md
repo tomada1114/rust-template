@@ -3,7 +3,7 @@ name: designing-errors
 description: >
   Covers how an error is shaped in this Rust + Tauri + TypeScript repository: one
   thiserror enum per core module or port, serialized to the UI as a code with
-  #[serde(tag = "code")] and worded in ui/src/copy/, the isCounterError guard in
+  #[serde(tag = "code")] and worded in ui/src/copy/, the rejection guards in
   ui/src/ipc/errors.ts, what an error payload or a tracing field may carry, how an
   adapter in myapp-platform maps std::io::Error or an OS failure into a core kind,
   Option versus Err, no panic across a command (panic = "abort" in release), anyhow,
@@ -29,8 +29,9 @@ report of a script (`writing-repo-scripts`); where the wording is rendered
 A caller branches on the variant (Rust) or the `code` (TypeScript), because those only
 change on purpose. The text in `#[error("…")]` is for a developer reading a log, and may
 be reworded in any pull request. So a test, a `match`, or a UI branch never compares
-message text: assert `Err(CounterError::AtMaximum)` in Rust and `{ code: "atMaximum" }`
-in TypeScript. `.claude/rules/testing.md` holds the same rule for tests.
+message text: it asserts the variant in Rust and the `code` in TypeScript. In the
+sample, that is `Err(CounterError::AtMaximum)` and `{ code: "atMaximum" }`.
+`.claude/rules/testing.md` holds the same rule for tests.
 
 ## Where an error type lives, and its shape
 
@@ -46,9 +47,9 @@ in TypeScript. `.claude/rules/testing.md` holds the same rule for tests.
   sample, `CounterError::{AtMaximum, AtMinimum, Storage { kind }}`: the UI says a
   different sentence for each.
 - A payload is a small value the caller decides on: an enum of kinds, a number. Never a
-  `std::io::Error`, a `PathBuf`, a `String` from the OS, or a `Box<dyn Error>`: those
-  are not `PartialEq` (so a test cannot `assert_eq!` on them), not serializable, and
-  can carry a path or a user's text.
+  `std::io::Error` or a `Box<dyn Error>`, which are neither `PartialEq` (so a test cannot
+  `assert_eq!` on them) nor serializable, and never a `PathBuf` or a `String` from the
+  OS, which can carry a path under the home directory or a user's text.
 - Derive `Debug, Clone, Copy, PartialEq, Eq` where the payload allows. `Copy` is free
   for a unit-only or small-enum error and saves the reader from ownership questions.
 - A port has its own narrow error and the module above it converts with `From`, so `?`
@@ -82,8 +83,8 @@ checked 2026-09-29), and this shape is what a command rejects with.
   ESLint's `switch-exhaustiveness-check` fails `just lint` when a code has no case, so
   a new variant cannot ship without its sentence.
 - A rejection is narrowed before it is read. `ui/src/ipc/errors.ts` holds one guard per
-  error type (`isCounterError`), listing the codes with
-  `satisfies CounterError["code"][]`. `satisfies` rejects a code that does not exist but
+  error type, listing the codes with `satisfies <Error>["code"][]` (`isCounterError` in
+  the sample). `satisfies` rejects a code that does not exist but
   does not notice a missing one, so a new code is added to that list by hand, and
   `errors.test.ts` gets a case for it.
 - A rejection that is not a known code (the bridge itself failed) becomes `null` in the
@@ -128,13 +129,14 @@ OS failure to a core kind is translation; what the app then does is core's decis
 ## No panic across a command
 
 `[profile.release]` in the root `Cargo.toml` sets `panic = "abort"`: in a release build a
-panic kills the whole app at once, with no error for the UI and no chance to log. So:
+panic kills the whole app at once, with no error for the UI and no line in the log file
+(<https://doc.rust-lang.org/cargo/reference/profiles.html#panic>). So:
 
 - Never `unwrap()` or `expect()` outside tests (`clippy::unwrap_used`/`expect_used` in
   `[workspace.lints]`). Return a `Result` and propagate with `?`.
 - A command returns `Result<T, E>` for anything that can fail, including a worker
-  thread that died: `on_blocking_thread` maps the `spawn_blocking` join error to
-  `Storage { kind: Unavailable }` rather than unwrapping it.
+  thread that died: the join error of `spawn_blocking` becomes a core kind, never an
+  unwrap. In the sample, `on_blocking_thread` maps it to `Storage { kind: Unavailable }`.
 - A lock that protects no data is taken with `unwrap_or_else(PoisonError::into_inner)`
   (`CounterService`), because a panic on another thread left nothing inconsistent.
 - An error is handled or returned, never dropped. `let _ = fallible();` carries a
@@ -143,8 +145,8 @@ panic kills the whole app at once, with no error for the UI and no chance to log
   `announce` does when an emit fails, without failing the command.
 
 `anyhow` is not used: every crate here is a library or a composition root with a typed
-error, and the helper CLI maps `CounterError` to its own stderr line and exit code
-(`describe` in `crates/myapp-cli/src/main.rs`). Adding it for the CLI's `main` is a new
+error, and the helper CLI maps core's error to its own stderr line and exit code (in the
+sample, `describe` in `crates/myapp-cli/src/main.rs`). Adding it for the CLI's `main` is a new
 dependency (`managing-dependencies`), and it stays out of core, platform, and the shell.
 
 ## Codes in `scripts/`

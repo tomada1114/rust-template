@@ -59,7 +59,7 @@ just logs    # the newest log file's last 50 lines, then exit
   errors appear with the target `ui`. A log line is often the cheapest observable for
   a wiring change: add the `tracing` event in the shell, then read it.
 - **The helper** runs without the GUI. Point `HOME` at a scratch directory so it reads
-  and writes a throwaway store and log instead of the developer's own:
+  and writes a throwaway store and log instead of the developer's own. In the sample:
 
   ```bash
   cargo build --locked -p myapp-cli
@@ -126,8 +126,11 @@ which is usually the faster path.
 Do not add a flag or an environment hook to the app only to look at a state. A state you
 only need to see is one a test can build directly: a command test hands the service a
 fake holding it (`app_holding` in `src-tauri/tests/commands.rs`), and a UI test answers
-the command with it (`mockCommands` in `ui/src/ipc/testing.ts`). `MYAPP_SMOKE` is the one
-environment switch, and it changes visibility and lifetime only, never behaviour.
+the command with it (`mockCommands` in `ui/src/ipc/testing.ts`). `MYAPP_SMOKE` is the
+template's only environment switch, and it changes visibility and lifetime only, never
+behaviour. A start state genuinely needed by hand as well as by tests is read once in the
+composition root (`src-tauri/src/lib.rs`) and handed to core as a value, so a core test
+still reaches it; core never reads the environment (`designing-core-logic`).
 
 ## The evidence a pull request carries
 
@@ -143,6 +146,6 @@ command, not a paraphrase, and paste:
   `#[ignore = "local machine: …"]` test (`AGENTS.md` › "Review Checklist").
 
 Redact before pasting: a signing identity, a Team ID, a certificate name, a personal
-name, or a home directory path (`ps` and `stat` print `/Users/<name>/…`). A pull request
-here, or in an app cut from this template, may be public. Leave nothing behind: remove
+name, or a home directory path (`ps` and `stat` print `/Users/<name>/…`), and say that
+you did. A pull request here, or in an app cut from this template, may be public. Leave nothing behind: remove
 any scratch `HOME`, and check `git status --porcelain` shows only the change.
