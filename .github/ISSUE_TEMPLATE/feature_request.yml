@@ -1,0 +1,33 @@
+name: Feature Request
+description: Suggest a new feature or enhancement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thank you for suggesting a feature. Please describe the problem first, then the
+        solution you have in mind.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this feature solve, and for whom?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should it work, as someone using the app would see it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other approaches you considered, including doing nothing.
+    validations:
+      required: false
