@@ -61,9 +61,15 @@ what was built; each entry says what the design said, what was done, and why.
 - ts-rs 12.0.1 honours `TS_RS_EXPORT_DIR` from `.cargo/config.toml` (bindings land in
   `ui/src/ipc/generated/`) and `TS_RS_LARGE_INT = "number"` (no `bigint` in the output).
 - Tauri 2.11 has `App::set_activation_policy` and `ActivationPolicy::Prohibited` on
-  macOS, and its CLI exports `TAURI_ENV_TARGET_TRIPLE` and `TAURI_ENV_DEBUG` to
-  `beforeDevCommand`/`beforeBuildCommand` (found in the CLI binary's strings), which
-  `scripts/build-sidecar.ts` reads before falling back to `rustc --print host-tuple`.
+  macOS. Its CLI exports `TAURI_ENV_TARGET_TRIPLE` to `beforeBuildCommand`, and
+  `TAURI_ENV_DEBUG=true` only for a debug build — a release build leaves it unset
+  (observed by a before-command that dumped its environment). `scripts/build-sidecar.ts`
+  therefore builds the helper for release when the triple is set and `DEBUG` is not.
+- Smoke mode keeps focus on this Mac: during a `just smoke` launch, `lsappinfo front`
+  sampled every 100 ms returned a single application (the one already in front), and
+  across a full smoke build every frontmost application was one the owner was using —
+  MyApp never came to the front and no window appeared. `ActivationPolicy::Prohibited`
+  holds, so the `Accessory` fallback was not needed.
 - `unsafe_code = "forbid"` holds in the Tauri crate: `generate_handler!`,
   `generate_context!`, and `#[tauri::command]` expand without tripping it, so the
   pre-approved `deny` exception was not needed.

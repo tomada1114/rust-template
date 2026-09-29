@@ -8,7 +8,8 @@
  *
  * Usage: node scripts/build-sidecar.ts [--release] [--target <triple>]
  * Without flags it reads TAURI_ENV_TARGET_TRIPLE / TAURI_ENV_DEBUG (set by the Tauri
- * CLI for its before-commands), then falls back to the host triple and a debug build.
+ * CLI for its before-commands; DEBUG only in a debug build), then falls back to the host
+ * triple and a debug build.
  */
 import { chmodSync, copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -57,10 +58,13 @@ export function parseOptions(
       throw argsError(String(arg));
     }
   }
-  const tauriDebug = env["TAURI_ENV_DEBUG"];
+  // The Tauri CLI exports TAURI_ENV_TARGET_TRIPLE to its before-commands, plus
+  // TAURI_ENV_DEBUG=true for a debug build only (observed with the 2.11 CLI).
+  const tauriTriple = env["TAURI_ENV_TARGET_TRIPLE"];
+  const fromTauri = tauriTriple === undefined ? undefined : env["TAURI_ENV_DEBUG"] !== "true";
   return {
-    triple: triple ?? env["TAURI_ENV_TARGET_TRIPLE"] ?? hostTriple(),
-    release: release ?? (tauriDebug === undefined ? false : tauriDebug !== "true"),
+    triple: triple ?? tauriTriple ?? hostTriple(),
+    release: release ?? fromTauri ?? false,
   };
 }
 

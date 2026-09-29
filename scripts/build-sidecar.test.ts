@@ -49,13 +49,19 @@ describe("parseOptions", () => {
     });
   });
 
-  it("takes the triple and profile Tauri exports to beforeBuildCommand", () => {
-    const env = { TAURI_ENV_TARGET_TRIPLE: "aarch64-apple-darwin", TAURI_ENV_DEBUG: "false" };
+  it("builds for release when Tauri runs it for a release build", () => {
+    // Observed with the Tauri 2.11 CLI: a release build exports the triple and no
+    // TAURI_ENV_DEBUG; a debug build adds TAURI_ENV_DEBUG=true.
+    const env = { TAURI_ENV_TARGET_TRIPLE: "aarch64-apple-darwin" };
     expect(parseOptions([], env, () => "host")).toEqual({
       triple: "aarch64-apple-darwin",
       release: true,
     });
-    expect(parseOptions([], { ...env, TAURI_ENV_DEBUG: "true" }, () => "host").release).toBe(false);
+  });
+
+  it("builds for debug when Tauri runs it for a debug build", () => {
+    const env = { TAURI_ENV_TARGET_TRIPLE: "aarch64-apple-darwin", TAURI_ENV_DEBUG: "true" };
+    expect(parseOptions([], env, () => "host").release).toBe(false);
   });
 
   it("rejects an unknown argument", () => {

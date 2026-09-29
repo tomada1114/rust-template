@@ -11,7 +11,8 @@ describe("runCommand", () => {
       "-e",
       "process.stdout.write('hi'); process.exit(3)",
     ]);
-    expect(result).toEqual({ status: 3, stdout: "hi", stderr: "" });
+    expect(result).toMatchObject({ status: 3, stdout: "hi", stderr: "" });
+    expect(result.pid).toBeGreaterThan(0);
   });
 
   it("passes input, cwd, and env to the child", () => {
@@ -30,6 +31,14 @@ describe("runCommand", () => {
     const result = runCommand("definitely-not-a-command-here", []);
     expect(result.status).toBeNull();
     expect(result.stderr).toContain("ENOENT");
+  });
+
+  it("kills a child that outlives its timeout", () => {
+    const result = runCommand(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], {
+      timeoutMs: 200,
+    });
+    expect(result.status).toBeNull();
+    expect(result.stderr).toContain("ETIMEDOUT");
   });
 
   it("can pass output through instead of capturing it", () => {
