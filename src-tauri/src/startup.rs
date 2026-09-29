@@ -1,8 +1,17 @@
 //! What startup does differently in smoke mode — visibility and lifetime only, never
-//! behaviour (design D22). A pure function, so it is tested without a window.
+//! behaviour (design D22). Pure functions, so they are tested without a window.
 
-/// Set (to anything) to start in smoke mode. The bootstrap renames it with the app.
+use std::ffi::OsStr;
+
+/// Set to `1` to start in smoke mode. The bootstrap renames it with the app.
 pub const SMOKE_ENV: &str = "MYAPP_SMOKE";
+
+/// Whether the value of [`SMOKE_ENV`] asks for smoke mode: exactly `1`, so `0`, an empty
+/// value, or an unset variable all start the app normally.
+#[must_use]
+pub fn smoke_requested(value: Option<&OsStr>) -> bool {
+    value.is_some_and(|value| value == "1")
+}
 
 /// How the app presents itself to macOS. Mirrors `tauri::ActivationPolicy`, which only
 /// exists on macOS, so the plan stays testable everywhere.
@@ -29,7 +38,8 @@ impl From<StartupActivation> for tauri::ActivationPolicy {
 pub struct StartupPlan {
     /// Show the main window (created hidden by `tauri.conf.json`).
     pub show_window: bool,
-    /// The activation policy, set before any window shows.
+    /// The activation policy, set on the built app before its event loop starts, so
+    /// macOS applies it at launch — before any window exists or the app can activate.
     pub activation_policy: StartupActivation,
     /// Exit 0 once startup completes.
     pub exit_after_startup: bool,
@@ -79,6 +89,25 @@ mod tests {
                 exit_after_startup: true,
             }
         );
+    }
+
+    #[test]
+    fn only_the_value_1_requests_smoke_mode() {
+        let cases: [(Option<&str>, bool); 6] = [
+            (Some("1"), true),
+            (Some("0"), false),
+            (Some(""), false),
+            (Some("true"), false),
+            (Some(" 1"), false),
+            (None, false),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(
+                smoke_requested(value.map(OsStr::new)),
+                expected,
+                "{SMOKE_ENV}={value:?}"
+            );
+        }
     }
 
     #[test]
