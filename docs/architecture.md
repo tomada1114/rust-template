@@ -159,13 +159,32 @@ line carries user data. `just logs` prints the newest file's last lines and exit
 
 ## Smoke mode
 
-With `MYAPP_SMOKE` set, the shell sets the activation policy to `Prohibited` before any
-window exists, leaves the main window hidden (it is created with `visible: false`), runs
-the normal startup path — store, clock, logging, command registration — logs
-`startup complete`, and exits 0; any startup error exits non-zero. The flag changes
-visibility and lifetime only, never behaviour, and `startup_plan`
-(`src-tauri/src/startup.rs`) is tested for that. `just smoke` runs the built executable
-directly, never through `open`, which would activate the app.
+With `MYAPP_SMOKE=1` (exactly `1`: `0` or an empty value starts the app normally), the
+shell runs the normal startup path with no window, no Dock icon, and no focus change,
+logs `startup complete`, and exits 0. `run()` in `src-tauri/src/lib.rs` works in two
+phases:
+
+- **Before the event loop** (`prepare`): find `HOME`, start logging, compose the state
+  and commands (`compose`: the JSON store under `HOME`, the system clock, every command),
+  build the app, and set the activation policy on the built `App` — `Prohibited` in
+  smoke mode — between `build` and `run`. tao applies it when the app finishes
+  launching, before it would activate as a regular app, so the process registers as
+  background-only (`lsappinfo` reports `type="BackgroundOnly"`), which has no Dock
+  tile.
+- **In setup** (`finish_startup`, once the configured windows exist): require the
+  `main` window, show it unless in smoke mode (it is created with `visible: false`),
+  and log `startup complete`.
+
+Any startup error — no `HOME`, logging, the build, a missing or unshowable main window —
+is logged, printed to stderr, and exits 1; none reaches Tauri's setup panic, which the
+release profile's `panic = "abort"` would turn into a crash. `just smoke` checks both
+sides: with `HOME` unset the executable must exit 1 with `HOME is not set`, and with it
+set it must exit 0 and log its `startup complete` line. The flag changes visibility and
+lifetime only, never behaviour: `startup_plan` and `smoke_requested`
+(`src-tauri/src/startup.rs`) are unit-tested, and `src-tauri/tests/startup.rs` runs
+`compose` and `finish_startup` under both plans on Tauri's mock runtime and compares
+the state and commands they leave. `just smoke` runs the built executable directly,
+never through `open`, which would activate the app.
 
 ## Where new code goes
 
@@ -176,7 +195,7 @@ directly, never through `open`, which would activate the app.
 | A command or an event | `src-tauri/src/commands.rs`, `with_commands`, and `ui/src/ipc/` | `src-tauri/tests/commands.rs` through `tauri::test` (`just test-macos`) and `ui/src/ipc/*.test.ts` |
 | A screen, a component, wording | `ui/src/`, built from `ui/src/design/`, wording in `ui/src/copy/` | Vitest and Testing Library, querying by role and accessible name |
 | A helper subcommand | `crates/myapp-cli` | `crates/myapp-cli/tests/` and the launch smoke |
-| Startup, windows, wiring | `src-tauri/src/lib.rs` | the launch smoke (`just smoke`) |
+| Startup, windows, wiring | `src-tauri/src/lib.rs` (`compose`, `finish_startup`) | `src-tauri/tests/startup.rs` (`just test-macos`) and the launch smoke (`just smoke`) |
 
 ## What is contract and what is private
 
