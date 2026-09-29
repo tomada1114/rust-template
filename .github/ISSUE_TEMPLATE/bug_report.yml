@@ -1,0 +1,85 @@
+name: Bug Report
+description: Report a bug or unexpected behavior.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thank you for taking the time to report a bug. Please fill in as much detail as you
+        can. For a security vulnerability, do not open an issue: follow SECURITY.md instead.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the behavior.
+      placeholder: |
+        1. Launch the app
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: How You Got the App
+      options:
+        - A release download (.dmg)
+        - A local build (just run, just install-app, or just dev)
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App Version
+      description: The release you downloaded, or the commit you built from.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS Version
+      description: Output of `sw_vers -productVersion`. The app supports macOS 14.0 or later on Apple Silicon.
+      placeholder: "26.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Excerpt
+      description: >
+        The lines around the problem from the newest file in
+        `~/Library/Logs/com.example.myapp/` (`just logs` prints them for a local build).
+        Remove anything personal before pasting.
+      render: text
+    validations:
+      required: false

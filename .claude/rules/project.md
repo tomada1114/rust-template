@@ -1,0 +1,90 @@
+---
+paths:
+  - "Cargo.toml"
+  - "crates/*/Cargo.toml"
+  - "src-tauri/Cargo.toml"
+  - "Cargo.lock"
+  - "package.json"
+  - "pnpm-lock.yaml"
+  - "pnpm-workspace.yaml"
+  - "mise.toml"
+  - "rust-toolchain.toml"
+  - "deny.toml"
+  - "osv-scanner.toml"
+  - "clippy.toml"
+  - "crates/*/clippy.toml"
+  - "rustfmt.toml"
+  - "eslint.config.mjs"
+  - "**/tsconfig*.json"
+  - "vitest.config.ts"
+  - "vite.config.ts"
+  - "lefthook.yml"
+  - "typos.toml"
+  - ".prettierrc.json"
+  - ".prettierignore"
+  - ".github/dependabot.yml"
+  - ".github/renovate.json"
+---
+
+## Dependency Policy
+
+- Every new crate and every new npm package — runtime or dev, direct or a Tauri plugin —
+  needs a written reason and a human's sign-off before it is added (`AGENTS.md` ›
+  Security and human approval). It also owes an ADR (`recording-architecture-decisions`),
+  and a Tauri plugin is a capability change as well as a dependency
+- The pull request records why the dependency passes each of these (the
+  `managing-dependencies` skill has the full review record):
+  - **Need** — why the standard library, an existing dependency, or a small
+    hand-written function cannot do the job
+  - **Continuity** — recent releases, and more than one maintainer or an organization
+    behind it
+  - **License** — in the allow-list `deny.toml`'s `[licenses]` and
+    `.github/workflows/dependency-review.yml`'s `allow-licenses` enforce; a per-crate
+    exception goes in both, with its reason
+  - **Weight** — the crates `cargo tree` or the packages `pnpm why` add, and
+    `default-features = false` with only the features used
+  - **Build-time code** — a crate's `build.rs` or proc-macro, or an npm lifecycle
+    script, runs on the developer's Mac at build time; a new `allowBuilds` entry in
+    `pnpm-workspace.yaml` needs explicit human approval
+  - **Advisories** — `just deny` and OSV-Scanner report nothing against the version
+    being added
+- A crate's version is written once, in the root `Cargo.toml`'s
+  `[workspace.dependencies]`; a member says `name = { workspace = true }`. `myapp-core`
+  takes only platform-neutral crates — never tauri, an OS binding crate, or
+  `myapp-platform` (`just deny` and `just check-harness` fail otherwise)
+- The `tauri` crates and the `@tauri-apps/*` npm packages move together at the same
+  minor; `tauri` stays on `2` until a migration ADR moves it to a new major
+- `Cargo.lock` and `pnpm-lock.yaml` are committed with the manifest change that moved
+  them, never hand-edited: `cargo add`/`cargo update -p <crate>` and `pnpm add` write
+  them. Verify with `just deny`, `mise exec -- cargo shear`, and `just check`
+
+## Tool Pinning
+
+- Rust is pinned once, in `rust-toolchain.toml` (rustup and mise both read it); Node and
+  every CLI tool in `mise.toml`; pnpm once, in `package.json`'s `packageManager`. Never
+  pin one tool in two places
+- Never `latest`, and never a range, in `mise.toml` or `rust-toolchain.toml`: an exact
+  version, preferring the prebuilt-binary (aqua/github) backends over `cargo:`, which
+  compiles from source
+- Pins are bumped by bots, not by hand: Dependabot (`.github/dependabot.yml`) for cargo,
+  npm, and GitHub Actions, Renovate (`.github/renovate.json`) for `mise.toml` and
+  `rust-toolchain.toml`. Each waits 7 days after a release before opening a PR
+  (Dependabot's `cooldown`, Renovate's `minimumReleaseAge`), and pnpm refuses a version
+  younger than 7 days (`minimumReleaseAge` in `pnpm-workspace.yaml`), so a compromised
+  fresh release has time to be pulled. The three values stay equal (a harness check)
+- CI on the bot's PR is the gate; landing those PRs is the `merging-dependency-prs`
+  skill. A clippy, ESLint, or TypeScript bump that fires a new finding is fixed in the
+  code on that PR, never skipped. A Tauri major is a migration issue, never a batch
+  merge
+- After changing `mise.toml` or `rust-toolchain.toml`, run `mise install`, then
+  `just check`
+
+## Gates
+
+- These files enforce rather than implement; changing one is the `changing-gates`
+  skill. NEVER lower a coverage floor (the `test-core` recipe, `vitest.config.ts`'s
+  `thresholds`), relax a lint level, add to an ignore or exclude list, or loosen
+  `deny.toml` or `osv-scanner.toml` without a human's explicit approval
+- An `osv-scanner.toml` ignore needs its reason and an `ignoreUntil` at most 90 days
+  out, and only for a crate that does not ship (absent from
+  `cargo tree --target aarch64-apple-darwin`) or with no fixed release

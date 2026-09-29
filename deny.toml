@@ -20,8 +20,10 @@ ignore = []
 [licenses]
 version = 2
 confidence-threshold = 0.93
-# Permissive licences only (.claude/rules/project.md). Keep in step with
-# dependency-review.yml's allow-licenses.
+# Permissive licences only (.claude/rules/project.md): the ones the crates use today
+# (cargo deny warns on an allowed licence nothing uses). dependency-review.yml's
+# allow-licenses is this list plus BSD-2-Clause and ISC, which npm packages use; a crate
+# that needs one of those is added here in the same PR.
 allow = [
   "0BSD",
   "Apache-2.0",
