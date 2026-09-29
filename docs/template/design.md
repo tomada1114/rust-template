@@ -5,7 +5,7 @@
 Status: **agreed with the owner on 2026-09-28.** This document is the spec the first
 implementation run builds against. The companion [issue-triage.md](issue-triage.md)
 sorts macos-app-template's open issues into what this template adopts, drops, or
-defers.
+defers, and [skills-plan.md](skills-plan.md) is the per-skill brief.
 
 Each decision below lists the options, their trade-offs, and the choice. "Owner" marks a
 choice the owner made between presented options; "Designer" marks one the design session
@@ -505,19 +505,10 @@ then runs `just check` in that copy.
 - `.claude/settings.json`: allow the read/build/test recipes and read-only `gh`; deny
   `--no-verify`, force pushes, and edits to `src-tauri/Entitlements.plist`; a PostToolUse
   hook that formats the one edited `.rs`/`.ts`/`.tsx` file.
-- Skills (authored under `.agents/skills/`, mirrored by `just agents-sync`, each under the
-  #135 conventions from the start):
-  - ported with the stack translated: `smart-commit`, `create-pr`, `tdd`,
-    `designing-errors`, `changing-gates`, `triaging-issues`, `authoring-skills`,
-    `updating-docs`, `recording-architecture-decisions`, `writing-repo-scripts`,
-    `running-the-app`, `designing-core-logic`, `designing-ui`, `starting-an-app`,
-    `shipping-issues`, `steering-the-roadmap`, `merging-dependency-prs`;
-  - replaced: `building-swiftui-screens` → `building-react-screens`;
-    `integrating-system-apis` → the same name, rewritten for Rust (calling macOS from
-    `myapp-platform`: `std::process` for tools like `launchctl`, `objc2` when an API has
-    no CLI, TCC, what runs where) under the platform-skill convention (issue #176);
-  - new: `designing-ipc` (commands, events, ts-rs, capabilities, the helper sidecar),
-    `writing-rust` (the Rust a newcomer needs to change this codebase safely).
+- Skills: 24, authored under `.agents/skills/` and mirrored by `just agents-sync`,
+  carried over substantially from the three source repositories and rebuilt for Rust +
+  Tauri. The per-skill brief — sources, what changes, what is dropped and why, the rules
+  under `.claude/rules/`, and the review pass — is [skills-plan.md](skills-plan.md).
 
 ### D21. Documents — Designer
 
@@ -558,6 +549,39 @@ raise a permission, Keychain, or Gatekeeper prompt.
   asks.
 - **No tool installs prompts.** `just install` needs no `sudo` and opens no installer;
   a missing Xcode Command Line Tools is reported with the command to run, not triggered.
+
+### D23. The base design system, and choosing an app's own — Owner
+
+The template ships a working, deliberately neutral design system, and an app cut from it
+decides its own design system first, before its first screen.
+
+- **The base: macOS-native and neutral.** Grounded in Apple's Human Interface Guidelines
+  so an app that never runs design research still looks like a Mac app: the system font
+  stack and a type scale mirroring macOS text styles, semantic color tokens with light and
+  dark values (`prefers-color-scheme`), the user's accent color through `accent-color`
+  and an accent token, a spacing and radius scale, motion durations that collapse under
+  `prefers-reduced-motion`. It lives in `ui/src/design/`: `tokens.css` (primitive values,
+  then the semantic tokens components use), `base.css`, and a handful of primitives the
+  sample uses (`Button`, `IconButton`, `Stack`, `Panel`, `Text`). `docs/design/design-system.md`
+  lists every token with its role and each primitive's recipe.
+- **Enforced, not only documented.** A harness check fails on a raw color literal
+  (hex, `rgb()`, `hsl()`, named colors), a `font-family`, or a pixel font size anywhere in
+  `ui/src/` outside `tokens.css`; components reach values only through `var(--…)`. A
+  Vitest test parses `tokens.css` and asserts every semantic token has a dark value and
+  every text/background pair the design system declares meets WCAG contrast (4.5:1 for
+  body text, 3:1 for large text and UI components) in both appearances.
+- **An app chooses its own first.** `starting-an-app`'s first design step, before any
+  screen work: decide the app's design system with the `refero-design` skill when the
+  session has it (research-first: Refero styles, then screens, a reference lock, and a
+  decision ledger), otherwise with `designing-ui`'s own research steps. The outcome is
+  recorded as the app's design-lock ADR (`docs/architecture/adr/NNNN-design-lock.md`:
+  direction, references, decision ledger) and applied by replacing `tokens.css` values
+  and, where the direction needs it, the primitives — never by styling a screen directly.
+  The contrast test and the literal check hold for the app's tokens exactly as for the
+  base. `refero-design` is named as optional because it is a user-level skill, not part
+  of this repository; the template never depends on it to build or pass its checks.
+- **Ownership.** `designing-ui` owns the design-lock mechanics and the craft rules;
+  `building-react-screens` owns using the primitives and tokens on a screen.
 
 ## 4. What was not carried over, and why
 
