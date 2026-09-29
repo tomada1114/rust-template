@@ -148,3 +148,15 @@ clean:
 # Repository script tests with the scripts/** coverage floors (85/90; scripts/lib/guard/** 90/100)
 test-scripts:
     pnpm test:scripts
+
+# Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
+labels:
+    node scripts/sync-labels.ts
+
+# Create or update the "main" branch ruleset from .github/rulesets/main.json (repository admin; a human's step)
+ruleset:
+    node scripts/apply-ruleset.ts
+
+# Bump the three version sites, refresh Cargo.lock, and roll CHANGELOG.md: `just release-prep 0.2.0`
+release-prep version *flags:
+    node scripts/release-prep.ts {{ flags }} {{ version }}
