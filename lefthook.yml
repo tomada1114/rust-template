@@ -1,0 +1,34 @@
+# Local Git hooks (design D11). Check-only and fast: nothing here rewrites a file, and
+# there is no clippy, compile, or test step — `just check` and CI run those. Each job runs
+# the same executable and flags as the matching `just`/pnpm recipe, narrowed to the staged
+# files, so a change cannot pass here and fail there.
+#
+# Installed by `just install` (`lefthook install`); `just verify-hooks` fails while it is
+# missing. `git commit --no-verify` skips every job below; CI runs them all again.
+
+pre-commit:
+  # A merge or rebase replays commits that already passed these checks.
+  skip:
+    - merge
+    - rebase
+  parallel: true
+  jobs:
+    # Secret-shaped paths and credential-shaped content in the staged blobs (not the
+    # working tree). No glob: it must see every staged file, whatever its extension.
+    - name: staged guard
+      run: node scripts/check-staged.ts
+
+    - name: rustfmt
+      glob: "*.rs"
+      run: rustfmt --check {staged_files}
+
+    - name: prettier
+      glob: "*.{ts,tsx,mts,cts,js,mjs,cjs,json,css,html,yml,yaml}"
+      run: pnpm exec prettier --check --ignore-unknown {staged_files}
+
+    - name: eslint
+      glob: "*.{ts,tsx,mts,cts,js,mjs,cjs}"
+      run: pnpm exec eslint --max-warnings 0 --no-warn-ignored {staged_files}
+
+    - name: typos
+      run: typos --force-exclude {staged_files}

@@ -1,0 +1,19 @@
+# Release-notes categories for `gh release create --generate-notes` (design D18). Every
+# label scripts/label-pr.ts applies has a category here (a harness check keeps them
+# agreeing).
+changelog:
+  categories:
+    - title: Security
+      labels: [security]
+    - title: Features
+      labels: [enhancement]
+    - title: Bug Fixes
+      labels: [bug]
+    - title: Documentation
+      labels: [documentation]
+    - title: Maintenance
+      labels: [chore]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: CI
+      labels: [ci]

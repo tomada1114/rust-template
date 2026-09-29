@@ -34,6 +34,12 @@ install:
     mise install
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable pnpm
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile
+    lefthook install
+    node scripts/verify-hooks.ts
+
+# Fail when lefthook's pre-commit hook is not installed (ALLOW_MISSING_GIT_HOOKS=1 opts out)
+verify-hooks:
+    node scripts/verify-hooks.ts
 
 # Run the app with hot reload (opens a window: a human's recipe, never part of `just check`)
 dev: sidecar
@@ -138,3 +144,19 @@ deny:
 clean:
     cargo clean
     rm -rf dist coverage src-tauri/binaries
+
+# Repository script tests with the scripts/** coverage floors (85/90; scripts/lib/guard/** 90/100)
+test-scripts:
+    pnpm test:scripts
+
+# Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
+labels:
+    node scripts/sync-labels.ts
+
+# Create or update the "main" branch ruleset from .github/rulesets/main.json (repository admin; a human's step)
+ruleset:
+    node scripts/apply-ruleset.ts
+
+# Bump the three version sites, refresh Cargo.lock, and roll CHANGELOG.md: `just release-prep 0.2.0`
+release-prep version *flags:
+    node scripts/release-prep.ts {{ flags }} {{ version }}

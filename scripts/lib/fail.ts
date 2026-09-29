@@ -1,7 +1,8 @@
 /**
  * The failure contract every repository script follows (design D12): the first stderr
  * line is `ERR_<STAGE>_<WHAT>: <summary>`, then `Expected:`, `Actual:`, and `Next:`,
- * and the process exits 1. A message never contains a secret.
+ * and the process exits 1 (or the exit code the error names, such as a hook's 2). A
+ * message never contains a secret.
  */
 export interface FailureDetails {
   readonly code: string;
@@ -14,11 +15,14 @@ export interface FailureDetails {
 /** A failure that already knows how to explain itself. */
 export class ScriptError extends Error {
   readonly details: FailureDetails;
+  /** The process exit code; 1 unless the caller needs another (a Claude Code hook uses 2). */
+  readonly exitCode: number;
 
-  constructor(details: FailureDetails) {
+  constructor(details: FailureDetails, options: { readonly exitCode?: number } = {}) {
     super(`${details.code}: ${details.summary}`);
     this.name = "ScriptError";
     this.details = details;
+    this.exitCode = options.exitCode ?? 1;
   }
 }
 
@@ -34,7 +38,7 @@ export function formatFailure(details: FailureDetails): string {
 
 /**
  * Run a script's `main`, turning a thrown {@link ScriptError} into the failure report
- * and exit code 1. Any other error is reported as `ERR_INTERNAL_UNEXPECTED`.
+ * and its exit code. Any other error is reported as `ERR_INTERNAL_UNEXPECTED`, exit 1.
  */
 export async function runMain(
   main: () => Promise<void> | void,
@@ -61,6 +65,6 @@ export async function runMain(
             next: "report this as a bug in the script, with the command you ran",
           };
     io.error(formatFailure(details));
-    io.exit(1);
+    io.exit(error instanceof ScriptError ? error.exitCode : 1);
   }
 }

@@ -58,6 +58,20 @@ describe("processContext", () => {
     expect(context.run).toBe(runCommand);
   });
 
+  it("reads standard input on request", () => {
+    const result = runCommand(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import { processContext } from ${JSON.stringify(join(REPO_ROOT, "scripts/lib/script.ts"))};
+         process.stdout.write("got:" + processContext().stdin());`,
+      ],
+      { input: "payload" },
+    );
+    expect(result.stdout).toBe("got:payload");
+  });
+
   it("logs a line to stdout", () => {
     const written: string[] = [];
     const original = process.stdout.write.bind(process.stdout);

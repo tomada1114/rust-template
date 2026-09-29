@@ -115,6 +115,45 @@ jobs:
       - name: UI tests with coverage floors
         run: just test-ui
 
+  repo-lint:
+    name: Repo Lint & Harness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node just typos actionlint shellcheck
+
+      - name: Enable pnpm (the version package.json's packageManager names)
+        run: corepack enable pnpm
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typos
+        run: typos
+
+      - name: Actionlint
+        run: actionlint
+
+      - name: Script tests with coverage floors
+        run: just test-scripts
+
   macos:
     name: macOS Build & Smoke
     runs-on: macos-26
