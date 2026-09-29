@@ -14,3 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code of conduct, architecture, distribution and signing, and getting-started guides, an
   empty architecture-decision index with its template, a roadmap skeleton, issue forms,
   and a pull request template.
+
+### Fixed
+
+- ESLint and `ui/tsconfig.json` now enforce the TypeScript rules the skills document: a
+  `switch` over a union with a `default` fails `switch-exhaustiveness-check`; a dynamic
+  `import()` of `@tauri-apps/*` or `ui/src/ipc/generated/` outside `ui/src/ipc/`, any
+  non-test import of `ui/src/ipc/testing.ts`, and `window.console` or
+  `globalThis.console` outside `ui/src/ipc/log.ts` fail ESLint; and `enum`,
+  `namespace`, and parameter properties fail `tsc` in `ui/src/` (`erasableSyntaxOnly`).

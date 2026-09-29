@@ -47,7 +47,7 @@ them, and platform does not know the shell exists.
 | Compile time | `crates/myapp-core/Cargo.toml` names no Tauri, OS, or platform crate, so code in core cannot call one. |
 | Dependency closure | A harness check (`just check-harness`) reads `cargo metadata` and fails if core's normal dependency closure contains `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`, or if a non-dev edge points at `myapp-test-support`. `deny.toml`'s `[bans]` adds direct-edge rules: `tauri` may be a direct dependency of `myapp` only, and `myapp-platform` of `myapp` and `myapp-cli` only. |
 | clippy in core | `crates/myapp-core/clippy.toml` bans `println!`/`eprintln!`/`dbg!`, `std::process::Command`, `std::fs::File` and the `std::fs` read and write functions, `SystemTime::now`, `Instant::now`, `std::env::var`, and `thread::sleep`. `clippy::wildcard_enum_match_arm` is denied, so every `match` on a core enum names each variant. |
-| ESLint | `no-restricted-imports` forbids `@tauri-apps/*` outside `ui/src/ipc/` and `ui/src/ipc/generated/` outside `ui/src/ipc/`; `no-console` outside `ui/src/ipc/log.ts` and `scripts/`. |
+| ESLint | `no-restricted-imports` and, for a dynamic `import()`, `no-restricted-syntax` forbid `@tauri-apps/*` outside `ui/src/ipc/`, `ui/src/ipc/generated/` outside `ui/src/ipc/`, and `ui/src/ipc/testing.ts` outside tests; `no-console` and `no-restricted-properties` forbid `console` outside `ui/src/ipc/log.ts` and `scripts/`. |
 
 The forbidden-crate lists in `AGENTS.md`, the closure check, and `deny.toml` are kept
 equal by a harness check.
