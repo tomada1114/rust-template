@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Smoke mode (`MYAPP_SMOKE=1`) sets the `Prohibited` activation policy before the app
+  finishes launching instead of after it has activated, and only the value `1` enables
+  it. A startup error — no `HOME`, logging, the build, or a missing `main` window — now
+  exits 1 with its reason on stderr instead of aborting, and `just smoke` checks that
+  case.
+
 - ESLint and `ui/tsconfig.json` now enforce the TypeScript rules the skills document: a
   `switch` over a union with a `default` fails `switch-exhaustiveness-check`; a dynamic
   `import()` of `@tauri-apps/*` or `ui/src/ipc/generated/` outside `ui/src/ipc/`, any

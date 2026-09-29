@@ -4,6 +4,12 @@
  * bundled helper, then runs the app's executable directly with `MYAPP_SMOKE=1` — never
  * through `open`, which would activate it. In smoke mode the app shows no window, takes
  * no focus, logs `startup complete pid=<pid>`, and exits 0; this script requires both.
+ * It first runs the executable in smoke mode with `HOME` unset, which must fail startup
+ * cleanly: exit 1 (not a signal) and `HOME is not set` on stderr.
+ *
+ * Failure codes: ERR_SMOKE_ARGS, ERR_SMOKE_HOME, ERR_SMOKE_BUILD, ERR_SMOKE_APP_MISSING,
+ * ERR_SMOKE_CODESIGN, ERR_SMOKE_ENTITLEMENTS, ERR_SMOKE_SIDECAR, ERR_SMOKE_STARTUP_ERROR,
+ * ERR_SMOKE_EXIT, ERR_SMOKE_STARTUP_LINE.
  *
  * Usage: node scripts/smoke.ts [--app <path to MyApp.app>]
  * With --app it checks an already-built bundle (the release workflow's artifact) instead
@@ -22,6 +28,8 @@ const HELPER = "myapp-cli";
 const SMOKE_ENV = "MYAPP_SMOKE";
 const LOG_PREFIX = "myapp";
 const LAUNCH_TIMEOUT_MS = 60_000;
+/** What the app prints when startup fails for want of `HOME` (`StartupError::NoHome`). */
+const NO_HOME_MESSAGE = "HOME is not set";
 
 export interface SmokeOptions {
   readonly build: boolean;
@@ -80,6 +88,12 @@ function withoutSigning(
   env: Readonly<Record<string, string | undefined>>,
 ): Record<string, string | undefined> {
   return Object.fromEntries(Object.entries(env).filter(([name]) => !name.startsWith("APPLE_")));
+}
+
+function withoutHome(
+  env: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+  return Object.fromEntries(Object.entries(env).filter(([name]) => name !== "HOME"));
 }
 
 export function main(context: ScriptContext): void {
@@ -175,6 +189,23 @@ export function main(context: ScriptContext): void {
   log(`smoke: bundled helper answers "${version.stdout.trim()}"`);
 
   const executable = join(app, "Contents", "MacOS", EXECUTABLE);
+  const homeless = run(executable, [], {
+    env: { ...withoutHome(withoutSigning(context.env)), [SMOKE_ENV]: "1" },
+    timeoutMs: LAUNCH_TIMEOUT_MS,
+  });
+  if (homeless.status !== 1 || !homeless.stderr.includes(NO_HOME_MESSAGE)) {
+    fail(
+      "ERR_SMOKE_STARTUP_ERROR",
+      "a startup error did not exit 1 with its reason",
+      `exit status 1 and "${NO_HOME_MESSAGE}" on stderr when HOME is unset`,
+      homeless.status === null
+        ? `no exit (a signal or a timeout: ${homeless.stderr.trim()})`
+        : `exit status ${String(homeless.status)}, stderr: ${homeless.stderr.trim()}`,
+      "check that run() in src-tauri/src/lib.rs reports StartupError and exits 1",
+    );
+  }
+  log(`smoke: with HOME unset the app exits 1: ${homeless.stderr.trim()}`);
+
   const launched = run(executable, [], {
     env: { ...withoutSigning(context.env), [SMOKE_ENV]: "1" },
     timeoutMs: LAUNCH_TIMEOUT_MS,
