@@ -83,13 +83,18 @@ checked 2026-09-29), and this shape is what a command rejects with.
   ESLint's `switch-exhaustiveness-check` fails `just lint` when a code has no case, so
   a new variant cannot ship without its sentence.
 - A rejection is narrowed before it is read. `ui/src/ipc/errors.ts` holds one guard per
-  error type, listing the codes with `satisfies <Error>["code"][]` (`isCounterError` in
-  the sample). `satisfies` rejects a code that does not exist but
-  does not notice a missing one, so a new code is added to that list by hand, and
-  `errors.test.ts` gets a case for it.
-- A rejection that is not a known code (the bridge itself failed) becomes `null` in the
-  hook and is logged through `ui/src/ipc/log.ts`; the screen shows a generic sentence
-  from `ui/src/copy/`.
+  error type, checking the code and the fields that code carries (`isCounterError` in
+  the sample: `{ code: "storage" }` without a known `kind` is rejected). The codes and
+  kinds are a table keyed by the generated union, `satisfies Record<<Error>["code"], …>`,
+  so `tsc` fails in `errors.ts` both for a code Rust does not send and for one it sends
+  that the guard does not check yet; `errors.test.ts` gets a case for each.
+- A rejection that is not a known code (the bridge itself failed) becomes
+  `"unexpected"` in the hook, and is logged through `ui/src/ipc/log.ts` with its type
+  (`errorType`: `TypeError`, `string`), never its message; the screen shows a generic
+  sentence from `ui/src/copy/`, replacing any earlier error.
+- What escapes every handler is logged too: `main.tsx` passes `rootErrorLogging` to
+  `createRoot`, so a render error reaches the log file, and `logUnhandledErrors` catches
+  a window `error` or `unhandledrejection` (both in `ui/src/ipc/log.ts`).
 - An error that never crosses IPC (`StorageError`, `StartupError` in
   `src-tauri/src/lib.rs`, `LoggingError`) derives neither `Serialize` nor `TS`.
 
@@ -104,7 +109,8 @@ An error travels: into a log file, a test's output, a bug report, and a pull req
 - `tracing::warn!(%error, …)` writes the error's `Display`, so the `#[error]` text is
   held to the same rule as the payload.
 - `UiLogEntry.message` is written to the log as-is: the UI sends developer terms
-  (`"get_counter failed without a counter error code"`), never what the user entered.
+  (`"get_counter failed without a counter error code: TypeError"`), never what the user
+  entered, and never a thrown error's message, which can carry either.
 - Log once, where the error is handled. A command logs the outcome (`log_outcome` in
   `src-tauri/src/commands.rs`); core and adapters return the error and do not also log
   it, or one failure prints three lines.
@@ -167,7 +173,8 @@ the old wire name with `#[serde(rename = "…")]` when only the Rust name should
 Adding, renaming, or removing a code touches, in one pull request:
 
 1. the enum in core, then `just bindings`, committing `ui/src/ipc/generated/` with it;
-2. the guard's code list in `ui/src/ipc/errors.ts` and its test;
+2. the guard's code table in `ui/src/ipc/errors.ts` (`tsc` fails there until it has the
+   code) and its test;
 3. the sentence in `ui/src/copy/` (`just lint` fails until the `switch` covers it);
 4. the literal-JSON test in `crates/myapp-core/tests/serialization.rs`, and the command
    test that rejects with it (`src-tauri/tests/commands.rs`);

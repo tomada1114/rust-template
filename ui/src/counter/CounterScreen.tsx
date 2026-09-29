@@ -22,7 +22,9 @@ export function CounterScreen() {
             {state.status === "loading" && <Text variant="secondary">{counterCopy.loading}</Text>}
             {state.status === "failed" && (
               <Text variant="danger" role="alert">
-                {state.error === null ? counterCopy.loadFailed : describeCounterError(state.error)}
+                {state.error === "unexpected"
+                  ? counterCopy.loadFailed
+                  : describeCounterError(state.error)}
               </Text>
             )}
             {state.status === "ready" && (
@@ -46,7 +48,9 @@ export function CounterScreen() {
                 </Stack>
                 {state.error !== null && (
                   <Text variant="danger" role="alert">
-                    {describeCounterError(state.error)}
+                    {state.error === "unexpected"
+                      ? counterCopy.unexpected
+                      : describeCounterError(state.error)}
                   </Text>
                 )}
               </>

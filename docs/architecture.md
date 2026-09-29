@@ -154,8 +154,9 @@ subscriber (`myapp_platform::init_logging`). Files go to
 `~/Library/Logs/com.example.myapp/`, one per day, and the newest 14 are kept. The writer
 is synchronous: the volume is low, and Tauri exits through `process::exit`, which would
 drop a background writer's last lines. A debug build also writes to stderr. The UI sends
-its warnings and errors to the `log_from_ui` command through `ui/src/ipc/log.ts`. No log
-line carries user data. `just logs` prints the newest file's last lines and exits.
+its warnings and errors to the `log_from_ui` command through `ui/src/ipc/log.ts`,
+including a render error React reports to the root and a window `error` or
+`unhandledrejection` no code handled. No log line carries user data. `just logs` prints the newest file's last lines and exits.
 
 ## Smoke mode
 

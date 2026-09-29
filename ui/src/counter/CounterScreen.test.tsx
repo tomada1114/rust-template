@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import { counterCopy } from "../copy/counter";
 import { mockCommands, rejectWith } from "../ipc/testing";
 import { CounterScreen } from "./CounterScreen";
 
@@ -42,6 +43,18 @@ describe("CounterScreen", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Decrement" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("already at its lowest value");
     expect(screen.getByRole("status")).toHaveTextContent("0");
+  });
+
+  it("shows the generic sentence in an alert when a change fails without a code", async () => {
+    mockCommands({
+      get_counter: () => ({ value: 3, lastChangedAt: null }),
+      increment: () => rejectWith(new Error("bridge down")),
+      log_from_ui: () => null,
+    });
+    render(<CounterScreen />);
+    await userEvent.click(await screen.findByRole("button", { name: "Increment" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(counterCopy.unexpected);
+    expect(screen.getByRole("status")).toHaveTextContent("3");
   });
 
   it("resets through the Reset button", async () => {

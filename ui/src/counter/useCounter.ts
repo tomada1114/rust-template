@@ -8,13 +8,19 @@ import { useCallback, useEffect, useState } from "react";
 import * as commands from "../ipc/commands";
 import { isCounterError } from "../ipc/errors";
 import { onCounterChanged } from "../ipc/events";
-import { logError } from "../ipc/log";
+import { errorType, logError } from "../ipc/log";
 import type { CounterError, CounterView } from "../ipc/types";
+
+/**
+ * Why the load or an action failed: the code Rust rejected with, or `"unexpected"` for
+ * any other rejection, which is logged and shown as a generic sentence.
+ */
+export type CounterFailure = CounterError | "unexpected";
 
 export type CounterState =
   | { readonly status: "loading" }
-  | { readonly status: "failed"; readonly error: CounterError | null }
-  | { readonly status: "ready"; readonly view: CounterView; readonly error: CounterError | null };
+  | { readonly status: "failed"; readonly error: CounterFailure }
+  | { readonly status: "ready"; readonly view: CounterView; readonly error: CounterFailure | null };
 
 export interface UseCounter {
   readonly state: CounterState;
@@ -23,11 +29,11 @@ export interface UseCounter {
   readonly reset: () => Promise<void>;
 }
 
-/** A rejection as the screen shows it: a known code, or `null` (logged) for anything else. */
-function toCounterError(error: unknown, action: string): CounterError | null {
+/** A rejection as the screen shows it: a known code, or `"unexpected"` (logged). */
+function toCounterFailure(error: unknown, action: string): CounterFailure {
   if (isCounterError(error)) return error;
-  void logError(`${action} failed without a counter error code`);
-  return null;
+  void logError(`${action} failed without a counter error code: ${errorType(error)}`);
+  return "unexpected";
 }
 
 export function useCounter(): UseCounter {
@@ -39,13 +45,16 @@ export function useCounter(): UseCounter {
       if (active) setState({ status: "ready", view, error: null });
     };
     commands.getCounter().then(showView, (error: unknown) => {
-      if (active) setState({ status: "failed", error: toCounterError(error, "get_counter") });
+      if (active) setState({ status: "failed", error: toCounterFailure(error, "get_counter") });
     });
-    const unlisten = onCounterChanged(showView);
+    const unlisten = onCounterChanged(showView).catch((error: unknown) => {
+      void logError(`listening for counter-changed failed: ${errorType(error)}`);
+      return undefined;
+    });
     return () => {
       active = false;
       void unlisten.then((stop) => {
-        stop();
+        stop?.();
       });
     };
   }, []);
@@ -55,8 +64,10 @@ export function useCounter(): UseCounter {
       const view = await action();
       setState({ status: "ready", view, error: null });
     } catch (error: unknown) {
-      const code = toCounterError(error, name);
-      setState((current) => (current.status === "ready" ? { ...current, error: code } : current));
+      const failure = toCounterFailure(error, name);
+      setState((current) =>
+        current.status === "ready" ? { ...current, error: failure } : current,
+      );
     }
   }, []);
 
