@@ -33,6 +33,19 @@ describe("credentialCategory", () => {
     ["npm-auth-token", join("//registry.npmjs.org/:_auth", "Token=", "abc")],
     ["password", join("pass", "word = ", "hunter2hunter2")],
     ["password", join("PASS", "WORD: 's3cretvalue'")],
+    // The names release.yml and docs/distribution.md give this template's own secrets.
+    ["password", join("APPLE_PASS", "WORD=", "abcd-efgh-ijkl-mnop")],
+    ["password", join("export APPLE_CERTIFICATE_PASS", 'WORD="', "FakeFake123", '"')],
+    ["password", join('{"pass', 'word": "', "FakeFake123", '"}')],
+    ["password", join("db_pass", "word: ", "FakeFake123")],
+    ["private-key", join("-----BEGIN ", "PGP PRIVATE", " KEY BLOCK-----")],
+    [
+      "slack-webhook",
+      join("https://hooks.", "slack.com/services/", "T1234ABCD/", "B5678EFGH/", repeat("w", 24)),
+    ],
+    ["signing-certificate", join("APPLE_", "CERTIFICATE=", "MII", repeat("Q", 120))],
+    // A base64 PKCS#12 (version 3) under any name: SEQUENCE, then INTEGER 3, then SEQUENCE.
+    ["signing-certificate", join("P12_B64: ", "MIIJ5w", "IBAz", "CC", repeat("R", 120))],
   ])("finds %s", (category, text) => {
     expect(credentialCategory(`before\n${text}\nafter`)).toBe(category);
   });
@@ -49,6 +62,26 @@ describe("credentialCategory", () => {
     ["a short password placeholder", join("pass", "word: ***")],
     ["an empty file", ""],
     ["a public certificate", join("-----BEGIN ", "CERTIFICATE-----")],
+    [
+      "a public certificate's base64 body",
+      join("-----BEGIN ", "CERTIFICATE-----\n", "MIIDATCC", "AemgAwIBAgIU", repeat("S", 120)),
+    ],
+    ["a PGP public key", join("-----BEGIN ", "PGP PUBLIC", " KEY BLOCK-----")],
+    [
+      "an npm token read from the environment",
+      join("//registry.npmjs.org/:_auth", "Token=${NPM_TOKEN}"),
+    ],
+    [
+      "a signing secret passed through the environment",
+      join(
+        "APPLE_PASS",
+        'WORD="$NOTARY_PASSWORD" CERTIFICATE: ${{ secrets.APPLE_',
+        "CERTIFICATE }}",
+      ),
+    ],
+    ["a generated keychain password", join("KEYCHAIN_PASS", "WORD=$(uuidgen)")],
+    ["a camelCase field name", join("confirmPass", "word = document.body")],
+    ["prose naming the Slack webhook host", "Post to hooks.slack.com/services/... from CI."],
   ])("allows %s", (_, text) => {
     expect(credentialCategory(text)).toBeNull();
   });
