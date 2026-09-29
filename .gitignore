@@ -1,0 +1,38 @@
+# Rust build output
+target/
+
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Tauri: the sidecar helper is built into place by `just sidecar` (scripts/build-sidecar.ts)
+src-tauri/binaries/
+src-tauri/gen/
+
+# Disk images are built only by the release workflow on a CI runner (design D22)
+*.dmg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code: personal overrides and agent worktrees stay local
+.claude/settings.local.json
+.claude/worktrees/
+
+# Environment variables
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,36 @@
+# Single-package repository: no `packages:` globs on purpose. This file exists so
+# pnpm's supply-chain policy is declared in one reviewable place and applies to every
+# install — local, CI, and release (design D8; policy from typescript-template).
+# Setting names checked against https://pnpm.io/settings (pnpm 12) on 2026-09-28.
+
+# Refuse to run a script against a node_modules that no longer matches the lockfile.
+verifyDepsBeforeRun: error
+
+# Supply-chain cooldown: refuse versions published less than 7 days (10080 minutes)
+# ago. Equals Dependabot's `cooldown` and Renovate's `minimumReleaseAge` — a harness
+# check keeps the three equal.
+minimumReleaseAge: 10080
+# Apply the cooldown to every version, including ones already in the lockfile.
+minimumReleaseAgeStrict: true
+# Fail closed when registry metadata has no publish time.
+minimumReleaseAgeIgnoreMissingTime: false
+
+# Reject a dependency whose provenance level regressed from a previous version.
+trustPolicy: no-downgrade
+# One reviewed exception, pinned to the exact version: semver 6.3.1 (2022) predates npm
+# provenance, so it reads as a "downgrade" from semver 7's attested releases. It reaches
+# the tree only through eslint-plugin-react-hooks -> @babel/core, a dev-only lint path.
+# Recorded in docs/template/implementation-notes.md.
+trustPolicyExclude:
+  - semver@6.3.1
+# Re-verify trust metadata against the registry instead of trusting the lockfile.
+trustLockfile: false
+# Refuse transitive dependencies fetched from git or arbitrary tarball URLs.
+blockExoticSubdeps: true
+
+# Unmet or conflicting peer ranges are errors, not warnings.
+strictPeerDependencies: true
+# Fail the install when a dependency wants to run a lifecycle script that is not
+# explicitly allowed below. Adding an entry is a security-sensitive change.
+strictDepBuilds: true
+allowBuilds: {}
