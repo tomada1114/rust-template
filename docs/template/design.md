@@ -299,8 +299,8 @@ third-party frontend code); that is recorded in `docs/architecture.md`.
 Recipes, each a thin call into cargo, pnpm, or `scripts/`:
 
 `install` (mise install, `pnpm install --frozen-lockfile`, lefthook install,
-verify-hooks), `dev` (`tauri dev`), `fmt`, `fix`, `lint`, `test` (core with coverage
-floors + UI with coverage floors), `test-fast <filter>`, `test-macos` (platform and shell
+verify-hooks), `dev` (`tauri dev`), `fmt`, `fix`, `lint`, `test` (`test-core` + `test-ui`),
+`test-core` (core with its coverage floors, and doctests), `test-ui` (Vitest with its floors), `test-fast <filter>`, `test-macos` (platform and shell
 tests that need macOS but no human), `test-local` (`#[ignore]`d tests), `test-scripts`,
 `check-harness`, `bindings`, `build` (debug `.app`), `run` (build, quit any running
 instance, launch), `smoke` (release `.app` launch smoke), `logs`,
