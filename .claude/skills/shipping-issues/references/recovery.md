@@ -111,7 +111,8 @@ diagnosis, is a **failed outcome**, not a green one.
   `verify=` line names it) and merge on a local green. No such command at
   all -> ask first; this is one of the run's two narrow pauses.
 - `verdict: ERROR` -> re-read the actual PR/CI state before treating it as a
-  green. An error is not a pass.
+  green. An error is not a pass. With `unsettled_checks:`, the watch ended while
+  those checks were still running: run the same watch once more.
 - `verdict: TIMEOUT` -> the watch's own `--timeout` ran out while checks were
   still running; it proves nothing either way. Run the same watch again until
   3600 seconds of watching have passed in total, then treat it as `ERROR`
