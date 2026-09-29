@@ -229,6 +229,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "src-tauri/src/startup.rs", forms: ["slugUpper"] },
   { file: "src-tauri/tauri.conf.json", forms: ["bundleId", "name", "slug"] },
   { file: "src-tauri/tests/commands.rs", forms: ["slugSnake"] },
+  { file: "src-tauri/tests/startup.rs", forms: ["slugSnake"] },
   { file: "ui/index.html", forms: ["name"] },
 ];
 
