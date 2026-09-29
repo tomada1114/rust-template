@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "MyApp: a macOS desktop app built with Tauri v2, a Rust core, and a React UI.",
+  "author": "tomada1114",
   "license": "MIT",
   "type": "module",
   "engines": {

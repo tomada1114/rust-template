@@ -154,8 +154,14 @@ jobs:
       - name: Skills mirror
         run: just agents-check
 
+      - name: Fetch crates (the core-boundary check reads cargo metadata offline)
+        run: cargo fetch --locked
+
       - name: Script tests with coverage floors
         run: just test-scripts
+
+      - name: Harness self-checks
+        run: just check-harness
 
   macos:
     name: macOS Build & Smoke
@@ -196,6 +202,91 @@ jobs:
 
       - name: Launch smoke (release bundle, signature, entitlements, sidecar, smoke mode)
         run: just smoke
+
+  bootstrap-smoke:
+    # Template-only: scripts/bootstrap.ts removes this job, and its required context in
+    # .github/rulesets/main.json, from every app it generates (design D19). A hyphenated
+    # multi-word slug exercises every spelling the rename writes: tide-pool-core,
+    # tide_pool_lib, and TIDE_POOL_SMOKE.
+    name: Template Bootstrap Smoke
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history, so the local clone below is made from a non-shallow source.
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest shellcheck typos actionlint
+
+      - name: Clone the checkout into a scratch directory
+        run: |
+          git clone --quiet --no-hardlinks . "$RUNNER_TEMP/bootstrap-smoke"
+          mise trust "$RUNNER_TEMP/bootstrap-smoke/mise.toml"
+
+      - name: Install dependencies in the clone
+        working-directory: ${{ runner.temp }}/bootstrap-smoke
+        run: |
+          corepack enable pnpm
+          pnpm install --frozen-lockfile
+
+      - name: Bootstrap the clone non-interactively
+        working-directory: ${{ runner.temp }}/bootstrap-smoke
+        run: |
+          node scripts/bootstrap.ts --yes \
+            --name "Tide Pool" --slug tide-pool --bundle-id com.example.tide-pool \
+            --repo example-owner/tide-pool --author "Template Smoke" --copyright "Template Smoke"
+          # The rename changed package.json's name, and pnpm runs nothing until the next
+          # install (the bootstrap's next steps say `just install`).
+          pnpm install --frozen-lockfile
+
+      - name: The Product-section check fires on the unfilled app
+        working-directory: ${{ runner.temp }}/bootstrap-smoke
+        run: |
+          # An app nobody has described yet must fail the harness: AGENTS.md's Product
+          # section still holds the template's TODO skeleton.
+          if out="$(just check-harness 2>&1)"; then
+            printf '%s\n' "$out"
+            echo "::error::just check-harness passed on a bootstrapped app whose Product section is unfilled"
+            exit 1
+          fi
+          printf '%s\n' "$out"
+          if ! grep -q '^ERR_CHECK_PRODUCT_SECTION: ' <<<"$out"; then
+            echo "::error::just check-harness failed, but not with ERR_CHECK_PRODUCT_SECTION"
+            exit 1
+          fi
+
+      - name: Write a stub Product section
+        working-directory: ${{ runner.temp }}/bootstrap-smoke
+        run: |
+          awk '
+            /^## Product$/ {
+              print
+              print ""
+              print "- **What it is, and who it is for** - a stand-in app for the Template Bootstrap Smoke job."
+              print "- **The core interaction** - none: the job only proves the bootstrap."
+              print "- **Non-goals** - everything else: this copy is deleted when the job ends."
+              print "- **Where these decisions are recorded** - the job itself, in .github/workflows/ci.yml."
+              skip = 1
+              next
+            }
+            skip && /^## / { skip = 0; print "" }
+            !skip { print }
+          ' AGENTS.md >"$RUNNER_TEMP/AGENTS.md"
+          mv "$RUNNER_TEMP/AGENTS.md" AGENTS.md
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: ${{ runner.temp }}/bootstrap-smoke -> target
+
+      - name: just check in the bootstrapped app
+        working-directory: ${{ runner.temp }}/bootstrap-smoke
+        run: just check
 
   zizmor:
     name: Workflow Security Lint

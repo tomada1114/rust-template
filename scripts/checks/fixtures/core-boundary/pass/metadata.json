@@ -1,0 +1,556 @@
+{
+  "packages": [
+    {
+      "name": "myapp-core",
+      "version": "0.1.0",
+      "id": "path+file:///ws/crates/myapp-core#0.1.0",
+      "source": null,
+      "dependencies": [
+        {
+          "name": "serde",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "thiserror",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "myapp-test-support",
+          "kind": "dev",
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "myapp-platform",
+      "version": "0.1.0",
+      "id": "path+file:///ws/crates/myapp-platform#0.1.0",
+      "source": null,
+      "dependencies": [
+        {
+          "name": "myapp-core",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "serde",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "objc2",
+          "kind": null,
+          "optional": false,
+          "target": "cfg(target_os = \"macos\")"
+        },
+        {
+          "name": "myapp-test-support",
+          "kind": "dev",
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "myapp-test-support",
+      "version": "0.1.0",
+      "id": "path+file:///ws/crates/myapp-test-support#0.1.0",
+      "source": null,
+      "dependencies": [
+        {
+          "name": "myapp-core",
+          "kind": null,
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "myapp-cli",
+      "version": "0.1.0",
+      "id": "path+file:///ws/crates/myapp-cli#0.1.0",
+      "source": null,
+      "dependencies": [
+        {
+          "name": "myapp-core",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "myapp-platform",
+          "kind": null,
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "myapp",
+      "version": "0.1.0",
+      "id": "path+file:///ws/src-tauri#0.1.0",
+      "source": null,
+      "dependencies": [
+        {
+          "name": "myapp-core",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "myapp-platform",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "tauri",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "tauri-plugin-log",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "myapp-test-support",
+          "kind": "dev",
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "tauri-build",
+          "kind": "build",
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "tauri",
+      "version": "2.11.6",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#tauri@2.11.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": [
+        {
+          "name": "wry",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "tao",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "objc2",
+          "kind": null,
+          "optional": false,
+          "target": null
+        },
+        {
+          "name": "serde",
+          "kind": null,
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "tauri-plugin-log",
+      "version": "2.10.0",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#tauri-plugin-log@2.10.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": [
+        {
+          "name": "tauri",
+          "kind": null,
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "tauri-build",
+      "version": "2.6.3",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#tauri-build@2.6.3",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": []
+    },
+    {
+      "name": "wry",
+      "version": "0.55.1",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#wry@0.55.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": [
+        {
+          "name": "objc2",
+          "kind": null,
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "tao",
+      "version": "0.35.3",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#tao@0.35.3",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": [
+        {
+          "name": "objc2",
+          "kind": null,
+          "optional": false,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "objc2",
+      "version": "0.6.3",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#objc2@0.6.3",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": []
+    },
+    {
+      "name": "serde",
+      "version": "1.0.229",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": []
+    },
+    {
+      "name": "thiserror",
+      "version": "2.0.17",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.17",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "dependencies": []
+    }
+  ],
+  "workspace_members": [
+    "path+file:///ws/crates/myapp-core#0.1.0",
+    "path+file:///ws/crates/myapp-platform#0.1.0",
+    "path+file:///ws/crates/myapp-test-support#0.1.0",
+    "path+file:///ws/crates/myapp-cli#0.1.0",
+    "path+file:///ws/src-tauri#0.1.0"
+  ],
+  "workspace_default_members": [
+    "path+file:///ws/crates/myapp-core#0.1.0",
+    "path+file:///ws/crates/myapp-platform#0.1.0",
+    "path+file:///ws/crates/myapp-test-support#0.1.0",
+    "path+file:///ws/crates/myapp-cli#0.1.0",
+    "path+file:///ws/src-tauri#0.1.0"
+  ],
+  "resolve": {
+    "nodes": [
+      {
+        "id": "path+file:///ws/crates/myapp-core#0.1.0",
+        "deps": [
+          {
+            "name": "serde",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "thiserror",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.17",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "myapp_test_support",
+            "pkg": "path+file:///ws/crates/myapp-test-support#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": "dev",
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "path+file:///ws/crates/myapp-platform#0.1.0",
+        "deps": [
+          {
+            "name": "myapp_core",
+            "pkg": "path+file:///ws/crates/myapp-core#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "serde",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "objc2",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#objc2@0.6.3",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": "cfg(target_os = \"macos\")"
+              }
+            ]
+          },
+          {
+            "name": "myapp_test_support",
+            "pkg": "path+file:///ws/crates/myapp-test-support#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": "dev",
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "path+file:///ws/crates/myapp-test-support#0.1.0",
+        "deps": [
+          {
+            "name": "myapp_core",
+            "pkg": "path+file:///ws/crates/myapp-core#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "path+file:///ws/crates/myapp-cli#0.1.0",
+        "deps": [
+          {
+            "name": "myapp_core",
+            "pkg": "path+file:///ws/crates/myapp-core#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "myapp_platform",
+            "pkg": "path+file:///ws/crates/myapp-platform#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "path+file:///ws/src-tauri#0.1.0",
+        "deps": [
+          {
+            "name": "myapp_core",
+            "pkg": "path+file:///ws/crates/myapp-core#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "myapp_platform",
+            "pkg": "path+file:///ws/crates/myapp-platform#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "tauri",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#tauri@2.11.6",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "tauri_plugin_log",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#tauri-plugin-log@2.10.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "myapp_test_support",
+            "pkg": "path+file:///ws/crates/myapp-test-support#0.1.0",
+            "dep_kinds": [
+              {
+                "kind": "dev",
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "tauri_build",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#tauri-build@2.6.3",
+            "dep_kinds": [
+              {
+                "kind": "build",
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#tauri@2.11.6",
+        "deps": [
+          {
+            "name": "wry",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#wry@0.55.1",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "tao",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#tao@0.35.3",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "objc2",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#objc2@0.6.3",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "serde",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#tauri-plugin-log@2.10.0",
+        "deps": [
+          {
+            "name": "tauri",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#tauri@2.11.6",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#tauri-build@2.6.3",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#wry@0.55.1",
+        "deps": [
+          {
+            "name": "objc2",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#objc2@0.6.3",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#tao@0.35.3",
+        "deps": [
+          {
+            "name": "objc2",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#objc2@0.6.3",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#objc2@0.6.3",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.17",
+        "deps": []
+      }
+    ],
+    "root": null
+  },
+  "target_directory": "/ws/target",
+  "version": 1,
+  "workspace_root": "/ws",
+  "metadata": null
+}

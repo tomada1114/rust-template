@@ -42,7 +42,7 @@ by nothing but review, and the fix that is not a suppression.
 
 A gate calls the same command every other layer calls; it never defines a rule of its
 own. The `justfile` is the one definition of each check: `just check` runs the local
-set (verify-hooks, fmt, lint, test-scripts, check-harness, test, test-macos, build,
+set (verify-hooks, fmt, lint, lint-repo, agents-check, test-scripts, check-harness, test, test-macos, build,
 smoke), CI's jobs run the same recipes or the same `cargo` and `pnpm` commands as
 separate steps so a reader sees which step failed, and each `lefthook.yml` job runs
 the same executable and flags as its recipe, narrowed to the staged files. A check that

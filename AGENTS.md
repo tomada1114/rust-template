@@ -74,7 +74,7 @@ just build         # Build the debug .app bundle (no disk image)
 just smoke         # The launch smoke: release .app, signature, entitlements, helper, windowless run
 just logs          # Print the end of the newest app log and exit
 just deny          # cargo deny: advisories, licences, bans, sources
-just check         # Everything a Mac runs without a human: verify-hooks → fmt → lint → test-scripts → check-harness → test → test-macos → build → smoke
+just check         # Everything a Mac runs without a human: verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test → test-macos → build → smoke
 just agents-sync   # Regenerate the .claude/skills/ mirror from .agents/skills/
 just agents-check  # Fail if .claude/skills/ differs from .agents/skills/
 just clean         # Remove build output (target/, dist/, coverage/, src-tauri/binaries/)

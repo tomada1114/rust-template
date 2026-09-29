@@ -1,0 +1,10 @@
+# core-boundary fixture: the passing root.
+[bans]
+multiple-versions = "warn"
+deny = [
+  { crate = "tauri", wrappers = ["myapp"] },
+  { crate = "tauri-plugin-log@2", wrappers = ["myapp"] },
+  { crate = "myapp-platform", wrappers = ["myapp-cli", "myapp"] },
+  # An unrelated ban is ignored by the check.
+  { crate = "openssl" },
+]

@@ -101,7 +101,7 @@ the human saw after `just run`:
 ```bash
 pgrep -x myapp                              # the pid(s) of the running app
 ps -o pid=,lstart=,command= -p <pid>        # its start time and executable path
-stat -f '%Sm %N' target/debug/bundle/macos/MyApp.app/Contents/MacOS/myapp
+stat -f '%Sm %N' "target/debug/bundle/macos/MyApp.app/Contents/MacOS/myapp"
 ```
 
 Two things must hold: the executable path is this checkout's

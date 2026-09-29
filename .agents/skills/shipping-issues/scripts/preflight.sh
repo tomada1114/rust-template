@@ -59,6 +59,77 @@ hash_str12() {
   printf '%s' "$1" | $HASHER | awk '{print substr($1,1,12)}'
 }
 
+# --- python helpers ----------------------------------------------------------
+# The Python helpers live in functions rather than inline in "$(...)": bash 3.2 (macOS's
+# /bin/bash) misparses a here-document inside a command substitution whose body holds
+# a backtick or quote.
+
+# Prints the first package.json script that works as a verify command, or nothing.
+find_package_script() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    print("")
+    sys.exit(0)
+
+scripts = data.get("scripts") if isinstance(data, dict) else None
+if isinstance(scripts, dict):
+    # The same principle as `just check` over `just test`: a repo that keeps
+    # `test` as "just the unit tests" and puts the real pre-PR gate behind a
+    # `check`-style script would otherwise get a baseline that passes while
+    # lint is broken -- exactly the CI round-trip the baseline exists to
+    # avoid. `check:quick` outranks `check:all` on purpose: a baseline wants the
+    # cheapest command that still covers every kind of failure, and the PR's
+    # own CI run covers the expensive rest.
+    for key in ("verify", "check", "check:quick", "check:all", "verify:all",
+                "ci", "test"):
+        if scripts.get(key):
+            print(key)
+            sys.exit(0)
+print("")
+PY
+}
+
+# Prints HIT or MISS, then key<TAB>value lines, for the cached repo profile.
+read_profile_cache() {
+  python3 - "$1" "$2" "$3" "$4" <<'PY'
+import json
+import sys
+
+path, lockfile_hash, meta_hash, logic_version = sys.argv[1:5]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    print("MISS")
+    sys.exit(0)
+
+if not isinstance(data, dict):
+    print("MISS")
+    sys.exit(0)
+
+if (data.get("lockfile_hash") != lockfile_hash
+        or data.get("meta_hash") != meta_hash
+        or str(data.get("logic_version")) != logic_version):
+    # A miss invalidates what was *derived* from the repo's config files, not
+    # what was *measured* by running a gate in a real worktree. Hand the stale
+    # worktree_viable back so the caller can carry it forward; everything else
+    # gets recomputed.
+    print("MISS")
+    print(f"worktree_viable\t{data.get('worktree_viable', '')}")
+    sys.exit(0)
+
+print("HIT")
+for key in ("verify_command", "verify_source", "hooks", "pkg_manager", "worktree_viable"):
+    print(f"{key}\t{data.get(key, '')}")
+PY
+}
+
 # --- args --------------------------------------------------------------------
 WITH_GITHUB=0
 PROFILE_CACHE=""
@@ -299,34 +370,7 @@ done
 if [[ -z "$VERIFY_COMMAND" && -f "$repo_root/package.json" ]]; then
   # Parsed with python3 (a documented requirement of this skill) rather than
   # grep/sed, since scripts.* values are arbitrary JSON strings.
-  found_script="$(python3 - "$repo_root/package.json" <<'PY'
-import json
-import sys
-
-try:
-    with open(sys.argv[1], encoding="utf-8") as f:
-        data = json.load(f)
-except Exception:
-    print("")
-    sys.exit(0)
-
-scripts = data.get("scripts") if isinstance(data, dict) else None
-if isinstance(scripts, dict):
-    # The same principle as `just check` over `just test`: a repo that keeps
-    # `test` as "just the unit tests" and puts the real pre-PR gate behind a
-    # `check`-style script would otherwise get a baseline that passes while
-    # lint is broken -- exactly the CI round-trip the baseline exists to
-    # avoid. `check:quick` outranks `check:all` on purpose: a baseline wants the
-    # cheapest command that still covers every kind of failure, and the PR's
-    # own CI run covers the expensive rest.
-    for key in ("verify", "check", "check:quick", "check:all", "verify:all",
-                "ci", "test"):
-        if scripts.get(key):
-            print(key)
-            sys.exit(0)
-print("")
-PY
-)"
+  found_script="$(find_package_script "$repo_root/package.json")"
   if [[ -n "$found_script" ]]; then
     case "$pkg_manager" in
       pnpm) run_prefix="pnpm run" ;;
@@ -405,38 +449,7 @@ if [[ -n "$PROFILE_CACHE" ]]; then
 
   cache_hit=0
   if [[ -f "$PROFILE_CACHE" ]]; then
-    cache_read="$(python3 - "$PROFILE_CACHE" "$lockfile_hash" "$meta_hash" "$profile_logic_version" <<'PY'
-import json
-import sys
-
-path, lockfile_hash, meta_hash, logic_version = sys.argv[1:5]
-try:
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-except Exception:
-    print("MISS")
-    sys.exit(0)
-
-if not isinstance(data, dict):
-    print("MISS")
-    sys.exit(0)
-
-if (data.get("lockfile_hash") != lockfile_hash
-        or data.get("meta_hash") != meta_hash
-        or str(data.get("logic_version")) != logic_version):
-    # A miss invalidates what was *derived* from the repo's config files, not
-    # what was *measured* by running a gate in a real worktree. Hand the stale
-    # worktree_viable back so the caller can carry it forward; everything else
-    # gets recomputed.
-    print("MISS")
-    print(f"worktree_viable\t{data.get('worktree_viable', '')}")
-    sys.exit(0)
-
-print("HIT")
-for key in ("verify_command", "verify_source", "hooks", "pkg_manager", "worktree_viable"):
-    print(f"{key}\t{data.get(key, '')}")
-PY
-)"
+    cache_read="$(read_profile_cache "$PROFILE_CACHE" "$lockfile_hash" "$meta_hash" "$profile_logic_version")"
     if [[ "$(printf '%s\n' "$cache_read" | head -1)" == "HIT" ]]; then
       cache_hit=1
     fi
