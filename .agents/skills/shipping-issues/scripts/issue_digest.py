@@ -190,9 +190,9 @@ READY_NEGATIVE_LABELS = {
 # READY_NEGATIVE_LABELS so the two states never collapse into one meaning.
 # All members are normalize_label() output, so "Blocked: Design", "blocked/design"
 # and "needs-design" resolve to the same key on lookup.
-# Name, color and description as .github/labels.yml declares them: `just labels`
-# creates the set, and this is only the fallback for a repository that has not
-# run it, so the two must not disagree.
+# Name, color and description as .github/labels.yml declares them, which the
+# two must not disagree on. Only the name is read: `just labels` creates the set,
+# and no script of this skill ever does.
 DESIGN_LABEL = ("blocked: design", "e99695",
                 "The approach is not settled; needs a human decision first.")
 DESIGN_BLOCK_LABELS = {
@@ -223,10 +223,10 @@ TRACKING_LABELS = {normalize_label(n) for n in ("tracking", "epic")}
 
 def resolve_design_label(existing: list[str]) -> tuple[str, bool]:
     """Return (label name this repo uses for the design-not-settled state,
-    whether it still needs to be created). Mirrors apply_priority_labels.py's
-    tier-label resolution: prefer the canonical name, then any existing alias
-    meaning the same thing (shortest wins), only fall back to creating the
-    canonical one when the repo has neither.
+    whether the repo lacks it). Prefers the canonical name, then any existing
+    alias meaning the same thing (shortest wins); with neither, the canonical
+    name and True, which the caller reports -- `just labels` creates it, never
+    this skill.
     """
     canonical = DESIGN_LABEL[0]
     by_norm = {normalize_label(name): name for name in existing}
@@ -250,8 +250,7 @@ PRIORITY_LABEL_WEIGHTS = {
 }
 
 # The four labels this skill writes. The tier IS the persisted ranking: it is
-# read on every later run so issue prose never has to be re-analyzed. Colors and
-# descriptions are what apply_priority_labels.py creates the labels with.
+# read on every later run so issue prose never has to be re-analyzed.
 TIER_ORDER = ["P0", "P1", "P2", "P3"]
 # As .github/labels.yml declares them, for the same reason as DESIGN_LABEL.
 TIER_LABELS = {
