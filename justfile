@@ -20,6 +20,13 @@ no_signing := "env -u APPLE_CERTIFICATE -u APPLE_CERTIFICATE_PASSWORD -u APPLE_S
 default:
     @just --list
 
+# Everything a Mac runs without a human, in CI's order (opens no window; see D22 above)
+check: verify-hooks fmt lint test-scripts check-harness test test-macos build smoke
+
+# Re-assert the harness's claims about itself (scripts/checks/, one module per claim)
+check-harness:
+    node scripts/check-harness.ts
+
 # Install the pinned toolchain and dependencies (no sudo, no installer windows)
 install:
     #!/usr/bin/env bash

@@ -157,6 +157,9 @@ jobs:
       - name: Script tests with coverage floors
         run: just test-scripts
 
+      - name: Harness self-checks
+        run: just check-harness
+
   macos:
     name: macOS Build & Smoke
     runs-on: macos-26
