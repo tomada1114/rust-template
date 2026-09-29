@@ -1,0 +1,175 @@
+---
+name: writing-repo-scripts
+description: >
+  Covers writing or editing a TypeScript script under scripts/ (scripts/*.ts,
+  scripts/lib/, scripts/checks/) or a skill's bundled script, run directly by Node's
+  type stripping, and its Vitest test beside it. Use when adding a script or the just
+  recipe that calls it, writing main(context: ScriptContext) and the
+  import.meta.main / runScript entry point, a script must refuse or skip outside a git
+  work tree, git spawned from a hook acts on the wrong repository (an inherited GIT_DIR
+  or GIT_INDEX_FILE; gitEnv, stagedGuardEnv), writing a ScriptError with an
+  ERR_<STAGE>_<WHAT> code and Expected/Actual/Next lines, erasableSyntaxOnly or a .ts
+  import extension fails, stubbing git, gh, or cargo in a test through the context's
+  run function, or a scripts/ coverage floor fails.
+---
+
+# Writing Repository Scripts
+
+**Owns:** how a repository script is written and tested: why it is TypeScript run by
+Node, what it may depend on, how it spawns git, how it behaves outside a git work tree,
+how it reports failure, and how its test is built. **Does not own:** how a skill is
+authored or mirrored (`authoring-skills`); what a gate checks and which gate runs a
+script (`changing-gates`); the coverage floor values and which Vitest project a test
+joins (`placing-tests`); a new package the script would import
+(`managing-dependencies`).
+
+The rules themselves live once, in `AGENTS.md` › "Repository scripts": read it first.
+This skill carries the reasons behind them and worked examples from the tree; it does
+not restate the list, so the two cannot drift.
+
+## Why TypeScript, run by Node directly
+
+- Node is already required for the UI, so it costs the clone nothing. The scripts need
+  real parsers for YAML, TOML, and JSON (`yaml`, `smol-toml`, `JSON.parse`), which a
+  shell does not have and a regex over YAML or TOML only imitates. Vitest tests them
+  with fixtures. And a reader still learning Rust can maintain TypeScript.
+- Node runs a `.ts` file by stripping its types, with no build step. Stripping only
+  removes types and never rewrites code, so syntax that needs a transform (`enum`, a
+  `namespace` with runtime code, parameter properties) is an error, and an import names
+  the `.ts` file (https://nodejs.org/api/typescript.html, checked 2026-09-29). Enforced
+  by: `scripts/tsconfig.json` "erasableSyntaxOnly" and "allowImportingTsExtensions", so
+  tsc reports both before Node does.
+- A script runs after `just install`, so it may import the parsers in `package.json`'s
+  `devDependencies`. A package it would newly need is a new dependency, with the review
+  and sign-off that implies.
+
+## The shape of a script
+
+Every script has a header comment (what it does, its usage line, what it does outside a
+git work tree, and its `Errors:` list), an exported `main` that takes a `ScriptContext`
+(`scripts/lib/script.ts`), and a one-line entry point:
+
+```ts
+import { ScriptError } from "./lib/fail.ts";
+import { runScript, type ScriptContext } from "./lib/script.ts";
+
+export function main(context: ScriptContext): void {
+  // read context.argv, context.env, context.root; spawn through context.run; print through context.log
+}
+
+if (import.meta.main) await runScript(main);
+```
+
+- `import.meta.main` is true only for the module Node was started with, so a test that
+  imports `main` never triggers a run. Do not wrap it in a helper: a helper sees its own
+  module, never its caller's.
+- `main` receives everything from the process through the context (argv, env, the
+  repository root, a `run` function for child processes, a logger, stdin), so its test
+  calls it with fakes instead of spawning real tools.
+- Pinned tools are called by bare name; the caller provides PATH (`mise exec --` in a
+  recipe, `jdx/mise-action` in CI). A script never calls `mise exec` itself: a CI job
+  installs only the tools its `install_args` name, and asking mise for another would
+  start a download mid-run instead of failing on the missing tool. `git` and `gh` are
+  assumed on PATH, and tests stub both.
+
+## Spawning git
+
+Git exports `GIT_DIR` to every hook, and `git commit -- <path>` also exports a
+temporary `GIT_INDEX_FILE`. An inherited `GIT_DIR` outranks both the child's working
+directory and `git -C`, so a git command meant for another repository (a test's
+throwaway repository) writes into the outer one instead. Every spawned git therefore
+gets `gitEnv(env)` from `scripts/lib/git-env.ts`, which drops every `GIT_*` variable:
+
+```ts
+context.run("git", ["status", "--porcelain"], { cwd: context.root, env: gitEnv(context.env) });
+```
+
+The one exception is the staged guard, `scripts/check-staged.ts`: it **is** the
+pre-commit check and must judge the index actually being committed, so it uses
+`stagedGuardEnv(env)`, which keeps `GIT_INDEX_FILE` and drops the rest.
+
+## Outside a git work tree: refuse or skip
+
+Every header says which, and the choice follows from whether the script's question
+exists outside a checkout:
+
+- **Refuse**, with a named code, when the job is defined over the repository.
+  `scripts/check-staged.ts` has no index to judge (`ERR_STAGED_NOT_A_REPO`);
+  `scripts/release-prep.ts` exists to check a clean work tree
+  (`ERR_RELEASE_NOT_A_REPO`); `scripts/verify-hooks.ts` checks this checkout's hook
+  (`ERR_HOOKS_NOT_A_REPO`).
+- **Skip with a one-line notice** when the question is meaningless there, and exit 0.
+- A harness check under `scripts/checks/` takes `--root <dir>` and needs no git to find
+  its tree, which is what lets its test point it at a fixture per failure mode.
+
+## The failure contract
+
+A failure is usually read by an agent, which acts on exactly what the message says. So
+it names what failed, what was expected against what was found, and the next command
+that is safe to run, and it never echoes a secret or the matched content (the staged
+guard names a path and a rule, never the text). Throw a `ScriptError`
+(`scripts/lib/fail.ts`); `runScript` prints it and sets the exit code, and turns any
+other exception into `ERR_INTERNAL_UNEXPECTED`. The exit code is 1, or 2 for a Claude
+Code hook, the code that feeds stderr back to the agent (`scripts/format-edited-file.ts`).
+List every code in the header.
+
+`scripts/verify-hooks.ts` in a clone where `just install` never ran:
+
+```text
+ERR_HOOKS_NOT_INSTALLED: lefthook's pre-commit hook is not installed
+Expected: a lefthook pre-commit hook at <repo>/.git/hooks/pre-commit
+Actual: no pre-commit hook
+Next: run `just install` (it runs `lefthook install`), or set ALLOW_MISSING_GIT_HOOKS=1 to commit without hooks on purpose
+```
+
+The `Next:` line offers the fix first and the documented opt-out second, so the reader
+is never left with only "turn the check off". **BACKGROUND:** `designing-errors`, for
+naming a code consistently with the rest of the repository's error codes.
+
+## A script that writes to GitHub
+
+`scripts/sync-labels.ts` (`just labels`) and `scripts/apply-ruleset.ts` (`just ruleset`)
+only create or update what their manifest declares and never delete, so a run can only
+converge on the file; a known GitHub refusal gets its own code
+(`ERR_RULESET_PLAN_UNSUPPORTED`). Their tests stub `gh`. Running one against the live
+repository is a remote write that needs a human's sign-off first.
+
+## Testing a script
+
+The test sits beside it (`scripts/<name>.test.ts`, `scripts/lib/**/<name>.test.ts`) and
+runs in Vitest's `scripts` project under `just test-scripts`.
+
+- **Call `main` with a context you build.** Collect `log` lines in an array and pass a
+  `run` that records each call and answers from a table, as `scripts/sync-labels.test.ts`
+  does for `gh` and `scripts/build-sidecar.test.ts` for `cargo`. Assert on the recorded
+  calls: that is how a test proves what would have been sent to GitHub without sending
+  it.
+- **A throwaway repository per test.** `mkdtemp` under `os.tmpdir()`, `git init` with
+  `gitEnv(process.env)`, removed in `afterEach` (`scripts/verify-hooks.test.ts`). Never
+  read or write the real checkout, and never a fixed shared path: Vitest runs files in
+  parallel, and two tests on one path race.
+- **Assert the code, not the prose**: `expect(error).toMatch(/^ERR_HOOKS_NOT_INSTALLED/)`.
+  The code is the contract; the wording may improve.
+- **Secret-shaped fixtures are assembled at runtime** from pieces that do not match on
+  their own, so no committed file, the test included, trips the staged guard or GitHub
+  push protection. Say so in the test's header comment.
+
+Enforced by: `vitest.config.ts` "thresholds" (`scripts/**` lines 85, functions 90;
+`scripts/lib/guard/**` lines 90, functions 100). An untested new file counts as 0%, so
+it pulls the tree's number down from the moment it exists.
+
+## Adding a script
+
+A new script usually lands with more than its own file:
+
+- its test beside it;
+- a `justfile` recipe if people run it by hand, the recipe's line in `AGENTS.md`'s Quick
+  Reference, and its command in `CONTRIBUTING.md`'s "Without Just";
+- a "Validating a change" row when no row covers it, and an "Enforcement layers" row
+  when it enforces something. **REQUIRED:** `changing-gates` for a script a gate runs.
+
+A script bundled inside a skill follows the same rules, or keeps its own language when
+it was ported with its tests; `just test-scripts` runs those suites too. Keep it a thin
+dispatcher: branching logic belongs under `scripts/`, where the floors apply.
+
+Check the work with `just test-scripts`, then `just lint` (tsc over `scripts/`, ESLint).

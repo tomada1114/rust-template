@@ -66,7 +66,7 @@ just test-core     # myapp-core with its 80/80 floors, its doctests, and the Lin
 just test-ui       # Vitest over ui/src with its 80/80 floors
 just test-fast increment  # One core test or a group of them, no floor (iteration only)
 just test-macos    # Platform adapters and tauri::test command tests (macOS, no human)
-just test-scripts  # Vitest over scripts/ with its floors
+just test-scripts  # Vitest over scripts/ and skills' scripts with its floors, plus bundled Python tests and shellcheck
 just check-harness # Re-assert the harness's claims about itself (scripts/checks/)
 just bindings      # Regenerate ui/src/ipc/generated/ from core's ts-rs types
 just sidecar       # Build myapp-cli into src-tauri/binaries/ (the Tauri build needs it)
@@ -258,6 +258,35 @@ Skills are authored under `.agents/skills/` (the path Codex CLI reads) and mirro
 byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 `just agents-sync` — edit only the authored copy, commit both trees together, and let
 `just agents-check` report any drift.
+
+| Skill | Load it for |
+|---|---|
+| `authoring-skills` | Writing or editing a skill: the conventions, the mirror, the size cap |
+| `smart-commit` | Turning the working tree into Conventional Commits; a refused pre-commit hook |
+| `create-pr` | Opening or updating a pull request: title, body, Release impact, evidence |
+| `triaging-issues` | Filing or labelling an issue: type, priority, blocked, tracking |
+| `shipping-issues` | Taking ranked open issues to merged pull requests, with worktrees |
+| `steering-the-roadmap` | Changing `docs/architecture/roadmap.md` (Now / Next / Later) |
+| `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; Tauri minors move together |
+| `managing-dependencies` | Adding or changing a crate or npm package: the review record, features, licences |
+| `changing-gates` | Editing a file that enforces: lints, floors, hooks, workflows, capabilities, entitlements |
+| `updating-docs` | Deciding which document a change must update |
+| `recording-architecture-decisions` | Writing an ADR under `docs/architecture/` |
+| `writing-repo-scripts` | A TypeScript script under `scripts/` or bundled with a skill, and its test |
+| `releasing-the-app` | Cutting a release: version, CHANGELOG, `just release-prep`, the tag, signing |
+| `starting-an-app` | Turning the template into a new app: bootstrap, design system first, app shape |
+| `writing-rust` | Rust in `crates/*` and `src-tauri`: ownership, errors, compiler messages, clippy |
+| `writing-typescript` | Type-system judgment in `ui/src/` and `scripts/` |
+| `tdd` | Red-green-refactor with `just test-fast` and Vitest |
+| `writing-tests` | The body of one test in either language: oracles, fakes, contracts, clocks |
+| `placing-tests` | Where a new test goes and which floor measures it |
+| `designing-core-logic` | Shaping logic in `myapp-core`: ports, `Tuning`, transitions, views |
+| `designing-errors` | Error enums, codes for the UI, adapter mapping, `ERR_*` script codes |
+| `designing-ipc` | Adding a command or event end to end, bindings, capabilities, the sidecar |
+| `integrating-system-apis` | Calling macOS from `myapp-platform`: commands, `objc2`, TCC |
+| `running-the-app` | Seeing a change work: `just smoke` and `just logs`; the human's run recipes |
+| `building-react-screens` | A screen under `ui/src/`: a thin component over a hook, states, accessibility |
+| `designing-ui` | Look and feel: HIG in a WebView, the design system, the design-lock ADR |
 
 ### Rules
 
