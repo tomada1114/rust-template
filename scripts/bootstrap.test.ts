@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 
 import {
   collectAnswers,
@@ -24,6 +25,7 @@ import {
   TEMPLATE_VALUES,
   TEXT_EDITS,
   validateField,
+  workflowEnvValues,
   type Answers,
   type Terminal,
 } from "./bootstrap.ts";
@@ -134,6 +136,19 @@ jobs:
       - run: zizmor .
 `;
 
+const RELEASE_YML = `name: Release
+
+jobs:
+  release:
+    name: Build, verify, and publish the dmg
+    runs-on: macos-26
+    env:
+      APP_NAME: "MyApp"
+      TARGET: aarch64-apple-darwin
+    steps:
+      - run: node scripts/smoke.ts --app "target/$TARGET/release/bundle/macos/$APP_NAME.app"
+`;
+
 const RULESET = `{
   "rules": [
     {
@@ -202,6 +217,7 @@ const OVERRIDES: Record<string, string> = {
   "CHANGELOG.md": CHANGELOG,
   LICENSE,
   ".github/workflows/ci.yml": CI_YML,
+  ".github/workflows/release.yml": RELEASE_YML,
   ".github/rulesets/main.json": RULESET,
   justfile: JUSTFILE,
   "README.md": README,
@@ -542,6 +558,12 @@ describe("the site list", () => {
     }
   });
 
+  it("rewrites the display name in the release workflow, which packages <name>.app", () => {
+    expect(SITES.find((site) => site.file === ".github/workflows/release.yml")?.forms).toEqual([
+      "name",
+    ]);
+  });
+
   it("removes itself, its verifier, and the template's design notes", () => {
     expect(REMOVED_PATHS).toEqual(
       expect.arrayContaining([
@@ -606,6 +628,9 @@ describe("runBootstrap", () => {
     const ci = read(root, ".github/workflows/ci.yml");
     expect(ci).not.toContain("bootstrap");
     expect(ci).toContain("cargo clippy -p tide-pool-core\n\n  zizmor:\n");
+    const release = read(root, ".github/workflows/release.yml");
+    expect(release).toContain('APP_NAME: "Tide Pool"');
+    expect(workflowEnvValues(parseYaml(release), "APP_NAME")).toEqual(["Tide Pool"]);
     const ruleset = read(root, ".github/rulesets/main.json");
     expect(ruleset).not.toContain("Template Bootstrap Smoke");
     expect(() => JSON.parse(ruleset) as unknown).not.toThrow();
@@ -771,6 +796,38 @@ describe("runBootstrap", () => {
     ).toMatch(/^ERR_BOOTSTRAP_FORMAT/);
   });
 
+  it("keeps the release workflow's APP_NAME a string for a name YAML would read as a number", () => {
+    for (const name of ["1.10", "Null", "1e3"]) {
+      const root = templateTree();
+      runBootstrap(context(root).context, { ...ANSWERS, name }, { year: YEAR });
+      const release: unknown = parseYaml(read(root, ".github/workflows/release.yml"));
+      expect(workflowEnvValues(release, "APP_NAME")).toEqual([name]);
+    }
+  });
+
+  it("writes nothing when the release workflow's APP_NAME would not read back as the name", () => {
+    for (const release of [
+      RELEASE_YML.replace('APP_NAME: "MyApp"', "APP_NAME: MyApp"),
+      RELEASE_YML.replace(
+        "    steps:\n",
+        '    steps:\n      - env:\n          APP_NAME: "Old MyApp"\n',
+      ),
+      `${RELEASE_YML}  broken: [\n`,
+    ]) {
+      const root = templateTree();
+      writeFileSync(join(root, ".github/workflows/release.yml"), release);
+      const before = read(root, "AGENTS.md");
+      const { context: ctx, calls } = context(root);
+      expect(
+        failure(() => {
+          runBootstrap(ctx, { ...ANSWERS, name: "1.10" }, { year: YEAR });
+        }),
+      ).toMatch(/^ERR_BOOTSTRAP_REWRITE: \.github\/workflows\/release\.yml/);
+      expect(read(root, "AGENTS.md")).toBe(before);
+      expect(calls).toEqual([]);
+    }
+  });
+
   it("warns about a placeholder in a file the site list does not name", () => {
     const root = templateTree();
     write(root, "docs/new-page.md", "Run MyApp.\n");
@@ -779,6 +836,28 @@ describe("runBootstrap", () => {
     );
     runBootstrap(ctx, ANSWERS, { year: YEAR });
     expect(lines.join("\n")).toContain("docs/new-page.md:1: Run MyApp.");
+  });
+});
+
+describe("workflowEnvValues", () => {
+  it("reads a key from the workflow's, each job's, and each step's env, and nothing else", () => {
+    const workflow: unknown = parseYaml(`env:
+  APP_NAME: top
+jobs:
+  build:
+    env:
+      APP_NAME: job
+    steps:
+      - env:
+          APP_NAME: step
+      - run: echo
+  publish:
+    runs-on: macos-26
+`);
+    expect(workflowEnvValues(workflow, "APP_NAME")).toEqual(["top", "job", "step"]);
+    expect(workflowEnvValues(workflow, "TARGET")).toEqual([]);
+    expect(workflowEnvValues("not a workflow", "APP_NAME")).toEqual([]);
+    expect(workflowEnvValues({ jobs: "none" }, "APP_NAME")).toEqual([]);
   });
 });
 

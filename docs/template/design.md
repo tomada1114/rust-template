@@ -432,7 +432,7 @@ Workflows (job names are the ruleset's required contexts):
 | `ci.yml` | `Frontend` | ubuntu | typecheck; ESLint; Prettier check; Vitest with floors |
 | `ci.yml` | `Repo Lint & Harness` | ubuntu | typos; actionlint; skills mirror; script tests; harness checks |
 | `ci.yml` | `macOS Build & Smoke` | macos-26 | workspace clippy `-D warnings`; `just test-macos`; `just build`; `just smoke` (release build, sidecar, codesign, entitlements) |
-| `ci.yml` | `Template Bootstrap Smoke` | macos-26 | template-only: copy the tree, run the bootstrap non-interactively, then `just check` in the result |
+| `ci.yml` | `Template Bootstrap Smoke` | macos-26 | template-only: copy the tree, run `scripts/verify-bootstrap.ts`, run the bootstrap non-interactively, then `just check` in the result |
 | `ci.yml` | `Workflow Security Lint` | ubuntu | zizmor |
 | `dependency-review.yml` | `Dependency Review` | ubuntu | license allow-list, severity gate |
 | `check-pr-title.yml` | `Validate PR title` | ubuntu | Conventional Commits |
@@ -512,11 +512,11 @@ itself, then prints next steps — fill `AGENTS.md` › Product, fill
 `just labels`, `just ruleset`, the GitHub security settings. `scripts/verify-bootstrap.ts`
 bootstraps a temp copy and fails on any leftover placeholder or template-only marker, a
 dangling skill reference, or a mismatch between names; CI's `Template Bootstrap Smoke`
-(a macOS job with `timeout-minutes: 60`) bootstraps a fresh `git clone` with a hyphenated
-multi-word slug (so the hyphen, underscore, and upper-case forms are all exercised),
-asserts `just check-harness` fails with the Product-section code — the check must fire
-on an unfilled app — then writes a stub Product section in that copy and runs
-`just check` there. The bootstrap removes this job and its ruleset context from the
+(a macOS job with `timeout-minutes: 60`) runs it, then bootstraps a fresh `git clone`
+with a hyphenated multi-word slug (so the hyphen, underscore, and upper-case forms are
+all exercised), asserts `just check-harness` fails with the Product-section code — the
+check must fire on an unfilled app — then writes a stub Product section in that copy and
+runs `just check` there. The bootstrap removes this job and its ruleset context from the
 generated app, as macos-app-template's does.
 
 ### D20. Agent harness — Designer

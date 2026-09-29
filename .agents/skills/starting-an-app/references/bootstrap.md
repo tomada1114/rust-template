@@ -57,11 +57,13 @@ machine it is fixed, because macOS keys the app's data, logs, and privacy grants
 - `scripts/verify-bootstrap.ts` bootstraps a temporary copy of the tree and fails on
   any leftover placeholder or template-only marker, a dangling skill reference, or a
   mismatch between the names it produced.
-- CI's `Template Bootstrap Smoke` job (macOS, `timeout-minutes: 60`) bootstraps a fresh
-  `git clone` with a hyphenated multi-word slug, asserts that `just check-harness`
-  **fails** with the Product-section code (the check must fire on an app nobody has
-  described yet), then writes a stub Product section in that copy and runs `just check`
-  there. It runs on every pull request, so the bootstrap cannot rot unnoticed.
+- CI's `Template Bootstrap Smoke` job (macOS, `timeout-minutes: 60`) runs
+  `scripts/verify-bootstrap.ts` first — the bootstrap itself only warns about a
+  placeholder outside its site list, so this is the step that fails on one. It then
+  bootstraps a fresh `git clone` with a hyphenated multi-word slug, asserts that
+  `just check-harness` **fails** with the Product-section code (the check must fire on
+  an app nobody has described yet), writes a stub Product section in that copy, and
+  runs `just check` there. It runs on every pull request, so the bootstrap cannot rot unnoticed.
 - The generated tree, not this checkout, is what a bootstrap change is tested against.
   Build the temporary copy from the tracked files (`git ls-files`), never the working
   directory, so ignored build output (`target/`, `node_modules/`) cannot change a

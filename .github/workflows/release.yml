@@ -75,7 +75,9 @@ jobs:
       attestations: write
       id-token: write
     env:
-      APP_NAME: MyApp
+      # tauri.conf.json's productName, which names the .app and the dmg; quoted so a name
+      # YAML would read as a number or null stays a string.
+      APP_NAME: "MyApp"
       TARGET: aarch64-apple-darwin
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       # The secrets context is not available in a step's `if:`, so each gate is a flag.

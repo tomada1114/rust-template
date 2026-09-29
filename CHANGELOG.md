@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it with `ERR_STAGED_READ_FAILED`, so an icon source, a screenshot, or a large lockfile
   can be committed through the hook.
 
+- An app cut from the template releases its own `.app` and dmg: the bootstrap now
+  rewrites the release workflow's `APP_NAME`, which stayed `MyApp` and failed the first
+  release with `ERR_SMOKE_APP_MISSING`. CI's Template Bootstrap Smoke runs
+  `scripts/verify-bootstrap.ts`, so a placeholder the bootstrap leaves behind fails the
+  pull request instead of only printing a warning.
+
 ### Security
 
 - The staged guard catches this template's own signing secrets it used to miss: an
