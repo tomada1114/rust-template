@@ -135,7 +135,7 @@ macOS 15, Control-click › Open no longer bypasses Gatekeeper
 - remove the quarantine attribute from the copied app in Terminal:
 
   ```bash
-  xattr -dr com.apple.quarantine /Applications/MyApp.app
+  xattr -dr com.apple.quarantine "/Applications/MyApp.app"
   ```
 
 Say this in the release notes of an ad-hoc release, or better, configure the Developer
@@ -173,7 +173,7 @@ A user can check a downloaded release against the published checksums and proven
 
 ```bash
 shasum -a 256 -c SHA256SUMS --ignore-missing
-gh attestation verify MyApp_0.2.0_aarch64.dmg --repo tomada1114/tauri-template
+gh attestation verify "MyApp_0.2.0_aarch64.dmg" --repo tomada1114/tauri-template
 ```
 
 ## The App Sandbox is off
