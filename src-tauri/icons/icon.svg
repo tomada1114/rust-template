@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Placeholder app icon: replace it (starting-an-app). Regenerate the PNGs and .icns
+       with `pnpm tauri icon <1024px png>`, keeping only the files tauri.conf.json lists. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#606c7c"/>
+      <stop offset="1" stop-color="#424e5e"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#g)"/>
+  <circle cx="512" cy="512" r="220" fill="none" stroke="#f5f5f5" stroke-width="60"/>
+  <circle cx="512" cy="512" r="70" fill="#f5f5f5"/>
+</svg>

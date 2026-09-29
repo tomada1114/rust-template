@@ -17,7 +17,10 @@ what was built; each entry says what the design said, what was done, and why.
   matures, as one grouped PR.
 - **Other versions below § 2's list for the same reason:** vite 8.3.0, vitest 5.0.1,
   typescript-eslint 8.70.x, prettier 3.9.8, smol-toml 1.8.0 — each the newest release
-  older than seven days on 2026-09-28.
+  older than seven days on 2026-09-28. In `Cargo.lock` the whole Tauri family is held on
+  the 2.11 line the same way (`tauri-runtime-wry` 2.11.4, `tauri-runtime` 2.11.3,
+  `tauri-macros`/`tauri-codegen` 2.6.3, `tauri-utils` 2.9.3, `tao` 0.35.3, `wry` 0.55.1),
+  because `tauri = "2"` otherwise resolves those to their 2026-09-26 releases.
 
 ## Decisions made during the run
 
@@ -40,3 +43,14 @@ what was built; each entry says what the design said, what was done, and why.
   edition 2024.
 - ts-rs 12.0.1 honours `TS_RS_EXPORT_DIR` from `.cargo/config.toml` (bindings land in
   `ui/src/ipc/generated/`) and `TS_RS_LARGE_INT = "number"` (no `bigint` in the output).
+- Tauri 2.11 has `App::set_activation_policy` and `ActivationPolicy::Prohibited` on
+  macOS, and its CLI exports `TAURI_ENV_TARGET_TRIPLE` and `TAURI_ENV_DEBUG` to
+  `beforeDevCommand`/`beforeBuildCommand` (found in the CLI binary's strings), which
+  `scripts/build-sidecar.ts` reads before falling back to `rustc --print host-tuple`.
+- `unsafe_code = "forbid"` holds in the Tauri crate: `generate_handler!`,
+  `generate_context!`, and `#[tauri::command]` expand without tripping it, so the
+  pre-approved `deny` exception was not needed.
+- `tauri::test` exercises the commands as designed (mock runtime, `get_ipc_response`,
+  `Listener::listen` for the event), so the plain-function fallback was not needed.
+  Commands that take an `AppHandle` are generic over `R: Runtime` so the same handler
+  list (`with_commands`) serves the app and the tests.

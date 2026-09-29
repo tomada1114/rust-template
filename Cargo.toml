@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "src-tauri"]
 resolver = "3" # explicit: a virtual manifest has no edition to infer it from
 
 [workspace.package]
@@ -22,6 +22,8 @@ thiserror = "2"
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std", "ansi"] }
+tauri = "2" # never 3.x until a migration ADR; the crate and @tauri-apps/* move together
+tauri-build = "2"
 ts-rs = "12"
 
 [workspace.lints.rust]

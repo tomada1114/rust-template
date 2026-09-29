@@ -1,0 +1,33 @@
+[package]
+name = "myapp"
+description = "The Tauri shell: the composition root and the thin commands and events between the UI and myapp-core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# create-tauri-app's split: `lib.rs` holds `run()`, `main.rs` only calls it. The `_lib`
+# suffix keeps the library's name apart from the binary's.
+[lib]
+name = "myapp_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+myapp-core = { workspace = true }
+myapp-platform = { workspace = true }
+serde = { workspace = true }
+tauri = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+myapp-test-support = { workspace = true }
+serde_json = { workspace = true }
+tauri = { workspace = true, features = ["test"] }
+
+[lints]
+workspace = true
