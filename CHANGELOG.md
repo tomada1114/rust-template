@@ -22,3 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it. A startup error — no `HOME`, logging, the build, or a missing `main` window — now
   exits 1 with its reason on stderr instead of aborting, and `just smoke` checks that
   case.
+
+- The pre-commit staged guard reads a staged file larger than 1 MiB instead of refusing
+  it with `ERR_STAGED_READ_FAILED`, so an icon source, a screenshot, or a large lockfile
+  can be committed through the hook.
+
+### Security
+
+- The staged guard catches this template's own signing secrets it used to miss: an
+  `APPLE_PASSWORD`, `APPLE_CERTIFICATE_PASSWORD`, or other `*_password` assignment, a
+  JSON `"password"` value, a base64 `.p12` such as `APPLE_CERTIFICATE`, a PGP private key
+  block, and a Slack webhook URL. An `.npmrc` `_authToken=${NPM_TOKEN}` reference is no
+  longer refused.

@@ -41,6 +41,14 @@ describe("runCommand", () => {
     expect(result.stderr).toContain("ETIMEDOUT");
   });
 
+  it("captures output past Node's 1 MiB default when given a larger maxBuffer", () => {
+    const script = "process.stdout.write('x'.repeat(2 * 1024 * 1024))";
+    expect(runCommand(process.execPath, ["-e", script]).stderr).toContain("ENOBUFS");
+    const result = runCommand(process.execPath, ["-e", script], { maxBuffer: 4 * 1024 * 1024 });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toHaveLength(2 * 1024 * 1024);
+  });
+
   it("can pass output through instead of capturing it", () => {
     const result = runCommand(process.execPath, ["-e", "process.exit(0)"], { inherit: true });
     expect(result.status).toBe(0);
