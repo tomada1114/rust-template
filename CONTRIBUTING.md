@@ -48,7 +48,7 @@ just check          # everything above that runs without a human, in CI's order
 just release-prep 0.2.0   # bump the three version sites and roll CHANGELOG.md (docs/distribution.md)
 ```
 
-`just check` runs verify-hooks → fmt → lint → test-scripts → check-harness → test →
+`just check` runs verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test →
 test-macos → build → smoke. It opens no window, takes no focus, and raises no prompt.
 
 These recipes are for a human and are never part of `just check`; an agent runs them

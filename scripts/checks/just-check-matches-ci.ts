@@ -70,8 +70,6 @@ export const EXCEPTIONS: Exceptions = {
     fmt: "rewrites files; CI checks the same formatting read-only through `just lint`'s `cargo fmt --all --check` and `pnpm format:check` lines, which this check matches verbatim",
   },
   ciOnlyRecipes: {
-    "agents-check":
-      "the skills mirror: lefthook's pre-commit `skills mirror` job runs the same `node scripts/sync-agents.ts --check` on every commit that touches a skill; CI repeats it for a commit made with --no-verify",
     bindings:
       "regenerates ui/src/ipc/generated/ (it writes files); CI runs it and diffs the result to catch a commit that forgot `just bindings`, while a developer runs it and commits the output",
   },
@@ -88,10 +86,8 @@ export const EXCEPTIONS: Exceptions = {
       "`just deny`: fetches the RustSec advisory database over the network, so it stays out of the offline local gate; AGENTS.md › Validating a change runs it when a manifest or lockfile changes",
     "cargo shear":
       "unused-dependency detection; AGENTS.md › Validating a change runs `mise exec -- cargo shear` when a manifest changes, and CI on every change",
-    typos:
-      "lefthook's pre-commit `typos` job runs it on every staged file; CI reruns it over the whole tree for a commit made with --no-verify",
-    actionlint:
-      "lints only .github/workflows/; AGENTS.md › Validating a change runs `mise exec -- actionlint` whenever a workflow changes",
+    "cargo fetch --locked":
+      "fills the Linux harness job's registry so `cargo metadata --offline` (the core-boundary check) can resolve; a developer's Mac already holds the crates after any build",
     "zizmor --format github .":
       "workflow security audit in GitHub's annotation format, with a read-only token for its online audits; AGENTS.md › Validating a change runs `mise exec -- zizmor` locally when a workflow changes",
   },

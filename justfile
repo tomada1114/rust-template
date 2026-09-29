@@ -21,7 +21,12 @@ default:
     @just --list
 
 # Everything a Mac runs without a human, in CI's order (opens no window; see D22 above)
-check: verify-hooks fmt lint test-scripts check-harness test test-macos build smoke
+check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-macos build smoke
+
+# Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
+lint-repo:
+    typos
+    actionlint
 
 # Re-assert the harness's claims about itself (scripts/checks/, one module per claim)
 check-harness:
@@ -177,3 +182,8 @@ ruleset:
 # Bump the three version sites, refresh Cargo.lock, and roll CHANGELOG.md: `just release-prep 0.2.0`
 release-prep version *flags:
     node scripts/release-prep.ts {{ flags }} {{ version }}
+
+# Turn the template into a new app: rename its placeholders and remove the template-only material (a human's step, run once)
+[positional-arguments]
+bootstrap *args:
+    node scripts/bootstrap.ts "$@"
