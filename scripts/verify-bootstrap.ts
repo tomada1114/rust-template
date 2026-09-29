@@ -36,6 +36,7 @@
  * ERR_VERIFY_BOOTSTRAP_NAME_MISMATCH.
  */
 import {
+  appendFileSync,
   copyFileSync,
   existsSync,
   lstatSync,
@@ -496,6 +497,27 @@ export function main(context: ScriptContext): void {
     git(context, ["clone", "--quiet", "--no-hardlinks", context.root, clone], workspace);
     overlay(context, clone);
     symlinkSync(modules, join(clone, "node_modules"), "dir");
+    // The bootstrap refuses a dirty tree: commit the overlay, and keep the symlink (which
+    // the `node_modules/` pattern does not match) out of git's view.
+    appendFileSync(join(clone, ".git", "info", "exclude"), "\n/node_modules\n");
+    git(context, ["add", "-A"], clone);
+    git(
+      context,
+      [
+        "-c",
+        "user.name=verify-bootstrap",
+        "-c",
+        "user.email=verify-bootstrap@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--quiet",
+        "--allow-empty",
+        "-m",
+        "verify-bootstrap: the work tree's changes",
+      ],
+      clone,
+    );
 
     const args = [
       "scripts/bootstrap.ts",

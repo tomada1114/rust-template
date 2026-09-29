@@ -22,22 +22,22 @@
  * A missing value is asked for on the terminal; with --yes, or when standard input is not
  * a terminal, a missing value takes its default (slug from the name, copyright holder from
  * the author) or fails. Every edit is computed and checked in memory before the first
- * write, so a drifted site list fails with nothing changed. Outside a git work tree it
- * still runs; only the closing scan for placeholders outside the site list is skipped.
+ * write, so a drifted site list fails with nothing changed. In a git work tree it refuses
+ * uncommitted or untracked changes, so the rewrite is the only change to review. Outside
+ * one it still runs; only that check and the closing scan for placeholders outside the
+ * site list are skipped.
  *
  * Errors: ERR_BOOTSTRAP_USAGE, ERR_BOOTSTRAP_MISSING_VALUE, ERR_BOOTSTRAP_INVALID_NAME,
  * ERR_BOOTSTRAP_INVALID_SLUG, ERR_BOOTSTRAP_INVALID_BUNDLE_ID, ERR_BOOTSTRAP_INVALID_REPO,
  * ERR_BOOTSTRAP_INVALID_AUTHOR, ERR_BOOTSTRAP_INVALID_COPYRIGHT, ERR_BOOTSTRAP_ABORTED,
- * ERR_BOOTSTRAP_NOT_TEMPLATE, ERR_BOOTSTRAP_SITE_MISSING, ERR_BOOTSTRAP_SITE_INCOMPLETE,
+ * ERR_BOOTSTRAP_NO_DEPS, ERR_BOOTSTRAP_NOT_TEMPLATE, ERR_BOOTSTRAP_DIRTY, ERR_BOOTSTRAP_SITE_MISSING, ERR_BOOTSTRAP_SITE_INCOMPLETE,
  * ERR_BOOTSTRAP_MARKER, ERR_BOOTSTRAP_REWRITE, ERR_BOOTSTRAP_FETCH, ERR_BOOTSTRAP_LOCKFILE,
  * ERR_BOOTSTRAP_FORMAT.
  */
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
-
-import { parse as parseToml } from "smol-toml";
-import { parse as parseYaml } from "yaml";
+import type { Readable, Writable } from "node:stream";
 
 import { ScriptError } from "./lib/fail.ts";
 import { gitEnv } from "./lib/git-env.ts";
@@ -93,6 +93,44 @@ export interface TextEdit {
   readonly find: string;
   readonly replace: string;
 }
+
+/** The TOML and YAML parsers, imported on first use so a missing install fails as ERR_BOOTSTRAP_NO_DEPS. */
+interface Parsers {
+  readonly toml: (text: string) => unknown;
+  readonly yaml: (text: string) => unknown;
+}
+
+let parsers: Parsers | undefined;
+
+function noDeps(actual: string): ScriptError {
+  return new ScriptError({
+    code: "ERR_BOOTSTRAP_NO_DEPS",
+    summary: "the bootstrap's dependencies are not installed",
+    expected: "smol-toml and yaml in node_modules",
+    actual,
+    next: "run `just install`, then the bootstrap again",
+  });
+}
+
+/** Import the parsers (idempotent); fails with ERR_BOOTSTRAP_NO_DEPS before `just install`. */
+export async function loadParsers(): Promise<void> {
+  if (parsers !== undefined) return;
+  try {
+    const [toml, yaml] = await Promise.all([import("smol-toml"), import("yaml")]);
+    parsers = { toml: (text) => toml.parse(text), yaml: (text) => yaml.parse(text) as unknown };
+  } catch (error: unknown) {
+    if ((error as { code?: unknown } | null)?.code !== "ERR_MODULE_NOT_FOUND") throw error;
+    throw noDeps(error instanceof Error ? (error.message.split("\n")[0] ?? "") : String(error));
+  }
+}
+
+function loaded(): Parsers {
+  if (parsers === undefined) throw noDeps("the parsers were never loaded (call loadParsers first)");
+  return parsers;
+}
+
+const parseToml = (text: string): unknown => loaded().toml(text);
+const parseYaml = (text: string): unknown => loaded().yaml(text);
 
 /** The template's own values: what each placeholder site holds before the bootstrap. */
 export const TEMPLATE_VALUES: Answers = {
@@ -430,8 +468,8 @@ const USAGE = `usage: node scripts/bootstrap.ts [--name NAME] [--slug SLUG] [--b
 
 Turns this template into a new app, once. A missing value is asked for on a terminal;
 with --yes (or without a terminal) the slug defaults to the name and the copyright
-holder to the author, and any other missing value is an error. Through just, a value
-with spaces loses its quotes: run \`node scripts/bootstrap.ts\` directly for one.`;
+holder to the author, and any other missing value is an error. Quote a value with
+spaces, through just or node alike.`;
 
 function usageError(summary: string, actual: string): ScriptError {
   return new ScriptError({
@@ -439,7 +477,7 @@ function usageError(summary: string, actual: string): ScriptError {
     summary,
     expected: "only the flags in the usage line, each value flag followed by its value",
     actual,
-    next: "run `node scripts/bootstrap.ts --help`; quote a value with spaces, and pass it to node directly rather than through just",
+    next: "run `node scripts/bootstrap.ts --help`; quote a value with spaces",
   });
 }
 
@@ -495,12 +533,19 @@ function invalid(field: Field, value: string, expected: string, next?: string): 
   });
 }
 
-/** Rust keywords and names Cargo refuses as a package name. */
+/**
+ * Rust keywords and names Cargo refuses as a package or binary name: the built-in
+ * crates, the directories Cargo keeps in target/ (`build`, `deps`, `examples`,
+ * `incremental`), and Windows' reserved file names.
+ */
 const RESERVED_SLUGS = new Set(
-  "abstract alloc as async await become box break const continue core crate do dyn else enum extern false final fn for gen if impl in let loop macro match mod move mut override priv proc-macro pub ref return self static std struct super test trait true try type typeof union unsafe unsized use virtual where while yield".split(
+  "abstract alloc as async await become box break const continue core crate do dyn else enum extern false final fn for gen if impl in let loop macro match mod move mut override priv proc-macro pub ref return self static std struct super test trait true try type typeof union unsafe unsized use virtual where while yield build deps examples incremental con prn aux nul com1 com2 com3 com4 com5 com6 com7 com8 com9 lpt1 lpt2 lpt3 lpt4 lpt5 lpt6 lpt7 lpt8 lpt9".split(
     " ",
   ),
 );
+
+/** Placeholder tokens an answer may not contain: the leftover scan would stop looking for them. */
+const FORBIDDEN_TOKENS = ["myapp", "tauri-template"] as const;
 
 /** True when the value holds a control character (a newline, a tab, a bell…). */
 function hasControl(value: string): boolean {
@@ -527,10 +572,7 @@ export function validateField(field: Field, raw: string): string {
           "1-50 letters, digits, spaces, hyphens, or periods, starting and ending with a letter or digit (it becomes the .app name and the window title)",
         );
       }
-      if (value === TEMPLATE_VALUES.name) {
-        throw invalid(field, value, "a name other than the template's placeholder");
-      }
-      return value;
+      return withoutPlaceholder(field, value);
     case "slug":
       if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(value) || value.length > 40) {
         throw invalid(
@@ -540,19 +582,28 @@ export function validateField(field: Field, raw: string): string {
         );
       }
       if (RESERVED_SLUGS.has(value)) {
-        throw invalid(field, value, "a name that is not a Rust keyword or a built-in crate");
-      }
-      if (value === TEMPLATE_VALUES.slug) {
-        throw invalid(field, value, "a slug other than the template's placeholder");
-      }
-      return value;
-    case "bundleId":
-      if (!/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(value) || value.length > 155) {
         throw invalid(
           field,
           value,
-          "reverse-DNS: two or more dot-separated parts of letters, digits, and hyphens (e.g. com.example.tide-pool)",
+          "a name that is not a Rust keyword, a built-in crate, or a name Cargo reserves",
         );
+      }
+      return withoutPlaceholder(field, value);
+    case "bundleId":
+      if (
+        !/^[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(
+          value,
+        ) ||
+        value.length > 155
+      ) {
+        throw invalid(
+          field,
+          value,
+          "reverse-DNS: two or more dot-separated parts of letters, digits, and hyphens, the first starting with a letter and no part starting or ending with a hyphen (e.g. com.example.tide-pool)",
+        );
+      }
+      if (/^com\.apple\./i.test(value)) {
+        throw invalid(field, value, "an identifier outside Apple's com.apple namespace");
       }
       if (value.toLowerCase().endsWith(".app")) {
         throw invalid(
@@ -561,28 +612,34 @@ export function validateField(field: Field, raw: string): string {
           "an identifier that does not end in .app (it clashes with the bundle extension)",
         );
       }
-      if (value === TEMPLATE_VALUES.bundleId) {
-        throw invalid(field, value, "an identifier other than the template's placeholder");
-      }
-      return value;
+      return withoutPlaceholder(field, value);
     case "repo": {
       const match =
         /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)\/([A-Za-z0-9._-]{1,100})$/.exec(value);
       if (match === null || match[2] === "." || match[2] === ".." || value.endsWith(".git")) {
         throw invalid(field, value, "OWNER/REPO as GitHub spells it (e.g. ada/tide-pool)");
       }
-      if (value === TEMPLATE_VALUES.repo) {
-        throw invalid(field, value, "the new app's repository, not the template's");
-      }
-      return value;
+      return withoutPlaceholder(field, value);
     }
     case "author":
     case "copyright":
       if (value === "" || value.length > 100 || hasControl(value)) {
         throw invalid(field, value, "1-100 printable characters on one line");
       }
-      return value;
+      return withoutPlaceholder(field, value);
   }
+}
+
+function withoutPlaceholder(field: Field, value: string): string {
+  const token = FORBIDDEN_TOKENS.find((candidate) => value.toLowerCase().includes(candidate));
+  if (token !== undefined) {
+    throw invalid(
+      field,
+      value,
+      `a value that does not contain the template's placeholder "${token}" (the scan for leftover placeholders looks for it)`,
+    );
+  }
+  return value;
 }
 
 /** The slug in every spelling a site needs, and the two halves of owner/repo. */
@@ -1096,6 +1153,75 @@ function assertTemplate(root: string): void {
   }
 }
 
+/** Refuse a work tree with uncommitted or untracked changes; outside git there is nothing to check. */
+function assertClean(context: ScriptContext): void {
+  const status = context.run("git", ["status", "--porcelain"], {
+    cwd: context.root,
+    env: gitEnv(context.env),
+  });
+  if (status.status !== 0) return;
+  const changes = status.stdout.split("\n").filter((line) => line.trim() !== "");
+  if (changes.length === 0) return;
+  throw new ScriptError({
+    code: "ERR_BOOTSTRAP_DIRTY",
+    summary: `${context.root} has uncommitted or untracked changes; nothing was written`,
+    expected: "a clean work tree, so the rewrite is the only change to review",
+    actual:
+      changes.slice(0, 5).join(" | ") +
+      (changes.length > 5 ? ` (and ${String(changes.length - 5)} more)` : ""),
+    next: "commit or stash the changes `git status` lists, then run the bootstrap again",
+  });
+}
+
+function tableKeys(value: unknown): string[] {
+  return typeof value === "object" && value !== null ? Object.keys(value) : [];
+}
+
+/**
+ * Every package name the workspace resolves (Cargo.lock's packages, and the
+ * `[workspace.dependencies]` keys), spelled with hyphens, minus the template's own crates.
+ */
+export function dependencyNames(root: string): Set<string> {
+  const names: string[] = tableKeys(
+    property(
+      property(parseToml(readFileSync(join(root, "Cargo.toml"), "utf8")), "workspace"),
+      "dependencies",
+    ),
+  );
+  const lock = join(root, "Cargo.lock");
+  if (existsSync(lock)) {
+    const packages = property(parseToml(readFileSync(lock, "utf8")), "package");
+    if (Array.isArray(packages)) {
+      for (const entry of packages as unknown[]) {
+        const name = property(entry, "name");
+        if (typeof name === "string") names.push(name);
+      }
+    }
+  }
+  const own = new Set([
+    TEMPLATE_VALUES.slug,
+    ...CRATE_DIRS.map((dir) => dir.slice("crates/".length)),
+  ]);
+  return new Set(
+    names.map((name) => name.toLowerCase().replaceAll("_", "-")).filter((name) => !own.has(name)),
+  );
+}
+
+/** Refuse a slug whose shell or crate package name would collide with a dependency. */
+function assertSlugFree(root: string, slug: string): void {
+  const taken = dependencyNames(root);
+  const packages = [slug, ...CRATE_DIRS.map((dir) => renamed(dir, slug).slice("crates/".length))];
+  const clash = packages.find((name) => taken.has(name));
+  if (clash === undefined) return;
+  throw new ScriptError({
+    code: "ERR_BOOTSTRAP_INVALID_SLUG",
+    summary: `${JSON.stringify(slug)} would name the package ${clash}, which a dependency already uses; nothing was written`,
+    expected: `a slug whose packages (${packages.join(", ")}) match no package in Cargo.lock or [workspace.dependencies]`,
+    actual: `${clash} is already a dependency`,
+    next: "pass --slug again with a name no dependency uses",
+  });
+}
+
 function renamed(path: string, slug: string): string {
   return path.replace(/^crates\/myapp-/, `crates/${slug}-`);
 }
@@ -1128,7 +1254,9 @@ export function runBootstrap(
 ): void {
   const { root, log } = context;
   assertTemplate(root);
+  assertSlugFree(root, answers.slug);
   const { writes } = plan(root, answers, options.year);
+  assertClean(context);
 
   runStep(
     context,
@@ -1219,24 +1347,45 @@ export function runBootstrap(
   }
 }
 
-/** A terminal on this process's standard input, asked only when it is interactive. */
-export function processTerminal(): Terminal {
+type Stream<T> = T & { readonly isTTY?: boolean };
+
+/**
+ * A terminal on standard input, asked only when it is interactive. Lines are queued as
+ * they arrive, so several answers pasted in one write are each consumed by a question.
+ */
+export function processTerminal(
+  input: Stream<Readable> = process.stdin,
+  output: Stream<Writable> = process.stdout,
+): Terminal {
   let readline: Interface | undefined;
+  let closed = false;
+  const lines: string[] = [];
+  const waiting: ((line: string | undefined) => void)[] = [];
+  const open = (): Interface => {
+    if (readline !== undefined) return readline;
+    const created = createInterface({ input, output });
+    created.on("line", (line) => {
+      const next = waiting.shift();
+      if (next === undefined) lines.push(line);
+      else next(line);
+    });
+    created.on("close", () => {
+      closed = true;
+      for (const next of waiting.splice(0)) next(undefined);
+    });
+    readline = created;
+    return created;
+  };
   return {
-    interactive: process.stdin.isTTY && process.stdout.isTTY,
+    interactive: input.isTTY === true && output.isTTY === true,
     ask: (question) => {
-      readline ??= createInterface({ input: process.stdin, output: process.stdout });
-      const open = readline;
-      return new Promise((resolve) => {
-        const onClose = (): void => {
-          resolve(undefined);
-        };
-        open.once("close", onClose);
-        open.question(question, (answer) => {
-          open.off("close", onClose);
-          resolve(answer);
-        });
-      });
+      const created = open();
+      if (closed && lines.length === 0) return Promise.resolve(undefined);
+      created.setPrompt(question);
+      created.prompt();
+      const queued = lines.shift();
+      if (queued !== undefined) return Promise.resolve(queued);
+      return new Promise((resolve) => waiting.push(resolve));
     },
     close: () => readline?.close(),
   };
@@ -1248,6 +1397,7 @@ export async function main(
   options: { readonly year: number } = { year: new Date().getUTCFullYear() },
 ): Promise<void> {
   try {
+    await loadParsers();
     const parsed = parseArgs(context.argv);
     if (parsed.help) {
       context.log(USAGE);
