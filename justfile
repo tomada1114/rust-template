@@ -149,6 +149,14 @@ clean:
 test-scripts:
     pnpm test:scripts
 
+# Regenerate .claude/skills/ as a byte-for-byte copy of .agents/skills/
+agents-sync:
+    node scripts/sync-agents.ts
+
+# Fail when .claude/skills/ differs from .agents/skills/, listing each path (writes nothing)
+agents-check:
+    node scripts/sync-agents.ts --check
+
 # Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
 labels:
     node scripts/sync-labels.ts

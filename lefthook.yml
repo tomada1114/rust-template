@@ -32,3 +32,8 @@ pre-commit:
 
     - name: typos
       run: typos --force-exclude {staged_files}
+
+    # .claude/skills/ must stay a byte-for-byte copy of .agents/skills/ (`just agents-sync`).
+    - name: skills mirror
+      glob: "{.agents/skills/**,.claude/skills/**}"
+      run: node scripts/sync-agents.ts --check
