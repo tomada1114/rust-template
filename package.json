@@ -19,7 +19,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:ui": "vitest run --project ui --reporter=verbose --coverage --coverage.include='ui/src/**/*.{ts,tsx}'",
-    "test:scripts": "vitest run --project scripts --coverage --coverage.include='scripts/**/*.ts'"
+    "test:scripts": "vitest run --project scripts --coverage --coverage.include='scripts/**/*.ts' --coverage.include='.agents/skills/*/scripts/**/*.ts'"
   },
   "dependencies": {
     "@tauri-apps/api": "~2.11.1",

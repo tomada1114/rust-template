@@ -24,6 +24,7 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["**/*.ts"],
+  // A skill's bundled TypeScript scripts follow the same rules.
+  "include": ["**/*.ts", "../.agents/skills/*/scripts/**/*.ts"],
   "exclude": ["**/fixtures/**"]
 }
