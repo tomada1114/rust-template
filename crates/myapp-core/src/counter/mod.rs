@@ -1,0 +1,297 @@
+//! The sample counter (design D6): a bounded value whose rules live here, persisted
+//! through the [`CounterStore`] port and time-stamped through the [`Clock`] port.
+//!
+//! Every part of it is a deletable illustration: `starting-an-app` lists what to remove
+//! when an app replaces the sample.
+
+pub mod store;
+
+use std::sync::{Arc, Mutex, PoisonError};
+
+use serde::Serialize;
+use ts_rs::TS;
+
+use crate::time::{Clock, UnixMillis};
+pub use store::{CounterStore, StorageError, StorageErrorKind, StoredCounter};
+
+/// Tunables in one place (designing-core-logic).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tuning {
+    /// The lowest value; also the value a fresh or reset counter holds.
+    pub min: i64,
+    /// The highest value.
+    pub max: i64,
+}
+
+impl Default for Tuning {
+    fn default() -> Self {
+        Self { min: 0, max: 99 }
+    }
+}
+
+/// A counter value that never leaves its range. Pure: no I/O, no time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Counter {
+    value: i64,
+    tuning: Tuning,
+}
+
+impl Counter {
+    /// A counter holding `value`, pulled into `tuning`'s range if it lies outside it
+    /// (a stored value from a build with a wider range, say).
+    #[must_use]
+    pub fn new(value: i64, tuning: Tuning) -> Self {
+        // `max(min).min(max)` rather than `clamp`: `clamp` panics when min > max.
+        Self {
+            value: value.max(tuning.min).min(tuning.max),
+            tuning,
+        }
+    }
+
+    /// The current value.
+    #[must_use]
+    pub const fn value(&self) -> i64 {
+        self.value
+    }
+
+    /// One more.
+    ///
+    /// # Errors
+    /// [`CounterError::AtMaximum`] when the value is already at `tuning.max`.
+    pub fn increment(self) -> Result<Self, CounterError> {
+        if self.value >= self.tuning.max {
+            return Err(CounterError::AtMaximum);
+        }
+        Ok(Self {
+            value: self.value + 1,
+            ..self
+        })
+    }
+
+    /// One less.
+    ///
+    /// # Errors
+    /// [`CounterError::AtMinimum`] when the value is already at `tuning.min`.
+    pub fn decrement(self) -> Result<Self, CounterError> {
+        if self.value <= self.tuning.min {
+            return Err(CounterError::AtMinimum);
+        }
+        Ok(Self {
+            value: self.value - 1,
+            ..self
+        })
+    }
+
+    /// Back to `tuning.min`.
+    #[must_use]
+    pub fn reset(self) -> Self {
+        Self {
+            value: self.tuning.min,
+            ..self
+        }
+    }
+}
+
+/// What the UI renders. The only counter type that crosses IPC.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CounterView {
+    /// The current value.
+    pub value: i64,
+    /// When the value last changed; `None` before the first change.
+    pub last_changed_at: Option<UnixMillis>,
+}
+
+/// A failed counter action. Serialized with a `code` tag (`{ "code": "atMaximum" }`);
+/// the UI owns the wording (`ui/src/copy/`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, Serialize, TS)]
+#[serde(tag = "code", rename_all = "camelCase")]
+#[ts(export)]
+pub enum CounterError {
+    /// Already at the highest value; nothing changed.
+    #[error("the counter is at its maximum")]
+    AtMaximum,
+    /// Already at the lowest value; nothing changed.
+    #[error("the counter is at its minimum")]
+    AtMinimum,
+    /// The store failed; nothing changed.
+    #[error("counter storage failed: {kind:?}")]
+    Storage {
+        /// What kind of storage failure.
+        kind: StorageErrorKind,
+    },
+}
+
+impl From<StorageError> for CounterError {
+    fn from(error: StorageError) -> Self {
+        Self::Storage { kind: error.kind }
+    }
+}
+
+/// The counter's use cases: load, decide, save, and report a [`CounterView`].
+///
+/// One `CounterService` is shared by every command. Its lock is held across
+/// load → decide → save, so two commands running at once cannot lose an update.
+/// Between the app and the helper CLI (separate processes) the last writer wins.
+pub struct CounterService {
+    lock: Mutex<()>,
+    store: Arc<dyn CounterStore>,
+    clock: Arc<dyn Clock>,
+    tuning: Tuning,
+}
+
+impl CounterService {
+    /// A service over the given store and clock.
+    #[must_use]
+    pub fn new(store: Arc<dyn CounterStore>, clock: Arc<dyn Clock>, tuning: Tuning) -> Self {
+        Self {
+            lock: Mutex::new(()),
+            store,
+            clock,
+            tuning,
+        }
+    }
+
+    /// The counter as it is now; a fresh counter when nothing was saved yet.
+    ///
+    /// # Errors
+    /// [`CounterError::Storage`] when the store cannot be read.
+    pub fn view(&self) -> Result<CounterView, CounterError> {
+        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let (counter, last_changed_at) = self.load()?;
+        Ok(CounterView {
+            value: counter.value(),
+            last_changed_at,
+        })
+    }
+
+    /// Add one and save.
+    ///
+    /// # Errors
+    /// [`CounterError::AtMaximum`] at the bound (nothing is saved), or
+    /// [`CounterError::Storage`].
+    pub fn increment(&self) -> Result<CounterView, CounterError> {
+        self.change(Counter::increment)
+    }
+
+    /// Subtract one and save.
+    ///
+    /// # Errors
+    /// [`CounterError::AtMinimum`] at the bound (nothing is saved), or
+    /// [`CounterError::Storage`].
+    pub fn decrement(&self) -> Result<CounterView, CounterError> {
+        self.change(Counter::decrement)
+    }
+
+    /// Return to the minimum and save.
+    ///
+    /// # Errors
+    /// [`CounterError::Storage`].
+    pub fn reset(&self) -> Result<CounterView, CounterError> {
+        self.change(|counter| Ok(counter.reset()))
+    }
+
+    /// Load → decide → save under the lock. A rejected decision saves nothing.
+    fn change(
+        &self,
+        decide: impl FnOnce(Counter) -> Result<Counter, CounterError>,
+    ) -> Result<CounterView, CounterError> {
+        // The guard protects no data (`()`), so a poisoned lock is still safe to take.
+        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let (counter, _) = self.load()?;
+        let changed = decide(counter)?;
+        let stored = StoredCounter {
+            value: changed.value(),
+            last_changed_at: Some(self.clock.now()),
+        };
+        self.store.save(&stored)?;
+        Ok(CounterView {
+            value: stored.value,
+            last_changed_at: stored.last_changed_at,
+        })
+    }
+
+    /// The saved counter (or a fresh one) and when it last changed.
+    fn load(&self) -> Result<(Counter, Option<UnixMillis>), CounterError> {
+        Ok(match self.store.load()? {
+            Some(stored) => (
+                Counter::new(stored.value, self.tuning),
+                stored.last_changed_at,
+            ),
+            None => (Counter::new(self.tuning.min, self.tuning), None),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TUNING: Tuning = Tuning { min: 0, max: 3 };
+
+    #[test]
+    fn default_tuning_is_zero_to_ninety_nine() {
+        assert_eq!(Tuning::default(), Tuning { min: 0, max: 99 });
+    }
+
+    #[test]
+    fn new_keeps_a_value_inside_the_range() {
+        assert_eq!(Counter::new(2, TUNING).value(), 2);
+    }
+
+    #[test]
+    fn new_pulls_an_out_of_range_value_to_the_nearest_bound() {
+        assert_eq!(Counter::new(-5, TUNING).value(), 0);
+        assert_eq!(Counter::new(40, TUNING).value(), 3);
+    }
+
+    #[test]
+    fn increment_adds_one_below_the_maximum() {
+        assert_eq!(
+            Counter::new(2, TUNING).increment().map(|c| c.value()),
+            Ok(3)
+        );
+    }
+
+    #[test]
+    fn increment_at_the_maximum_is_an_error() {
+        assert_eq!(
+            Counter::new(3, TUNING).increment(),
+            Err(CounterError::AtMaximum)
+        );
+    }
+
+    #[test]
+    fn decrement_subtracts_one_above_the_minimum() {
+        assert_eq!(
+            Counter::new(1, TUNING).decrement().map(|c| c.value()),
+            Ok(0)
+        );
+    }
+
+    #[test]
+    fn decrement_at_the_minimum_is_an_error() {
+        assert_eq!(
+            Counter::new(0, TUNING).decrement(),
+            Err(CounterError::AtMinimum)
+        );
+    }
+
+    #[test]
+    fn reset_returns_to_the_minimum() {
+        let tuning = Tuning { min: 5, max: 10 };
+        assert_eq!(Counter::new(8, tuning).reset().value(), 5);
+    }
+
+    #[test]
+    fn a_storage_error_becomes_a_counter_error_with_the_same_kind() {
+        let error = StorageError::new(StorageErrorKind::Corrupt);
+        assert_eq!(
+            CounterError::from(error),
+            CounterError::Storage {
+                kind: StorageErrorKind::Corrupt
+            }
+        );
+    }
+}

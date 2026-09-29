@@ -1,0 +1,23 @@
+[package]
+name = "myapp-core"
+description = "MyApp's domain logic: state, rules, and the ports adapters implement. No Tauri, no OS APIs, no direct I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Only platform-neutral crates belong here (design D3): a harness check fails if this
+# crate's normal dependency closure reaches tauri, wry, tao, objc2, core-foundation,
+# security-framework, or myapp-platform.
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+ts-rs = { workspace = true }
+
+[dev-dependencies]
+myapp-test-support = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

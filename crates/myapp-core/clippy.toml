@@ -1,0 +1,29 @@
+# Core's extra bans (design D3): I/O, time, environment, and processes reach core only
+# through ports. This file replaces the root clippy.toml for this crate, so it repeats
+# the root's two settings.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+disallowed-macros = [
+  { path = "std::println", reason = "core never prints; log with tracing" },
+  { path = "std::eprintln", reason = "core never prints; log with tracing" },
+  { path = "std::print", reason = "core never prints; log with tracing" },
+  { path = "std::eprint", reason = "core never prints; log with tracing" },
+  { path = "std::dbg", reason = "leftover debugging" },
+]
+disallowed-methods = [
+  { path = "std::time::SystemTime::now", reason = "inject time through the Clock port" },
+  { path = "std::time::Instant::now", reason = "inject time through the Clock port" },
+  { path = "std::env::var", reason = "configuration reaches core as arguments" },
+  { path = "std::env::var_os", reason = "configuration reaches core as arguments" },
+  { path = "std::thread::sleep", reason = "core never waits; the shell schedules" },
+  { path = "std::fs::read", reason = "I/O goes through a port" },
+  { path = "std::fs::read_to_string", reason = "I/O goes through a port" },
+  { path = "std::fs::write", reason = "I/O goes through a port" },
+  { path = "std::fs::create_dir_all", reason = "I/O goes through a port" },
+  { path = "std::fs::remove_file", reason = "I/O goes through a port" },
+  { path = "std::fs::rename", reason = "I/O goes through a port" },
+]
+disallowed-types = [
+  { path = "std::process::Command", reason = "processes are started by platform adapters" },
+  { path = "std::fs::File", reason = "I/O goes through a port" },
+]

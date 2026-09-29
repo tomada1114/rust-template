@@ -1,0 +1,44 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3" # explicit: a virtual manifest has no edition to infer it from
+
+[workspace.package]
+version = "0.1.0" # one of the three version sites (design D18), kept equal by `just release-prep`
+edition = "2024"
+rust-version = "1.90" # tauri 2's MSRV; raise it deliberately, through an ADR
+license = "MIT"
+publish = false
+
+# The only place a dependency version is written (managing-dependencies skill).
+[workspace.dependencies]
+myapp-core = { path = "crates/myapp-core" }
+myapp-platform = { path = "crates/myapp-platform" }
+myapp-test-support = { path = "crates/myapp-test-support" }
+clap = { version = "4.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+thiserror = "2"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std", "ansi"] }
+ts-rs = "12"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+
+# create-tauri-app's release profile. It lives here because Cargo ignores a
+# `[profile]` table in a workspace member's manifest.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

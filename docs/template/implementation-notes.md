@@ -30,3 +30,13 @@ what was built; each entry says what the design said, what was done, and why.
   provenance existed; pnpm's `trustPolicy: no-downgrade` reads that as a downgrade from
   semver 7's attested releases. The exclusion names the exact version, so any other
   semver release is still checked. Dev-only lint path; nothing ships in the app.
+
+## Facts confirmed during the run
+
+- clippy reads `crates/myapp-core/clippy.toml`: a temporary `println!` and a temporary
+  `std::time::SystemTime::now()` in core each failed `cargo clippy -p myapp-core -- -D
+  warnings` (`disallowed_macros`, `disallowed_methods`), so D3's clippy layer stands and
+  no source-scanning fallback was needed. `disallowed-macros` catches `std::println` in
+  edition 2024.
+- ts-rs 12.0.1 honours `TS_RS_EXPORT_DIR` from `.cargo/config.toml` (bindings land in
+  `ui/src/ipc/generated/`) and `TS_RS_LARGE_INT = "number"` (no `bigint` in the output).
