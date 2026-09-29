@@ -16,6 +16,9 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "useUnknownInCatchVariables": true,
+    // No enum, namespace, or parameter property: the type-only subset keeps ui/src/ on
+    // the same language as scripts/ and as the string-literal unions ts-rs generates.
+    "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "moduleDetection": "force",
