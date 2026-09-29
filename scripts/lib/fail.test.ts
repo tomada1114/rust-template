@@ -41,6 +41,14 @@ describe("runMain", () => {
     expect(codes).toEqual([1]);
   });
 
+  it("exits with the ScriptError's own exit code when it names one", async () => {
+    const { codes, io } = recorder();
+    await runMain(() => {
+      throw new ScriptError(details, { exitCode: 2 });
+    }, io);
+    expect(codes).toEqual([2]);
+  });
+
   it("reports any other error as ERR_INTERNAL_UNEXPECTED", async () => {
     const { lines, codes, io } = recorder();
     await runMain(() => Promise.reject(new Error("boom")), io);

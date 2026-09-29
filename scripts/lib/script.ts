@@ -4,6 +4,7 @@
  * entry point is one line: `if (import.meta.main) await runScript(main);`.
  */
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,6 +37,8 @@ export interface ScriptContext {
   readonly root: string;
   readonly run: Run;
   readonly log: (line: string) => void;
+  /** Read all of standard input; only scripts fed a payload (hooks) call it. */
+  readonly stdin?: () => string;
 }
 
 /** The repository root, derived from this file's location. */
@@ -71,6 +74,7 @@ export function processContext(): ScriptContext {
     log: (line) => {
       process.stdout.write(`${line}\n`);
     },
+    stdin: () => readFileSync(0, "utf8"),
   };
 }
 
