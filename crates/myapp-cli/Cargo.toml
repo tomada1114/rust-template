@@ -1,0 +1,20 @@
+[package]
+name = "myapp-cli"
+description = "The helper executable bundled inside the app, which launchd (or a person) can run without starting the GUI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+myapp-core = { workspace = true }
+myapp-platform = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

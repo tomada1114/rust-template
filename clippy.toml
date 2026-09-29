@@ -1,0 +1,6 @@
+# Tests may unwrap: a panic is how a Rust test fails. Non-test code may not
+# (`unwrap_used`/`expect_used` in Cargo.toml's [workspace.lints.clippy]).
+# A crate-local clippy.toml replaces this file entirely, so
+# crates/myapp-core/clippy.toml repeats these two lines.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

@@ -1,0 +1,6 @@
+# ts-rs writes the IPC bindings here (design D4). `relative = true` resolves the path
+# against this file's parent directory's parent — the repository root — not each crate.
+[env]
+TS_RS_EXPORT_DIR = { value = "ui/src/ipc/generated", relative = true }
+# 64-bit integers export as `number`, not `bigint`: the UI never holds a value past 2^53.
+TS_RS_LARGE_INT = "number"

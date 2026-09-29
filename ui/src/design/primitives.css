@@ -1,0 +1,112 @@
+/* The primitives' styles (design D23). Tokens only. */
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-control-bg);
+  color: var(--color-control-text);
+  font: inherit;
+  font-weight: var(--font-weight-regular);
+  transition: filter var(--duration-fast) var(--easing-standard);
+}
+
+.ui-button:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.ui-button:active:not(:disabled) {
+  filter: brightness(0.9);
+}
+
+.ui-button:disabled {
+  opacity: 0.5;
+}
+
+.ui-button--primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.ui-icon-button {
+  min-width: var(--control-height);
+  padding: 0;
+  font-size: var(--font-size-title3);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ui-stack {
+  display: flex;
+}
+
+.ui-stack--column {
+  flex-direction: column;
+}
+
+.ui-stack--row {
+  flex-direction: row;
+}
+
+.ui-stack--gap-s {
+  gap: var(--space-2);
+}
+
+.ui-stack--gap-m {
+  gap: var(--space-4);
+}
+
+.ui-stack--gap-l {
+  gap: var(--space-5);
+}
+
+.ui-stack--align-start {
+  align-items: flex-start;
+}
+
+.ui-stack--align-center {
+  align-items: center;
+}
+
+.ui-stack--align-stretch {
+  align-items: stretch;
+}
+
+.ui-panel {
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-control-bg);
+  border-radius: var(--radius-panel);
+  background: var(--color-bg-panel);
+}
+
+.ui-text--large-title {
+  font-size: var(--font-size-large-title);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-text--title {
+  font-size: var(--font-size-title2);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.ui-text--body {
+  font-size: var(--font-size-body);
+}
+
+.ui-text--secondary {
+  font-size: var(--font-size-callout);
+  color: var(--color-text-secondary);
+}
+
+.ui-text--danger {
+  font-size: var(--font-size-body);
+  color: var(--color-text-danger);
+}

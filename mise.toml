@@ -1,0 +1,18 @@
+# Pinned CLI tool versions — the dev-tool analog of a lockfile (design D9).
+# Never use "latest" or bump by hand: Renovate's `mise` manager opens the bump PRs,
+# with a 7-day minimum release age (.github/renovate.json).
+# Rust is pinned once, in rust-toolchain.toml; pnpm once, in package.json's
+# `packageManager`. Prebuilt binaries (aqua/github backends) only: the `cargo:` backend
+# compiles from source.
+[tools]
+node = "24.21.0"
+just = "1.58.0"
+lefthook = "2.1.14"
+"github:taiki-e/cargo-llvm-cov" = "0.9.1"
+"aqua:nextest-rs/nextest/cargo-nextest" = "0.9.146"
+"github:EmbarkStudios/cargo-deny" = "0.20.2"
+"github:Boshen/cargo-shear" = "1.14.0"
+typos = "1.50.3"
+actionlint = "1.7.12"
+zizmor = "1.30.1"
+gitleaks = "8.30.1"
