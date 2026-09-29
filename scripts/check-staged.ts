@@ -22,6 +22,12 @@ import { blockedPathReason } from "./lib/guard/paths.ts";
 import { runScript, type ScriptContext } from "./lib/script.ts";
 
 const GITLINK_MODE = "160000";
+/**
+ * spawnSync's 1 MiB default would refuse any larger staged file (ENOBUFS). GitHub
+ * rejects a file over 100 MiB, so a blob past this cap cannot be pushed anyway, and
+ * the guard fails closed on it rather than skipping it.
+ */
+const READ_MAX_BUFFER = 256 * 1024 * 1024;
 
 interface StagedEntry {
   readonly mode: string;
@@ -52,7 +58,8 @@ function readFailed(summary: string, expected: string, actual: string): ScriptEr
 
 export function main(context: ScriptContext): void {
   const env = stagedGuardEnv(context.env);
-  const git = (...args: string[]) => context.run("git", args, { cwd: context.root, env });
+  const git = (...args: string[]) =>
+    context.run("git", args, { cwd: context.root, env, maxBuffer: READ_MAX_BUFFER });
 
   if (git("rev-parse", "--is-inside-work-tree").stdout.trim() !== "true") {
     throw new ScriptError({
@@ -95,7 +102,7 @@ export function main(context: ScriptContext): void {
     if (content.status !== 0) {
       throw readFailed(
         `could not read the staged content of ${path}`,
-        "`git cat-file blob` to print every staged blob",
+        "`git cat-file blob` to print every staged blob (each at most 256 MiB)",
         content.stderr.trim(),
       );
     }

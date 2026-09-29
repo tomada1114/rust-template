@@ -26,6 +26,11 @@ export interface RunOptions {
   readonly input?: string;
   /** Kill the child after this many milliseconds; its status is then null. */
   readonly timeoutMs?: number;
+  /**
+   * The most bytes captured from stdout or stderr (Node's default is 1 MiB); a child
+   * that writes more is killed and reported as status null with ENOBUFS.
+   */
+  readonly maxBuffer?: number;
 }
 
 export type Run = (command: string, args: readonly string[], options?: RunOptions) => RunResult;
@@ -54,6 +59,8 @@ export const runCommand: Run = (command, args, options = {}) => {
     encoding: "utf8",
     stdio: captured ? "pipe" : "inherit",
     timeout: options.timeoutMs,
+    // An explicit `maxBuffer: undefined` would override Node's default with no limit.
+    ...(options.maxBuffer === undefined ? {} : { maxBuffer: options.maxBuffer }),
   });
   return {
     status: result.error === undefined ? result.status : null,
