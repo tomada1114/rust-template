@@ -1,0 +1,70 @@
+# The single declarative source for this repository's labels: name, color, and
+# description. `just labels` (scripts/sync-labels.ts) creates or updates each one on the
+# live repository; it never deletes a label this file does not mention, so a
+# repository-local label survives running it. See the `triaging-issues` skill for what
+# each label means.
+#
+# Colors are six lowercase hex digits, no leading `#` (`gh label create --color`), quoted:
+# unquoted, YAML reads a color such as 5319e7 as a number.
+
+# Type labels: what kind of change or work an issue is. Also applied to pull requests by
+# .github/workflows/pr-label.yml from the Conventional Commit type of the title.
+- name: bug
+  color: "d73a4a"
+  description: "Reproducible incorrect behavior."
+- name: enhancement
+  color: "a2eeef"
+  description: "A user-visible improvement."
+- name: documentation
+  color: "0075ca"
+  description: "A documentation-only change."
+- name: chore
+  color: "fef2c0"
+  description: "Repository work: tooling, automation, refactor, hardening, or tests."
+- name: security
+  color: "5319e7"
+  description: "A vulnerability or a security-relevant defect."
+
+# Priority labels: added at triage, ranking impact on the rest of the backlog rather than
+# how interesting the work is.
+- name: "priority: P0"
+  color: "b60205"
+  description: "Ship now: other issues are blocked on it, or damage is being taken."
+- name: "priority: P1"
+  color: "d93f0b"
+  description: "Do next: leverage work later issues stand on (CI, schema, shared types, config)."
+- name: "priority: P2"
+  color: "fbca04"
+  description: "Normal: a real, self-contained change; nothing waits on it."
+- name: "priority: P3"
+  color: "c5def5"
+  description: "Defer: nice-to-have, docs polish, or cosmetics."
+
+# Blocked and on-hold labels: why an issue is not implementable yet. Agents skip them.
+- name: "blocked: design"
+  color: "e99695"
+  description: "The approach is not settled; needs a human decision first."
+- name: "blocked: dependency"
+  color: "f9d0c4"
+  description: "Waits on a specific open issue named by a Depends on: #N line."
+- name: "blocked: external"
+  color: "d4c5f9"
+  description: "Needs a step only a person can take (signing identity, Apple account, TCC grant); agents skip it."
+- name: "on hold"
+  color: "cccccc"
+  description: "Parked on purpose; the reason is in a comment. Agents skip it."
+
+# Tracking label: an issue that is a checklist of sub-issues, never work itself.
+- name: tracking
+  color: "bfdadc"
+  description: "A tracking issue: its sub-issues carry the work; never implemented itself."
+
+# Pull-request-only labels, for release-notes categories (.github/release.yml).
+# `dependencies` is also applied by Dependabot itself; `ci` by pr-label.yml. Never used
+# for issue triage.
+- name: dependencies
+  color: "0366d6"
+  description: "A dependency version bump."
+- name: ci
+  color: "006b75"
+  description: "A CI or workflow-only change."

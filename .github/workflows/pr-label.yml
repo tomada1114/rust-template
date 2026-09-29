@@ -1,0 +1,65 @@
+name: Label PR
+
+# Labels a pull request by its title's Conventional Commit type (scripts/label-pr.ts), for
+# the release-notes categories in .github/release.yml.
+#
+# The script runs from the base branch's commit, never the pull request's head (issue
+# #126): a pull request cannot change the code that runs with this workflow's write
+# token. A base commit that predates the script is skipped with a notice.
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - edited
+      - synchronize
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  label:
+    name: Label by Conventional Commit type
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Check that the base commit has the script
+        id: script
+        run: |
+          if [[ -f scripts/label-pr.ts ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::scripts/label-pr.ts is absent at the base commit; skipping."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        if: steps.script.outputs.present == 'true'
+        with:
+          install_args: node
+
+      - name: Apply the label for the title's type
+        if: steps.script.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/label-pr.ts
