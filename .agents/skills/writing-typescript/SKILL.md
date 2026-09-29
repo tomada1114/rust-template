@@ -68,9 +68,12 @@ open. The language itself is the TypeScript handbook
 - The marking is load-bearing: under `verbatimModuleSyntax` an unmarked import is kept
   as a runtime import, so a type-only import of a module with side effects changes what
   runs. Let `just fix` write the form; never hand-fix an import differently.
-- Only `ui/src/ipc/` imports `@tauri-apps/*` or `ui/src/ipc/generated/`. Enforced by:
-  `eslint.config.mjs` `no-restricted-imports` (`TAURI_ONLY_IN_IPC`,
-  `GENERATED_ONLY_IN_IPC`). Everything else takes IPC types from `ui/src/ipc/types.ts`.
+- Only `ui/src/ipc/` imports `@tauri-apps/*` or `ui/src/ipc/generated/`, and only a
+  test or `ui/src/test/` imports `ui/src/ipc/testing.ts`. Enforced by:
+  `eslint.config.mjs` `no-restricted-imports` for `import` and `export … from`, and
+  `no-restricted-syntax` for a dynamic `import()`, which must name a string literal
+  (`TAURI_ONLY_IN_IPC`, `GENERATED_ONLY_IN_IPC`, `TESTING_ONLY_IN_TESTS`). Everything
+  else takes IPC types from `ui/src/ipc/types.ts`.
 - `ui/src/` has no Node types (`ui/tsconfig.json` `types`), so a `node:` import there
   fails `tsc`: the UI runs in a WebView. `scripts/` imports name the `.ts` file, because
   Node runs them by type stripping with no bundler to resolve an extensionless path.
@@ -107,9 +110,10 @@ open. The language itself is the TypeScript handbook
   `#[serde(tag = "code")]`.
 - A `switch` over a union gives each member its own `case` and has no `default`.
   Enforced by: `@typescript-eslint/switch-exhaustiveness-check` with
-  `considerDefaultExhaustiveForUnions`, which treats a `default` as the deliberate
-  answer for every future member, so adding one to quiet the rule removes the check it
-  exists for. In the sample, `describeCounterError` in `ui/src/copy/counter.ts`
+  `considerDefaultExhaustiveForUnions: false` (a `default` does not stand in for a
+  missing member) and `allowDefaultCaseForExhaustiveSwitch: false` (a `default` beside
+  every member is refused), because a `default` would silently answer for a member
+  added later. A `switch` over a plain `string` may still have one. In the sample, `describeCounterError` in `ui/src/copy/counter.ts`
   switches on `code`, then on `kind`, with no `default`; a new code from Rust fails
   `tsc` there until it has wording.
 
@@ -125,10 +129,10 @@ open. The language itself is the TypeScript handbook
   Declare an omissible option `readonly x?: T`. When a caller really forwards
   `undefined` (a prop threaded through a wrapper), widen that one property to
   `x?: T | undefined`; never turn the flag off.
-- No `enum` and no `namespace`. `scripts/` rejects them at `tsc`
-  (`erasableSyntaxOnly`), because Node strips types without compiling; `ui/` follows the
-  same rule by review, and a string-literal union is what ts-rs generates from a Rust
-  enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
+- No `enum`, no `namespace`, and no parameter property. Both `scripts/tsconfig.json`
+  and `ui/tsconfig.json` reject them at `tsc` (`erasableSyntaxOnly`): Node strips
+  `scripts/` types without compiling, and a string-literal union is what ts-rs
+  generates from a Rust enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
 
 ## Function boundaries
 

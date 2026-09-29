@@ -23,7 +23,7 @@ these are the ones they cannot, or the ones worth knowing before the gate fails.
 - A command rejects with Rust's `{ code }` object; narrow it with a guard such as
   `isCounterError` (`ui/src/ipc/errors.ts`) before reading it
 - Tests mock the Rust side through `ui/src/ipc/testing.ts` (`mockCommands`,
-  `rejectWith`), which production code never imports
+  `rejectWith`), which production code never imports (ESLint, static or dynamic)
 
 ## Screens (`ui/`)
 
@@ -37,8 +37,9 @@ these are the ones they cannot, or the ones worth knowing before the gate fails.
   updates from `events.ts`). No state library
 - Every control has an accessible name (a glyph-only button gets an `aria-label`), and
   tests query by role and name (the `building-react-screens` skill)
-- `console` only in `ui/src/ipc/log.ts`; anything else logs through it, and it forwards
-  warnings and errors to Rust's log file
+- `console` only in `ui/src/ipc/log.ts`, `window.console` and `globalThis.console`
+  included (ESLint); anything else logs through it, and it forwards warnings and errors
+  to Rust's log file
 
 ## Scripts (`scripts/`)
 
@@ -52,8 +53,11 @@ these are the ones they cannot, or the ones worth knowing before the gate fails.
 
 - Narrow `unknown` with `typeof`, `in`, and type guards; never `as` a value into a type
   it has not been checked to have. `satisfies` checks a literal without widening it
-- A `switch` over a union lists every member (ESLint's `switch-exhaustiveness-check`);
-  adding a member then fails at every switch that must decide about it
+- A `switch` over a union lists every member and has no `default` (ESLint's
+  `switch-exhaustiveness-check`); adding a member then fails at every switch that must
+  decide about it
+- No `enum`, `namespace`, or parameter property in `ui/` either (`erasableSyntaxOnly` in
+  `ui/tsconfig.json`)
 - `import type` for type-only imports (`verbatimModuleSyntax`)
 - No `any`, no non-null `!`, no `@ts-ignore`; a `@ts-expect-error` needs a description
   and, like an `// eslint-disable`, is weakening a gate when it only silences a check
