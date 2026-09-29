@@ -9,19 +9,24 @@
  *
  * The release workflow refuses a tag that does not match these sites, but only after
  * the tag is pushed; this checks the same agreement beforehand. It creates no commit,
- * tag, or push — those stay human acts — so the result is a reviewable diff. Every
- * edit is textual, so formatting and comments survive. --dry-run runs every check
- * and prints the plan without writing.
+ * tag, or push — those stay human acts — so the result is a reviewable diff. Each site
+ * is read with a real parser (smol-toml, JSON.parse); the edit itself is a one-line
+ * textual replacement, so formatting and comments survive, and the edited text is parsed
+ * again to confirm it holds the new version before anything is written. --dry-run runs
+ * every check and prints the plan without writing.
  *
  * <version> is MAJOR.MINOR.PATCH with no leading zeros and no pre-release or build
  * suffix, and must be greater than the current version, compared as numbers.
  *
  * Errors: ERR_RELEASE_USAGE, ERR_RELEASE_VERSION_INVALID, ERR_RELEASE_NOT_A_REPO,
  * ERR_RELEASE_DIRTY, ERR_RELEASE_VERSIONS_DIFFER, ERR_RELEASE_VERSION_NOT_NEWER,
- * ERR_RELEASE_CHANGELOG_MISSING, ERR_RELEASE_CHANGELOG_EMPTY, ERR_RELEASE_LOCKFILE.
+ * ERR_RELEASE_CHANGELOG_MISSING, ERR_RELEASE_CHANGELOG_EMPTY, ERR_RELEASE_REWRITE,
+ * ERR_RELEASE_LOCKFILE.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { parse as parseToml } from "smol-toml";
 
 import { ScriptError } from "./lib/fail.ts";
 import { gitEnv } from "./lib/git-env.ts";
@@ -35,7 +40,19 @@ const UNRELEASED = /^##\s*\[Unreleased\]\s*$/;
 interface Site {
   readonly path: string;
   readonly version: string | undefined;
+  /** The version a text of this file declares, read with a parser. */
+  readonly read: (text: string) => string | undefined;
   readonly rewrite: (text: string, next: string) => string;
+}
+
+/** `value[keys[0]][keys[1]]…` when every step is an object and the end is a string. */
+function stringAt(value: unknown, keys: readonly string[]): string | undefined {
+  let current = value;
+  for (const key of keys) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" ? current : undefined;
 }
 
 function usage(summary: string, actual: string): ScriptError {
@@ -106,33 +123,41 @@ function checkCleanTree(context: ScriptContext): void {
 const readText = (path: string): string | undefined =>
   existsSync(path) ? readFileSync(path, "utf8") : undefined;
 
-/** The `version = "..."` line inside Cargo.toml's [workspace.package] table. */
+/** The `version = "..."` line inside Cargo.toml's [workspace.package] table: the edit. */
 const CARGO_VERSION = /^(\[workspace\.package\][^[]*?^version\s*=\s*")([^"]*)(")/m;
+
+function readCargoVersion(text: string): string | undefined {
+  try {
+    return stringAt(parseToml(text), ["workspace", "package", "version"]);
+  } catch {
+    return undefined;
+  }
+}
 
 function cargoSite(root: string): Site {
   const path = join(root, "Cargo.toml");
-  const match = CARGO_VERSION.exec(readText(path) ?? "");
   return {
     path,
-    version: match?.[2],
+    version: readCargoVersion(readText(path) ?? ""),
+    read: readCargoVersion,
     rewrite: (text, next) => text.replace(CARGO_VERSION, `$1${next}$3`),
   };
 }
 
+function readJsonVersion(text: string): string | undefined {
+  try {
+    return stringAt(JSON.parse(text), ["version"]);
+  } catch {
+    return undefined;
+  }
+}
+
 /** A JSON file's top-level "version", rewritten in place rather than re-serialized. */
 function jsonSite(path: string): Site {
-  const text = readText(path);
-  let version: string | undefined;
-  try {
-    const parsed: unknown = JSON.parse(text ?? "");
-    const value = (parsed as Record<string, unknown>)["version"];
-    version = typeof value === "string" ? value : undefined;
-  } catch {
-    version = undefined;
-  }
   return {
     path,
-    version,
+    version: readJsonVersion(readText(path) ?? ""),
+    read: readJsonVersion,
     rewrite: (source, next) =>
       source.replace(/("version"\s*:\s*")[^"]*(")/, (_all, head: string, tail: string) => {
         return `${head}${next}${tail}`;
@@ -225,9 +250,21 @@ export function prepare(context: ScriptContext, today: string): void {
     return;
   }
 
-  for (const site of sites) {
-    writeFileSync(site.path, site.rewrite(readFileSync(site.path, "utf8"), version));
+  const edits = sites.map((site) => ({
+    site,
+    text: site.rewrite(readFileSync(site.path, "utf8"), version),
+  }));
+  const missed = edits.filter(({ site, text }) => site.read(text) !== version);
+  if (missed.length > 0) {
+    throw new ScriptError({
+      code: "ERR_RELEASE_REWRITE",
+      summary: "a version site could not be edited in place; nothing was written",
+      expected: `each site to declare ${version} after its one-line edit`,
+      actual: missed.map(({ site }) => site.path.slice(root.length + 1)).join(", "),
+      next: 'write the version as a plain double-quoted string (version = "x.y.z"), then re-run',
+    });
   }
+  for (const { site, text } of edits) writeFileSync(site.path, text);
   const lock = context.run("cargo", ["update", "--workspace", "--offline"], {
     cwd: root,
     env: context.env,

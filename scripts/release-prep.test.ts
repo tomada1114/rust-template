@@ -213,11 +213,28 @@ describe("release-prep", () => {
     ["package.json has no version", { pkg: '{ "name": "app" }\n' }],
     ["Cargo.toml has no [workspace.package] version", { cargo: "[workspace]\n" }],
     ["tauri.conf.json is missing", { tauri: undefined }],
+    ["Cargo.toml is not valid TOML", { cargo: `${CARGO}[[[\n` }],
+    [
+      "Cargo.toml's [workspace.package] has only a commented-out version",
+      { cargo: CARGO.replace('version = "0.1.0"', '# version = "0.1.0"') },
+    ],
   ])("fails when %s", (_label, files) => {
     const error = caught(() => {
       prepare(setup(repo(files), ["0.2.0"]).context, "2026-09-28");
     });
     expect(error.details.code).toBe("ERR_RELEASE_VERSIONS_DIFFER");
+  });
+
+  it("refuses, writing nothing, a version site it cannot rewrite in place", () => {
+    // A literal string is valid TOML the parser reads, but the in-place edit only
+    // rewrites a basic "…" string; the parser's second read catches the miss.
+    const dir = repo({ cargo: CARGO.replace('"0.1.0"', "'0.1.0'") });
+    const error = caught(() => {
+      prepare(setup(dir, ["0.2.0"]).context, "2026-09-28");
+    });
+    expect(error.details.code).toBe("ERR_RELEASE_REWRITE");
+    expect(error.details.actual).toContain("Cargo.toml");
+    expect(git(dir, ["status", "--porcelain"]).stdout).toBe("");
   });
 
   it.each(["0.1.0", "0.0.9"])("fails when %s is not newer than 0.1.0", (version) => {
