@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exits 1 with its reason on stderr instead of aborting, and `just smoke` checks that
   case.
 
+- ESLint and `ui/tsconfig.json` now enforce the TypeScript rules the skills document: a
+  `switch` over a union with a `default` fails `switch-exhaustiveness-check`; a dynamic
+  `import()` of `@tauri-apps/*` or `ui/src/ipc/generated/` outside `ui/src/ipc/`, any
+  non-test import of `ui/src/ipc/testing.ts`, and `window.console` or
+  `globalThis.console` outside `ui/src/ipc/log.ts` fail ESLint; and `enum`,
+  `namespace`, and parameter properties fail `tsc` in `ui/src/` (`erasableSyntaxOnly`).
+
 - The pre-commit staged guard reads a staged file larger than 1 MiB instead of refusing
   it with `ERR_STAGED_READ_FAILED`, so an icon source, a screenshot, or a large lockfile
   can be committed through the hook.

@@ -91,13 +91,25 @@ only what each job names.
 
 ## `eslint.config.mjs`
 
-- `no-restricted-imports` keeps `@tauri-apps/*` and `ui/src/ipc/generated/` inside
-  `ui/src/ipc/`, where the `ui/ipc-boundary` block switches the rule off. A later config
-  object that gives a rule options **replaces** the earlier options rather than merging
-  them (https://eslint.org/docs/latest/use/configure/rules, checked 2026-09-29), so a
-  new block that sets `no-restricted-imports` for other files silently drops both
-  patterns there unless it restates them (`TAURI_ONLY_IN_IPC`, `GENERATED_ONLY_IN_IPC`).
-- `no-console` is an error except in `ui/src/ipc/log.ts` and `scripts/`.
+- The IPC boundary keeps `@tauri-apps/*` and `ui/src/ipc/generated/` inside
+  `ui/src/ipc/`, and `ui/src/ipc/testing.ts` inside tests and `ui/src/test/`. Each
+  boundary object feeds two rules through `importBoundaries()`: `no-restricted-imports`
+  (import and export declarations) and `no-restricted-syntax` (a dynamic `import()`,
+  which that rule never sees; a computed `import()` specifier is refused outright).
+  The `ui/react`, `ui/ipc-boundary`, `ui/tests`, and `ui/ipc-tests` blocks each pass
+  their full set. A later config object that gives a rule options **replaces** the
+  earlier options rather than merging them
+  (https://eslint.org/docs/latest/use/configure/rules, checked 2026-09-29), so a new
+  block that sets either rule for other files silently drops every boundary there
+  unless it calls `importBoundaries()` with the full set.
+- `no-console` is an error except in `ui/src/ipc/log.ts` and `scripts/`, and
+  `no-restricted-properties` refuses `window.console`, `globalThis.console`, and
+  `self.console` wherever `no-console` applies.
+- `switch-exhaustiveness-check` sets `considerDefaultExhaustiveForUnions` and
+  `allowDefaultCaseForExhaustiveSwitch` to `false`: a `switch` over a union names every
+  member and has no `default`.
+- `scripts/typescript-gates.test.ts` probes each of these, and `ui/tsconfig.json`'s
+  `erasableSyntaxOnly`, against the real configs (`just test-scripts`).
 - `linterOptions.reportUnusedDisableDirectives: "error"` makes a stale disable comment
   fail.
 - `eslintConfigPrettier` stays the last element; anywhere else it stops turning off the
@@ -110,7 +122,8 @@ Three configs, one per tree: the root config files, the UI Vite bundles, and the
 scripts Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all
 three. `scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types
 without transforming code, so `enum`, `namespace`, and parameter properties would fail at
-run time, not at type-check time. Removing a strict option (`strict`,
+run time, not at type-check time. `ui/tsconfig.json` sets it too, so `ui/src/` keeps the
+same language. Removing a strict option (`strict`,
 `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking for every
 file in that tree.
 
