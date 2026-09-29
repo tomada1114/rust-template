@@ -339,8 +339,20 @@ def main() -> int:
     }
     ranking = digest["ranking"]
     ready = [r for r in ranking if r["readiness"] == "READY"]
+    # Why an explicitly named issue was not selected, or None. Naming an issue
+    # overrides the design hold (the digest was asked --include-design) and
+    # nothing else: an open blocker, a hold label, or an open PR still stops it.
+    explicit_hold: str | None = None
     if explicit_issue is not None:
-        ready = [r for r in ranking if r["number"] == explicit_issue]
+        named = [r for r in ranking if r["number"] == explicit_issue]
+        if not named:
+            explicit_hold = (f"#{explicit_issue} is not an open, shippable issue "
+                             "in the digest (closed, a tracking issue, or "
+                             "outside the filter)")
+        elif named[0]["readiness"] != "READY":
+            explicit_hold = (f"#{explicit_issue} is not ready: "
+                             f"{named[0]['readiness']}")
+        ready = [r for r in named if r["readiness"] == "READY"]
 
     # --- 3. grouping -------------------------------------------------------
     if args.mode == "all" and explicit_issue is None:
@@ -372,6 +384,8 @@ def main() -> int:
         n = lead[0]["number"]
         next_cmd = (f"git switch {pre.get('default_branch', 'main')} && "
                     f"git pull --ff-only && git switch -c {branches[n]}")
+    elif explicit_hold:
+        next_cmd = f"nothing to ship -- {explicit_hold}"
     else:
         next_cmd = "nothing to ship -- see held:/needs-design: above"
 
@@ -385,6 +399,7 @@ def main() -> int:
         "batches": [[r["number"] for r in b] for b in batches],
         "branches": branches,
         "select": lead[0]["number"] if lead else None,
+        "select_hold": explicit_hold,
         "next_command": next_cmd,
         "label_coverage": digest["label_coverage"],
         "contract_coverage": digest["contract_coverage"],
@@ -489,6 +504,8 @@ def main() -> int:
         print(f"select: #{top['number']} [{top['effective_tier']}] {top['title']} "
               f"(score {top['score']} | {' | '.join(top['reasons']) or '--'})")
         print("branch: " + " ".join(f"#{n}->{b}" for n, b in branches.items()))
+    elif explicit_hold:
+        print(f"select: none -- {explicit_hold}")
     else:
         print("select: none -- no READY issue matches the filter")
     if digest["needs_design"]:

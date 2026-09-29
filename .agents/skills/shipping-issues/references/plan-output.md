@@ -43,7 +43,10 @@ the two fields that carry a duty for the calling session.
   of it rests on dependency edges alone; `SERIAL` means one issue at a time, no
   worktrees.
 - `select:` / `batch A:` / `branch:` -- the pick, everything that can be worked
-  beside it, and the branch name already derived for each. Use those names.
+  beside it, and the branch name already derived for each. Use those names. With
+  `--mode <N>`, `select: none -- #N is not ready: <readiness>` means the named
+  issue has an open blocker, a hold label, or an open PR: naming an issue lifts
+  only the design hold.
 - `needs-design:` -- the input to SKILL.md step 8b's background sweep.
 - `next:` -- the exact command step 3 starts with.
 
