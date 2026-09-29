@@ -108,7 +108,7 @@ the point of the split; (c) costs a release process per layer for a personal app
 ```
 Cargo.toml                 # virtual workspace: members, resolver = "3", [workspace.package],
                            #   [workspace.dependencies], [workspace.lints]
-rust-toolchain.toml        # the one Rust pin (channel, clippy, rustfmt, aarch64-apple-darwin)
+rust-toolchain.toml        # the one Rust pin (channel; clippy, rustfmt, llvm-tools; aarch64-apple-darwin)
 crates/
   myapp-core/              # domain logic, state, ports (traits). No tauri, no OS APIs, no
                            #   direct I/O. Built and tested on Linux. Coverage-gated.
@@ -146,8 +146,10 @@ from `myapp-test-support`.
   to wording (`ui/src/copy/`), never user-facing sentences from Rust; no user data in an
   error or a log line.
 - Contract suites (issue #141): `myapp-test-support` exports, per port, a fake and a
-  function `pub fn <port>_contract(make: impl Fn() -> impl Port)` holding the behavioural
-  assertions. `myapp-core`'s tests run it against the fake (Linux, coverage-gated);
+  function `pub fn <port>_contract(make: impl FnMut() -> Box<dyn Port>)` holding the
+  behavioural assertions. `myapp-core`'s integration tests (`crates/myapp-core/tests/`,
+  never its inline `#[cfg(test)]` modules, where test-support's types would come from a
+  second copy of core) run it against the fake (Linux, coverage-gated);
   `myapp-platform`'s tests run it against the real adapter — on the macOS CI runner when it
   needs only a filesystem, under `#[ignore = "local machine: <what it needs>"]` when it needs
   a GUI session, a TCC grant, or the Keychain, which `just test-local` runs.
@@ -198,8 +200,11 @@ wrappers, best ergonomics, but v2 has been a release candidate for about three y
 
 Choice: **(b)**.
 
-- DTOs (in core, or in `src-tauri` for shell-only payloads) derive `ts_rs::TS` with
-  `#[ts(export)]`; the export directory is `ui/src/ipc/generated/`, committed.
+- Every DTO that crosses IPC lives in core (so the Linux job, which never builds the
+  Tauri crate, regenerates all of them) and derives `ts_rs::TS` with `#[ts(export)]`; the
+  export directory is `ui/src/ipc/generated/`, committed; 64-bit integers are exported as
+  `number`. Only `ui/src/ipc/` imports the generated files; it re-exports the types the
+  rest of the UI needs from `ui/src/ipc/types.ts`.
 - `ui/src/ipc/commands.ts` holds one typed wrapper per command
   (`export const increment = () => invoke<CounterView>("increment")`), and
   `ui/src/ipc/events.ts` one typed `listen` per event.
@@ -240,7 +245,7 @@ frame the template claims:
 | Event | After any change, the shell emits `counter-changed` with the new `CounterView`; a second window, or the helper CLI changing the file, is reflected in the UI (the shell watches nothing in the sample; the event is emitted by the command path, and the doc says where a file watcher would go). |
 | Logging | Each command logs one `tracing` event; the UI forwards its errors through `log_from_ui`. |
 | Helper CLI | D5. |
-| Errors | `CounterError::{AtMaximum, AtMinimum, Storage(StorageErrorKind)}`; the UI maps codes to strings in `ui/src/copy/`. |
+| Errors | `CounterError::{AtMaximum, AtMinimum, Storage { kind }}` (serialized as `{ "code": … }`); the UI maps codes to strings in `ui/src/copy/`. |
 | Accessibility | Glyph-only buttons carry `aria-label`s; tests query by role and name (issue #169). |
 
 Every part of the sample is a deletable illustration (issue #135): `starting-an-app`
@@ -256,9 +261,12 @@ Choice: **(b)**. Core, platform, the CLI, and the shell log through the `tracing
 only the shell and the CLI install a subscriber. Files go to
 `~/Library/Logs/<identifier>/` (the path the Tauri docs give for the plugin, so the
 convention is the same), rotated daily, keeping the last 14 files; the CLI writes to
-the same directory under a different file prefix. In debug builds the subscriber also
+the same directory under a different file prefix. The appender writes synchronously
+(no `non_blocking` worker): the volume is low, and Tauri exits through `process::exit`,
+which would drop a background writer's last lines. In debug builds the subscriber also
 writes to stderr. The UI's `ui/src/ipc/log.ts` sends `warn`/`error` to a `log_from_ui`
-command. `just logs` tails the newest file(s). `println!` is banned in core by clippy and
+command. `just logs` prints the newest file's last lines and exits; `just logs-follow`
+follows it for a human (it never ends, so an agent never runs it). `println!` is banned in core by clippy and
 discouraged elsewhere by `.claude/rules/rust.md`.
 
 ### D8. Frontend stack — Designer
@@ -347,10 +355,10 @@ A skill's bundled scripts may keep their language when ported with their tests
 | Gate | Setting |
 |---|---|
 | rustfmt | stable options only (`edition = "2024"`, `max_width = 100`); `cargo fmt --check`. |
-| clippy | `[workspace.lints.clippy]` `all` and `pedantic` at warn (priority -1), `unwrap_used`/`expect_used` at warn outside tests; `[workspace.lints.rust]` `unsafe_code = "forbid"` except in `myapp-platform` where FFI may need it (then `deny`, with `// SAFETY:` comments required by `clippy::undocumented_unsafe_blocks`); CI runs `cargo clippy --workspace --all-targets --locked -- -D warnings` (macOS) and the Linux-buildable crates on Linux. |
+| clippy | `[workspace.lints.clippy]` `all` and `pedantic` at warn (priority -1), `unwrap_used`/`expect_used` at warn outside tests; `[workspace.lints.rust]` `unsafe_code = "forbid"` in every crate (an app whose platform adapter needs FFI changes that crate's setting through an ADR, with `// SAFETY:` comments required by `clippy::undocumented_unsafe_blocks` — `integrating-system-apis` says how); CI runs `cargo clippy --workspace --all-targets --locked -- -D warnings` (macOS) and the Linux-buildable crates on Linux. |
 | Rust coverage | `cargo llvm-cov nextest -p myapp-core --fail-under-lines 80 --fail-under-functions 80` (issue #133). Platform, shell, and CLI are outside the floor: they translate, and core decides. |
 | Rust tests | `cargo nextest run --locked`, plus `cargo test --doc --locked`. |
-| Supply chain (Rust) | `cargo deny check` (advisories, licenses allow-list, bans, sources: crates.io only), `cargo shear`. |
+| Supply chain (Rust) | `cargo deny check` (advisories, licenses allow-list, bans with `multiple-versions = "warn"`, sources: crates.io only), `cargo shear`; advisory scope per D17. |
 | TS | `tsc --noEmit`, ESLint `--max-warnings 0`, Prettier check, Vitest with per-glob floors: `ui/src/**` lines/functions 80 (excluding `main.tsx` and `ipc/generated/`), `scripts/**` 85/90, `scripts/lib/guard/**` 90/100. |
 | Repo | typos (excluding `.claude/skills/`, issue #139), actionlint, zizmor, the skills-mirror check, the harness checks (D14). |
 
@@ -452,6 +460,16 @@ and `github-actions` (weekly, 7-day cooldown, minor+patch grouped, majors alone,
 (`.github/rulesets/main.json`, no bypass actors); `SECURITY.md` pointing at private
 vulnerability reporting. `Cargo.lock` and `pnpm-lock.yaml` are committed.
 
+Advisory scope (owner, 2026-09-28). `Cargo.lock` lists every platform's dependencies, and
+Tauri's Linux stack (GTK bindings) carries advisories for code this macOS-only app never
+ships. So: `deny.toml` sets `[graph] targets` to `aarch64-apple-darwin` — defining what is
+shipped, not ignoring anything; unmaintained-crate advisories count only for crates the
+workspace depends on directly. OSV-Scanner may ignore an advisory only for a crate absent
+from `cargo tree --target aarch64-apple-darwin`, each entry with its reason and an
+`ignoreUntil` 90 days out. A vulnerability in a shipped crate is fixed by updating; only
+when no fixed release exists may it be ignored, with its reason, a 90-day expiry, and a
+tracking issue. Every entry is recorded in the implementation notes.
+
 ### D18. Release — Designer
 
 - Trigger: a `v*` tag push (a human act), or `workflow_dispatch` with `dry_run: true`,
@@ -492,7 +510,12 @@ itself, then prints next steps — fill `AGENTS.md` › Product, fill
 `just labels`, `just ruleset`, the GitHub security settings. `scripts/verify-bootstrap.ts`
 bootstraps a temp copy and fails on any leftover placeholder or template-only marker, a
 dangling skill reference, or a mismatch between names; CI's `Template Bootstrap Smoke`
-then runs `just check` in that copy.
+(a macOS job with `timeout-minutes: 60`) bootstraps a fresh `git clone` with a hyphenated
+multi-word slug (so the hyphen, underscore, and upper-case forms are all exercised),
+asserts `just check-harness` fails with the Product-section code — the check must fire
+on an unfilled app — then writes a stub Product section in that copy and runs
+`just check` there. The bootstrap removes this job and its ruleset context from the
+generated app, as macos-app-template's does.
 
 ### D20. Agent harness — Designer
 
@@ -510,7 +533,7 @@ then runs `just check` in that copy.
 - `.claude/settings.json`: allow the read/build/test recipes and read-only `gh`; deny
   `--no-verify`, force pushes, and edits to `src-tauri/Entitlements.plist`; a PostToolUse
   hook that formats the one edited `.rs`/`.ts`/`.tsx` file.
-- Skills: 24, authored under `.agents/skills/` and mirrored by `just agents-sync`,
+- Skills: 26, authored under `.agents/skills/` and mirrored by `just agents-sync`,
   carried over substantially from the three source repositories and rebuilt for Rust +
   Tauri. The per-skill brief — sources, what changes, what is dropped and why, the rules
   under `.claude/rules/`, and the review pass — is [skills-plan.md](skills-plan.md).
@@ -551,7 +574,11 @@ raise a permission, Keychain, or Gatekeeper prompt.
 - **Visible on request only.** `just dev`, `just run`, and `just install-app` open the
   app; they are never part of `just check`, and the `running-the-app` skill tells an agent
   to prefer smoke mode and `just logs` for evidence, opening the app only when the human
-  asks.
+  asks. `just test-local`, `just reset-permissions`, and `just logs-follow` are likewise
+  human-started only.
+- **No disk image locally.** Building a `.dmg` drives Finder through AppleScript unless
+  the build runs under CI, so every local recipe builds with `--bundles app`; only the
+  release workflow on a CI runner builds the `.dmg`.
 - **No tool installs prompts.** `just install` needs no `sudo` and opens no installer;
   a missing Xcode Command Line Tools is reported with the command to run, not triggered.
 

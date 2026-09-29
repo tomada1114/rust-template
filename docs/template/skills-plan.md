@@ -35,7 +35,7 @@ Sources, all read-only:
 Where a reader new to Rust would stall, the skill says why, not only what — the owner
 reviews the PRs these skills shape and does not yet read Rust fluently.
 
-## The skills (24)
+## The skills (26)
 
 ### Repository workflow — ported, stack mechanics replaced
 
