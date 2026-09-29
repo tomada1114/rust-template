@@ -138,3 +138,7 @@ deny:
 clean:
     cargo clean
     rm -rf dist coverage src-tauri/binaries
+
+# Repository script tests with the scripts/** coverage floors (85/90; scripts/lib/guard/** 90/100)
+test-scripts:
+    pnpm test:scripts

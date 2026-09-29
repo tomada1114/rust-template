@@ -57,6 +57,11 @@ export default defineConfig({
       // another (typescript-template's pattern; design D13).
       thresholds: {
         "ui/src/**": { lines: 80, functions: 80 },
+        // Every repository script; scripts/lib/guard/** also counts here.
+        "scripts/**": { lines: 85, functions: 90 },
+        // The credential and path rules of the staged guard: the most security-critical
+        // code in the repository, so a higher floor.
+        "scripts/lib/guard/**": { lines: 90, functions: 100 },
       },
     },
   },
