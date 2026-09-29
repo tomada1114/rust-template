@@ -53,9 +53,15 @@ startup's calls are seconds apart; anything reading the backlog after this run
 has changed it should not. That is the safe default: a stale digest can re-select
 an issue this run already merged, and nothing downstream would notice.
 
+`--limit` caps how many open issues are read, and a backlog larger than it is
+an error rather than a silently truncated ranking: a dependency on an issue past
+the cap would read as closed. `--label`, `--assignee` and `--milestone` narrow
+what is ranked, never the set of open issues dependency edges are read from.
+
 Exit codes:
     0 = digest printed (may contain zero issues)
-    1 = gh invocation failed
+    1 = gh invocation failed, or the open backlog is larger than --limit
+    2 = usage error
 """
 
 from __future__ import annotations
@@ -76,10 +82,11 @@ from typing import Any
 # Dependency phrasings seen in real issue bodies, in English -- the language
 # this repository's issues are written in (`triaging-issues` asks for
 # `Depends on #N` / `Blocks #N`). Group 1 of a leading phrase is a list
-# ("#N, #M and #K"); every number in it is read.
+# ("#N, #M and #K"); every number in it is read. The leading `\b` keeps a word
+# that merely ends in a keyword ("thereafter #N") from reading as an edge.
 _REF_LIST = r"(#\d+(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)#\d+)*)"
 DEP_PATTERNS = [
-    (r"(?:depends?\s+on|blocked\s+by|after|requires?)\s*:?\s*" + _REF_LIST, "depends_on"),
+    (r"\b(?:depends?\s+on|blocked\s+by|after|requires?)\s*:?\s*" + _REF_LIST, "depends_on"),
     (r"(?:blocks|blocking)\s*:?\s*" + _REF_LIST, "blocks"),
 ]
 
@@ -372,9 +379,17 @@ def _cache_key(issue_args: list[str]) -> str:
 
 
 def fetch_issues_and_prs(
-    issue_args: list[str], ttl: int, refresh: bool
-) -> tuple[list[Any], list[Any], str]:
-    """(issues, prs, cache_status) -- from the run-state cache when it is warm.
+    issue_args: list[str], ttl: int, refresh: bool,
+    filter_args: list[str] | None = None,
+) -> tuple[list[Any], list[int] | None, list[Any], str]:
+    """(issues, filtered_numbers, prs, cache_status) -- from the run-state cache
+    when it is warm.
+
+    `issues` is every open issue, unfiltered, because dependency edges have to
+    be read from all of them. `filter_args`, when given, is a second, numbers-only
+    fetch that carries the caller's `--label`/`--assignee`/`--milestone`, and
+    `filtered_numbers` is its answer (None without one): gh applies the filters,
+    so their meaning stays gh's own rather than a local re-implementation.
 
     A run's startup asks the same question several times in a row (rank, then
     select, then read the picked issues' bodies), and each `gh` pair costs two
@@ -385,18 +400,20 @@ def fetch_issues_and_prs(
     """
     state = runstate_dir()
     path = state / "digest-cache.json" if state else None
-    key = _cache_key(issue_args)
+    key = _cache_key(issue_args + ["\x01"] + (filter_args or []))
     disabled = ttl <= 0 or os.environ.get("SHIPPING_ISSUES_NO_CACHE") == "1"
 
     if path and not refresh and not disabled:
         try:
             blob = json.loads(path.read_text(encoding="utf-8"))
             if blob.get("key") == key and time.time() - blob["fetched_at"] <= ttl:
-                return blob["issues"], blob["prs"], "HIT"
+                return blob["issues"], blob["filtered"], blob["prs"], "HIT"
         except (OSError, ValueError, KeyError, TypeError):
             pass  # a missing, unreadable or malformed cache is a miss, not an error
 
     issues = run_gh(issue_args)
+    filtered = ([it["number"] for it in run_gh(filter_args)]
+                if filter_args is not None else None)
     prs = run_gh([
         "pr", "list", "--state", "open", "--limit", "100",
         "--json", "number,title,body,headRefName,isDraft,url",
@@ -406,13 +423,14 @@ def fetch_issues_and_prs(
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(
-                {"key": key, "fetched_at": time.time(), "issues": issues, "prs": prs},
+                {"key": key, "fetched_at": time.time(), "issues": issues,
+                 "filtered": filtered, "prs": prs},
                 ensure_ascii=False,
             ), encoding="utf-8")
             status = "WRITTEN"
         except OSError:
             pass  # an unwritable state dir costs a re-fetch next time, nothing more
-    return issues, prs, status
+    return issues, filtered, prs, status
 
 
 def squeeze(text: str | None, limit: int) -> str:
@@ -589,7 +607,9 @@ def main() -> int:
     p.add_argument("--milestone")
     p.add_argument("--issue", action="append", type=int, default=[],
                    help="restrict the digest to these issue numbers")
-    p.add_argument("--limit", type=int, default=200)
+    p.add_argument("--limit", type=int, default=200,
+                   help="the most open issues to read; a larger backlog is an "
+                        "error, never a silently partial ranking")
     p.add_argument("--body-chars", type=int, default=1200,
                    help="truncate issue bodies to this many chars; 0 omits them")
     p.add_argument("--rank-only", action="store_true",
@@ -629,24 +649,41 @@ def main() -> int:
     p.add_argument("--json", action="store_true", dest="as_json")
     args = p.parse_args()
 
+    if args.limit < 1:
+        print("error: --limit must be at least 1", file=sys.stderr)
+        return 2
     if not shutil.which("gh"):
         print("error: gh CLI not found", file=sys.stderr)
         return 1
 
+    # One more than the limit is asked for, so a backlog of exactly --limit
+    # issues is told apart from a truncated one.
+    fetch_limit = str(args.limit + 1)
     issue_args = [
-        "issue", "list", "--state", "open", "--limit", str(args.limit),
+        "issue", "list", "--state", "open", "--limit", fetch_limit,
         "--json", "number,title,labels,assignees,milestone,body,createdAt,updatedAt,url",
     ]
+    filter_flags: list[str] = []
     for label in args.label:
-        issue_args += ["--label", label]
+        filter_flags += ["--label", label]
     if args.assignee:
-        issue_args += ["--assignee", args.assignee]
+        filter_flags += ["--assignee", args.assignee]
     if args.milestone:
-        issue_args += ["--milestone", args.milestone]
+        filter_flags += ["--milestone", args.milestone]
+    filter_args = ([
+        "issue", "list", *filter_flags, "--state", "open", "--limit", fetch_limit,
+        "--json", "number",
+    ] if filter_flags else None)
 
-    issues, prs, cache_status = fetch_issues_and_prs(
-        issue_args, args.cache_ttl, args.refresh
+    issues, filtered_numbers, prs, cache_status = fetch_issues_and_prs(
+        issue_args, args.cache_ttl, args.refresh, filter_args
     )
+    if len(issues) > args.limit:
+        print(f"error: more than {args.limit} open issues; ranking only the "
+              "first ones would read a dependency on any of the rest as "
+              f"closed. Re-run with a larger --limit (more than {args.limit}).",
+              file=sys.stderr)
+        return 1
 
     # Map issue number -> open PR that claims to close it.
     claimed: dict[int, dict[str, Any]] = {}
@@ -664,7 +701,7 @@ def main() -> int:
 
     # Dependency edges are read from every open issue, not just the filtered
     # subset: an issue excluded by --issue/--label can still be what makes the
-    # selected one high-leverage.
+    # selected one high-leverage, or what the selected one is still waiting on.
     all_deps: dict[int, dict[str, list[int]]] = {}
     contracts: dict[int, dict[str, Any] | None] = {}
     for it in issues:
@@ -705,11 +742,14 @@ def main() -> int:
                 referenced_by[target].add(num)
 
     wanted = set(args.issue)
+    in_filter = set(filtered_numbers) if filtered_numbers is not None else None
     records = []
     tracking = []
     for it in issues:
         num = it["number"]
         if wanted and num not in wanted:
+            continue
+        if in_filter is not None and num not in in_filter:
             continue
         labels = [lbl["name"] for lbl in it.get("labels", [])]
         if any(normalize_label(lbl) in TRACKING_LABELS for lbl in labels):

@@ -342,6 +342,81 @@ exec "{fake_gh}" "$@"
         self.assertEqual(check_calls[1][:5], list(checks_result))
         self.assertEqual(check_calls[1][5], "-q")
 
+    def test_a_watch_that_ends_with_a_check_pending_is_never_a_pass(self):
+        # `gh pr checks --watch` can exit early -- here with 1, and with 0 for
+        # good measure -- while checks are still running. The final read then
+        # holds no failure, and the verdict used to come out PASS.
+        pr = "24"
+        checks_watch = ("pr", "checks", pr, "--watch", "--interval", "20")
+        checks_result = ("pr", "checks", pr, "--json", "name,state,link")
+        blocked = STATE_JSON.replace('"CLEAN"', '"BLOCKED"')
+        for watch_rc in (1, 0):
+            for pending in ("PENDING", "QUEUED", "IN_PROGRESS"):
+                with self.subTest(watch_rc=watch_rc, pending=pending):
+                    proc, calls = run_script(
+                        [pr, "--timeout", "1"],
+                        {
+                            ROLLUP(pr): "2\n",
+                            checks_watch: "",
+                            checks_result: (
+                                "lint\tSUCCESS\thttps://example.test/1\n"
+                                f"build\t{pending}\thttps://example.test/2\n"
+                            ),
+                            STATE(pr): blocked,
+                        },
+                        exits={checks_watch: watch_rc},
+                    )
+
+                    self.assertNotIn("verdict: PASS", proc.stdout)
+                    self.assertEqual(proc.returncode, 4)
+                    self.assertIn("verdict: ERROR\n", proc.stdout)
+                    self.assertIn(
+                        f"detail: gh pr checks --watch exited {watch_rc} with "
+                        "checks still unsettled\n", proc.stdout)
+                    self.assertIn(
+                        f"  - build [{pending}] https://example.test/2\n",
+                        proc.stdout)
+                    self.assertNotIn("lint [SUCCESS]", proc.stdout)
+                    self.assertIn("merge_state: BLOCKED\n", proc.stdout)
+
+    def test_green_completions_other_than_success_still_pass(self):
+        pr = "25"
+        proc, calls = run_script(
+            [pr, "--timeout", "1"],
+            {
+                ROLLUP(pr): "3\n",
+                ("pr", "checks", pr, "--watch", "--interval", "20"): "",
+                ("pr", "checks", pr, "--json", "name,state,link"): (
+                    "lint\tSUCCESS\t\nnotify\tSKIPPED\t\nlabel\tNEUTRAL\t\n"
+                ),
+                STATE(pr): STATE_JSON,
+            },
+        )
+
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("verdict: PASS\n", proc.stdout)
+
+    def test_a_failure_beside_a_pending_check_is_a_fail(self):
+        # A failed check is final; waiting on the rest changes nothing.
+        pr = "26"
+        proc, calls = run_script(
+            [pr, "--timeout", "1"],
+            {
+                ROLLUP(pr): "2\n",
+                ("pr", "checks", pr, "--watch", "--interval", "20"): "",
+                ("pr", "checks", pr, "--json", "name,state,link"): (
+                    "lint\tFAILURE\t\nbuild\tIN_PROGRESS\t\n"
+                ),
+                STATE(pr): STATE_JSON,
+            },
+            exits={("pr", "checks", pr, "--watch", "--interval", "20"): 1},
+        )
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("verdict: FAIL\n", proc.stdout)
+        self.assertIn("  - lint [FAILURE] \n", proc.stdout)
+        self.assertNotIn("build [IN_PROGRESS]", proc.stdout)
+
     def test_failed_check_reports_check_name_and_log_tail(self):
         pr = "18"
         rollup = ("pr", "view", pr, "--json", "statusCheckRollup")
