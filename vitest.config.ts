@@ -30,7 +30,8 @@ export default defineConfig({
         test: {
           name: "scripts",
           environment: "node",
-          include: ["scripts/**/*.test.ts"],
+          // A skill's bundled TypeScript scripts are repository scripts too.
+          include: ["scripts/**/*.test.ts", ".agents/skills/*/scripts/**/*.test.ts"],
           exclude: ["**/fixtures/**"],
           testTimeout: 60_000,
         },
@@ -41,7 +42,7 @@ export default defineConfig({
       reportsDirectory: "coverage",
       reporter: ["text", "lcov"],
       // Every source file counts, tested or not, so an untested module shows as 0%.
-      include: ["ui/src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+      include: ["ui/src/**/*.{ts,tsx}", "scripts/**/*.ts", ".agents/skills/*/scripts/**/*.ts"],
       exclude: [
         "**/*.test.{ts,tsx}",
         "**/fixtures/**",

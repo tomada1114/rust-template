@@ -87,6 +87,15 @@ what was built; each entry says what the design said, what was done, and why.
   (Claude Code permissions docs, https://code.claude.com/docs/en/permissions, checked
   2026-09-28).
 
+- The app menu is built in Rust in the shell's setup (`src-tauri/src/lib.rs`), not with
+  the JavaScript menu API: menus are app-wide wiring owned by the composition root, only
+  `ui/src/ipc/` may import `@tauri-apps/*`, and a menu item calls the same core function
+  as the matching command and emits the same event (`designing-ui`, `designing-ipc`).
+- `scripts/release-prep.ts` reads each version site with a real parser (smol-toml,
+  `JSON.parse`) but edits it with a one-line textual replacement, so the file keeps its
+  comments and formatting; the edited text is parsed again and the run stops with
+  `ERR_RELEASE_REWRITE`, writing nothing, if it does not hold the new version.
+
 ## Facts confirmed during the run
 
 - clippy reads `crates/myapp-core/clippy.toml`: a temporary `println!` and a temporary

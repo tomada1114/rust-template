@@ -94,7 +94,7 @@ export default defineConfig([
   },
   {
     name: "scripts",
-    files: ["scripts/**/*.ts"],
+    files: ["scripts/**/*.ts", ".agents/skills/*/scripts/**/*.ts"],
     languageOptions: { globals: globals.node },
     rules: {
       // Terminal output is what a repository script produces.

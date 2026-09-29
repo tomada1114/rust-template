@@ -145,9 +145,19 @@ clean:
     cargo clean
     rm -rf dist coverage src-tauri/binaries
 
-# Repository script tests with the scripts/** coverage floors (85/90; scripts/lib/guard/** 90/100)
+# Repository script tests with the scripts/** coverage floors (85/90; scripts/lib/guard/** 90/100), plus shipping-issues' bundled Python suite and shellcheck
 test-scripts:
     pnpm test:scripts
+    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agents/skills/shipping-issues/scripts/tests -t .agents/skills/shipping-issues/scripts/tests -p 'test_*.py'
+    shellcheck .agents/skills/shipping-issues/scripts/*.sh
+
+# Regenerate .claude/skills/ as a byte-for-byte copy of .agents/skills/
+agents-sync:
+    node scripts/sync-agents.ts
+
+# Fail when .claude/skills/ differs from .agents/skills/, listing each path (writes nothing)
+agents-check:
+    node scripts/sync-agents.ts --check
 
 # Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
 labels:

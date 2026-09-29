@@ -151,6 +151,9 @@ jobs:
       - name: Actionlint
         run: actionlint
 
+      - name: Skills mirror
+        run: just agents-check
+
       - name: Script tests with coverage floors
         run: just test-scripts
 

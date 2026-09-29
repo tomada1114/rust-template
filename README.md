@@ -316,10 +316,10 @@ check:
    code scanning). Keep any of them if your plan includes those features.
    `osv-scan.yml` needs neither and stays as the dependency-vulnerability check.
 2. In `.github/workflows/release.yml`, remove the build-provenance attestation step and
-   its `attestations: write` permission unless your plan supports artifact attestations
-   on private repositories
-   (<https://docs.github.com/en/actions/concepts/security/artifact-attestations>,
-   checked 2026-09-28). The release itself still works, visible only to people with
+   its `attestations: write` permission unless the repository is on GitHub Enterprise
+   Cloud, the plan artifact attestations need on a private repository
+   (<https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>,
+   checked 2026-09-29). The release itself still works, visible only to people with
    access to the repository.
 3. In `.github/rulesets/main.json`, remove the `Dependency Review` entry from the
    required status checks. Branch rulesets on a private repository need a paid GitHub

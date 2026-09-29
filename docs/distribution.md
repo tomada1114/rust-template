@@ -72,7 +72,7 @@ It creates no commit, tag, or push — those stay human acts:
 just release-prep 0.2.0            # writes the three version sites, Cargo.lock, CHANGELOG.md
 git switch -c release/0.2.0
 git add Cargo.toml Cargo.lock src-tauri/tauri.conf.json package.json CHANGELOG.md
-git commit -m 'chore(release): 0.2.0'
+git commit -m 'chore: release v0.2.0'
 gh pr create --fill
 # once that pull request is merged into main:
 git switch main && git pull

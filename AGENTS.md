@@ -66,7 +66,7 @@ just test-core     # myapp-core with its 80/80 floors, its doctests, and the Lin
 just test-ui       # Vitest over ui/src with its 80/80 floors
 just test-fast increment  # One core test or a group of them, no floor (iteration only)
 just test-macos    # Platform adapters and tauri::test command tests (macOS, no human)
-just test-scripts  # Vitest over scripts/ with its floors
+just test-scripts  # Vitest over scripts/ and skills' scripts with its floors, plus bundled Python tests and shellcheck
 just check-harness # Re-assert the harness's claims about itself (scripts/checks/)
 just bindings      # Regenerate ui/src/ipc/generated/ from core's ts-rs types
 just sidecar       # Build myapp-cli into src-tauri/binaries/ (the Tauri build needs it)
@@ -115,7 +115,7 @@ developer's Mac").
 | `src-tauri/tauri.conf.json`, `src-tauri/capabilities/`, or `src-tauri/Entitlements.plist` | `just build`, then `just smoke` — and each is a sign-off change ("Security and human approval") |
 | A command or an event added, renamed, or removed | `just test-macos`, `just test-ui`, then `just check-harness` (the Rust and `ui/src/ipc/` name lists agree) |
 | A component, hook, or IPC wrapper under `ui/src/` | `just test-ui`, then `just lint` |
-| `ui/src/design/tokens.css` or a design primitive | `just test-ui` (`tokens.test.ts` checks dark values and contrast), then `just check-harness` (no raw color, font, or pixel literal outside `tokens.css`) |
+| `ui/src/design/tokens.css` or a design primitive | `just test-ui` (`tokens.test.ts` checks dark values and contrast), then `just check-harness` (no raw color, `font-family`, or pixel font size outside `tokens.css`) |
 | Formatting of any Rust or TypeScript file | `just fmt`, or `just lint` to only check |
 | A clippy or ESLint finding that may be auto-fixable | `just fix`, then `just lint` for what still needs a hand edit |
 | Behavior only the running app shows (a screen's wiring to Rust, a log line) | `just smoke` and `just logs` first; `just run`, then `just logs`, only when the human asks to see the window — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
@@ -211,7 +211,7 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   event names (a `pub const` per event, such as `COUNTER_CHANGED`) match what
   `commands.ts` invokes and `events.ts` listens to.
 - The screen uses only the primitives and `var(--…)` tokens in `ui/src/design/`, never
-  a literal color, font, or pixel size (`docs/design/design-system.md`); every string
+  a raw color, a `font-family`, or a pixel font size (`docs/design/design-system.md`); every string
   comes from `ui/src/copy/`; every control has an accessible name.
 - Tauri's security posture is deliberate: a restrictive CSP in `tauri.conf.json`,
   `withGlobalTauri: false`, and one capability granting only `core:default`. The app
@@ -244,7 +244,12 @@ these owes an ADR, as `recording-architecture-decisions` sets out:
 - a TCC permission — Accessibility, Input Monitoring, Screen Recording, Full Disk
   Access, or any other privacy grant;
 - a second UI locale;
-- `unsafe` code, which means lifting `unsafe_code = "forbid"` for `myapp-platform`.
+- `unsafe` code, which means lifting `unsafe_code = "forbid"` for `myapp-platform`;
+- the bundle identifier (`com.example.myapp` until the bootstrap renames it), which keys
+  the app's data, logs, and privacy grants;
+- the design lock — the app's own design system replacing the template's base values;
+- a CSS framework, a component library, or a state-management library;
+- a Tauri major version.
 
 An agent writes an ADR as Proposed; only a human accepts it. An ADR records reasoning and
 grants nothing: an entitlement, a signing change, or a new dependency still needs the
@@ -258,6 +263,35 @@ Skills are authored under `.agents/skills/` (the path Codex CLI reads) and mirro
 byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 `just agents-sync` — edit only the authored copy, commit both trees together, and let
 `just agents-check` report any drift.
+
+| Skill | Load it for |
+|---|---|
+| `authoring-skills` | Writing or editing a skill: the conventions, the mirror, the size cap |
+| `smart-commit` | Turning the working tree into Conventional Commits; a refused pre-commit hook |
+| `create-pr` | Opening or updating a pull request: title, body, Release impact, evidence |
+| `triaging-issues` | Filing or labelling an issue: type, priority, blocked, tracking |
+| `shipping-issues` | Taking ranked open issues to merged pull requests, with worktrees |
+| `steering-the-roadmap` | Changing `docs/architecture/roadmap.md` (Now / Next / Later) |
+| `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; Tauri minors move together |
+| `managing-dependencies` | Adding or changing a crate or npm package: the review record, features, licences |
+| `changing-gates` | Editing a file that enforces: lints, floors, hooks, workflows, capabilities, entitlements |
+| `updating-docs` | Deciding which document a change must update |
+| `recording-architecture-decisions` | Writing an ADR under `docs/architecture/` |
+| `writing-repo-scripts` | A TypeScript script under `scripts/` or bundled with a skill, and its test |
+| `releasing-the-app` | Cutting a release: version, CHANGELOG, `just release-prep`, the tag, signing |
+| `starting-an-app` | Turning the template into a new app: bootstrap, design system first, app shape |
+| `writing-rust` | Rust in `crates/*` and `src-tauri`: ownership, errors, compiler messages, clippy |
+| `writing-typescript` | Type-system judgment in `ui/src/` and `scripts/` |
+| `tdd` | Red-green-refactor with `just test-fast` and Vitest |
+| `writing-tests` | The body of one test in either language: oracles, fakes, contracts, clocks |
+| `placing-tests` | Where a new test goes and which floor measures it |
+| `designing-core-logic` | Shaping logic in `myapp-core`: ports, `Tuning`, transitions, views |
+| `designing-errors` | Error enums, codes for the UI, adapter mapping, `ERR_*` script codes |
+| `designing-ipc` | Adding a command or event end to end, bindings, capabilities, the sidecar |
+| `integrating-system-apis` | Calling macOS from `myapp-platform`: commands, `objc2`, TCC |
+| `running-the-app` | Seeing a change work: `just smoke` and `just logs`; the human's run recipes |
+| `building-react-screens` | A screen under `ui/src/`: a thin component over a hook, states, accessibility |
+| `designing-ui` | Look and feel: HIG in a WebView, the design system, the design-lock ADR |
 
 ### Rules
 
@@ -475,7 +509,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | Coverage floors | `just test-core`, `just test-ui`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `ui/src/` 80 / 80; `scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
 | The launch smoke (`scripts/smoke.ts`, `just smoke`) | `just check` and CI's `macOS Build & Smoke` job | every author | the release `.app` builds, is signed, carries `Entitlements.plist`'s entitlements, bundles a runnable `myapp-cli`, and starts windowless in smoke mode — store, clock, logging, and command registration wired — exiting 0 after logging `startup complete` |
 | The skills-mirror check (`just agents-check`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical |
-| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — every `just <recipe>` this file, `README.md`, `CONTRIBUTING.md`, and the skills name exists; workflow hygiene (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` that never cancels a `main` run, no `pull_request_target`, `--locked`/`--frozen-lockfile`); the Dependabot, Renovate, and pnpm cooldowns agree; every required context in `.github/rulesets/main.json` names a job; `just check` matches CI's steps apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; the IPC command and event lists agree; no raw color, font, or pixel literal outside `tokens.css`; no issue-number reference in this file or a skill; `.claude/settings.json` names only recipes the justfile defines; and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
+| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — every `just <recipe>` this file, `README.md`, `CONTRIBUTING.md`, and the skills name exists; workflow hygiene (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` that never cancels a `main` run, no `pull_request_target`, `--locked`/`--frozen-lockfile`); the Dependabot, Renovate, and pnpm cooldowns agree; every required context in `.github/rulesets/main.json` names a job; `just check` matches CI's steps apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; the IPC command and event lists agree; no raw color, `font-family`, or pixel font size outside `tokens.css`; no issue-number reference in this file or a skill; `.claude/settings.json` names only recipes the justfile defines; and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
 | `.claude/settings.json` — its only two top-level keys, `permissions` and `hooks` | every tool call Claude Code makes in this checkout | Claude Code only — Codex CLI and a human read nothing here | the routine local loop runs without a prompt: the `just` recipes that read, format, lint, build, or test without opening a window or writing to GitHub, and read-only `gh` (`gh pr view`/`list`/`checks`/`diff`, `gh issue view`/`list`, `gh run view`/`list`/`watch`, `gh api -X GET`/`--method GET`). Deliberately absent from `allow`, so they still stop for a human: the recipes that open the app or need a human (`dev`, `run`, `install-app`, `test-local`, `logs-follow`, `reset-permissions`), the ones that write beyond the working tree (`install`, `clean`, `labels`, `ruleset`, `release-prep`, `bootstrap`), `git push`, `gh pr create`, `gh pr merge`, and `gh issue create`. `deny` refuses `git commit --no-verify`/`-n`, a force push, and an edit to `src-tauri/Entitlements.plist` (an `Edit` rule covers every file-editing tool); JSON carries no comments, so read the deny list as five groups — `--no-verify`, `-n`, `--force`/`-f`, `--force-with-lease` with and without `=<ref>`, and a `+refspec` push, each written in the leading, trailing, and mid-command position. It is a prompt policy, not a boundary: a deny rule matches the command text Claude Code writes, so another spelling — `git -C . push --force`, `bash -c '…'`, or a bundled short flag such as `git commit -anm "…"` — is not stopped by it, and none of this constrains a human at a shell. `hooks` holds one `PostToolUse` hook, `scripts/format-edited-file.ts`, that formats the one `.rs` (rustfmt) or `.ts`/`.tsx` (Prettier) file an `Edit`/`Write`/`MultiEdit` touched inside the checkout and reports a formatter failure back to the agent (exit 2) instead of hiding it — a convenience on this host only; the git hook and CI are the gate |
 | CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, clippy on the Linux-buildable crates, core tests with floors, doctests, the bindings drift check, `cargo deny`, `cargo shear`), `Frontend` (tsc, ESLint, Prettier, UI tests with floors), `Repo Lint & Harness` (typos, actionlint, script tests, harness checks), `macOS Build & Smoke` (workspace clippy, `just test-macos`, `just build`, `just smoke`), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
