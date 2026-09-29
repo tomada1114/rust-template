@@ -43,6 +43,10 @@ def inspect_prefix(pr):
     return ("pr", "view", pr, "--json", "mergeable,mergeStateStatus,reviewDecision")
 
 
+def merge_state_prefix(pr):
+    return ("pr", "view", pr, "--json", "mergeStateStatus")
+
+
 def issue_view_prefix(issue):
     return ("issue", "view", issue, "--json", "state")
 
@@ -189,6 +193,7 @@ class LandPrTest(unittest.TestCase):
                 # but gh still reports the PR as not-yet-merged".
                 state_prefix(pr): "OPEN\n",
                 draft_prefix(pr): "false\n",
+                merge_state_prefix(pr): "CLEAN\n",
                 merge: "",
             },
         )
@@ -216,6 +221,51 @@ class LandPrTest(unittest.TestCase):
         self.assertIn("result: AUTO_MERGE_ARMED\n", proc.stdout)
         self.assertIn("issue: PENDING (#41 closes when auto-merge lands)\n", proc.stdout)
         self.assertIn(list(merge), calls)
+        # --auto is how a PR that is not CLEAN yet gets merged once it is, so
+        # the merge-state gate is never consulted for it.
+        self.assertEqual(
+            [c for c in calls if c[:5] == list(merge_state_prefix(pr))], [])
+
+    def test_refuses_to_merge_unless_the_merge_state_is_clean(self):
+        pr = "30"
+        merge = ("pr", "merge", pr, "--squash", "--delete-branch")
+        for merge_state in ("BLOCKED", "BEHIND", "DIRTY", "UNSTABLE", "HAS_HOOKS"):
+            with self.subTest(merge_state=merge_state):
+                proc, calls = run_script(
+                    [pr, "--method", "squash", "--no-link-check"],
+                    {
+                        state_prefix(pr): "OPEN\n",
+                        draft_prefix(pr): "false\n",
+                        merge_state_prefix(pr): f"{merge_state}\n",
+                        merge: "",
+                        inspect_prefix(pr): (
+                            '{"mergeable":"MERGEABLE","mergeStateStatus":"%s",'
+                            '"reviewDecision":"REVIEW_REQUIRED"}\n' % merge_state),
+                    },
+                )
+
+                self.assertEqual(proc.returncode, 1)
+                self.assertIn("result: NOT_CLEAN\n", proc.stdout)
+                self.assertIn(f"merge_state: {merge_state}\n", proc.stdout)
+                self.assertIn('"reviewDecision":"REVIEW_REQUIRED"', proc.stdout)
+                self.assertEqual([c for c in calls if c[:2] == ["pr", "merge"]], [])
+
+    def test_an_unreadable_merge_state_is_not_clean(self):
+        pr = "31"
+        proc, calls = run_script(
+            [pr, "--method", "squash", "--no-link-check"],
+            {
+                state_prefix(pr): "OPEN\n",
+                draft_prefix(pr): "false\n",
+                merge_state_prefix(pr): "",
+            },
+            exits={merge_state_prefix(pr): 1},
+        )
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("result: NOT_CLEAN\n", proc.stdout)
+        self.assertIn("merge_state: UNREADABLE\n", proc.stdout)
+        self.assertEqual([c for c in calls if c[:2] == ["pr", "merge"]], [])
 
     def test_merge_refusal_reports_failure(self):
         pr = "28"
@@ -226,6 +276,7 @@ class LandPrTest(unittest.TestCase):
             {
                 state_prefix(pr): "OPEN\n",
                 draft_prefix(pr): "false\n",
+                merge_state_prefix(pr): "CLEAN\n",
                 merge: "",
                 inspect: '{"mergeable":"CONFLICTING","mergeStateStatus":"BLOCKED",'
                         '"reviewDecision":"CHANGES_REQUESTED"}\n',

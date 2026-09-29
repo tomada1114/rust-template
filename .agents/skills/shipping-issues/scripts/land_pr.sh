@@ -22,6 +22,12 @@
 # ready`) right before merging. Pass --no-ready to report `result: DRAFT`
 # instead of ready-ing it (the caller decides when a PR should stay draft).
 #
+# Without --auto it merges only a PR whose mergeStateStatus is CLEAN, and
+# reports `result: NOT_CLEAN` with a `merge_state:` line otherwise (BLOCKED,
+# BEHIND, DIRTY, UNSTABLE, ...): the `main` ruleset is the only other guard, and
+# a repository cut from this template has none until its owner runs
+# `just ruleset`.
+#
 # Exit codes: 0 = merged (or auto-merge armed), 1 = merge refused, 2 = usage
 
 set -uo pipefail
@@ -140,6 +146,26 @@ if [[ "$state" == "OPEN" ]]; then
     echo "result: DRY_RUN"
     gh pr view "$PR" --json mergeable,mergeStateStatus,reviewDecision 2>/dev/null
     exit 0
+  fi
+
+  # --- 1.8 merge state (merge precondition) ----------------------------------
+  # GitHub's own answer to "can this merge right now". --auto skips it: arming
+  # auto-merge is how a PR that is not CLEAN yet merges once it is.
+  if [[ $AUTO -eq 0 ]]; then
+    merge_state="$(gh pr view "$PR" --json mergeStateStatus -q .mergeStateStatus 2>/dev/null)"
+    # Computed lazily: the first read after a push, or right after `gh pr
+    # ready`, is often UNKNOWN (or still DRAFT). One retry gets the real state.
+    if [[ "$merge_state" == "UNKNOWN" || "$merge_state" == "DRAFT" ]]; then
+      sleep 5
+      merge_state="$(gh pr view "$PR" --json mergeStateStatus -q .mergeStateStatus 2>/dev/null)"
+    fi
+    if [[ "$merge_state" != "CLEAN" ]]; then
+      echo "result: NOT_CLEAN"
+      echo "merge_state: ${merge_state:-UNREADABLE}"
+      echo "detail: GitHub does not report PR #$PR as cleanly mergeable -- nothing was merged"
+      gh pr view "$PR" --json mergeable,mergeStateStatus,reviewDecision 2>/dev/null | indent
+      exit 1
+    fi
   fi
 fi
 
