@@ -108,7 +108,10 @@ maximum of 99, `assert_eq!(counter.value(), 99)` catches a bug that
   `tempfile::tempdir()` in Rust (kept alive until the test ends), `mkdtemp` under
   `os.tmpdir()` in TypeScript. Never a fixed shared path, the checkout, or the real
   `~/Library` — parallel tests would collide, and a leftover file changes the next run
-- Tests may `unwrap()`/`expect()` (a panic is how a Rust test fails); library code in
+- Tests may `unwrap()`/`expect()` (a panic is how a Rust test fails) — inside a
+  `#[test]` function or `#[cfg(test)]` code only: clippy's `allow-unwrap-in-tests` does
+  not cover a plain helper function in a `tests/` file, so a helper matches and panics
+  with a message instead (`must` in `src-tauri/tests/commands.rs`); library code in
   `myapp-test-support` compares `Result`s with `assert_eq!` instead
 - No `.only` (Vitest's `allowOnly: false` fails the run) and no `.skip` or `#[ignore]`
   to get a red test out of the way
