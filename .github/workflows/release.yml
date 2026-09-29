@@ -1,0 +1,201 @@
+name: Release
+
+# Builds, verifies, and publishes the app's .dmg (design D18; docs/distribution.md).
+#
+# - A `v*` tag push (a human act) publishes a GitHub Release.
+# - `workflow_dispatch` with `dry_run: true` (the default) runs every step up to the
+#   upload and keeps the .dmg as a workflow artifact, creating no release — the way to
+#   prove the pipeline without a tag.
+#
+# Signing: ad hoc unless the APPLE_CERTIFICATE secrets exist, then Developer ID; Tauri
+# notarizes and staples when the notarization secrets exist too. A missing secret skips
+# its step through an `if:` on a job-level flag, never through continue-on-error.
+# Nothing on this path is cached (zizmor's cache-poisoning finding).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and upload the .dmg as a workflow artifact only; create no release"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  # Runs of one commit on one ref queue behind each other; a newer run never cancels a
+  # pending or running release (GitHub cancels a pending run that shares its group).
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+env:
+  CARGO_TERM_COLOR: always
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  test:
+    name: Test before release
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
+          cache: false
+
+      - name: Enable pnpm (the version package.json's packageManager names)
+        run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Core and UI tests with their coverage floors
+        run: just test
+
+  release:
+    name: Build, verify, and publish the dmg
+    needs: [test]
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    env:
+      APP_NAME: MyApp
+      TARGET: aarch64-apple-darwin
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      # The secrets context is not available in a step's `if:`, so each gate is a flag.
+      HAS_DEVELOPER_ID: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
+      HAS_NOTARIZATION: ${{ secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node just
+          cache: false
+
+      - name: Enable pnpm (the version package.json's packageManager names)
+        run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the version sites agree, and the tag names that version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          node scripts/checks/version-sites.ts
+          VERSION=$(node -p 'require("./package.json").version')
+          if [[ "$EVENT" == "push" || "$DRY_RUN" != "true" ]]; then
+            if [[ "$REF" != refs/tags/v* ]]; then
+              echo "::error::A release is published only from a v* tag; run the workflow with dry_run: true on a branch."
+              exit 1
+            fi
+            if [[ "$REF_NAME" != "v$VERSION" ]]; then
+              echo "::error::Tag '$REF_NAME' does not match the version $VERSION (expected 'v$VERSION'); run just release-prep before tagging."
+              exit 1
+            fi
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Releasing $APP_NAME $VERSION (dry run: $DRY_RUN)."
+
+      - name: Import the Developer ID certificate into a temporary keychain
+        if: ${{ env.HAS_DEVELOPER_ID == 'true' }}
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S "apple-tool:,apple:" -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+
+      - name: Ad-hoc signing notice
+        if: ${{ env.HAS_DEVELOPER_ID != 'true' }}
+        run: echo "::notice::The APPLE_CERTIFICATE secrets are not set — this build is ad-hoc signed (signingIdentity \"-\"). A downloaded copy needs Privacy & Security › Open Anyway; see docs/distribution.md."
+
+      - name: Notarization skipped notice
+        if: ${{ env.HAS_DEVELOPER_ID != 'true' || env.HAS_NOTARIZATION != 'true' }}
+        run: echo "::notice::Notarization needs the Developer ID secrets and APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID; it is skipped for this build. See docs/distribution.md."
+
+      - name: Build the app and the dmg
+        env:
+          SIGNING_IDENTITY: ${{ env.HAS_DEVELOPER_ID == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          NOTARY_APPLE_ID: ${{ env.HAS_DEVELOPER_ID == 'true' && env.HAS_NOTARIZATION == 'true' && secrets.APPLE_ID || '' }}
+          NOTARY_PASSWORD: ${{ env.HAS_DEVELOPER_ID == 'true' && env.HAS_NOTARIZATION == 'true' && secrets.APPLE_PASSWORD || '' }}
+          NOTARY_TEAM_ID: ${{ env.HAS_DEVELOPER_ID == 'true' && env.HAS_NOTARIZATION == 'true' && secrets.APPLE_TEAM_ID || '' }}
+        run: |
+          # Tauri reads these only when set: an empty APPLE_SIGNING_IDENTITY would not fall
+          # back to tauri.conf.json's ad-hoc "-", and an empty APPLE_ID would still attempt
+          # notarization. So each is exported only when its secrets exist.
+          if [[ -n "$SIGNING_IDENTITY" ]]; then export APPLE_SIGNING_IDENTITY="$SIGNING_IDENTITY"; fi
+          if [[ -n "$NOTARY_APPLE_ID" ]]; then
+            export APPLE_ID="$NOTARY_APPLE_ID" APPLE_PASSWORD="$NOTARY_PASSWORD" APPLE_TEAM_ID="$NOTARY_TEAM_ID"
+          fi
+          pnpm tauri build --target "$TARGET" --bundles app,dmg
+
+      - name: Verify the built app (signature, entitlements, bundled helper, smoke launch)
+        run: node scripts/smoke.ts --app "target/$TARGET/release/bundle/macos/$APP_NAME.app"
+
+      - name: Verify Gatekeeper accepts the Developer ID build
+        if: ${{ env.HAS_DEVELOPER_ID == 'true' }}
+        run: spctl --assess --type execute --verbose=2 "target/$TARGET/release/bundle/macos/$APP_NAME.app"
+
+      - name: Collect the dmg and its checksum
+        run: |
+          mkdir -p dist-release
+          DMG="target/$TARGET/release/bundle/dmg/${APP_NAME}_${VERSION}_aarch64.dmg"
+          if [[ ! -f "$DMG" ]]; then
+            echo "::error::No dmg at $DMG"
+            ls -la "target/$TARGET/release/bundle/dmg" || true
+            exit 1
+          fi
+          hdiutil verify "$DMG"
+          cp "$DMG" dist-release/
+          (cd dist-release && shasum -a 256 ./*.dmg > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Upload the dmg as a workflow artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dmg
+          path: dist-release/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attest build provenance
+        if: ${{ env.DRY_RUN != 'true' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist-release/*.dmg
+
+      - name: Create the GitHub Release
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --verify-tag --generate-notes dist-release/*.dmg dist-release/SHA256SUMS
