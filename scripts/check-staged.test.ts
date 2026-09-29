@@ -121,6 +121,26 @@ describe("check-staged", () => {
     ).toBe("ERR_STAGED_CREDENTIAL_SHAPED");
   });
 
+  it("judges a staged blob larger than Node's 1 MiB spawn buffer", () => {
+    const dir = repo();
+    const large = `${"a".repeat(1023)}\n`.repeat(2 * 1024); // 2 MiB
+    writeFileSync(join(dir, "large.txt"), large);
+    git(dir, "add", "large.txt");
+    expect(() => {
+      main(context(dir));
+    }).not.toThrow();
+
+    // The secret sits past the first MiB, so a truncated read would miss it.
+    writeFileSync(join(dir, "large-leak.txt"), `${large}${AWS_KEY_ID}\n`);
+    git(dir, "add", "large-leak.txt");
+    const error = failure(() => {
+      main(context(dir));
+    });
+    expect(error.details.code).toBe("ERR_STAGED_CREDENTIAL_SHAPED");
+    expect(error.details.actual).toContain("large-leak.txt");
+    expect(error.details.actual).not.toContain("large.txt —");
+  });
+
   it("lets a commit delete a file that held a secret", () => {
     const dir = repo();
     writeFileSync(join(dir, "leak.txt"), `${AWS_KEY_ID}\n`);

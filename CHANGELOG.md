@@ -14,3 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code of conduct, architecture, distribution and signing, and getting-started guides, an
   empty architecture-decision index with its template, a roadmap skeleton, issue forms,
   and a pull request template.
+
+### Fixed
+
+- The pre-commit staged guard reads a staged file larger than 1 MiB instead of refusing
+  it with `ERR_STAGED_READ_FAILED`, so an icon source, a screenshot, or a large lockfile
+  can be committed through the hook.
