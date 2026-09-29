@@ -22,6 +22,12 @@ what was built; each entry says what the design said, what was done, and why.
   `tauri-macros`/`tauri-codegen` 2.6.3, `tauri-utils` 2.9.3, `tao` 0.35.3, `wry` 0.55.1),
   because `tauri = "2"` otherwise resolves those to their 2026-09-26 releases.
 
+- **Live labels are a superset of `labels.yml`.** After `just labels`, all 16 declared
+  labels exist on the repository, and GitHub's defaults (`accessibility`, `duplicate`,
+  `good first issue`, `help wanted`, `invalid`, `question`, `wontfix`) remain beside them:
+  the sync never deletes a label the manifest does not mention (as in both reference
+  repositories), and deleting labels is outside the run's GitHub authority.
+
 ## Decisions made during the run
 
 - **pnpm reaches `PATH` through corepack.** mise pins Node (which ships corepack in
@@ -71,6 +77,16 @@ what was built; each entry says what the design said, what was done, and why.
   (`github/codeql-action` v4.38.1), matching Dependabot's cooldown.
 - **`serde` removed from the Tauri crate** — `cargo shear` found it unused.
 
+- Template-only blocks in standing docs are marked `<!-- template-only -->` …
+  `<!-- /template-only -->` (D19 names the blocks, not their syntax); the bootstrap
+  removes exactly this pair.
+- `docs/distribution.md` names the Apple ID trio (`APPLE_ID`, `APPLE_PASSWORD`,
+  `APPLE_TEAM_ID`) as the notarization secrets (D18 names none); `release.yml` follows it.
+- `.claude/settings.json` denies `Edit(/src-tauri/Entitlements.plist)` only: an `Edit`
+  rule covers every built-in file-editing tool, and a `Write(path)` rule is never consulted
+  (Claude Code permissions docs, https://code.claude.com/docs/en/permissions, checked
+  2026-09-28).
+
 ## Facts confirmed during the run
 
 - clippy reads `crates/myapp-core/clippy.toml`: a temporary `println!` and a temporary
@@ -97,3 +113,10 @@ what was built; each entry says what the design said, what was done, and why.
   `Listener::listen` for the event), so the plain-function fallback was not needed.
   Commands that take an `AppHandle` are generic over `R: Runtime` so the same handler
   list (`with_commands`) serves the app and the tests.
+- YAML reads an unquoted label color such as `5319e7` as a number (5.319 × 10⁹), so
+  `.github/labels.yml` quotes every color; `scripts/lib/labels.ts` rejects a non-string
+  color, which is how this surfaced.
+- The Dependabot alert for `glib` (GHSA-wrw7-89jp-8q8g) is the same Linux-only advisory
+  `osv-scanner.toml` ignores: `glib` is absent from `cargo tree --target
+  aarch64-apple-darwin`. The alert stays open; dismissing it is a repository write outside
+  the run's authority.
