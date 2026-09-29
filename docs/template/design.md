@@ -311,7 +311,9 @@ verify-hooks), `dev` (`tauri dev`), `fmt`, `fix`, `lint`, `test` (`test-core` + 
 `test-core` (core with its coverage floors, and doctests), `test-ui` (Vitest with its floors), `test-fast <filter>`, `test-macos` (platform and shell
 tests that need macOS but no human), `test-local` (`#[ignore]`d tests), `test-scripts`,
 `check-harness`, `bindings`, `build` (debug `.app`), `run` (build, quit any running
-instance, launch), `smoke` (release `.app` launch smoke), `logs`,
+instance, launch), `smoke` (release `.app` launch smoke), `sidecar` (build the helper into
+`src-tauri/binaries/`; every recipe that compiles the Tauri crate depends on it, because
+`tauri-build` fails when an `externalBin` file is missing), `logs`, `logs-follow`,
 `reset-permissions`, `check`, `agents-sync`, `agents-check`, `deny`, `clean`, `labels`,
 `ruleset`, `release-prep <version>`, `bootstrap`, `install-app` (build the release `.app`
 and copy it to `~/Applications`, replacing an older copy only after quitting it — a
