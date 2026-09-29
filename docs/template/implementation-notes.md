@@ -51,6 +51,19 @@ what was built; each entry says what the design said, what was done, and why.
   fixed.** A user-chosen accent cannot be contrast-checked, so custom components use the
   fixed token (D23's "the user's accent color through `accent-color` and an accent token").
 
+- **MPL-2.0 per crate, not globally.** Tauri's own dependency graph reaches five MPL-2.0
+  crates (`cssparser`, `cssparser-macros`, `dtoa-short`, `selectors` through
+  tauri-utils' HTML handling; `option-ext` through `dirs`). `deny.toml` allows MPL-2.0
+  only for those five (`[licenses] exceptions`), and `dependency-review.yml` lists the
+  same five in `allow-dependencies-licenses`. Everything else must be permissive.
+- **No advisory is ignored.** With `[graph] targets = ["aarch64-apple-darwin"]` and
+  `unmaintained = "workspace"`, `cargo deny check` passes with an empty `ignore` list.
+- **`shellcheck` is pinned in `mise.toml`** although no `.sh` file exists: actionlint
+  runs it over every workflow `run:` block, and an unpinned shim broke actionlint.
+- **Actions pinned one release back where the newest was under seven days old**
+  (`github/codeql-action` v4.38.1), matching Dependabot's cooldown.
+- **`serde` removed from the Tauri crate** — `cargo shear` found it unused.
+
 ## Facts confirmed during the run
 
 - clippy reads `crates/myapp-core/clippy.toml`: a temporary `println!` and a temporary

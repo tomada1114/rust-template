@@ -1,0 +1,3 @@
+# zizmor configuration, discovered by CI's `Workflow Security Lint` job.
+# No audit is disabled today; an entry here needs its reason, as in macos-app-template.
+rules: {}
