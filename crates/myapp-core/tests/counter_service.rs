@@ -5,12 +5,15 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use myapp_core::{
     CounterError, CounterService, CounterStore, CounterView, StorageError, StorageErrorKind,
-    StoredCounter, Tuning, UnixMillis,
+    StoredCounter, Tuning, TuningError, UnixMillis,
 };
 use myapp_test_support::{FailingCounterStore, FixedClock, InMemoryCounterStore};
 
 const T0: UnixMillis = FixedClock::DEFAULT;
-const TUNING: Tuning = Tuning { min: 0, max: 2 };
+const TUNING: Tuning = match Tuning::new(0, 2) {
+    Ok(tuning) => tuning,
+    Err(TuningError::MinAboveMax) => panic!("0 to 2 is a valid range"),
+};
 
 fn service_over(store: Arc<InMemoryCounterStore>, clock: Arc<FixedClock>) -> CounterService {
     CounterService::new(store, clock, TUNING)
@@ -194,7 +197,7 @@ fn concurrent_increments_lose_no_update() {
     let service = Arc::new(CounterService::new(
         store.clone(),
         Arc::new(FixedClock::default()),
-        Tuning { min: 0, max: 1_000 },
+        Tuning::new(0, 1_000).unwrap(),
     ));
     let threads: Vec<_> = (0..8)
         .map(|_| {

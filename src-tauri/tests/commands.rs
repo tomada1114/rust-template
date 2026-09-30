@@ -39,7 +39,7 @@ fn app_holding(value: Option<i64>) -> (App<MockRuntime>, WebviewWindow<MockRunti
     let service = CounterService::new(
         Arc::new(store),
         Arc::new(FixedClock::default()),
-        Tuning { min: 0, max: 2 },
+        must(Tuning::new(0, 2), "0 to 2 is a valid range"),
     );
     let app = must(
         with_commands(mock_builder())
