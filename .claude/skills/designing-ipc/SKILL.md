@@ -44,15 +44,16 @@ has the code for every step, taken from the sample.
 1. **Core function and DTO** in `myapp-core`, test first (`tdd`). Everything the UI
    receives or sends is a type in core deriving `Serialize` (or `Deserialize` for an
    argument), `ts_rs::TS`, `#[serde(rename_all = "camelCase")]`, and
-   `#[cfg_attr(feature = "export-bindings", ts(export))]` (a bare `#[ts(export)]` fails
-   its export test in `just test-core`). It lives in core so CI's Linux job, which never compiles Tauri, can regenerate every
-   binding. Check: `just test-fast <filter>`, then `just test-core`.
+   `#[cfg_attr(feature = "export-bindings", ts(export))]`; a bare `#[ts(export)]` fails
+   its export test in `just test-core`. The type lives in core so CI's Linux job, which
+   never compiles Tauri, can regenerate every binding. Check: `just test-fast <filter>`,
+   then `just test-core`.
 2. **Bindings.** `just bindings` regenerates `ui/src/ipc/generated/` (ts-rs writes each
    exported type from a test that only core's `export-bindings` feature compiles, so no
    other test run touches the directory; `.cargo/config.toml` exports 64-bit integers as
-   `number`). Commit the output with the Rust change, and
-   re-export the new type from `ui/src/ipc/types.ts`, the only way the rest of the UI
-   may import it. CI regenerates and fails on any diff; never edit the generated files.
+   `number`). Commit the output with the Rust change, and re-export the new type from
+   `ui/src/ipc/types.ts`, the only way the rest of the UI may import it. CI regenerates
+   and fails on any diff; never edit the generated files.
 3. **The command** in `src-tauri/src/commands.rs`: borrow the state, call one core
    function (on a blocking thread if it reaches a slow port), emit an event after a
    change, log one line, return `Result<Dto, CoreError>`. See "The command" below.
@@ -176,4 +177,5 @@ built separately from the Rust side, and nothing but the checks below ties them.
 Delete it from `commands.rs`, from `with_commands`, from `commands.ts` or `events.ts`,
 and its tests, then `just bindings` (a DTO nothing exports any more leaves a stale file:
 `just bindings` replaces the whole directory once the export succeeds, so the
-regenerated tree is exact), then the checks in step 7. `rg` for the name in `docs/architecture.md`, which lists every command.
+regenerated tree is exact), then the checks in step 7. `rg` for the name in
+`docs/architecture.md`, which lists every command.

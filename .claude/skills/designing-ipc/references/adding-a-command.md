@@ -53,11 +53,11 @@ so the expected JSON is written out by hand, not produced by serializing a value
 just bindings
 ```
 
-The recipe runs core's `export_bindings` tests with the `export-bindings` feature, which
-compiles the test ts-rs generates for each type marked `ts(export)`
-(<https://docs.rs/ts-rs/latest/ts_rs/>, checked 2026-09-29), into a fresh directory, and
-replaces `ui/src/ipc/generated/` with it only when the export succeeds. Then add the new type to
-`ui/src/ipc/types.ts`:
+The recipe (`scripts/bindings.ts`) runs core's `export_bindings` tests, the ones ts-rs
+generates for each type marked `ts(export)` and only the `export-bindings` feature
+compiles (<https://docs.rs/ts-rs/latest/ts_rs/>, checked 2026-09-29). They export into a
+fresh directory, which replaces `ui/src/ipc/generated/` only when the export succeeds.
+Then add the new type to `ui/src/ipc/types.ts`:
 
 ```ts
 export type { CounterView } from "./generated/CounterView";

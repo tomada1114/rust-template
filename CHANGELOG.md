@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `vitest.config.ts` puts a coverage floor on a skill's bundled TypeScript scripts
   (`.agents/skills/*/scripts/**`, lines 85, functions 90, the same as `scripts/**`), so
   `just test-scripts` fails when one drops below it.
+- `tauri.conf.json`'s `bundle.targets` is `["app"]`, so a plain `pnpm tauri build` no
+  longer makes a disk image; the release workflow still builds one with
+  `--bundles app,dmg`, and any other caller that wants a dmg must ask for it the same way.
+- A type that crosses IPC is marked `#[cfg_attr(feature = "export-bindings", ts(export))]`:
+  a bare `#[ts(export)]` now fails its `export_bindings_*` test in `just test-core`,
+  because `.cargo/config.toml` no longer sets an export directory core's tests can write.
 
 ### Fixed
 
@@ -168,16 +174,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `just sidecar` and `just smoke` find Cargo's target directory from `cargo metadata`, so
   they work with `CARGO_TARGET_DIR` or `build.target-dir` set instead of failing with
-  `ERR_SIDECAR_MISSING` or checking a stale bundle under `./target`. `just test-core`,
-  `just test-fast`, and a plain `cargo test` no longer rewrite the tracked
-  `ui/src/ipc/generated/`: ts-rs's export tests compile only with core's new
-  `export-bindings` feature, which `just bindings` enables, and a type marked with a bare
-  `#[ts(export)]` now fails its test instead of writing files. `just bindings` exports
-  into a fresh directory and replaces `ui/src/ipc/generated/` only once that succeeds, so
-  a failed build no longer leaves it empty and a removed type leaves no stale file.
-  `tauri.conf.json`'s `bundle.targets` is `["app"]`, so a plain `pnpm tauri build` makes
-  no disk image locally; the release workflow still builds one with `--bundles app,dmg`.
-  `@types/node` follows the Node 24 that `mise.toml` runs instead of Node 26.
+  `ERR_SIDECAR_MISSING` or checking a stale bundle under `./target`.
+
+- `just test-core`, `just test-fast`, and a plain `cargo test` no longer rewrite the
+  tracked `ui/src/ipc/generated/`: ts-rs's export tests compile only with core's new
+  `export-bindings` feature, which `just bindings` enables.
+
+- `just bindings` (now `scripts/bindings.ts`) exports into a fresh directory and swaps it
+  in for `ui/src/ipc/generated/` only once the export succeeds and wrote at least one
+  file, so a failed build no longer leaves the directory empty and a removed type leaves
+  no stale file.
+
+- `@types/node` follows the Node 24 that `mise.toml` runs instead of Node 26, so the
+  scripts no longer type-check against APIs their runtime lacks.
 
 ### Security
 

@@ -105,8 +105,9 @@ The moment one needs a decision, the decision moves into core behind the port.
 `just bindings` regenerates `ui/src/ipc/generated/`: it exports into a fresh directory
 with core's `export-bindings` feature and replaces the tracked one only once that
 succeeds, so no other test run rewrites it (`.cargo/config.toml` exports 64-bit integers
-as `number`). CI regenerates and fails on a diff. A harness check compares the names in `generate_handler!` with those
-`commands.ts` invokes, and the event constants with those `events.ts` listens to.
+as `number`). CI regenerates and fails on a diff. A harness check compares the names in
+`generate_handler!` with those `commands.ts` invokes, and the event constants with those
+`events.ts` listens to.
 
 A command decides nothing: it moves the work to a blocking thread, calls core, emits
 `counter-changed` after a change, and logs one line. The shell watches nothing in the
