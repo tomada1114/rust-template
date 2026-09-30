@@ -85,16 +85,21 @@ reading the clock is banned, not representing time.
   `Debug, Clone, Copy, PartialEq, Eq`, implements `Default` with the shipped values,
   and each field's `///` says why it has that value.
 - The shell builds it and passes it in, so a test passes a tiny one to reach a boundary
-  in one step. In the sample, `Tuning { min, max }` lives in
+  in one step. In the sample, `Tuning` lives in
   `crates/myapp-core/src/counter/mod.rs`, `src-tauri/src/lib.rs` and
   `crates/myapp-cli/src/main.rs` pass `Tuning::default()`, and
-  `crates/myapp-core/tests/counter_service.rs` uses `Tuning { min: 0, max: 2 }`.
+  `crates/myapp-core/tests/counter_service.rs` uses `Tuning::new(0, 2)`.
+- When fields only make sense together, keep them private and let a constructor refuse
+  an inconsistent set with a typed error. In the sample, `Tuning::new(min, max)`
+  returns `TuningError::MinAboveMax` when `min > max`, so every `Tuning` holds a range
+  with a value in it.
 - A domain invariant is not a tunable. Ask: would changing it be a product tweak
   (`Tuning`) or change what the type means (a constant or a parameter of the type)?
-- A value from outside is never trusted to be well formed: code that receives a
-  `Tuning` or stored data handles an inconsistent one without panicking. In the sample,
-  `Counter::new` pulls a stored value into range with `max(min).min(max)`, because
-  `clamp` panics when `min > max`.
+- A value from outside is never trusted to be well formed: code that receives stored
+  data or input from the UI handles an inconsistent one without panicking. In the
+  sample, `Counter::new` pulls a stored value into range with `clamp`, which cannot
+  panic because `Tuning::new` refuses `min > max`, and `UiLogEntry::loggable_message`
+  escapes and cuts whatever message the UI sends before it reaches the log.
 - When a second feature needs tunables, give `Tuning` one nested struct per feature and
   keep one root type, so there is one place to look.
 

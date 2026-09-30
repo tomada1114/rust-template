@@ -63,7 +63,8 @@ only invite tests of glue.
   The Book on this layout:
   https://doc.rust-lang.org/book/ch11-03-test-organization.html
 - A code example in a `///` comment on a core item is compiled and run as a doctest by
-  `just test-core`; keep one only if it is meant to run.
+  `just test-core`; keep one only if it is meant to run. In the sample, `Tuning` and
+  `UiLogEntry::loggable_message` carry one each.
 
 ## Fakes and contracts: `myapp-test-support`
 
