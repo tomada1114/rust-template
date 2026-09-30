@@ -66,8 +66,9 @@ In the sample, `ui/src/counter/CounterScreen.tsx` renders over
   only core knows the bound.
 - **A rejection is narrowed, never assumed.** A known error (`isCounterError` in
   `ui/src/ipc/errors.ts`) is kept in state for the component to word; anything else
-  becomes `null`, is logged through `ui/src/ipc/log.ts` in developer terms, and the
-  screen shows a generic sentence. A failed change keeps the last good view on screen.
+  becomes `"unexpected"`, is logged through `ui/src/ipc/log.ts` in developer terms, and
+  the screen shows a generic sentence (`counterCopy.unexpected`), never nothing. A failed
+  change keeps the last good view on screen.
 - An action returns `Promise<void>` and is wrapped in `useCallback`, so a component
   that passes it down does not re-render its children for nothing.
 

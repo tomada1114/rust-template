@@ -98,18 +98,90 @@ describe("useCounter", () => {
     });
   });
 
-  it("fails without a code, and logs, when the rejection is not a CounterError", async () => {
+  it("fails as unexpected, and logs, when the rejection is not a CounterError", async () => {
     const calls = mockCommands({
       get_counter: () => rejectWith(new Error("bridge down")),
       log_from_ui: () => null,
     });
     const { result } = renderHook(() => useCounter());
     await waitFor(() => {
-      expect(result.current.state).toEqual({ status: "failed", error: null });
+      expect(result.current.state).toEqual({ status: "failed", error: "unexpected" });
     });
     await waitFor(() => {
       expect(calls).toContain("log_from_ui");
     });
+  });
+
+  it("keeps the view and replaces an earlier error when a change fails without a code", async () => {
+    let first = true;
+    mockCommands({
+      get_counter: () => TWO,
+      increment: () => {
+        const payload = first ? { code: "atMaximum" } : new Error("bridge down");
+        first = false;
+        return rejectWith(payload);
+      },
+      log_from_ui: () => null,
+    });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    await act(() => result.current.increment());
+    await act(() => result.current.increment());
+    expect(result.current.state).toEqual({ status: "ready", view: TWO, error: "unexpected" });
+  });
+
+  it("names the rejection's type, never its message, in the log line", async () => {
+    const messages: unknown[] = [];
+    mockCommands({
+      get_counter: () => rejectWith(new TypeError("secret detail")),
+      log_from_ui: (args) => {
+        messages.push(args);
+        return null;
+      },
+    });
+    renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(messages).toEqual([
+        {
+          entry: {
+            level: "error",
+            message: "get_counter failed without a counter error code: TypeError",
+          },
+        },
+      ]);
+    });
+  });
+
+  it("logs, and still loads, when listening for counter-changed fails", async () => {
+    const messages: unknown[] = [];
+    mockCommands(
+      {
+        get_counter: () => ONE,
+        "plugin:event|listen": () => rejectWith(new RangeError("no event plugin")),
+        log_from_ui: (args) => {
+          messages.push(args);
+          return null;
+        },
+      },
+      { mockEvents: false },
+    );
+    const { result, unmount } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+    });
+    await waitFor(() => {
+      expect(messages).toEqual([
+        {
+          entry: {
+            level: "error",
+            message: "listening for counter-changed failed: RangeError",
+          },
+        },
+      ]);
+    });
+    unmount();
   });
 
   it("follows counter-changed events, which the shell emits after any window's change", async () => {

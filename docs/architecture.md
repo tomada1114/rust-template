@@ -175,8 +175,10 @@ day each, and the newest 14 of each are kept. Each writer has its own directory 
 retention counts every file whose name starts with the writer's prefix. The writer is
 synchronous: the volume is low, and Tauri exits through `process::exit`, which would
 drop a background writer's last lines. A debug build also writes to stderr. The UI sends
-its warnings and errors to the `log_from_ui` command through `ui/src/ipc/log.ts`. No log
-line carries user data. `just logs` prints the newest app file's last lines and exits.
+its warnings and errors to the `log_from_ui` command through `ui/src/ipc/log.ts`,
+including a render error React reports to the root and a window `error` or
+`unhandledrejection` no code handled. No log line carries user data. `just logs` prints
+the newest app file's last lines and exits.
 
 ## Smoke mode
 

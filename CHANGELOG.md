@@ -165,6 +165,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in one go are each read, `--help` before `just install` fails with
   `ERR_BOOTSTRAP_NO_DEPS`, and the usage no longer claims `just` drops a value's quotes.
 
+- The counter screen shows "Something went wrong. Details are in the app's log." when an
+  action fails without a counter error code, instead of nothing (or the earlier error).
+  A rejection whose `kind` is missing or unknown is no longer taken for a `CounterError`,
+  and adding a code or kind in Rust now fails `tsc` in `ui/src/ipc/errors.ts` until the
+  guard checks it. A render error, an uncaught exception, an unhandled promise rejection,
+  and a failure to listen for `counter-changed` now reach the app's log, each line naming
+  the error's type.
+
 - Smoke mode (`MYAPP_SMOKE=1`) sets the `Prohibited` activation policy before the app
   finishes launching instead of after it has activated, and only the value `1` enables
   it. A startup error — no `HOME`, logging, the build, or a missing `main` window — now

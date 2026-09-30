@@ -12,8 +12,14 @@ export type CommandHandler = (args: unknown) => unknown;
  * Mock the Rust side: each command answers with its handler, an unmocked command fails
  * loudly, and events are simulated (`shouldMockEvents`). Returns the commands called,
  * in order (event-plugin calls are handled by the mock and not recorded).
+ *
+ * With `mockEvents: false`, event-plugin calls reach `handlers` like any command (for
+ * example `"plugin:event|listen"`), so a test can make listening fail.
  */
-export function mockCommands(handlers: Readonly<Record<string, CommandHandler>>): string[] {
+export function mockCommands(
+  handlers: Readonly<Record<string, CommandHandler>>,
+  { mockEvents = true }: { readonly mockEvents?: boolean } = {},
+): string[] {
   const calls: string[] = [];
   mockIPC(
     (cmd, args) => {
@@ -22,7 +28,7 @@ export function mockCommands(handlers: Readonly<Record<string, CommandHandler>>)
       if (handler === undefined) throw new Error(`unexpected command ${cmd}`);
       return handler(args);
     },
-    { shouldMockEvents: true },
+    { shouldMockEvents: mockEvents },
   );
   return calls;
 }
