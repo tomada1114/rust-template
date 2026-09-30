@@ -8,17 +8,24 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { cpSync } from "node:fs";
+import { PassThrough } from "node:stream";
+
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 
 import {
   collectAnswers,
   CRATE_DIRS,
+  dependencyNames,
   deriveNames,
   findLeftovers,
+  loadParsers,
   main,
   MARKER_FILES,
   parseArgs,
+  processTerminal,
   REMOVED_PATHS,
   runBootstrap,
   SITES,
@@ -32,6 +39,9 @@ import {
 import type { RunOptions, RunResult, ScriptContext } from "./lib/script.ts";
 
 const dirs: string[] = [];
+beforeAll(async () => {
+  await loadParsers();
+});
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
@@ -652,14 +662,16 @@ describe("runBootstrap", () => {
 
     // cargo fetch before anything is written, then the offline lockfile update and fmt.
     expect(calls.map((call) => [call.command, ...call.args].join(" "))).toEqual([
+      "git rev-parse --is-inside-work-tree",
+      "git status --porcelain",
       "cargo fetch --locked",
       "cargo update --workspace --offline",
       "cargo fmt --all",
       expect.stringMatching(/\/node_modules\/\.bin\/prettier --write --ignore-unknown /),
       "git ls-files -z --cached --others --exclude-standard",
     ]);
-    expect(calls[3]?.command).toBe(join(root, "node_modules", ".bin", "prettier"));
-    const prettier = calls[3]?.args ?? [];
+    expect(calls[5]?.command).toBe(join(root, "node_modules", ".bin", "prettier"));
+    const prettier = calls[5]?.args ?? [];
     expect(prettier.slice(0, 2)).toEqual(["--write", "--ignore-unknown"]);
     expect(prettier).toContain("src-tauri/tauri.conf.json");
     expect(prettier).not.toContain("README.md");
@@ -832,7 +844,7 @@ describe("runBootstrap", () => {
     const root = templateTree();
     write(root, "docs/new-page.md", "Run MyApp.\n");
     const { context: ctx, lines } = context(root, (call) =>
-      call.command === "git" ? { stdout: "docs/new-page.md\0AGENTS.md\0" } : {},
+      call.args[0] === "ls-files" ? { stdout: "docs/new-page.md\0AGENTS.md\0" } : {},
     );
     runBootstrap(ctx, ANSWERS, { year: YEAR });
     expect(lines.join("\n")).toContain("docs/new-page.md:1: Run MyApp.");
@@ -924,5 +936,199 @@ describe("main", () => {
 
   it("keeps the template values in one place", () => {
     expect(TEMPLATE_VALUES.slug).toBe("myapp");
+  });
+});
+
+describe("inputs refused before any write", () => {
+  const CARGO_LOCK = `version = 4
+
+[[package]]
+name = "myapp-core"
+version = "0.4.2"
+
+[[package]]
+name = "tauri"
+version = "2.0.0"
+
+[[package]]
+name = "serde_json"
+version = "1.0.0"
+
+[[package]]
+name = "serde"
+version = "1.0.0"
+
+[[package]]
+name = "clap"
+version = "4.0.0"
+`;
+
+  /** Run the bootstrap on a fresh template tree and return its first error line, the calls, and whether a file changed. */
+  function refused(
+    answers: Answers,
+    answer?: (call: Call) => Partial<RunResult>,
+  ): { error: string; commands: string[]; unchanged: boolean } {
+    const root = templateTree();
+    write(root, "Cargo.lock", CARGO_LOCK);
+    // tracing is only in [workspace.dependencies], so that source is exercised too.
+    write(
+      root,
+      "Cargo.toml",
+      CARGO_TOML.replace(
+        "\n\n[workspace.dependencies]\n",
+        '\n\n[workspace.dependencies]\ntracing = "0.1"\n',
+      ),
+    );
+    const before = read(root, "README.md");
+    const run = context(root, answer);
+    const error = failure(() => {
+      runBootstrap(run.context, answers, { year: YEAR });
+    });
+    return {
+      error: error.split("\n")[0] ?? "",
+      commands: run.calls.map((call) => [call.command, ...call.args].join(" ")),
+      unchanged:
+        read(root, "README.md") === before &&
+        CRATE_DIRS.every((dir) => existsSync(join(root, dir))),
+    };
+  }
+
+  it("refuses a slug Cargo reserves, through the flags", () => {
+    for (const slug of ["build", "deps", "examples", "incremental", "con"]) {
+      expect(failure(() => validateField("slug", slug))).toMatch(/^ERR_BOOTSTRAP_INVALID_SLUG/);
+    }
+  });
+
+  it("refuses a slug that names a dependency, or whose crates would, with nothing written", () => {
+    for (const slug of ["tauri", "serde", "clap", "tracing", "serde-json"]) {
+      const result = refused({ ...ANSWERS, slug });
+      expect(result.error, slug).toMatch(/^ERR_BOOTSTRAP_INVALID_SLUG: /);
+      expect(result.commands, slug).toEqual([]);
+      expect(result.unchanged, slug).toBe(true);
+    }
+  });
+
+  it("reads the dependency names from Cargo.lock and [workspace.dependencies], minus the template's crates", () => {
+    const root = templateTree();
+    write(root, "Cargo.lock", CARGO_LOCK);
+    const names = dependencyNames(root);
+    expect(names.has("tauri")).toBe(true);
+    expect(names.has("serde-json")).toBe(true);
+    expect(names.has("myapp-core")).toBe(false);
+    expect(names.has("tide-pool")).toBe(false);
+  });
+
+  it("refuses a dirty work tree with ERR_BOOTSTRAP_DIRTY, before cargo runs or a file is written", () => {
+    const result = refused(ANSWERS, (call) =>
+      call.args[0] === "status" ? { stdout: " M README.md\n?? notes.txt\n" } : {},
+    );
+    expect(result.error).toMatch(/^ERR_BOOTSTRAP_DIRTY: /);
+    expect(result.error).toContain("nothing was written");
+    expect(result.commands).toEqual([
+      "git rev-parse --is-inside-work-tree",
+      "git status --porcelain",
+    ]);
+    expect(result.unchanged).toBe(true);
+  });
+
+  it("refuses when git status fails inside a work tree, instead of failing open", () => {
+    const result = refused(ANSWERS, (call) =>
+      call.args[0] === "status"
+        ? { status: 128, stderr: "fatal: Unable to create '.git/index.lock': File exists.\n" }
+        : {},
+    );
+    expect(result.error).toMatch(/^ERR_BOOTSTRAP_DIRTY: /);
+    expect(result.error).toContain("cleanliness is unknown");
+    expect(result.commands).toEqual([
+      "git rev-parse --is-inside-work-tree",
+      "git status --porcelain",
+    ]);
+    expect(result.unchanged).toBe(true);
+  });
+
+  it("runs outside a git work tree, where there is no status to check", () => {
+    const root = templateTree();
+    const run = context(root, (call) => (call.command === "git" ? { status: 128 } : {}));
+    runBootstrap(run.context, ANSWERS, { year: YEAR });
+    expect(run.lines.join("\n")).toContain("not a git work tree");
+  });
+
+  it("refuses a malformed bundle identifier, and one in Apple's namespace", () => {
+    for (const id of ["-dev.example.x", "dev.example.x-", "1.2", "dev.-x.y", "com.apple.tide"]) {
+      expect(
+        failure(() => validateField("bundleId", id)),
+        id,
+      ).toMatch(/^ERR_BOOTSTRAP_INVALID_BUNDLE_ID/);
+    }
+    expect(validateField("bundleId", "dev.example.x1")).toBe("dev.example.x1");
+  });
+
+  it("refuses an answer containing a placeholder token, so the leftover scan keeps looking for it", () => {
+    const cases: [Parameters<typeof validateField>[0], string, string][] = [
+      ["slug", "x-myapp", "SLUG"],
+      ["bundleId", "dev.example.myapp", "BUNDLE_ID"],
+      ["repo", "someone/tauri-template", "REPO"],
+      ["name", "MyApp Pro", "NAME"],
+      ["author", "the myapp team", "AUTHOR"],
+      ["copyright", "Tauri-Template Inc.", "COPYRIGHT"],
+    ];
+    for (const [field, value, code] of cases) {
+      expect(
+        failure(() => validateField(field, value)),
+        value,
+      ).toMatch(new RegExp(`^ERR_BOOTSTRAP_INVALID_${code}: `));
+    }
+    expect(validateField("author", "tomada1114")).toBe("tomada1114");
+  });
+
+  it("names just install on --help when the dependencies are missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bootstrap-nodeps-"));
+    dirs.push(dir);
+    cpSync(join(import.meta.dirname, "bootstrap.ts"), join(dir, "scripts", "bootstrap.ts"));
+    cpSync(join(import.meta.dirname, "lib"), join(dir, "scripts", "lib"), { recursive: true });
+    writeFileSync(join(dir, "package.json"), '{ "type": "module" }\n');
+    const result = spawnSync(process.execPath, [join(dir, "scripts", "bootstrap.ts"), "--help"], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(1);
+    const [first = "", ...rest] = result.stderr.split("\n");
+    expect(first).toMatch(/^ERR_BOOTSTRAP_NO_DEPS: /);
+    expect(rest.join("\n")).toContain("just install");
+  });
+});
+
+describe("processTerminal", () => {
+  it("returns answers still queued after the input closes, without prompting a closed interface", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const term = processTerminal(input, output);
+    input.write("Tide Pool\ntide-pool\n");
+    input.end();
+    expect(await term.ask("Name: ")).toBe("Tide Pool");
+    expect(await term.ask("Slug: ")).toBe("tide-pool");
+    expect(await term.ask("Bundle: ")).toBeUndefined();
+    term.close?.();
+  });
+
+  it("consumes every answer when several arrive in one chunk, then reports the end of input", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const shown: string[] = [];
+    output.on("data", (chunk: Buffer) => shown.push(chunk.toString()));
+    const term = processTerminal(input, output);
+    expect(term.interactive).toBe(false);
+    input.write("Tide Pool\ntide-pool\n");
+    expect(await term.ask("Name: ")).toBe("Tide Pool");
+    expect(await term.ask("Slug: ")).toBe("tide-pool");
+    const pending = term.ask("Bundle: ");
+    input.write("com.example.tide-pool\n");
+    expect(await pending).toBe("com.example.tide-pool");
+    const ended = term.ask("Repo: ");
+    input.end();
+    expect(await ended).toBeUndefined();
+    expect(await term.ask("Author: ")).toBeUndefined();
+    term.close?.();
+    expect(shown.join("")).toContain("Name: ");
   });
 });

@@ -30,6 +30,27 @@ pub trait CounterStore: Send + Sync {
     /// # Errors
     /// [`StorageError`] when the storage cannot be written.
     fn save(&self, counter: &StoredCounter) -> Result<(), StorageError>;
+
+    /// Load, let `change` decide, and save what it returns, as one step: `change` is
+    /// called once with what [`load`](Self::load) returns, and a `None` from it saves
+    /// nothing. A store that another process also writes (the app and the helper CLI
+    /// share one file) overrides this to hold a lock from the load to the save, so no
+    /// other writer's save lands in between and neither update is lost. The default
+    /// runs `load` then `save` with no lock, which is enough for a store only one
+    /// process uses and whose caller serializes its own updates.
+    ///
+    /// # Errors
+    /// [`StorageError`] when the load or the save fails; `change` is not called when
+    /// the load fails.
+    fn update(
+        &self,
+        change: &mut dyn FnMut(Option<StoredCounter>) -> Option<StoredCounter>,
+    ) -> Result<(), StorageError> {
+        if let Some(next) = change(self.load()?) {
+            self.save(&next)?;
+        }
+        Ok(())
+    }
 }
 
 /// Why storage failed, as a code the UI can map to wording. A kind, not an error.
