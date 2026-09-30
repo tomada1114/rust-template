@@ -30,7 +30,7 @@ const AGENTS_MD = [
   "- The core boundary is enforced three times, so removing one layer leaves the others:",
   "  core's `Cargo.toml` lists no tauri, OS, or platform crate; `deny.toml`'s `[bans]`",
   "  `wrappers` let only `myapp` depend on `tauri`; and a harness check fails when core's",
-  "  normal dependency closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`,",
+  "  normal and build dependency closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`,",
   "  `security-framework*`, or `myapp-platform`. Those lists change together.",
 ].join("\n");
 

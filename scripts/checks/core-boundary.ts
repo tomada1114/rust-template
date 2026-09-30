@@ -10,7 +10,7 @@
  *    reaches it, marking a build edge `-(build)->`.
  * 2. `myapp-test-support` is never a normal, optional, or build-dependency of a
  *    workspace crate: test-only code never ships.
- * 3. The crates AGENTS.md's boundary sentence names ("… normal dependency closure
+ * 3. The crates AGENTS.md's boundary sentence names ("… normal and build dependency closure
  *    reaches `a`, `b`, or `c`.") equal {@link FORBIDDEN_IN_CORE}, and `deny.toml`'s
  *    `[bans] deny` wrapper entries are D3's: `tauri` → `myapp` only, `myapp-platform` →
  *    `myapp` and `myapp-cli` only, and every `tauri-plugin-*` a workspace crate depends
@@ -297,7 +297,7 @@ function agentsViolations(root: string): FailureDetails[] {
   const text = readRepoFile(root, "AGENTS.md");
   if (text === undefined)
     return [inputMissing("AGENTS.md", "its boundary sentence lists core's forbidden crates")];
-  const sentence = /normal dependency closure\s+reaches\s+([^.]*)\./.exec(
+  const sentence = /normal and build dependency\s+closure\s+reaches\s+([^.]*)\./.exec(
     text.replace(/\s+/g, " "),
   );
   const listed = [...(sentence?.[1] ?? "").matchAll(/`([^`]+)`/g)].map((m) => m[1] ?? "");
@@ -305,7 +305,7 @@ function agentsViolations(root: string): FailureDetails[] {
     return [
       unparsed(
         "AGENTS.md's forbidden-crate list could not be read",
-        'a sentence in AGENTS.md › Architecture: "… normal dependency closure reaches `tauri*`, `wry`, … or `myapp-platform`."',
+        'a sentence in AGENTS.md › Architecture: "… normal and build dependency closure reaches `tauri*`, `wry`, … or `myapp-platform`."',
         "no such sentence, or one naming no backticked crate",
       ),
     ];
