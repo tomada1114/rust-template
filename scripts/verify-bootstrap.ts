@@ -11,8 +11,9 @@
  * - no template-only marker line, and none of the template-only material (the paths the
  *   bootstrap removes, the Template Bootstrap Smoke job and its required context);
  * - no text that only holds in the template, in any file: a mention of its design record,
- *   of a decision by its number there, of README's template-only section, or a sentence
- *   about the first app cut from it (TEMPLATE_TEXT);
+ *   of a decision by its number there, of README's template-only section, a sentence
+ *   about the first app cut from it, or one about what the template itself ships or its
+ *   own reasoning (TEMPLATE_TEXT);
  * - AGENTS.md's Product section fails the product-section check while its bullets are
  *   unfilled, with a `Next:` line naming a skill the app has, and passes once only its
  *   four bullets are filled in;
@@ -192,14 +193,19 @@ function templateMaterial(root: string): FailureDetails[] {
 
 /**
  * Text that holds only in the template: its design record (which the bootstrap deletes),
- * a decision cited by its number in that record, README's template-only section, and the
- * app the template was first written for. An app keeps none of it.
+ * a decision cited by its number in that record, README's template-only section, the app
+ * the template was first written for, and a sentence about the template itself — what it
+ * ships ("the template ships the index empty") or where its own reasoning lives. An app is
+ * not the template, so it keeps none of it; a passage that must survive is worded for
+ * both ("the index starts empty").
  */
 export const TEMPLATE_TEXT: readonly RegExp[] = [
   /docs\/template/,
   /design D[0-9]/,
   /first app cut from this template/,
   /Using This Template/,
+  /\bthe template(?: repository)? ships\b/i,
+  /\bthe template['’]s own reasoning\b/i,
 ];
 
 function templateText(root: string, files: readonly string[]): FailureDetails[] {
@@ -219,7 +225,7 @@ function templateText(root: string, files: readonly string[]): FailureDetails[] 
         violation(
           "TEMPLATE_TEXT",
           `${String(found.length)} line(s) in the generated app describe the template`,
-          "no mention of the template's design record, a decision number in it, README's template-only section, or the template's first app",
+          "no mention of the template's design record, a decision number in it, README's template-only section, the template's first app, or what the template itself ships or its own reasoning",
           found.slice(0, 5).join(" | ") +
             (found.length > 5 ? ` (and ${String(found.length - 5)} more)` : ""),
           "rewrite the passage in the template so it holds in an app too, or add a TEXT_EDITS entry for it in scripts/bootstrap.ts, then run `node scripts/verify-bootstrap.ts` again",
@@ -695,7 +701,7 @@ export function main(context: ScriptContext): void {
   }
   const shown = relative(context.root, clone).startsWith("..") ? "a scratch clone" : clone;
   context.log(
-    `verify-bootstrap: ok — ${shown} bootstrapped as "${VERIFY_ANSWERS.name}" (${VERIFY_ANSWERS.slug}, ${VERIFY_ANSWERS.bundleId}) with no leftover placeholder, marker, dangling reference, or name mismatch`,
+    `verify-bootstrap: ok — ${shown} bootstrapped as "${VERIFY_ANSWERS.name}" (${VERIFY_ANSWERS.slug}, ${VERIFY_ANSWERS.bundleId}) with no leftover placeholder, marker, template-only file or text, dangling reference, Product-section fault, or name mismatch`,
   );
 }
 

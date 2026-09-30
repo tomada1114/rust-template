@@ -52,6 +52,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An app cut from the template no longer inherits sentences about the template itself.
+  `AGENTS.md`, `docs/architecture.md`, `docs/architecture/README.md`, the roadmap, and
+  the `designing-core-logic`, `recording-architecture-decisions`, `steering-the-roadmap`,
+  and `starting-an-app` skills now say the ADR index and the roadmap start empty and
+  where the reasoning behind the starting layers lives, instead of what "the template
+  ships" or "the template's own reasoning", and `scripts/checks/workflow-hygiene.ts`'s
+  header no longer cites a template issue number. `scripts/verify-bootstrap.ts` now
+  fails with `ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` on either phrase left in the generated
+  app, and its closing line names every check it ran.
 - The release workflow fails early and explicitly instead of late or silently. The
   six `APPLE_*` secrets must be all set (Developer ID signed and notarized) or all absent
   (ad hoc): a partial set, including signing without notarizing, which Gatekeeper's
