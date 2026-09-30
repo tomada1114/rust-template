@@ -61,8 +61,11 @@ paths:
 ## Tool Pinning
 
 - Rust is pinned once, in `rust-toolchain.toml` (rustup reads it; `mise.toml` lists no
-  `rust` tool); Node and every CLI tool in `mise.toml`; pnpm once, in `package.json`'s
-  `packageManager`. Never pin one tool in two places
+  `rust` tool); Node and every CLI tool in `mise.toml`. Never pin one tool in two
+  places, with one harness-checked exception: pnpm is pinned in `mise.toml`
+  (`aqua:pnpm/pnpm`, which installs it, since Node 25 no longer bundles corepack) and in
+  `package.json`'s `packageManager` (which pnpm itself reads), and
+  `scripts/checks/pnpm-pin.ts` fails when the two versions differ
 - Never `latest`, and never a range, in `mise.toml` or `rust-toolchain.toml`: an exact
   version, preferring the prebuilt-binary (aqua/github) backends over `cargo:`, which
   compiles from source

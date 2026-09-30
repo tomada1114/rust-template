@@ -12,12 +12,11 @@ repository, which commands to run, and how a change gets merged.
 - [rustup](https://rustup.rs/). It installs the toolchain `rust-toolchain.toml` pins
   (with clippy, rustfmt, and `llvm-tools`) the first time `cargo` runs.
 - [mise](https://mise.jdx.dev/), which installs every other pinned tool from `mise.toml`:
-  Node, corepack, Just, lefthook, cargo-llvm-cov, cargo-nextest, cargo-deny, cargo-shear, typos,
+  Node, pnpm, Just, lefthook, cargo-llvm-cov, cargo-nextest, cargo-deny, cargo-shear, typos,
   actionlint, zizmor, gitleaks, and shellcheck.
 - [Just](https://just.systems/man/en/) to start the first `just install` (mise then
-  pins it). pnpm comes through corepack (pinned in
-  `mise.toml`, since Node 25 no longer bundles it), at the version `package.json`'s
-  `packageManager` names.
+  pins it). mise installs pnpm at the version `package.json`'s
+  `packageManager` also names (a harness check keeps the two equal).
 
 Then:
 
@@ -73,7 +72,7 @@ has an `#[ignore]`d test, and paste its output into the pull request: CI cannot 
 Each recipe is a thin call; the justfile is the reference. The main ones:
 
 ```bash
-mise install && corepack enable pnpm && pnpm install --frozen-lockfile && lefthook install
+mise install && pnpm install --frozen-lockfile && lefthook install
 node scripts/verify-hooks.ts                     # just verify-hooks
 node scripts/build-sidecar.ts                    # just sidecar (the Tauri crate needs the helper first)
 cargo fmt --all --check                          # part of just lint

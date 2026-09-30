@@ -63,7 +63,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node npm:corepack
+          install_args: node aqua:pnpm/pnpm
           cache: false
 
       # Before any dependency is installed or any test runs: a wrong tag fails in seconds.
@@ -97,9 +97,6 @@ jobs:
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION (publish: $PUBLISH)."
 
-      - name: Enable pnpm (the version package.json's packageManager names)
-        run: corepack enable pnpm
-
       # scripts/checks/version-sites.ts reads Cargo.toml with smol-toml.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -121,11 +118,8 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node npm:corepack just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
+          install_args: node aqua:pnpm/pnpm just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
           cache: false
-
-      - name: Enable pnpm (the version package.json's packageManager names)
-        run: corepack enable pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -184,11 +178,8 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node npm:corepack just
+          install_args: node aqua:pnpm/pnpm just
           cache: false
-
-      - name: Enable pnpm (the version package.json's packageManager names)
-        run: corepack enable pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

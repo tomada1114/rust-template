@@ -130,11 +130,12 @@ default. Tauri's security settings start closed: a restrictive CSP,
 
 ### Why is every tool pinned in exactly one place?
 
-A version written twice drifts. Rust is pinned in `rust-toolchain.toml`, Node in
-`mise.toml`, pnpm in `package.json`'s `packageManager`, and every other CLI in
-`mise.toml`, preferring prebuilt binaries to the `cargo:` backend, which compiles from
+A version written twice drifts. Rust is pinned in `rust-toolchain.toml`, Node and every
+other CLI in `mise.toml`, preferring prebuilt binaries to the `cargo:` backend, which compiles from
 source. Nothing is `latest`; bumps arrive as Renovate or Dependabot pull requests after
-a 7-day release age.
+a 7-day release age. pnpm is the one exception: `mise.toml` installs it and
+`package.json`'s `packageManager` names it for pnpm itself, and a harness check
+(`scripts/checks/pnpm-pin.ts`) fails when the two differ.
 
 ### Why Just?
 

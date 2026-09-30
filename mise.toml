@@ -1,13 +1,14 @@
 # Pinned CLI tool versions — the dev-tool analog of a lockfile.
 # Never use "latest" or bump by hand: Renovate's `mise` manager opens the bump PRs,
 # with a 7-day minimum release age (.github/renovate.json).
-# Rust is pinned once, in rust-toolchain.toml; pnpm once, in package.json's
-# `packageManager`. Prebuilt binaries (aqua/github backends) only: the `cargo:` backend
-# compiles from source.
+# Rust is pinned once, in rust-toolchain.toml. pnpm is pinned here and in package.json's
+# `packageManager` at the same version (scripts/checks/pnpm-pin.ts keeps them equal).
+# Prebuilt binaries (aqua/github backends) only: the `cargo:` backend compiles from
+# source.
 [tools]
 node = "26.10.0"
-# Node 25 stopped bundling corepack, which enables the pnpm `packageManager` names.
-"npm:corepack" = "0.36.0"
+# Node 25 stopped bundling corepack, so mise installs pnpm itself.
+"aqua:pnpm/pnpm" = "12.6.0"
 just = "1.58.0"
 lefthook = "2.1.14"
 "github:taiki-e/cargo-llvm-cov" = "0.9.1"
@@ -21,7 +22,3 @@ gitleaks = "8.30.1"
 # actionlint runs shellcheck over every workflow `run:` block; `just test-scripts` also
 # runs it directly over the shipping-issues skill's scripts.
 shellcheck = "0.11.0"
-
-[settings]
-# mise's default npm installer fails to reach the registry age check; npm itself does not.
-npm.package_manager = "npm"

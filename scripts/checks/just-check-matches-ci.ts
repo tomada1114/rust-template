@@ -88,8 +88,6 @@ export const EXCEPTIONS: Exceptions = {
       "regenerates ui/src/ipc/generated/ (it writes files); CI runs it and diffs the result to catch a commit that forgot `just bindings`, while a developer runs it and commits the output",
   },
   ciOnlyCommands: {
-    "corepack enable pnpm":
-      "runner setup: `just install` enables pnpm once on a developer's Mac, not on every `just check`",
     'echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"':
       "hands the pnpm store path to actions/cache: CI plumbing with no local meaning",
     "pnpm install --frozen-lockfile":
