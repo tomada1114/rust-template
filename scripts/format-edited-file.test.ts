@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -25,7 +33,12 @@ function payload(filePath: unknown): string {
 
 interface Harness {
   readonly context: ScriptContext;
-  readonly calls: { command: string; args: readonly string[]; cwd: string | undefined }[];
+  readonly calls: {
+    command: string;
+    args: readonly string[];
+    cwd: string | undefined;
+    input?: string | undefined;
+  }[];
 }
 
 function harness(
@@ -43,7 +56,11 @@ function harness(
       root,
       stdin: () => stdin,
       run: (command, args, options) => {
-        calls.push({ command, args, cwd: options?.cwd });
+        calls.push(
+          options?.input === undefined
+            ? { command, args, cwd: options?.cwd }
+            : { command, args, cwd: options.cwd, input: options.input },
+        );
         return result;
       },
       log: () => undefined,
@@ -62,31 +79,75 @@ function caught(action: () => void): ScriptError {
 }
 
 describe("formatterFor", () => {
-  it("formats Rust with rustfmt and TypeScript with Prettier", () => {
-    expect(formatterFor("/r/a.rs")).toEqual({ command: "rustfmt", args: ["/r/a.rs"] });
-    expect(formatterFor("/r/a.ts")).toEqual({
+  it("pipes Rust through rustfmt, naming no path it could follow into mod children", () => {
+    expect(formatterFor("/r/a.rs")).toEqual({ command: "rustfmt", args: [], stdin: true });
+  });
+
+  it.each([
+    [".ts"],
+    [".tsx"],
+    [".mts"],
+    [".cts"],
+    [".js"],
+    [".mjs"],
+    [".cjs"],
+    [".json"],
+    [".css"],
+    [".html"],
+    [".yml"],
+    [".yaml"],
+  ])("formats %s with Prettier, in place", (extension) => {
+    expect(formatterFor(`/r/a${extension}`)).toEqual({
       command: "pnpm",
-      args: ["exec", "prettier", "--write", "/r/a.ts"],
+      args: ["exec", "prettier", "--write", `/r/a${extension}`],
+      stdin: false,
     });
-    expect(formatterFor("/r/a.tsx")?.command).toBe("pnpm");
   });
 
   it("leaves every other file alone", () => {
     expect(formatterFor("/r/a.md")).toBeUndefined();
-    expect(formatterFor("/r/a.json")).toBeUndefined();
+    expect(formatterFor("/r/a.toml")).toBeUndefined();
     expect(formatterFor("/r/rs")).toBeUndefined();
   });
 });
 
 describe("main", () => {
-  it("formats the one edited Rust file from the root", () => {
+  it("formats the one edited Rust file through stdin, from its directory, and writes it back", () => {
     const root = tempDir();
     const file = join(root, "src", "lib.rs");
+    const child = join(root, "src", "child.rs");
     mkdirSync(join(root, "src"));
-    writeFileSync(file, "fn main(){}");
-    const { context, calls } = harness(root, payload(file));
+    writeFileSync(file, "mod child;\nfn main(){}");
+    writeFileSync(child, "fn  untouched(){}");
+    const { context, calls } = harness(root, payload(file), [], {
+      status: 0,
+      stdout: "mod child;\nfn main() {}\n",
+      stderr: "",
+    });
     main(context);
-    expect(calls).toEqual([{ command: "rustfmt", args: [file], cwd: root }]);
+    expect(calls).toEqual([
+      { command: "rustfmt", args: [], cwd: join(root, "src"), input: "mod child;\nfn main(){}" },
+    ]);
+    expect(readFileSync(file, "utf8")).toBe("mod child;\nfn main() {}\n");
+    expect(readFileSync(child, "utf8")).toBe("fn  untouched(){}");
+  });
+
+  it("never writes back an empty rustfmt result", () => {
+    const root = tempDir();
+    const file = join(root, "lib.rs");
+    writeFileSync(file, "fn main(){}");
+    main(harness(root, payload(file)).context);
+    expect(readFileSync(file, "utf8")).toBe("fn main(){}");
+  });
+
+  it("formats an edited YAML file with Prettier", () => {
+    const root = tempDir();
+    writeFileSync(join(root, "ci.yml"), "a:   1\n");
+    const { context, calls } = harness(root, payload("ci.yml"));
+    main(context);
+    expect(calls).toEqual([
+      { command: "pnpm", args: ["exec", "prettier", "--write", join(root, "ci.yml")], cwd: root },
+    ]);
   });
 
   it("formats an edited TypeScript file given relative to the root", () => {
@@ -160,6 +221,7 @@ describe("main", () => {
     expect(error.exitCode).toBe(2);
     expect(error.details.actual).toContain("expected identifier");
     expect(error.details.next).toContain("bad.rs");
+    expect(readFileSync(join(root, "bad.rs"), "utf8")).toBe("fn (");
   });
 
   it.each([

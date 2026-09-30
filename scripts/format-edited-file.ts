@@ -4,11 +4,15 @@
  *
  *   <hook JSON on stdin> | node scripts/format-edited-file.ts [--root DIR]
  *
- * Reads `tool_input.file_path`; formats a `.rs` file with rustfmt (rustfmt.toml applies)
- * and a `.ts`/`.tsx` file with Prettier, from the root. Nothing else in the tree is
- * touched. It does nothing, and exits 0, when the payload names no file, the file is of
- * another type, no longer exists, or lies outside the root once symlinks are resolved.
- * The formatters are called by bare name; the caller provides PATH (`mise exec --`).
+ * Reads `tool_input.file_path` and formats that one file; nothing else in the tree is
+ * touched. A `.rs` file goes through rustfmt on standard input, from the file's own
+ * directory so the same rustfmt.toml applies, and the result is written back: given a path,
+ * rustfmt would also rewrite every out-of-line `mod` child the file declares. Every
+ * extension the pre-commit hook's Prettier job checks (TypeScript, JavaScript, JSON, CSS,
+ * HTML, YAML) goes through `prettier --write`, from the root, so `.prettierignore` applies.
+ * It does nothing, and exits 0, when the payload names no file, the file is of another
+ * type, no longer exists, or lies outside the root once symlinks are resolved. The
+ * formatters are called by bare name; the caller provides PATH (`mise exec --`).
  *
  * Exit codes: 0 formatted or nothing to do; 2 on failure, because Claude Code feeds a
  * PostToolUse hook's stderr back to the agent only on exit 2.
@@ -16,14 +20,42 @@
  * Errors (exit 2): ERR_FORMAT_USAGE (bad arguments, no stdin), ERR_FORMAT_FAILED (the
  * formatter exited non-zero on the edited file).
  */
-import { existsSync, realpathSync, statSync } from "node:fs";
-import { extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import { ScriptError, type FailureDetails } from "./lib/fail.ts";
 import { runScript, type ScriptContext } from "./lib/script.ts";
 
 const USAGE = "node scripts/format-edited-file.ts [--root DIR] < hook-payload.json";
 const HOOK_FAILURE = { exitCode: 2 } as const;
+/** rustfmt echoes the whole file back; spawnSync's 1 MiB default would cut a large one off. */
+const RUSTFMT_MAX_BUFFER = 64 * 1024 * 1024;
+
+/** The extensions `lefthook.yml`'s prettier job checks; this hook formats the same set. */
+const PRETTIER_EXTENSIONS: readonly string[] = [
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".json",
+  ".css",
+  ".html",
+  ".yml",
+  ".yaml",
+];
+
+/**
+ * How one file is formatted: `stdin` formatters read the file on standard input and
+ * print the result, which this hook writes back; the others rewrite the file in place.
+ */
+export interface Formatter {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly stdin: boolean;
+}
 
 const usageError = (summary: string, actual: string): ScriptError =>
   new ScriptError(
@@ -31,17 +63,14 @@ const usageError = (summary: string, actual: string): ScriptError =>
     HOOK_FAILURE,
   );
 
-/** The formatter command for a file, or undefined when this hook leaves it alone. */
-export function formatterFor(path: string): { command: string; args: string[] } | undefined {
-  switch (extname(path)) {
-    case ".rs":
-      return { command: "rustfmt", args: [path] };
-    case ".ts":
-    case ".tsx":
-      return { command: "pnpm", args: ["exec", "prettier", "--write", path] };
-    default:
-      return undefined;
+/** The formatter for a file, or undefined when this hook leaves it alone. */
+export function formatterFor(path: string): Formatter | undefined {
+  const extension = extname(path);
+  if (extension === ".rs") return { command: "rustfmt", args: [], stdin: true };
+  if (PRETTIER_EXTENSIONS.includes(extension)) {
+    return { command: "pnpm", args: ["exec", "prettier", "--write", path], stdin: false };
   }
+  return undefined;
 }
 
 function parseRoot(argv: readonly string[], fallback: string): string {
@@ -88,16 +117,27 @@ export function main(context: ScriptContext): void {
 
   const formatter = formatterFor(real);
   if (formatter === undefined) return;
-  const result = context.run(formatter.command, formatter.args, { cwd: root });
+  const original = formatter.stdin ? readFileSync(real, "utf8") : undefined;
+  const result = context.run(
+    formatter.command,
+    formatter.args,
+    original === undefined
+      ? { cwd: root }
+      : { cwd: dirname(real), input: original, maxBuffer: RUSTFMT_MAX_BUFFER },
+  );
   if (result.status !== 0) {
     const details: FailureDetails = {
       code: "ERR_FORMAT_FAILED",
       summary: `${formatter.command} could not format the edited file`,
       expected: `${formatter.command} exits 0 on ${inside}`,
       actual: `${result.stderr}${result.stdout}`.trim().split("\n").slice(-5).join(" "),
-      next: `fix the syntax error, then run: mise exec -- ${[formatter.command, ...formatter.args.slice(0, -1), inside].join(" ")}`,
+      next: `fix the syntax error in ${inside}; the next edit formats it again, or run \`just fmt\``,
     };
     throw new ScriptError(details, HOOK_FAILURE);
+  }
+  // An empty result is never written back: it would erase the file rather than format it.
+  if (original !== undefined && result.stdout !== "" && result.stdout !== original) {
+    writeFileSync(real, result.stdout);
   }
 }
 

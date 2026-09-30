@@ -15,9 +15,10 @@ only records what Claude Code adds on top of them.
   siblings, `core.hooksPath`), force pushes, a second `-X`/`--method` on an allowed
   `gh api` read, `--web` on the allowed `gh` reads, and edits to
   `src-tauri/Entitlements.plist`. Its one `PostToolUse` hook runs
-  `scripts/format-edited-file.ts` on the file an `Edit`/`Write`/`MultiEdit` touched
-  (rustfmt for `.rs`, Prettier for `.ts`/`.tsx`) and reports a formatter failure back
-  to you; the git hook and CI remain the gate. Personal permissions belong in
+  `scripts/format-edited-file.ts` on the one file an `Edit`/`Write`/`MultiEdit` touched
+  (rustfmt for `.rs`, fed on stdin so a `mod` child is not rewritten; Prettier for the
+  TypeScript, JavaScript, JSON, CSS, HTML, and YAML the pre-commit hook checks) and
+  reports a formatter failure back to you; the git hook and CI remain the gate. Personal permissions belong in
   `~/.claude/settings.json` or the gitignored `.claude/settings.local.json`, and editing
   either needs a human's sign-off (`AGENTS.md` › Security and human approval).
 - **Sub-agent tiers.** `.claude/agents/` defines `executor` (`opus`, low effort),
