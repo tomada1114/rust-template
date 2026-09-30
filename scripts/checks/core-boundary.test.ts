@@ -30,7 +30,7 @@ const AGENTS_MD = [
   "- The core boundary is enforced three times, so removing one layer leaves the others:",
   "  core's `Cargo.toml` lists no tauri, OS, or platform crate; `deny.toml`'s `[bans]`",
   "  `wrappers` let only `myapp` depend on `tauri`; and a harness check fails when core's",
-  "  normal dependency closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`,",
+  "  normal and build dependency closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`,",
   "  `security-framework*`, or `myapp-platform`. Those lists change together.",
 ].join("\n");
 
@@ -138,7 +138,7 @@ describe("core-boundary", () => {
     );
   });
 
-  describe("core's normal dependency closure", () => {
+  describe("core's normal and build dependency closure", () => {
     it.each([
       ["tauri-utils"],
       ["tauri"],
@@ -171,16 +171,41 @@ describe("core-boundary", () => {
       expect(text(violations)).toContain("myapp-core -> wry");
     });
 
-    it("ignores a dev-dependency or a build-dependency of core", () => {
+    it("ignores a dev-dependency of core", () => {
       const root = copyPass();
       editMetadata(root, (m) => {
         addEdge(m, "myapp-core", "tauri", "dev");
-        addEdge(m, "myapp-core", "wry", "build");
       });
       expect(fixtureCheck.run(root)).toEqual([]);
     });
 
-    it("follows only normal edges past core's direct dependencies", () => {
+    it.each([["tauri"], ["tauri-build"], ["objc2"]])(
+      "fails on a build-dependency edge from core to %s",
+      (crate) => {
+        const root = copyPass();
+        editMetadata(root, (m) => {
+          addEdge(m, "myapp-core", crate, "build");
+        });
+        const violations = fixtureCheck.run(root);
+        expect(codes(violations)).toEqual(["ERR_CHECK_CORE_BOUNDARY_CLOSURE"]);
+        expect(text(violations)).toContain(`myapp-core -(build)-> ${crate}`);
+      },
+    );
+
+    it("follows a build edge further down the closure", () => {
+      const root = copyPass();
+      editMetadata(root, (m) => {
+        addEdge(m, "serde", "helper", "build");
+        addEdge(m, "helper", "core-foundation-sys", null);
+      });
+      const violations = fixtureCheck.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_CORE_BOUNDARY_CLOSURE"]);
+      expect(text(violations)).toContain(
+        "myapp-core -> serde -(build)-> helper -> core-foundation-sys",
+      );
+    });
+
+    it("follows no dev edge past core's direct dependencies", () => {
       const root = copyPass();
       editMetadata(root, (m) => {
         addEdge(m, "serde", "tauri", "dev");

@@ -65,6 +65,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fallback, or on a `uses:` step. CI, the release workflow, and the justfile now pass
   `--locked` to `cargo deny`, `cargo shear`, and `tauri build`/`dev`.
 
+- The harness checks now read the configurations they judge instead of passing on ones
+  they never looked at: `ruleset-contexts` fails a required context reported only by a
+  job whose workflow filters `pull_request` by `paths` or `branches` (or narrows its
+  activity types), or whose `if:` — or a `needs` job's — is not provably true on a pull
+  request, and a job name made only of an expression no longer matches every context
+  (names and conditions are evaluated for a pull request). A JSON5 Renovate config
+  (`renovate.json5` and its siblings) fails `bots-agree`, `workflow-hygiene`, and
+  `labels-declared` as unread instead of being skipped. `bots-agree` compares
+  Dependabot's `semver-*-days` too. `labels-declared` reads `scripts/label-pr.ts`'s type
+  map from the checked root and fails on a PR-title type it does not map
+  (`ERR_CHECK_LABEL_TYPE_UNMAPPED`). `core-boundary` walks build-dependency edges as
+  well as normal ones.
+
 ### Security
 
 - The staged guard catches this template's own signing secrets it used to miss: an

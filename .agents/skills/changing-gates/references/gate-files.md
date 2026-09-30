@@ -194,8 +194,10 @@ narrows a security-relevant step says why the protection no longer applies.
 
 ## `.github/rulesets/main.json`
 
-Each required context is a job `name:` in a `pull_request` workflow, and
-`just check-harness` fails when one names no job. Renaming or splitting a required job,
+Each required context is a job `name:` in a `pull_request` workflow that runs on every
+pull request, and `just check-harness` fails when one names no job, or only a job whose
+workflow filters `paths` or `branches` or whose `if:` (or a `needs` job's) can be false
+on a pull request: such a check never reports, or is skipped and passes unrun. Renaming or splitting a required job,
 or adding one, edits this file in the same pull request; `just ruleset` then applies it
 to the live repository, which is a human's step. A new job is not required until the
 owner decides it is: adding one never adds its context here on its own. `bypass_actors` stays empty: a bypass

@@ -813,6 +813,15 @@ runs:
       ]);
     });
 
+    it.each(["renovate.json5", ".github/renovate.json5", ".renovaterc.json5"])(
+      "reports a JSON5 Renovate config at %s as unread, never skipping it",
+      (path) => {
+        const found = check.run(root({ ".github/renovate.json": undefined, [path]: "{}\n" }));
+        expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_WORKFLOW_BOT_PREFIX"]);
+        expect(found[0]?.actual).toContain(path);
+      },
+    );
+
     it("reports a Dependabot config that is not YAML", () => {
       expect(codes({ ".github/dependabot.yml": "updates: [\n" })).toEqual([
         "ERR_CHECK_WORKFLOW_BOT_PREFIX",
