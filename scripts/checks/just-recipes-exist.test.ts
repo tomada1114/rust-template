@@ -74,7 +74,11 @@ function fixture(overrides: Record<string, string | undefined> = {}): string {
     "README.md": "# Readme\n\n`just quiet`\n",
     "CONTRIBUTING.md": "# Contributing\n\n~~~sh\njust build\n~~~\n",
     "docs/guide.md": "Run `just build`.\n",
-    "docs/template/plan.md": "A planned `just not-yet` (docs/ subdirectories are not read).\n",
+    "docs/design/system.md": "Check it with `just quiet`.\n",
+    "docs/template/plan.md": "A planned `just not-yet` (docs/template/ is not read).\n",
+    "CLAUDE.md": "# Claude\n\nThe hook runs `just build`.\n",
+    ".claude/rules/docs.md": "---\npaths:\n  - docs/**\n---\n\n- Run `just build`.\n",
+    ".github/PULL_REQUEST_TEMPLATE.md": "## Test Plan\n\n- [ ] `just build` passes\n",
     ".agents/skills/demo/SKILL.md": "---\nname: demo\n---\n\nRun `just build`.\n",
     ".agents/skills/demo/references/more.md": "Iterate with `just test-fast x`.\n",
     ".agents/skills/demo/scripts/run.sh": "just not-markdown\n",
@@ -96,14 +100,21 @@ describe("just-recipes-exist", () => {
     expect(check.run(fixture())).toEqual([]);
   });
 
-  it("passes without .claude/settings.json or any of the documents", () => {
+  it("passes without .claude/settings.json or any document but AGENTS.md", () => {
     const root = fixture({
       ".claude/settings.json": undefined,
-      "AGENTS.md": undefined,
       "README.md": undefined,
       "CONTRIBUTING.md": undefined,
+      "CLAUDE.md": undefined,
+      ".github/PULL_REQUEST_TEMPLATE.md": undefined,
     });
     expect(check.run(root)).toEqual([]);
+  });
+
+  it("fails when there is no AGENTS.md, rather than passing on nothing", () => {
+    const violations = check.run(fixture({ "AGENTS.md": undefined }));
+    expect(violations.map((v) => v.code)).toEqual(["ERR_CHECK_INPUT_MISSING"]);
+    expect(violations[0]?.summary).toBe("there is no AGENTS.md");
   });
 
   it("reports a missing recipe in an inline code span, with its line", () => {
@@ -156,6 +167,11 @@ describe("just-recipes-exist", () => {
 
   it.each([
     ["docs/*.md", "docs/other.md"],
+    ["a docs/ subdirectory", "docs/design/x.md"],
+    ["a docs/architecture page", "docs/architecture/overview.md"],
+    ["CLAUDE.md", "CLAUDE.md"],
+    ["a Claude Code rule", ".claude/rules/x.md"],
+    ["the pull request template", ".github/PULL_REQUEST_TEMPLATE.md"],
     ["a SKILL.md", ".agents/skills/demo/SKILL.md"],
     ["a skill's reference file", ".agents/skills/demo/references/deep/more.md"],
   ])("reads %s", (_label, path) => {
@@ -163,6 +179,15 @@ describe("just-recipes-exist", () => {
     expect(violations.map((v) => v.summary)).toEqual([
       `${path}:1 names \`just bogus-four\`, which the justfile does not define`,
     ]);
+  });
+
+  it("reads neither docs/template/, the roadmap, nor an ADR, which plan recipes ahead", () => {
+    const root = fixture({
+      "docs/template/deep/x.md": "Run `just bogus-template`.\n",
+      "docs/architecture/roadmap.md": "Done when `just export-csv` passes.\n",
+      "docs/architecture/adr/0002-export.md": "Adds a `just export-csv` recipe.\n",
+    });
+    expect(check.run(root)).toEqual([]);
   });
 
   it("never pairs backticks across a blank line", () => {

@@ -125,9 +125,16 @@ the template's design notes: that link dangles in every app.
 
 ## What checks a document, and what does not
 
-- `just check-harness` fails when `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, or a skill
-  names a `just <recipe>` the `justfile` lacks, and when `AGENTS.md` or a skill carries
-  an issue-number reference.
+- `just check-harness` fails when `AGENTS.md`, `CLAUDE.md`, `README.md`,
+  `CONTRIBUTING.md`, the pull request template, a `.claude/rules/` file, a document under
+  `docs/`, or a skill names a `just <recipe>` the `justfile` lacks, and when `AGENTS.md`,
+  `CLAUDE.md`, a rule, a `docs/` document, or a skill cites this repository's issues or
+  pull requests: `#` and digits, an issue or pull-request URL on this repository or
+  relative to it, the word issue, PR, pull request, or merge request before a number
+  (`issue N`, `issue number N`, `PR-N`), `GH-` and digits, or a `gh issue`/`gh pr`
+  command given a number. An upstream project's issue URL passes as a source. Neither
+  check reads the template's own design record, the roadmap, or the ADRs, which link
+  issues and plan recipes by design.
 - `mise exec -- typos <file>` spell-checks Markdown (the hook and CI run it too).
 - Nothing formats Markdown (`.prettierignore` lists `*.md`); wrap prose at about 90
   columns by hand.

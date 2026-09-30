@@ -23,6 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The pre-commit hook's skills-mirror check compares the staged `.agents/skills/` and
+  `.claude/skills/` (`node scripts/sync-agents.ts --check --staged`), so a commit that
+  stages an edited skill without its synced mirror is refused instead of passing because
+  the working copies match. The agent's formatting hook now formats only the file it was
+  given (rustfmt no longer rewrites that file's `mod` children) and formats every file type
+  the hook's Prettier job checks, not only TypeScript. `just check-harness` now finds a
+  `just <recipe>` that does not exist in `CLAUDE.md`, `.claude/rules/`, the documents in
+  `docs/` subdirectories, and the pull request template, and fails when `AGENTS.md` is
+  missing. It finds a reference to this repository's issues or pull requests in
+  `CLAUDE.md`, `.claude/rules/`, and `docs/` too, including an issue or pull-request URL
+  on this repository, the word issue or PR before a number, a `GH-` reference, and a
+  `gh issue` or `gh pr` command given a number; an upstream project's issue URL still
+  passes as a source. Neither check reads `docs/template/`, the roadmap, or the ADRs,
+  which link issues and plan recipes by design.
+
 - `log_from_ui` writes each UI log entry as one line: the message's control characters
   and Unicode line separators are escaped and it is cut to 1,000 characters, so a
   message holding a newline can no longer forge a log line such as the

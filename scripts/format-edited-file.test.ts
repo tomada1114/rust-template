@@ -1,12 +1,22 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { formatterFor, main } from "./format-edited-file.ts";
+import { parse } from "yaml";
+
+import { formatterFor, main, PRETTIER_EXTENSIONS } from "./format-edited-file.ts";
 import { ScriptError } from "./lib/fail.ts";
-import type { RunResult, ScriptContext } from "./lib/script.ts";
+import { REPO_ROOT, type RunResult, type ScriptContext } from "./lib/script.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -25,7 +35,12 @@ function payload(filePath: unknown): string {
 
 interface Harness {
   readonly context: ScriptContext;
-  readonly calls: { command: string; args: readonly string[]; cwd: string | undefined }[];
+  readonly calls: {
+    command: string;
+    args: readonly string[];
+    cwd: string | undefined;
+    input?: string | undefined;
+  }[];
 }
 
 function harness(
@@ -43,7 +58,11 @@ function harness(
       root,
       stdin: () => stdin,
       run: (command, args, options) => {
-        calls.push({ command, args, cwd: options?.cwd });
+        calls.push(
+          options?.input === undefined
+            ? { command, args, cwd: options?.cwd }
+            : { command, args, cwd: options.cwd, input: options.input },
+        );
         return result;
       },
       log: () => undefined,
@@ -61,32 +80,120 @@ function caught(action: () => void): ScriptError {
   throw new Error("expected a ScriptError");
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 describe("formatterFor", () => {
-  it("formats Rust with rustfmt and TypeScript with Prettier", () => {
-    expect(formatterFor("/r/a.rs")).toEqual({ command: "rustfmt", args: ["/r/a.rs"] });
-    expect(formatterFor("/r/a.ts")).toEqual({
-      command: "pnpm",
-      args: ["exec", "prettier", "--write", "/r/a.ts"],
+  it("pipes Rust through rustfmt, naming no path it could follow into mod children", () => {
+    const root = tempDir();
+    expect(formatterFor(join(root, "a.rs"), root)).toEqual({
+      command: "rustfmt",
+      args: [],
+      stdin: true,
     });
-    expect(formatterFor("/r/a.tsx")?.command).toBe("pnpm");
+  });
+
+  it("hands rustfmt the nearest rustfmt.toml up to the root, as rustfmt would find it", () => {
+    const outer = tempDir();
+    const root = join(outer, "repo");
+    mkdirSync(join(root, "crates", "a", "src"), { recursive: true });
+    writeFileSync(join(outer, "rustfmt.toml"), "");
+    const file = join(root, "crates", "a", "src", "lib.rs");
+    // A config above the root is not the project's.
+    expect(formatterFor(file, root)?.args).toEqual([]);
+    writeFileSync(join(root, "rustfmt.toml"), 'edition = "2024"\n');
+    expect(formatterFor(file, root)?.args).toEqual(["--config-path", join(root, "rustfmt.toml")]);
+    writeFileSync(join(root, "crates", "a", ".rustfmt.toml"), "");
+    expect(formatterFor(file, root)?.args).toEqual([
+      "--config-path",
+      join(root, "crates", "a", ".rustfmt.toml"),
+    ]);
+  });
+
+  it.each([
+    [".ts"],
+    [".tsx"],
+    [".mts"],
+    [".cts"],
+    [".js"],
+    [".mjs"],
+    [".cjs"],
+    [".json"],
+    [".css"],
+    [".html"],
+    [".yml"],
+    [".yaml"],
+  ])("formats %s with Prettier, in place", (extension) => {
+    expect(formatterFor(`/r/a${extension}`, "/r")).toEqual({
+      command: "pnpm",
+      args: ["exec", "prettier", "--write", `/r/a${extension}`],
+      stdin: false,
+    });
   });
 
   it("leaves every other file alone", () => {
-    expect(formatterFor("/r/a.md")).toBeUndefined();
-    expect(formatterFor("/r/a.json")).toBeUndefined();
-    expect(formatterFor("/r/rs")).toBeUndefined();
+    expect(formatterFor("/r/a.md", "/r")).toBeUndefined();
+    expect(formatterFor("/r/a.toml", "/r")).toBeUndefined();
+    expect(formatterFor("/r/rs", "/r")).toBeUndefined();
+  });
+
+  it("formats exactly the extensions lefthook.yml's prettier job checks", () => {
+    // Read-only: the hook's own config is the oracle this list must agree with.
+    const config: unknown = parse(readFileSync(join(REPO_ROOT, "lefthook.yml"), "utf8"));
+    const preCommit = isRecord(config) ? config["pre-commit"] : undefined;
+    const jobs: unknown[] =
+      isRecord(preCommit) && Array.isArray(preCommit["jobs"]) ? preCommit["jobs"] : [];
+    const job = jobs.find((candidate) => isRecord(candidate) && candidate["name"] === "prettier");
+    const glob = isRecord(job) && typeof job["glob"] === "string" ? job["glob"] : "";
+    const braces = /^\*\.\{([^}]*)\}$/.exec(glob)?.[1];
+    expect(braces, `the prettier job's glob, ${JSON.stringify(glob)}`).toBeDefined();
+    const hooked = (braces ?? "").split(",").map((extension) => `.${extension}`);
+    expect([...PRETTIER_EXTENSIONS].sort()).toEqual(hooked.sort());
   });
 });
 
 describe("main", () => {
-  it("formats the one edited Rust file from the root", () => {
+  it("feeds rustfmt only the edited file's text, with no path, and writes the result back", () => {
     const root = tempDir();
     const file = join(root, "src", "lib.rs");
     mkdirSync(join(root, "src"));
-    writeFileSync(file, "fn main(){}");
-    const { context, calls } = harness(root, payload(file));
+    writeFileSync(join(root, "rustfmt.toml"), 'edition = "2024"\n');
+    writeFileSync(file, "mod child;\nfn main(){}");
+    const { context, calls } = harness(root, payload(file), [], {
+      status: 0,
+      stdout: "mod child;\nfn main() {}\n",
+      stderr: "",
+    });
     main(context);
-    expect(calls).toEqual([{ command: "rustfmt", args: [file], cwd: root }]);
+    // The only path rustfmt is given is its config: with the file's path it would also
+    // format every out-of-line `mod` child, here `src/child.rs`.
+    expect(calls).toEqual([
+      {
+        command: "rustfmt",
+        args: ["--config-path", join(root, "rustfmt.toml")],
+        cwd: join(root, "src"),
+        input: "mod child;\nfn main(){}",
+      },
+    ]);
+    expect(readFileSync(file, "utf8")).toBe("mod child;\nfn main() {}\n");
+  });
+
+  it("never writes back an empty rustfmt result", () => {
+    const root = tempDir();
+    const file = join(root, "lib.rs");
+    writeFileSync(file, "fn main(){}");
+    main(harness(root, payload(file)).context);
+    expect(readFileSync(file, "utf8")).toBe("fn main(){}");
+  });
+
+  it("formats an edited YAML file with Prettier", () => {
+    const root = tempDir();
+    writeFileSync(join(root, "ci.yml"), "a:   1\n");
+    const { context, calls } = harness(root, payload("ci.yml"));
+    main(context);
+    expect(calls).toEqual([
+      { command: "pnpm", args: ["exec", "prettier", "--write", join(root, "ci.yml")], cwd: root },
+    ]);
   });
 
   it("formats an edited TypeScript file given relative to the root", () => {
@@ -159,7 +266,26 @@ describe("main", () => {
     expect(error.details.code).toBe("ERR_FORMAT_FAILED");
     expect(error.exitCode).toBe(2);
     expect(error.details.actual).toContain("expected identifier");
-    expect(error.details.next).toContain("bad.rs");
+    expect(error.details.next).toBe(
+      "fix the syntax error in bad.rs (that edit re-runs this hook); to check the file by hand, writing nothing: mise exec -- rustfmt --check bad.rs",
+    );
+    expect(readFileSync(join(root, "bad.rs"), "utf8")).toBe("fn (");
+  });
+
+  it("names the single-file Prettier command when Prettier fails", () => {
+    const root = tempDir();
+    writeFileSync(join(root, "bad.ts"), "export {");
+    const { context } = harness(root, payload(join(root, "bad.ts")), [], {
+      status: 2,
+      stdout: "",
+      stderr: "SyntaxError: '}' expected.",
+    });
+    const error = caught(() => {
+      main(context);
+    });
+    expect(error.details.next).toBe(
+      "fix the syntax error, then run: mise exec -- pnpm exec prettier --write bad.ts",
+    );
   });
 
   it.each([
