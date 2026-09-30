@@ -60,9 +60,9 @@ paths:
 
 ## Tool Pinning
 
-- Rust is pinned once, in `rust-toolchain.toml` (rustup and mise both read it); Node and
-  every CLI tool in `mise.toml`; pnpm once, in `package.json`'s `packageManager`. Never
-  pin one tool in two places
+- Rust is pinned once, in `rust-toolchain.toml` (rustup reads it; `mise.toml` lists no
+  `rust` tool); Node and every CLI tool in `mise.toml`; pnpm once, in `package.json`'s
+  `packageManager`. Never pin one tool in two places
 - Never `latest`, and never a range, in `mise.toml` or `rust-toolchain.toml`: an exact
   version, preferring the prebuilt-binary (aqua/github) backends over `cargo:`, which
   compiles from source
@@ -76,8 +76,8 @@ paths:
   skill. A clippy, ESLint, or TypeScript bump that fires a new finding is fixed in the
   code on that PR, never skipped. A Tauri major is a migration issue, never a batch
   merge
-- After changing `mise.toml` or `rust-toolchain.toml`, run `mise install`, then
-  `just check`
+- After changing `mise.toml`, run `mise install`; after changing `rust-toolchain.toml`,
+  the next `cargo` call installs the new toolchain through rustup. Then `just check`
 
 ## Gates
 

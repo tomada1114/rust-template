@@ -102,7 +102,7 @@ not spawn it, so no shell plugin or shell permission ships.
 
 Because it is small enough to delete and still exercises every frame the architecture
 claims: a port with a real adapter, a fake, and a contract suite (`CounterStore`,
-writing `counter.json` atomically); injected time (`Clock`); four commands; an event
+writing `counter.json` atomically); injected time (`Clock`); five commands; an event
 (`counter-changed`); logging, including errors forwarded from the UI; the helper CLI;
 typed error codes; and accessible glyph-only buttons. Every part of it is an
 illustration to replace.
@@ -297,10 +297,12 @@ See [docs/design/design-system.md](docs/design/design-system.md).
    push both commits to `main`. The ruleset is not on yet (step 11), so `main` still
    takes a direct push, and CI's first run checks the result.
 7. Create the label set on the new repository: `just labels` (the issue forms rely on
-   the labels in `.github/labels.yml`).
+   the labels in `.github/labels.yml`). Dependabot skips a label the repository lacks,
+   so add `dependencies` by hand to any Dependabot pull request opened before this step.
 8. Turn on the repository's security settings: secret scanning and push protection,
    private vulnerability reporting (`SECURITY.md` points at it), and Dependabot alerts
-   and security updates.
+   and security updates. Install the Renovate GitHub App on the repository: without it,
+   nothing bumps `mise.toml` or `rust-toolchain.toml`.
 9. Replace the sample counter with your app, following the `starting-an-app` skill; it
    lists what to delete and has you decide the design system first.
 10. For Developer ID signed and notarized releases, add the secrets listed in
@@ -328,8 +330,8 @@ check:
    code scanning). Keep any of them if your plan includes those features.
    `osv-scan.yml` needs neither and stays as the dependency-vulnerability check.
 2. In `.github/workflows/release.yml`, remove the build-provenance attestation step and
-   its `attestations: write` permission unless the repository is on GitHub Enterprise
-   Cloud, the plan artifact attestations need on a private repository
+   its `attestations: write` and `id-token: write` permissions (no other step uses
+   either) unless the repository is on GitHub Enterprise Cloud, the plan artifact attestations need on a private repository
    (<https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>,
    checked 2026-09-29). The release itself still works, visible only to people with
    access to the repository.

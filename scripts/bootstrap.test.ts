@@ -687,8 +687,10 @@ describe("runBootstrap", () => {
       "steering-the-roadmap",
       "just install",
       "just labels",
+      "add `dependencies` by hand",
       "just ruleset",
       "secret scanning",
+      "Renovate",
       "push both commits to",
     ]) {
       expect(output).toContain(step);

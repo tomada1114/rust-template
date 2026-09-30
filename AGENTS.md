@@ -129,7 +129,7 @@ developer's Mac").
 | A workflow under `.github/workflows/` | `mise exec -- actionlint` and `mise exec -- zizmor .`, then `just check-harness` |
 | Markdown | `mise exec -- typos <file>` (the pre-commit hook and CI's `Repo Lint & Harness` job run it) |
 | `Cargo.toml`, `Cargo.lock`, `deny.toml`, `package.json`, or `pnpm-lock.yaml` | `just deny`, `mise exec -- cargo shear`, `just lint`, then `just test` — a new dependency is a sign-off change (`.claude/rules/project.md`) |
-| `mise.toml` or `rust-toolchain.toml` | `mise install`, then `just check` |
+| `mise.toml` or `rust-toolchain.toml` | `mise install` for `mise.toml` (rustup installs a new `rust-toolchain.toml` channel on the next `cargo` call), then `just check` |
 | `.github/labels.yml`, or an issue form under `.github/ISSUE_TEMPLATE/` | `mise exec -- typos <file>`, then `just check-harness` (every applied label declared, once) |
 | `.github/rulesets/main.json`, or `scripts/apply-ruleset.ts` | `just test-scripts`; `just check-harness` for `main.json` (every required context names a job that runs on every pull request) |
 
@@ -214,7 +214,8 @@ scripts/                    # Repository automation in TypeScript, run by Node d
 - Errors are one `thiserror` enum per port or core module carrying a typed code
   (`#[serde(tag = "code")]`); the UI maps each code to wording in `ui/src/copy/`. Rust
   never sends a user-facing sentence, and no error or log line carries user data.
-- Every crate logs through the `tracing` macros; only the shell and the CLI install a
+- The shell, the CLI, and `myapp-platform` log through the `tracing` macros; `myapp-core`
+  has no `tracing` dependency and logs nothing. Only the shell and the CLI install a
   subscriber (`myapp_platform::init_logging`). Files go to
   `~/Library/Logs/com.example.myapp/`, rotated daily, the last 14 kept; `just logs`
   prints the newest. The UI forwards its warnings and errors through
@@ -461,7 +462,8 @@ Every local layer can be skipped, so these reach `main` only if CI or GitHub sto
 ### GitHub settings a new repository must enable
 
 "Use this template" copies files, not settings, so a repository's admin turns these on
-once under Settings › Advanced Security (Code security on older UIs):
+once — the security switches under Settings › Advanced Security (Code security on older
+UIs):
 
 - **Secret scanning** and **Push protection** — the server-side layer for secrets that
   the staged guard misses or a bypass skips; push protection blocks a detected secret
@@ -474,6 +476,15 @@ once under Settings › Advanced Security (Code security on older UIs):
   deliberately lists no `bypass_actors`: a bypass lets an admin, or an agent acting
   with an admin's token, merge without the PR and green checks the ruleset exists to
   require, and an emergency change can still go through a PR.
+- The **Renovate** GitHub App (<https://github.com/apps/renovate>, checked 2026-09-30),
+  installed on the repository: without it `.github/renovate.json` does nothing, so
+  `mise.toml` and `rust-toolchain.toml` are never bumped — Dependabot covers only cargo,
+  npm, and Actions.
+- The label set, created by `just labels` before Dependabot opens its first pull
+  requests: Dependabot ignores a label the repository does not define
+  (<https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference>,
+  `labels`, checked 2026-09-30), so a bump opened earlier lacks `dependencies` until
+  someone adds it by hand.
 
 ## Repository scripts
 
@@ -537,7 +548,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | The skills-mirror check (`just agents-check`; the hook runs `node scripts/sync-agents.ts --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
 | `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), and the skills name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); the Dependabot, Renovate, and pnpm cooldowns agree; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding `main`, default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; the IPC command and event lists agree; no raw color, `font-family`, or pixel font size outside `tokens.css`; no reference to this repository's issues or pull requests (`#` and digits, an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), or a skill; `.claude/settings.json` names only recipes the justfile defines, and its `allow` admits none of the recipes the next row keeps out of it; and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
 | `.claude/settings.json` — its only two top-level keys, `permissions` and `hooks` | every tool call Claude Code makes in this checkout | Claude Code only — Codex CLI and a human read nothing here | the routine local loop runs without a prompt: the `just` recipes that read, format, lint, build, or test without opening a window or writing to GitHub, and read-only `gh` (`gh pr view`/`list`/`checks`/`diff`, `gh issue view`/`list`, `gh run view`/`list`/`watch`, `gh api -X GET`/`--method GET`). Deliberately absent from `allow`, so they still stop for a human: the recipes that open the app or need a human (`dev`, `run`, `install-app`, `test-local`, `logs-follow`, `reset-permissions`), the ones that write beyond the working tree (`install`, `clean`, `labels`, `ruleset`, `release-prep`, `bootstrap`), `git push`, `gh pr create`, `gh pr merge`, and `gh issue create`; `scripts/checks/settings-allow-list.ts` fails when an `allow` rule, wildcards included, admits one of those recipes. `deny` refuses skipping the pre-commit hook, a force push, a `gh` read turned into a write or a browser window, and an edit to `src-tauri/Entitlements.plist` (an `Edit` rule covers every file-editing tool); JSON carries no comments, so read the deny list as groups — `git commit --no-verify`, `-n`, and the abbreviations git accepts (`--no-v*`); a `LEFTHOOK=`, `LEFTHOOK_EXCLUDE=`, `LEFTHOOK_BIN=`, or `LEFTHOOK_CONFIG=` assignment; `core.hooksPath` set through `git -c`, `git --config-env`, or `git config`; `--force`/`-f`, `--force-with-lease` with and without `=<ref>`, and a `+refspec` push; a second `-X`/`--method`, whatever its verb, after an allowed `gh api -X GET`/`--method GET`; and `--web`/`-w` on each allowed `gh` command that has it (`gh run list`'s `-w` is `--workflow`, and stays allowed) — each written in the leading, trailing, and mid-command position, where a pattern ending in `*` covers the last two at once. It is a prompt policy, not a boundary: a deny rule matches the command text Claude Code writes, so another spelling — `git -C . push --force`, `bash -c '…'`, a bundled short flag such as `git commit -anm "…"`, or `core.hookspath` in another case — is not stopped by it, and none of this constrains a human at a shell. `hooks` holds one `PostToolUse` hook, `scripts/format-edited-file.ts`, that formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod` child) or TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the pre-commit hook checks) file an `Edit`/`Write`/`MultiEdit` touched inside the checkout and reports a formatter failure back to the agent (exit 2) instead of hiding it — a convenience on this host only; the git hook and CI are the gate |
-| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, clippy on the Linux-buildable crates, core tests with floors, doctests, the bindings drift check, `cargo deny`, `cargo shear`), `Frontend` (tsc, ESLint, Prettier, UI tests with floors), `Repo Lint & Harness` (typos, actionlint, script tests, harness checks), `macOS Build & Smoke` (workspace clippy, `just test-macos`, `just build`, `just smoke`), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
+| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, clippy on the Linux-buildable crates, core tests with floors, doctests, the bindings drift check, `cargo deny`, `cargo shear`), `Frontend` (tsc, ESLint, Prettier, UI tests with floors), `Repo Lint & Harness` (typos, actionlint, script tests, harness checks), `macOS Build & Smoke` (workspace clippy, `just test-macos`, `just build`, `just smoke`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 
 These gaps are deliberate. Closing one means adding a mechanism that enforces it —

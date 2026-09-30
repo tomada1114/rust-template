@@ -128,7 +128,10 @@ commit on `main`, so the prefixes (`commit-message` in `.github/dependabot.yml`,
 harness check that keeps them agreeing is `just check-harness`'s, and changing either
 side is a gate change (`changing-gates`).
 
-## F10: A mise or rust-toolchain PR is green but `mise install` fails here
+## F10: A mise or rust-toolchain PR is green but the new pin will not install here
+
+**Symptom:** `mise install` fails for a `mise.toml` pin, or the next `cargo` call fails
+as rustup installs a `rust-toolchain.toml` channel.
 
 **Cause:** the pinned version has no build for this Mac yet, though CI's Linux runner
 found one.

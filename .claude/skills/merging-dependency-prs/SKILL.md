@@ -159,7 +159,8 @@ a lockfile or by merging bot branches:
   range style `package.json` uses (a tilde range for the Tauri packages).
 - **mise:** edit the pin in `mise.toml`, then `mise install`, so the version exists for
   this platform.
-- **rust-toolchain:** edit `channel` in `rust-toolchain.toml`, then `mise install`.
+- **rust-toolchain:** edit `channel` in `rust-toolchain.toml`; rustup installs it on the
+  next `cargo` call (`mise.toml` lists no `rust` tool, so `mise install` does not).
 - **Actions:** copy the new 40-character SHA and its `# vX.Y.Z` comment exactly.
 
 Commit each lockfile with its manifest (**REQUIRED:** `smart-commit`), then run

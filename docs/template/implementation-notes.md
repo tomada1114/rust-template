@@ -82,8 +82,9 @@ what was built; each entry says what the design said, what was done, and why.
   - RUSTSEC-2025-0075, -0080, -0081, -0098, -0100 (`unic-*`): shipped through
     `tauri-utils` → `urlpattern`, unmaintained, no fixed release; tracked in
     https://github.com/tomada1114/tauri-template/issues/3.
-- **`shellcheck` is pinned in `mise.toml`** although no `.sh` file exists: actionlint
-  runs it over every workflow `run:` block, and an unpinned shim broke actionlint.
+- **`shellcheck` is pinned in `mise.toml`**: actionlint runs it over every workflow
+  `run:` block, and an unpinned shim broke actionlint; `just test-scripts` also runs it
+  over the `shipping-issues` skill's `.sh` scripts.
 - **Actions pinned one release back where the newest was under seven days old**
   (`github/codeql-action` v4.38.1), matching Dependabot's cooldown.
 - **`serde` removed from the Tauri crate** — `cargo shear` found it unused.
@@ -98,10 +99,12 @@ what was built; each entry says what the design said, what was done, and why.
   (Claude Code permissions docs, https://code.claude.com/docs/en/permissions, checked
   2026-09-28).
 
-- The app menu is built in Rust in the shell's setup (`src-tauri/src/lib.rs`), not with
-  the JavaScript menu API: menus are app-wide wiring owned by the composition root, only
-  `ui/src/ipc/` may import `@tauri-apps/*`, and a menu item calls the same core function
-  as the matching command and emits the same event (`designing-ui`, `designing-ipc`).
+- The sample builds no menu: it shows the default macOS menu Tauri installs when an app
+  sets none (`designing-ui` has the source). An app that adds one builds it in Rust in
+  the shell's setup (`src-tauri/src/lib.rs`), not with the JavaScript menu API: menus
+  are app-wide wiring owned by the composition root, only `ui/src/ipc/` may import
+  `@tauri-apps/*`, and a menu item calls the same core function as the matching command
+  and emits the same event (`designing-ui`, `designing-ipc`).
 - `scripts/release-prep.ts` reads each version site with a real parser (smol-toml,
   `JSON.parse`) but edits it with a one-line textual replacement, so the file keeps its
   comments and formatting; the edited text is parsed again and the run stops with

@@ -65,8 +65,9 @@ does not pin. Changing an option reformats the whole tree: land the option and t
 
 ## `rust-toolchain.toml`, `mise.toml`, and `package.json`'s `packageManager`
 
-Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup and mise both
-read it), Node and every CLI tool in `mise.toml`, pnpm in `packageManager`. Never
+Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup reads it;
+`mise.toml` lists no `rust` tool), Node and every CLI tool in `mise.toml`, pnpm in
+`packageManager`. Never
 `latest`, never a range, and prefer the prebuilt-binary backends over `cargo:`, which
 compiles from source. Renovate opens the bumps for the first two after its 7-day minimum
 release age; its `enabledManagers` in `.github/renovate.json` are `mise` and

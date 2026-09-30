@@ -112,7 +112,7 @@ describe("useCounter", () => {
     });
   });
 
-  it("follows counter-changed events from other windows or the helper CLI", async () => {
+  it("follows counter-changed events, which the shell emits after any window's change", async () => {
     mockCommands({ get_counter: () => ONE });
     const { result } = renderHook(() => useCounter());
     await waitFor(() => {

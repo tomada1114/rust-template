@@ -22,8 +22,9 @@ neither and stays as the dependency-vulnerability check.
 ## 2. The attestation step in `release.yml`
 
 `.github/workflows/release.yml` publishes a build-provenance attestation
-(`actions/attest-build-provenance`) with an `attestations: write` permission. Remove the
-step and the permission unless the repository is on GitHub Enterprise Cloud, the plan
+(`actions/attest-build-provenance`) with the `attestations: write` and `id-token: write`
+permissions, which no other step uses. Remove the step and both permissions unless the
+repository is on GitHub Enterprise Cloud, the plan
 artifact attestations need on a private repository
 (https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations,
 checked 2026-09-29). The release itself still works, visible only to people with

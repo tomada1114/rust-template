@@ -1,5 +1,5 @@
-# The one Rust pin. rustup reads this file, and so does mise's `rust` tool,
-# which delegates to rustup — so mise.toml does not pin Rust a second time.
+# The one Rust pin. rustup reads this file and installs the toolchain on the next
+# `cargo` call; mise.toml lists no `rust` tool, so `mise install` never touches Rust.
 # Renovate's `rust-toolchain` manager opens the bump PRs.
 [toolchain]
 channel = "1.98.1"

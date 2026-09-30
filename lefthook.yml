@@ -6,7 +6,8 @@
 # judges the working tree.
 #
 # Installed by `just install` (`lefthook install`); `just verify-hooks` fails while it is
-# missing. `git commit --no-verify` skips every job below; CI runs them all again.
+# missing. `git commit --no-verify` skips every job below; CI reruns all but the staged
+# guard, which no CI job reruns over a pull request's diff (AGENTS.md's gaps).
 
 pre-commit:
   # The commit that concludes a conflicted merge, or a `git commit` at a rebase stop,
