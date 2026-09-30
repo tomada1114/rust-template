@@ -233,6 +233,49 @@ describe("just-check-matches-ci", () => {
     });
   });
 
+  describe("a gate CI runs only conditionally", () => {
+    it("names where CI runs it and why that does not count", () => {
+      const found = compare(
+        root(withCi("      - run: just test-ui\n", "      - run: just test-ui || true\n")),
+        EXCEPTIONS,
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_JUST_CI_DIVERGED"]);
+      expect(found[0]?.summary).toContain("only conditionally");
+      expect(found[0]?.actual).toContain("with an `||` fallback");
+    });
+
+    it("does not count a gate run as a shell condition", () => {
+      for (const line of ["if just test-ui; then echo ok; fi", "! just test-ui"]) {
+        expect(
+          codes(withCi("      - run: just test-ui\n", `      - run: '${line}'\n`)),
+          line,
+        ).toEqual(["ERR_CHECK_JUST_CI_DIVERGED"]);
+      }
+    });
+
+    it("counts a gate a later unconditional step also runs", () => {
+      expect(
+        codes(
+          withCi(
+            "      - run: just test-ui\n",
+            "      - run: just test-ui\n        if: always()\n      - run: just test-ui\n        continue-on-error: false\n",
+          ),
+        ),
+      ).toEqual([]);
+    });
+
+    it("reads a gate reached through a conditional recipe call", () => {
+      const found = compare(
+        root(withCi("      - run: just build\n", "      - run: just build\n        if: false\n")),
+        EXCEPTIONS,
+      );
+      expect(found.map((v) => v.summary)).toEqual([
+        expect.stringContaining("`just build`"),
+        expect.stringContaining("`just helper`"),
+      ]);
+    });
+  });
+
   describe("stale exceptions", () => {
     it("rejects a local-only recipe `just check` no longer runs", () => {
       expect(

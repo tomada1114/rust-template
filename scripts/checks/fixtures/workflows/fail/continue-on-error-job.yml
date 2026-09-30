@@ -1,0 +1,8 @@
+# `continue-on-error: true` on a whole job: its failure never fails the run.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_CONTINUE_ON_ERROR]
+  just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
+edits:
+  - file: .github/workflows/ci.yml
+    from: "    timeout-minutes: 30\n"
+    to: "    timeout-minutes: 30\n    continue-on-error: true\n"

@@ -1,0 +1,8 @@
+# `set +e` inside a step whose shell is the fail-closed default: every command after it can fail unnoticed.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_FAIL_OPEN]
+  just-check-matches-ci: []
+edits:
+  - file: .github/workflows/ci.yml
+    from: "        run: just build\n"
+    to: "        run: |\n          set +e\n          just build\n"

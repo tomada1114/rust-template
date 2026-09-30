@@ -1,0 +1,8 @@
+# A job-level concurrency on a push-to-main workflow that cancels in progress, in a group every push shares.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_CONCURRENCY, ERR_CHECK_WORKFLOW_CONCURRENCY]
+  just-check-matches-ci: []
+edits:
+  - file: .github/workflows/ci.yml
+    from: "    timeout-minutes: 10\n"
+    to: "    timeout-minutes: 10\n    concurrency:\n      group: probe-main\n      cancel-in-progress: true\n"

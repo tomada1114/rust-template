@@ -1,11 +1,11 @@
 /**
  * Helpers the workflow checks share: reading YAML with line numbers, the workflow files
- * and their jobs and steps, the Dependabot and Renovate file locations, and a run script's
- * logical lines. Lives under `shared/`, which scripts/check-harness.ts never loads as a
+ * and their jobs and steps, the repository's own composite actions, the Dependabot and
+ * Renovate file locations, and a run script's logical lines. Lives under `shared/`, which scripts/check-harness.ts never loads as a
  * check (it reads only the top level of `scripts/checks/`).
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { isMap, isScalar, isSeq, LineCounter, parseDocument } from "yaml";
 
@@ -13,6 +13,8 @@ import type { FailureDetails } from "../../lib/fail.ts";
 import { readRepoFile } from "../lib.ts";
 
 const WORKFLOWS_DIR = ".github/workflows";
+const ACTIONS_DIR = ".github/actions";
+const ACTION_FILES = ["action.yml", "action.yaml"];
 
 export const DEPENDABOT_FILES = [".github/dependabot.yml", ".github/dependabot.yaml"];
 export const RENOVATE_FILES = [
@@ -129,6 +131,85 @@ export function readWorkflows(root: string): {
     }
   }
   return { workflows, unreadable };
+}
+
+/** A local action's metadata file (`action.yml`), parsed as a mapping. */
+export interface Action extends YamlFile {
+  readonly data: Record<string, unknown>;
+}
+
+function actionFilesUnder(root: string, dir: string): string[] {
+  const full = join(root, dir);
+  if (!existsSync(full) || !statSync(full).isDirectory()) return [];
+  return readdirSync(full, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) return actionFilesUnder(root, path);
+      return entry.isFile() && ACTION_FILES.includes(entry.name) ? [path] : [];
+    });
+}
+
+/** The metadata file a local `uses: ./dir` names, when it exists under the root. */
+function localActionFile(root: string, uses: string): string | undefined {
+  const dir = posix.normalize(uses.slice(2)).replace(/\/+$/, "");
+  if (dir.startsWith("..")) return undefined;
+  return ACTION_FILES.map((name) => (dir === "." ? name : `${dir}/${name}`)).find((path) => {
+    const full = join(root, path);
+    return existsSync(full) && statSync(full).isFile();
+  });
+}
+
+/**
+ * The repository's own actions: every `action.yml`/`action.yaml` under
+ * `.github/actions/`, and any other one a workflow step's `uses: ./…` names, parsed, with
+ * a finding for each one that cannot be read. Their steps run inside a workflow's job, so
+ * the step rules apply to them as well.
+ */
+export function readActions(
+  root: string,
+  workflows: readonly Workflow[],
+): { actions: Action[]; unreadable: FailureDetails[] } {
+  const named = workflows.flatMap((workflow) =>
+    jobsOf(workflow).flatMap(([, job]) =>
+      stepsOf(job).flatMap(([, step]) => {
+        const uses = step["uses"];
+        const file =
+          typeof uses === "string" && uses.startsWith("./")
+            ? localActionFile(root, uses)
+            : undefined;
+        return file === undefined ? [] : [file];
+      }),
+    ),
+  );
+  const paths = [...new Set([...actionFilesUnder(root, ACTIONS_DIR), ...named])];
+  const actions: Action[] = [];
+  const unreadable: FailureDetails[] = [];
+  for (const path of paths) {
+    const file = readYaml(root, path);
+    if (file === undefined) continue;
+    let problem: string | undefined;
+    if (typeof file === "string") problem = file;
+    else if (!isRecord(file.data)) problem = `${path}: the document is not a mapping`;
+    else if (!isRecord(file.data["runs"])) problem = `${path}: no \`runs\` mapping`;
+    else actions.push({ ...file, data: file.data });
+    if (problem !== undefined) {
+      unreadable.push({
+        ...UNREADABLE,
+        expected:
+          "every local action's action.yml to parse as a YAML mapping with a `runs` mapping",
+        summary: `${path} cannot be read as an action`,
+        actual: problem,
+      });
+    }
+  }
+  return { actions, unreadable };
+}
+
+/** A composite action's steps that are mappings, with their index. */
+export function actionStepsOf(action: Action): [number, Record<string, unknown>][] {
+  const runs = action.data["runs"];
+  return isRecord(runs) && runs["using"] === "composite" ? stepsOf(runs) : [];
 }
 
 /** The event names a workflow's `on:` declares, in any of its shapes. */

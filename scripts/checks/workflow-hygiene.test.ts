@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ScriptError } from "../lib/fail.ts";
 import type { ScriptContext } from "../lib/script.ts";
 import { readWorkflows, triggerNames } from "./shared/workflows.ts";
-import { check, main } from "./workflow-hygiene.ts";
+import { check, failOpenLine, main, unlockedCommand } from "./workflow-hygiene.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -530,8 +530,228 @@ jobs:
 
     it("accepts --frozen and ignores cargo tools that do not resolve the lockfile", () => {
       expect(
-        codes(ci("cargo fmt --all --check", "cargo run --frozen -p x\n          cargo deny check")),
+        codes(
+          ci(
+            "cargo fmt --all --check",
+            "cargo fmt --all --check\n          cargo run --frozen -p x\n          cargo deny --locked check",
+          ),
+        ),
       ).toEqual([]);
+    });
+  });
+
+  describe("job-level concurrency and push groups", () => {
+    const jobConcurrency = (block: string): Files =>
+      ci("    timeout-minutes: 10\n", `    timeout-minutes: 10\n${block}`);
+
+    it("accepts a job concurrency keyed per push run that never cancels a push", () => {
+      expect(
+        codes(
+          jobConcurrency(
+            "    concurrency:\n      group: deploy-${{ github.sha }}\n      cancel-in-progress: false\n",
+          ),
+        ),
+      ).toEqual([]);
+    });
+
+    it("rejects a job concurrency with no group on a push workflow", () => {
+      expect(
+        summaries(jobConcurrency("    concurrency:\n      cancel-in-progress: false\n")),
+      ).toEqual([expect.stringContaining("no group")]);
+    });
+
+    it("reads a job concurrency given as a bare group string", () => {
+      expect(codes(jobConcurrency("    concurrency: deploy\n"))).toEqual([
+        "ERR_CHECK_WORKFLOW_CONCURRENCY",
+      ]);
+    });
+
+    it("ignores a job concurrency on a workflow that never runs on push", () => {
+      const job = TITLE.replace(
+        "    timeout-minutes: 10\n",
+        "    timeout-minutes: 10\n    concurrency:\n      group: probe\n      cancel-in-progress: true\n",
+      );
+      expect(codes({ ".github/workflows/check-pr-title.yml": job })).toEqual([]);
+    });
+
+    it("rejects a group expression it cannot evaluate for a push", () => {
+      expect(
+        summaries(
+          ci(
+            "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}",
+            "group: ${{ github.workflow }}-${{ format('{0}', github.sha) }}",
+          ),
+        ),
+      ).toEqual([expect.stringContaining("cannot be evaluated for a push run")]);
+    });
+
+    it("rejects a cancel that is an expression inside other text", () => {
+      expect(
+        codes(
+          ci(
+            "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+            "cancel-in-progress: x-${{ false }}",
+          ),
+        ),
+      ).toEqual(["ERR_CHECK_WORKFLOW_CONCURRENCY"]);
+    });
+  });
+
+  describe("continue-on-error", () => {
+    it("accepts an explicit false", () => {
+      expect(
+        codes(
+          ci(
+            "      - run: just test-core\n",
+            "      - run: just test-core\n        continue-on-error: false\n",
+          ),
+        ),
+      ).toEqual([]);
+    });
+
+    it("rejects an expression", () => {
+      expect(
+        codes(
+          ci(
+            "      - run: just test-core\n",
+            "      - run: just test-core\n        continue-on-error: ${{ matrix.experimental }}\n",
+          ),
+        ),
+      ).toEqual(["ERR_CHECK_WORKFLOW_CONTINUE_ON_ERROR"]);
+    });
+  });
+
+  describe("fail-open commands", () => {
+    it("flags each swallowing fallback and errexit switch", () => {
+      for (const line of [
+        "just test-ui || true",
+        "just test-ui || :",
+        "just test-ui || exit 0",
+        "just test-ui || echo skipped",
+        "just test-ui || printf 'x'",
+        'x="$(just test-ui || true)"',
+        "just a || true; just b",
+        "set +e",
+        "set -x +u",
+        "set +o pipefail",
+        "if x; then set +e; fi",
+      ]) {
+        expect(failOpenLine(line), line).toBeDefined();
+      }
+    });
+
+    it("leaves a fail-closed fallback, a quoted one, and a comment alone", () => {
+      for (const line of [
+        "just test-ui || { echo failed; exit 1; }",
+        "echo 'run a || true'",
+        "just test-ui # not || true",
+        "set +x",
+        "set -euo pipefail",
+        '[[ -n "$a" || -n "$b" ]]',
+        "just test-ui || truer",
+      ]) {
+        expect(failOpenLine(line), line).toBeUndefined();
+      }
+    });
+
+    it("joins a line that ends in || with the next one", () => {
+      expect(
+        codes(ci("cargo fmt --all --check\n", "cargo fmt --all --check ||\n            true\n")),
+      ).toEqual(["ERR_CHECK_WORKFLOW_FAIL_OPEN"]);
+    });
+  });
+
+  describe("unlockedCommand", () => {
+    it("reads pnpm, npm, tauri, and cargo spellings", () => {
+      expect(unlockedCommand("pnpm -r install")).toBeDefined();
+      expect(unlockedCommand("pnpm --dir=ui i")).toBeDefined();
+      expect(unlockedCommand("pnpm --frozen-lockfile install")).toBeUndefined();
+      expect(unlockedCommand("pnpm --silent lint")).toBeUndefined();
+      expect(unlockedCommand("npm ci")).toBeUndefined();
+      expect(unlockedCommand("npm --prefix ui add left-pad")).toBeDefined();
+      expect(unlockedCommand("cargo tauri build -- --locked")).toBeUndefined();
+      expect(unlockedCommand("pnpm tauri dev -- --frozen -- --app-arg")).toBeUndefined();
+      expect(unlockedCommand("pnpm tauri dev -- --app -- --locked")).toBeDefined();
+      expect(unlockedCommand("pnpm tauri info")).toBeUndefined();
+      expect(unlockedCommand("pnpm tauri")).toBeUndefined();
+      expect(unlockedCommand("cargo shear --locked")).toBeUndefined();
+      expect(unlockedCommand("cargo deny --locked check")).toBeUndefined();
+      expect(unlockedCommand("cargo")).toBeUndefined();
+    });
+  });
+
+  describe("the justfile", () => {
+    it("reads recipe lines with continuations and prefixes, and skips comments", () => {
+      const justfile = [
+        'set shell := ["bash", "-c"]',
+        "",
+        "build:",
+        "    # cargo build",
+        "    @cargo build \\",
+        "      --release",
+        "    -cargo test --locked",
+        "",
+      ].join("\n");
+      const found = check.run(root({ justfile }));
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_WORKFLOW_UNLOCKED"]);
+      expect(found[0]?.summary).toContain("justfile:5");
+    });
+  });
+
+  describe("composite actions", () => {
+    const ACTION = `name: Setup
+description: x
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+    - run: pnpm install
+      shell: bash
+`;
+
+    it("applies the step rules to an action under .github/actions/", () => {
+      expect(codes({ ".github/actions/setup/action.yml": ACTION })).toEqual([
+        "ERR_CHECK_WORKFLOW_UNPINNED",
+        "ERR_CHECK_WORKFLOW_CHECKOUT_CREDENTIALS",
+        "ERR_CHECK_WORKFLOW_SHELL",
+        "ERR_CHECK_WORKFLOW_UNLOCKED",
+      ]);
+    });
+
+    it("follows a workflow's uses: ./ to an action outside .github/actions/", () => {
+      const found = check.run(
+        root({
+          ...ci("uses: ./.github/actions/local", "uses: ./tools/setup/"),
+          "tools/setup/action.yaml": ACTION,
+        }),
+      );
+      expect(found[0]?.summary).toContain("tools/setup/action.yaml");
+      expect(found).toHaveLength(4);
+    });
+
+    it("ignores a uses: ./ that leaves the root or names no action", () => {
+      expect(codes(ci("uses: ./.github/actions/local", "uses: ./../elsewhere"))).toEqual([]);
+      expect(codes(ci("uses: ./.github/actions/local", "uses: ./"))).toEqual([]);
+    });
+
+    it("has no steps to check in a JavaScript or Docker action", () => {
+      expect(
+        codes({
+          ".github/actions/node/action.yml": "name: n\nruns:\n  using: node24\n  main: index.js\n",
+        }),
+      ).toEqual([]);
+    });
+
+    it("reports an action that cannot be read", () => {
+      expect(codes({ ".github/actions/a/action.yml": "runs: [\n" })).toEqual([
+        "ERR_CHECK_WORKFLOW_UNREADABLE",
+      ]);
+      expect(codes({ ".github/actions/b/action.yaml": "- x\n" })).toEqual([
+        "ERR_CHECK_WORKFLOW_UNREADABLE",
+      ]);
+      expect(codes({ ".github/actions/c/action.yml": "name: c\n" })).toEqual([
+        "ERR_CHECK_WORKFLOW_UNREADABLE",
+      ]);
     });
   });
 
