@@ -196,14 +196,12 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`,
   `std::io::{stdin, stdout, stderr}`, `std::fs::{File, OpenOptions, DirBuilder}` and
   every `std::fs` free function, `std::os::unix::fs::{symlink, chown, fchown, lchown,
-  chroot}`, `std::path::Path`'s
-  file-system queries (`exists`, `try_exists`, `metadata`, `symlink_metadata`,
-  `read_dir`, `read_link`, `canonicalize`, `is_file`, `is_dir`, `is_symlink`, which a
-  `PathBuf` reaches too), `std::net::{TcpStream, TcpListener, UdpSocket}`,
-  `std::os::unix::net::{UnixStream, UnixListener, UnixDatagram}`, and
-  `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit, abort, id}`,
-  `std::os::unix::process::parent_id`,
-  `SystemTime::now`/`Instant::now` and both types' `elapsed`, `std::env`'s
+  chroot}`, `std::path::Path`'s file-system queries (`exists`, `try_exists`,
+  `metadata`, `symlink_metadata`, `read_dir`, `read_link`, `canonicalize`, `is_file`,
+  `is_dir`, `is_symlink`, which a `PathBuf` reaches too), `std::net::{TcpStream,
+  TcpListener, UdpSocket}`, `std::os::unix::net::{UnixStream, UnixListener,
+  UnixDatagram}`, and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit,
+  abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`/`Instant::now` and both types' `elapsed`, `std::env`'s
   `var`/`var_os`/`vars`/`vars_os`, `args`/`args_os`, `current_dir`/`set_current_dir`,
   `current_exe`, `home_dir`, `temp_dir`, and `set_var`/`remove_var`, and
   `std::thread::{spawn, sleep, park_timeout, available_parallelism}` and
