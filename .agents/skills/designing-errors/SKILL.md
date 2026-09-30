@@ -42,7 +42,7 @@ sample, that is `Err(CounterError::AtMaximum)` and `{ code: "atMaximum" }`.
 - One enum per failure domain, deriving `thiserror::Error`. `thiserror` writes the
   `Display` and `std::error::Error` impls from the `#[error]` attributes, so an error
   type costs a derive rather than two hand-written impls
-  (<https://docs.rs/thiserror/latest/thiserror/>).
+  (<https://docs.rs/thiserror/latest/thiserror/>, checked 2026-09-30).
 - Variants name what the caller can do something about, not which call failed. In the
   sample, `CounterError::{AtMaximum, AtMinimum, Storage { kind }}`: the UI says a
   different sentence for each.
@@ -74,9 +74,10 @@ pub enum CounterError { /* in the sample: AtMaximum, AtMinimum, Storage { kind }
 
 `tag = "code"` puts the variant name in a `code` field and flattens the payload beside
 it (`{ "code": "storage", "kind": "corrupt" }`); serde calls this the internally tagged
-representation (<https://serde.rs/enum-representations.html>). Tauri requires a command's
-error type to implement `Serialize` (<https://v2.tauri.app/develop/calling-rust/>,
-checked 2026-09-29), and this shape is what a command rejects with.
+representation (<https://serde.rs/enum-representations.html>, checked 2026-09-30).
+Tauri requires a command's error type to implement `Serialize`
+(<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29), and this shape is
+what a command rejects with.
 
 - Rust never sends a user-facing sentence. The UI owns the wording in `ui/src/copy/`,
   one exhaustive `switch` per error type (`describeCounterError` in the sample).
@@ -132,13 +133,18 @@ OS failure to a core kind is translation; what the app then does is core's decis
 
 `[profile.release]` in the root `Cargo.toml` sets `panic = "abort"`: in a release build a
 panic kills the whole app at once, with no error for the UI and no line in the log file
-(<https://doc.rust-lang.org/cargo/reference/profiles.html#panic>). So:
+(<https://doc.rust-lang.org/cargo/reference/profiles.html#panic>, checked 2026-09-30). So:
 
 - Never `unwrap()` or `expect()` outside tests (`clippy::unwrap_used`/`expect_used` in
   `[workspace.lints]`). Return a `Result` and propagate with `?`.
-- A command returns `Result<T, E>` for anything that can fail, including a worker
-  thread that died: the join error of `spawn_blocking` becomes a core kind, never an
-  unwrap. In the sample, `on_blocking_thread` maps it to `Storage { kind: Unavailable }`.
+- A command returns `Result<T, E>` for anything that can fail, and the join error of
+  `spawn_blocking` becomes a core kind, never an unwrap. The error means a panic or a
+  cancellation. `panic = "abort"` removes the panic case from a release build, but not
+  the cancellation: tokio may drop a blocking task that has not started when the
+  runtime shuts down, in any build (tokio 1.53.1, the version `Cargo.lock` pins,
+  <https://docs.rs/crate/tokio/1.53.1/source/src/runtime/blocking/pool.rs>, checked
+  2026-09-30). In the sample, `on_blocking_thread` maps it to
+  `Storage { kind: Unavailable }`.
 - A lock that protects no data is taken with `unwrap_or_else(PoisonError::into_inner)`
   (`CounterService`), because a panic on another thread left nothing inconsistent.
 - An error is handled or returned, never dropped. `let _ = fallible();` carries a

@@ -40,6 +40,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The skills, `.claude/rules/rust.md`, and `docs/distribution.md` no longer give
+  instructions the repository's config and code contradict. `create-pr` writes the
+  pull request template's `**Release impact:** none | PATCH | MINOR | MAJOR` line,
+  lists every `just check` step, and has `git status` checked after `fmt` rewrites
+  files; the release pull request is opened with the filled template rather than
+  `--fill`. `writing-rust` and the Rust rule say `wildcard_enum_match_arm` fires on a
+  foreign enum in core too. `designing-ipc` says why a capturing closure cannot reach
+  the `fn(&CounterService)` helper (E0308), and `integrating-system-apis` says
+  `run_on_main_thread` runs inline on the main thread instead of deadlocking.
+  `starting-an-app` documents the bootstrap's flags, defaults, validation, network
+  fetch, deletions, and format passes; `updating-docs` says a template-only block
+  outside `README.md` needs its file in the bootstrap's `MARKER_FILES`. Corrected too:
+  `writing-typescript` on `verbatimModuleSyntax` (TS1484) and the sign-off a
+  `@ts-expect-error` needs, `building-react-screens` on what the literal check reads and
+  `no-misused-promises`, the join-error mapping under `panic = "abort"`, the
+  design-lock's accent and `macOSPrivateApi`, `tdd`'s UI loop and gate rows, the
+  commit and title length, `smart-commit`'s type for `.github/` files, which tools
+  Renovate bumps, how pinned tools reach a recipe, and `changing-gates`' check for the
+  scripts floors.
+
 - ESLint refuses a static or dynamic import of `@tauri-apps/api/mocks` from production
   code inside `ui/src/ipc/`; only `ui/src/ipc/testing.ts` and tests there may import it,
   so the IPC mocks reach production code neither directly nor through `testing.ts`. The

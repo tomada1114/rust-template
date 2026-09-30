@@ -85,8 +85,10 @@ has the code for every step, taken from the sample.
   learn), so the command moves the call with `tauri::async_runtime::spawn_blocking`.
   The closure must own what it uses (`'static`: it may outlive the borrow of `State`),
   so clone the `Arc` first; cloning an `Arc` copies a pointer, not the service.
-  `on_blocking_thread` is the sample's helper, and it maps a dead worker to a core
-  error rather than panicking (`designing-errors`).
+  `on_blocking_thread` is the sample's helper, and it maps the join error (a worker
+  that panicked, which only a debug or test build reports, or a task cancelled at
+  shutdown, in any build) to a core error rather than unwrapping it
+  (`designing-errors`).
 - **Shared state is `AppState`**, one struct in `commands.rs` holding `Arc`s of core
   services, built once in `build_state` (`lib.rs`) from the real adapters and given to
   Tauri with `app.manage`. A test builds the same struct over fakes. A second service

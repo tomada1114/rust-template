@@ -39,8 +39,9 @@ so this skill is where an app still finds them.
    agent runs it only when asked). It prompts for, or takes as flags, the display name
    (`MyApp`), the slug used for crate and binary names (`myapp`), the bundle identifier
    (`com.example.myapp`), the GitHub `owner/repo`, the author, and the copyright holder.
-   **REQUIRED:** [references/bootstrap.md](references/bootstrap.md) before running it
-   again, changing it, or chasing a leftover placeholder.
+   It needs step 1's `just install`. **REQUIRED:**
+   [references/bootstrap.md](references/bootstrap.md), for its flags, defaults, and
+   validation, before running it, changing it, or chasing a leftover placeholder.
 3. **Write `AGENTS.md`'s `## Product` section**: what the app is and who it is for, the
    core interaction, the non-goals, and where those decisions are recorded. The owner
    decides every line; an agent drafts only from what the owner has said. Delete each

@@ -71,7 +71,8 @@ yet, not that a detail is left for later.
   manifest, `deny.toml`'s `wrappers`, and the closure check `just check-harness` runs),
   so a crate that pulls a macOS binding into core fails there even when it builds on
   the Mac.
-- An OS-facing crate belongs in `myapp-platform`, behind a port (`integrating-system-apis`).
+- An OS-facing crate belongs in `myapp-platform`, behind a port
+  (`integrating-system-apis`).
 - `tauri` and any `tauri-plugin-*` crate are direct dependencies of `myapp` (the shell)
   only. Enforced by: `deny.toml` `[bans]` "wrappers"; a plugin crate is added to that
   rule in the same change.
@@ -99,11 +100,11 @@ yet, not that a detail is left for later.
 
 - `dependencies` are bundled into the UI that ships; `devDependencies` are tools and
   tests. The pnpm project publishes nothing, so it declares no `peerDependencies`.
-- Add or bump with `pnpm add <package>` (or `pnpm add -D`), never by typing a version
-  into `package.json`, and commit `pnpm-lock.yaml` with it; the lockfile is regenerated
-  (`pnpm install --lockfile-only` when only it should change), never hand-edited. A caret or tilde range lets
-  the cooldown resolve to an older, already-cooled release; an exact pin on a release
-  younger than the cooldown fails the install outright.
+- Add or bump with `pnpm add <package>` (or `pnpm add -D`), never by typing a version into
+  `package.json`, and commit `pnpm-lock.yaml` with it; the lockfile is regenerated
+  (`pnpm install --lockfile-only` when only it should change), never hand-edited. A caret
+  or tilde range lets the cooldown resolve to an older, already-cooled release; an exact
+  pin on a release younger than the cooldown fails the install outright.
 - `pnpm-workspace.yaml` holds the supply-chain settings: `minimumReleaseAge` (a version
   younger than 7 days does not resolve, lockfiled or not), `trustPolicy: no-downgrade`,
   `blockExoticSubdeps`, `strictPeerDependencies`, `strictDepBuilds` with `allowBuilds`,
@@ -126,10 +127,10 @@ yet, not that a detail is left for later.
 
 ## Tauri moves as one
 
-The `tauri` crates and the `@tauri-apps/*` npm packages stay on the same minor (a
-harness check under `just check-harness` fails on a mismatch), so the JavaScript API the UI calls and the Rust runtime
-that answers it come from one release line. A Tauri major is a migration issue and an ADR, never a batch
-merge.
+The `tauri` crates and the `@tauri-apps/*` npm packages stay on the same minor (a harness
+check under `just check-harness` fails on a mismatch), so the JavaScript API the UI calls
+and the Rust runtime that answers it come from one release line. A Tauri major is a
+migration issue and an ADR, never a batch merge.
 
 A Tauri plugin is a dependency and a capability at once: its `tauri-plugin-*` crate in
 `myapp`, usually its `@tauri-apps/plugin-*` package imported only from `ui/src/ipc/`, a

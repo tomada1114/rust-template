@@ -25,10 +25,10 @@ current values.
 - Core's file adds the bans that keep I/O, time, the environment, processes, and sleeping
   behind ports (`disallowed-macros`, `disallowed-methods`, `disallowed-types`, each with a
   `reason` clippy prints).
-- clippy uses the first `clippy.toml` it finds walking up from the crate's directory
-  and merges nothing (https://doc.rust-lang.org/clippy/configuration.html, checked
-  2026-09-29), so a crate-local file replaces the root one entirely. That is why core's file repeats the two test settings; a new crate-local
-  file must do the same.
+- clippy uses the first `clippy.toml` it finds walking up from the crate's directory and
+  merges nothing (https://doc.rust-lang.org/clippy/configuration.html, checked
+  2026-09-29), so a crate-local file replaces the root one entirely. That is why core's
+  file repeats the two test settings; a new crate-local file must do the same.
 - Core also denies `clippy::wildcard_enum_match_arm` in its source, so a `match` on a
   core enum names every variant and a new variant is a compile error wherever a decision
   is owed.
@@ -68,7 +68,10 @@ does not pin. Changing an option reformats the whole tree: land the option and t
 Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup and mise both
 read it), Node and every CLI tool in `mise.toml`, pnpm in `packageManager`. Never
 `latest`, never a range, and prefer the prebuilt-binary backends over `cargo:`, which
-compiles from source. Renovate opens the bumps after its 7-day minimum release age.
+compiles from source. Renovate opens the bumps for the first two after its 7-day minimum
+release age; its `enabledManagers` in `.github/renovate.json` are `mise` and
+`rust-toolchain` only, so it never touches `packageManager`, and `package.json` is
+Dependabot's `npm` ecosystem (`.github/dependabot.yml`).
 
 A bump of Rust, clippy, ESLint, typescript-eslint, or TypeScript can fire a finding
 the old version did not. The fix goes into the code on that pull request; skipping the
@@ -120,14 +123,14 @@ only what each job names.
 
 ## `tsconfig.json`, `ui/tsconfig.json`, `scripts/tsconfig.json`
 
-Three configs, one per tree: the root config files, the UI Vite bundles, and the
-scripts Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all
-three. `scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types
-without transforming code, so `enum`, `namespace`, and parameter properties would fail at
-run time, not at type-check time. `ui/tsconfig.json` and the root `tsconfig.json` set it
-too, so `ui/src/` and the root config files keep the same language. Removing a strict option (`strict`,
-`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking for every
-file in that tree.
+Three configs, one per tree: the root config files, the UI Vite bundles, and the scripts
+Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all three.
+`scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types without
+transforming code, so `enum`, `namespace`, and parameter properties would fail at run
+time, not at type-check time. `ui/tsconfig.json` and the root `tsconfig.json` set it too,
+so `ui/src/` and the root config files keep the same language. Removing a strict option
+(`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking
+for every file in that tree.
 
 ## `vitest.config.ts`
 
@@ -199,9 +202,10 @@ narrows a security-relevant step says why the protection no longer applies.
 
 Each required context is a job `name:` in a `pull_request` workflow that runs on every
 pull request, and `just check-harness` fails when one names no job, or only a job whose
-workflow filters `paths` or `branches` or whose `if:` (or a `needs` job's) can be false
-on a pull request: such a check never reports, or is skipped and passes unrun. Renaming or splitting a required job,
-or adding one, edits this file in the same pull request; `just ruleset` then applies it
-to the live repository, which is a human's step. A new job is not required until the
-owner decides it is: adding one never adds its context here on its own. `bypass_actors` stays empty: a bypass
-lets an admin token merge without the checks the ruleset exists to require.
+workflow filters `paths` or `branches` or whose `if:` (or a `needs` job's) can be false on
+a pull request: such a check never reports, or is skipped and passes unrun. Renaming or
+splitting a required job, or adding one, edits this file in the same pull request; `just
+ruleset` then applies it to the live repository, which is a human's step. A new job is not
+required until the owner decides it is: adding one never adds its context here on its own.
+`bypass_actors` stays empty: a bypass lets an admin token merge without the checks the
+ruleset exists to require.

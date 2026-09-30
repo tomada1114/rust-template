@@ -162,11 +162,13 @@ Do not add a trait, or a fake for it, until something actually varies across it.
 
 - Query by role and accessible name: `getByRole("button", { name: "Increment" })`,
   never by class, test id, or a glyph, so an unlabeled control fails the test
-  (Testing Library's priority: https://testing-library.com/docs/queries/about/#priority).
+  (Testing Library's priority: https://testing-library.com/docs/queries/about/#priority,
+  checked 2026-09-30).
   `findBy…` waits for what appears after a promise.
 - Drive it as a user: `userEvent.click`, `userEvent.tab`, `userEvent.keyboard`.
 - Simulate a Rust event with `emitEvent`, which needs `mockCommands` first
-  (`shouldMockEvents`; Tauri's mocking guide: https://v2.tauri.app/develop/tests/mocking/).
+  (`shouldMockEvents`; Tauri's mocking guide: https://v2.tauri.app/develop/tests/mocking/,
+  checked 2026-09-30).
 
 ## Rejected in review
 

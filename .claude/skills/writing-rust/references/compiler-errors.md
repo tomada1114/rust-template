@@ -75,9 +75,14 @@ written and the type produced differ. Two cases worth recognising here:
 
 **E0004, non-exhaustive patterns** (https://doc.rust-lang.org/error_codes/E0004.html).
 A `match` does not cover a variant, usually because one was added a moment ago. Add an
-arm that decides what the new variant means at this place. Do not add `_ =>`: on a core
-enum clippy's `wildcard_enum_match_arm` rejects it, and anywhere else it hides the next
-variant the same way.
+arm that decides what the new variant means at this place. Do not add `_ =>`: in core
+clippy's `wildcard_enum_match_arm` rejects a `_` that stands for a variant the match
+could name, on any enum, a foreign one included, and anywhere else it hides the next
+variant the same way. The exception is a `#[non_exhaustive]` enum from another crate,
+which rustc never lets a match cover without `_`: outside core end that match with
+`_ =>`; in core name every variant before the `_`, or, for an enum with unstable
+variants no match can name (`std::io::ErrorKind`, E0658), test the value with `==` or
+`matches!` instead.
 
 ## clippy findings met most here
 
@@ -89,7 +94,7 @@ in the lint list (https://rust-lang.github.io/rust-clippy/master/index.html).
 |---|---|---|
 | `unwrap_used`, `expect_used` | no panic on `None` or `Err` in non-test code | `?`, `ok_or`, `let … else`, or a fallback that is a correct answer. In a helper function under `tests/` that is not itself a `#[test]`, clippy does not count the code as test code (`allow-unwrap-in-tests` covers test functions and `#[cfg(test)]`, https://doc.rust-lang.org/clippy/lint_configuration.html#allow-unwrap-in-tests, checked 2026-09-29), so panic with context instead, as `must` in `src-tauri/tests/commands.rs` does |
 | `disallowed_methods`, `disallowed_macros`, `disallowed_types` | core does not read the clock, the environment, or the file system, print, sleep, or start a process (`crates/myapp-core/clippy.toml`) | take the value as an argument or through a port (`designing-core-logic`); never move the call into core behind an `#[allow]` |
-| `wildcard_enum_match_arm` | no `_ =>` on a core enum | name every variant; group with `A \| B =>` |
+| `wildcard_enum_match_arm` | no `_` in core that stands for a nameable variant, on any enum | name every variant; group with `A \| B =>`; a `#[non_exhaustive]` foreign enum names them all before its `_`, or is tested with `==` or `matches!` |
 | `missing_errors_doc`, `missing_panics_doc` | a `# Errors` / `# Panics` section on a public function that can fail or panic | write the section: which variant, and when |
 | `must_use_candidate` | `#[must_use]` on a pure public function whose result would be a bug to ignore | add `#[must_use]`, as core's constructors and getters have |
 | `needless_pass_by_value` | a parameter taken by value but only read | take `&T` (or `&str`, `&[T]`) |

@@ -123,6 +123,11 @@ goes inside a block; text an app keeps (the Design Philosophy of a kept decision
 distribution flow) goes outside. A standing document outside a block never links into
 the template's design notes: that link dangles in every app.
 
+Only the files `MARKER_FILES` in `scripts/bootstrap.ts` lists have their blocks removed.
+A block in any other file adds that file to the list in the same change, or its marker
+lines survive into the app and `node scripts/verify-bootstrap.ts` (CI's Template
+Bootstrap Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`.
+
 ## What checks a document, and what does not
 
 - `just check-harness` fails when `AGENTS.md`, `CLAUDE.md`, `README.md`,

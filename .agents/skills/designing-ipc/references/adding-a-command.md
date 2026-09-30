@@ -92,8 +92,19 @@ pub async fn increment<R: Runtime>(
 
 `change` calls `on_blocking_thread`, logs the outcome, and on success calls
 `announce`, which emits `COUNTER_CHANGED`. A read-only command skips the emit
-(`get_counter`). A command whose use case takes an argument passes it into the closure
-by value, since the closure must own everything it touches.
+(`get_counter`).
+
+A command whose use case takes an argument cannot hand it to `on_blocking_thread` or
+`change`. Their `action` is a function pointer (`fn(&CounterService) -> …`), and a
+closure that captures the argument is not one: for a hypothetical use case
+`set_to(value)`, passing `move |service| service.set_to(value)` fails with E0308,
+mismatched types, whose note says a closure coerces to `fn` only when it captures
+nothing (<https://doc.rust-lang.org/error_codes/E0308.html>). Either widen the helper to
+a generic `F: FnOnce(&CounterService) -> Result<CounterView, CounterError> + Send +
+'static`, so the closure moves in only the argument and the helper keeps cloning the
+`Arc`, or call `tauri::async_runtime::spawn_blocking` in that command directly, with a
+`move` closure that owns the argument and its own `Arc::clone(&state.counter)`. Either
+way the closure runs on another thread, so it owns everything it touches.
 
 A command that takes an argument names it as the UI will (camelCase on the wire):
 
