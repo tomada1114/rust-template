@@ -5,7 +5,8 @@
  * whether the batch keeps each Tauri crate in step with its `@tauri-apps/*` npm packages.
  * Read-only: it runs `gh pr list` and reads `Cargo.lock` and `package.json`, and it
  * is the one step of the skill that runs before the human's approval.
- * It marks a Tauri pair split across PRs that each break it alone, and each major bump.
+ * It marks a Tauri pair split across PRs, at least one of which breaks it alone, and each
+ * major bump.
  *
  *   node .agents/skills/merging-dependency-prs/scripts/survey-prs.ts [--json]
  *

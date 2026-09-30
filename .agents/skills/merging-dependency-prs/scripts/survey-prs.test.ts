@@ -288,6 +288,27 @@ describe("tauriReport", () => {
     expect(pair).toMatchObject({ aligned: true, split: false });
   });
 
+  it("calls a pair split when only one of its PRs breaks it alone", () => {
+    const rows = [
+      row({ number: 11, bumps: [{ name: "tauri", from: "2.11.6", to: "2.12.0" }] }),
+      row({
+        number: 12,
+        ecosystem: "npm",
+        bumps: [{ name: "@tauri-apps/api", from: "2.11.1", to: "2.11.2" }],
+      }),
+      row({
+        number: 13,
+        ecosystem: "npm",
+        bumps: [
+          { name: "@tauri-apps/api", from: "2.11.2", to: "2.12.0" },
+          { name: "@tauri-apps/cli", from: "2.11.5", to: "2.12.1" },
+        ],
+      }),
+    ];
+    const [pair] = tauriReport(rows, current).pairs;
+    expect(pair).toMatchObject({ prs: [11, 12, 13], aligned: true, split: true });
+  });
+
   it("does not call a pair split when one PR moves both sides", () => {
     const rows = [
       row({
@@ -503,6 +524,25 @@ describe("main", () => {
     const { context, lines } = harness([], () => ({ stdout: JSON.stringify(pair) }), root);
     main(context);
     expect(lines.join("\n")).toContain("tauri: aligned, split across #15 #16");
+  });
+
+  it("prints an aligned pair that is not split without the split marker", () => {
+    const both = [
+      {
+        ...PULLS[0],
+        number: 18,
+        body: [
+          "Updates `tauri` from 2.11.6 to 2.11.7",
+          "Updates `@tauri-apps/api` from 2.11.1 to 2.11.2",
+        ].join("\n"),
+      },
+    ];
+    const root = tempRoot({ "Cargo.lock": CARGO_LOCK, "package.json": PACKAGE_JSON });
+    const { context, lines } = harness([], () => ({ stdout: JSON.stringify(both) }), root);
+    main(context);
+    const text = lines.join("\n");
+    expect(text).toContain("tauri: aligned -- ");
+    expect(text).not.toContain(", split across");
   });
 
   it("marks each major bump inside a grouped PR", () => {
