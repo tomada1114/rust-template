@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Vitest coverage floors count every script and UI source extension (`.mts`, `.cts`,
+  `.js`, `.jsx`, `.mjs`, `.cjs` as well as `.ts`/`.tsx`), so an untested file in any of them
+  shows as 0%.
 - Dependency Review allows GHSA-wrw7-89jp-8q8g (`glib`, Linux-only), the advisory
   `osv-scanner.toml` already ignores, and a harness check
   (`scripts/checks/advisory-ignores-agree.ts`) fails when the two lists diverge.
