@@ -1,6 +1,6 @@
 /**
  * Every user-facing string for the counter screen. Rust returns codes, never sentences;
- * this module owns the wording (issue-triage #119: the seam a second locale would use).
+ * this module owns the wording, the seam a second locale would use.
  */
 import type { CounterError } from "../ipc/types";
 

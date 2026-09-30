@@ -1,7 +1,7 @@
 /**
  * Labels a pull request by its title's Conventional Commit type, for the release-notes
  * categories in `.github/release.yml`. Run by `.github/workflows/pr-label.yml` from the
- * base commit (issue #126) with PR_NUMBER, PR_TITLE, GH_TOKEN, and GH_REPO set.
+ * base commit, never the pull request's head, with PR_NUMBER, PR_TITLE, GH_TOKEN, and GH_REPO set.
  *
  * It adds the title's label and removes a stale type label left by an earlier title, but
  * only when that label is the pull request's one managed label: with two, either could
