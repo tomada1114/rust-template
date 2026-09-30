@@ -15,7 +15,8 @@ CHANGELOG.md
 # Data under test: a fixture is committed because it is malformed.
 **/fixtures/
 
-# Generated mirror of .agents/skills/ (`just agents-sync`; issue #139).
+# Generated mirror of .agents/skills/ (`just agents-sync`): formatted at its real path, as
+# formatting the copy alone is drift the mirror check must undo.
 .claude/skills/
 .claude/worktrees/
 

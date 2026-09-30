@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 // Everything here is allowed: link anchors, hex colors, an HTML entity, placeholders, and
-// an upstream project's issue URL cited as a source.
+// an upstream project's issue, cited as a source by URL or by owner/repo#N.
 const CLEAN = `# Guide
 
 See [Skills](#skills), [step 4](#4-review-the-branch), and
@@ -25,7 +25,18 @@ Words that are not references: an issue-number rule, issues and PRs in general, 
 \`/issues/new\`, a GH-hosted runner, and the v2 release.
 Sources: https://github.com/tauri-apps/tauri/issues/139 and
 [an upstream fix](https://github.com/Other/widgets/pull/12), and
-<https://gitlab.com/group/project/-/merge_requests/3>.
+<https://gitlab.com/group/project/-/merge_requests/3>. Upstream shorthand:
+tauri-apps/tauri#1234, (other/repo#12), \`Other-Org/some.repo_x#5\`.
+`;
+
+// An issue form, which is YAML: a comment and a placeholder, neither a reference.
+const FORM = `# Issue form: GitHub renders these strings as Markdown.
+name: Task
+body:
+  - type: input
+    attributes:
+      label: Dependencies
+      placeholder: "Depends on: #N"
 `;
 
 // This repository, as the issue-template config names it.
@@ -54,6 +65,12 @@ function fixture(overrides: Record<string, string | undefined> = {}): string {
     ".agents/skills/demo/scripts/plan.py": "# See issue #139.\n",
     "CLAUDE.md": CLEAN,
     ".claude/rules/docs.md": CLEAN,
+    ".claude/agents/executor.md": CLEAN,
+    ".github/ISSUE_TEMPLATE/task.yml": FORM,
+    ".github/ISSUE_TEMPLATE/legacy.md": CLEAN,
+    // GitHub reads neither a subdirectory of the issue templates nor another extension.
+    ".github/ISSUE_TEMPLATE/drafts/old.yml": "Fixed in #12.\n",
+    ".github/ISSUE_TEMPLATE/notes.txt": "Fixed in #12.\n",
     "docs/guide.md": CLEAN,
     "docs/design/system.md": CLEAN,
     "docs/architecture/README.md": CLEAN,
@@ -111,12 +128,16 @@ describe("no-issue-references", () => {
   it.each([
     ["AGENTS.md", "Excluded from typos (issue #139).", "#139"],
     [".agents/skills/demo/SKILL.md", "The staged guard (#42) refuses it.", "#42"],
-    [".agents/skills/demo/references/more.md", "Upstream tracks it in owner/repo#7.", "#7"],
+    [".agents/skills/demo/references/more.md", "Tracked here in acme/widgets#7.", "acme/widgets#7"],
     [".agents/skills/demo/references/deep/x.md", "Closes #12", "#12"],
     ["CLAUDE.md", "The hook changed in #88.", "#88"],
     [".claude/rules/x.md", "Banned since #5.", "#5"],
     ["docs/x.md", "Decided in #31.", "#31"],
     ["docs/architecture/README.md", "Indexed in #31.", "#31"],
+    [".claude/agents/x.md", "see #12", "#12"],
+    [".github/ISSUE_TEMPLATE/bug_report.yml", "description: see #12", "#12"],
+    [".github/ISSUE_TEMPLATE/feature.yaml", "description: see #12", "#12"],
+    [".github/ISSUE_TEMPLATE/legacy.md", "see #12", "#12"],
   ])("reports a reference in %s with its line", (path, text, ref) => {
     const violations = check.run(fixture({ [path]: `# Title\n\n${text}\n` }));
     expect(violations.map((v) => v.code)).toEqual(["ERR_CHECK_ISSUE_REFERENCE"]);
@@ -147,6 +168,29 @@ describe("no-issue-references", () => {
   ])("reports %s", (_label, text, ref) => {
     const violations = check.run(fixture({ "docs/x.md": `# Title\n\n${text}\n` }));
     expect(violations.map((v) => v.summary)).toEqual([`docs/x.md:3 cites \`${ref}\``]);
+  });
+
+  it("treats an upstream owner/repo#N like its URL, and this repository's as a reference", () => {
+    const own = "tomada1114/tauri-template";
+    const config = CONFIG.replace("acme/widgets", own);
+    const text = [
+      "Upstream: other/repo#12 and acme/widgets#12.",
+      "Bare: #12.",
+      `This repository: ${own}#12 and ${own.toUpperCase()}#13.`,
+      "A path is not an owner/repo: docs/a/b#14.",
+    ].join("\n");
+    const root = fixture({ ".github/ISSUE_TEMPLATE/config.yml": config, "AGENTS.md": text });
+    expect(check.run(root).map((v) => v.summary)).toEqual([
+      "AGENTS.md:2 cites `#12`",
+      `AGENTS.md:3 cites \`${own}#12\``,
+      `AGENTS.md:3 cites \`${own.toUpperCase()}#13\``,
+      "AGENTS.md:4 cites `#14`",
+    ]);
+  });
+
+  it("reports this repository's owner/repo#N even where a bare one would be a color", () => {
+    const violations = check.run(fixture({ "AGENTS.md": "See acme/widgets#123456.\n" }));
+    expect(violations.map((v) => v.summary)).toEqual(["AGENTS.md:1 cites `acme/widgets#123456`"]);
   });
 
   it("reports the references on a line in the order they appear", () => {
