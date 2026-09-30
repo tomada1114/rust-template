@@ -6,12 +6,12 @@
  *   node scripts/checks/just-recipes-exist.ts [--root DIR]
  *
  * Read: every document an agent or a contributor follows — `AGENTS.md`, `CLAUDE.md`,
- * `README.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, every `*.md` under
- * `docs/` (except `docs/template/`, the template's own design record, which the bootstrap
- * deletes and which plans recipes before they exist), `.claude/rules/`, and
- * `.agents/skills/`. Only code is read — inline code spans (which may
- * wrap across lines, but never across a blank line) and fenced blocks — so English prose
- * ("just to be safe") never counts. A token is `just` not preceded by a name character,
+ * `README.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, and every `*.md`
+ * under `docs/`, `.claude/rules/`, and `.agents/skills/` — except the planning and
+ * decision records, which may name a recipe before it exists (`docs/template/`, the
+ * roadmap, and the ADRs: UNCHECKED_DOCUMENTS in `shared/documents.ts`). Only code is read
+ * — inline code spans (which may wrap across lines, but never across a blank line) and
+ * fenced blocks — so English prose ("just to be safe") never counts. A token is `just` not preceded by a name character,
  * then a recipe name (a letter or `_`, then letters, digits, `_`, `-`), so `just --list`
  * and the placeholder `just <recipe>` name nothing. From `.claude/settings.json`, each
  * `permissions` rule of the form `Bash(just <recipe>…)`; a hook's command is not a rule.
@@ -23,16 +23,14 @@
  * work tree needed.
  *
  * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no justfile or no `AGENTS.md`),
- * ERR_CHECK_INPUT_UNREADABLE
- * (`.claude/settings.json` is not JSON), ERR_CHECK_RECIPE_MISSING (a document names an
- * undefined recipe), ERR_CHECK_PERMISSION_RECIPE_MISSING (a permission names one).
+ * ERR_CHECK_INPUT_UNREADABLE (`.claude/settings.json` is not JSON), ERR_CHECK_RECIPE_MISSING
+ * (a document names an undefined recipe), ERR_CHECK_PERMISSION_RECIPE_MISSING (a
+ * permission names one).
  */
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
-
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
+import { markdownFiles } from "./shared/documents.ts";
 
 const NAME = "[A-Za-z_][A-Za-z0-9_-]*";
 const NOT_A_RECIPE = new Set(["set", "export", "unexport", "import", "mod", "alias"]);
@@ -144,32 +142,18 @@ function markdownTokens(text: string): Found[] {
   return found;
 }
 
-/** Documents under `docs/` that are not read: the template's design record. */
-const SKIPPED_DOCS = new Set(["docs/template"]);
-
 /** The Markdown files whose recipe references are checked, as root-relative paths. */
 function documents(root: string): string[] {
-  const paths = [
+  return [
     "AGENTS.md",
     "CLAUDE.md",
     "README.md",
     "CONTRIBUTING.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
+    ...markdownFiles(root, "docs"),
+    ...markdownFiles(root, ".claude/rules"),
+    ...markdownFiles(root, ".agents/skills"),
   ];
-  const list = (dir: string): string[] => {
-    try {
-      return readdirSync(join(root, dir), { withFileTypes: true })
-        .sort((a, b) => (a.name < b.name ? -1 : 1))
-        .flatMap((entry) => {
-          const path = `${dir}/${entry.name}`;
-          if (entry.isDirectory()) return SKIPPED_DOCS.has(path) ? [] : list(path);
-          return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
-        });
-    } catch {
-      return [];
-    }
-  };
-  return [...paths, ...list("docs"), ...list(".claude/rules"), ...list(".agents/skills")];
 }
 
 function settingsViolations(root: string, recipes: ReadonlySet<string>): FailureDetails[] {

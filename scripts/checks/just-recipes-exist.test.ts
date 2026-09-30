@@ -168,7 +168,7 @@ describe("just-recipes-exist", () => {
   it.each([
     ["docs/*.md", "docs/other.md"],
     ["a docs/ subdirectory", "docs/design/x.md"],
-    ["a nested docs/ subdirectory", "docs/architecture/adr/x.md"],
+    ["a docs/architecture page", "docs/architecture/overview.md"],
     ["CLAUDE.md", "CLAUDE.md"],
     ["a Claude Code rule", ".claude/rules/x.md"],
     ["the pull request template", ".github/PULL_REQUEST_TEMPLATE.md"],
@@ -181,8 +181,12 @@ describe("just-recipes-exist", () => {
     ]);
   });
 
-  it("reads no document under docs/template/", () => {
-    const root = fixture({ "docs/template/deep/x.md": "Run `just bogus-template`.\n" });
+  it("reads neither docs/template/, the roadmap, nor an ADR, which plan recipes ahead", () => {
+    const root = fixture({
+      "docs/template/deep/x.md": "Run `just bogus-template`.\n",
+      "docs/architecture/roadmap.md": "Done when `just export-csv` passes.\n",
+      "docs/architecture/adr/0002-export.md": "Adds a `just export-csv` recipe.\n",
+    });
     expect(check.run(root)).toEqual([]);
   });
 

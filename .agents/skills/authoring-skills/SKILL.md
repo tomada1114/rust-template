@@ -171,8 +171,11 @@ where the floors do.
 A matching mirror proves nothing about the source: a `SKILL.md` whose frontmatter does
 not parse, whose `name` differs from its directory, or that carries a third key mirrors
 cleanly and never loads in either host. `just check-harness` covers the mechanical part,
-including no issue or pull-request reference (`#` and digits, an issue or pull-request
-URL, or the word issue before a number): a skill states the rule and its reason itself.
+including no reference to this repository's issues or pull requests (`#` and digits, an
+issue or pull-request URL on this repository or relative to it, the word issue, PR, pull
+request, or merge request before a number, `GH-` and digits, or a `gh issue`/`gh pr`
+command given a number; an upstream project's issue URL passes as a source): a skill
+states the rule and its reason itself.
 
 ```bash
 just agents-sync
