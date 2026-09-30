@@ -211,6 +211,7 @@ describe("tauriReport", () => {
         key: "tauri",
         prs: [11, 12],
         aligned: true,
+        split: true,
         versions: [
           { name: "tauri", version: "2.12.0", pr: 11 },
           { name: "@tauri-apps/api", version: "2.12.0", pr: 12 },
@@ -224,6 +225,7 @@ describe("tauriReport", () => {
     const rows = [row({ number: 11, bumps: [{ name: "tauri", from: "2.11.6", to: "2.12.0" }] })];
     const [pair] = tauriReport(rows, current).pairs;
     expect(pair?.aligned).toBe(false);
+    expect(pair?.split).toBe(false);
     expect(pair?.versions).toContainEqual({ name: "@tauri-apps/api", version: "2.11.1" });
   });
 
@@ -245,6 +247,7 @@ describe("tauriReport", () => {
         key: "plugin-log",
         prs: [20],
         aligned: false,
+        split: false,
         versions: [
           { name: "tauri-plugin-log", version: "2.10.0" },
           { name: "@tauri-apps/plugin-log", version: "2.11.0", pr: 20 },
@@ -263,11 +266,41 @@ describe("tauriReport", () => {
       row({ number, bumps: [{ name, from: "2.10.0", to }] });
     const patchApart = [bump(21, "tauri-plugin-log", "2.10.1")];
     expect(tauriReport(patchApart, withPlugin).pairs[0]?.aligned).toBe(false);
+    expect(tauriReport(patchApart, withPlugin).pairs[0]?.split).toBe(false);
     const together = [
       bump(21, "tauri-plugin-log", "2.10.1"),
       bump(22, "@tauri-apps/plugin-log", "2.10.1"),
     ];
     expect(tauriReport(together, withPlugin).pairs[0]?.aligned).toBe(true);
+    expect(tauriReport(together, withPlugin).pairs[0]?.split).toBe(true);
+  });
+
+  it("does not call a pair split when each PR keeps it within the current minor", () => {
+    const rows = [
+      row({ number: 11, bumps: [{ name: "tauri", from: "2.11.6", to: "2.11.7" }] }),
+      row({
+        number: 12,
+        ecosystem: "npm",
+        bumps: [{ name: "@tauri-apps/api", from: "2.11.1", to: "2.11.2" }],
+      }),
+    ];
+    const [pair] = tauriReport(rows, current).pairs;
+    expect(pair).toMatchObject({ aligned: true, split: false });
+  });
+
+  it("does not call a pair split when one PR moves both sides", () => {
+    const rows = [
+      row({
+        number: 11,
+        bumps: [
+          { name: "tauri", from: "2.11.6", to: "2.12.0" },
+          { name: "@tauri-apps/api", from: "2.11.1", to: "2.12.0" },
+          { name: "@tauri-apps/cli", from: "2.11.5", to: "2.12.1" },
+        ],
+      }),
+    ];
+    const [pair] = tauriReport(rows, current).pairs;
+    expect(pair).toMatchObject({ aligned: true, split: false });
   });
 
   it("lists a Tauri major separately, whatever else moves", () => {
@@ -442,7 +475,55 @@ describe("main", () => {
         { number: 12, ecosystem: "cargo", level: "minor", checks: "PASSING" },
       ],
       contested: {},
+      tauri: { pairs: [{ key: "tauri", split: false }] },
     });
+  });
+
+  it("names the PRs a split Tauri pair spans", () => {
+    const pair = [
+      {
+        ...PULLS[0],
+        number: 16,
+        title: "deps: bump the npm-tauri group with 2 updates",
+        body: [
+          "Updates `@tauri-apps/api` from 2.11.1 to 2.12.0",
+          "Updates `@tauri-apps/cli` from 2.11.5 to 2.12.1",
+        ].join("\n"),
+        headRefName: "dependabot/npm_and_yarn/npm-tauri-1",
+        files: [{ path: "pnpm-lock.yaml" }],
+      },
+      {
+        ...PULLS[0],
+        number: 15,
+        title: "deps: bump the cargo-tauri group with 1 update",
+        headRefName: "dependabot/cargo/cargo-tauri-1",
+      },
+    ];
+    const root = tempRoot({ "Cargo.lock": CARGO_LOCK, "package.json": PACKAGE_JSON });
+    const { context, lines } = harness([], () => ({ stdout: JSON.stringify(pair) }), root);
+    main(context);
+    expect(lines.join("\n")).toContain("tauri: aligned, split across #15 #16");
+  });
+
+  it("marks each major bump inside a grouped PR", () => {
+    const group = [
+      {
+        ...PULLS[0],
+        number: 17,
+        title: "deps: bump the cargo-minor-and-patch group with 2 updates",
+        body: [
+          "Updates `toml` from 0.8.2 to 0.9.0",
+          "Updates `serde` from 1.0.228 to 1.0.229",
+        ].join("\n"),
+      },
+    ];
+    const { context, lines } = harness([], () => ({ stdout: JSON.stringify(group) }));
+    main(context);
+    const text = lines.join("\n");
+    expect(text).toContain("toml 0.8.2 -> 0.9.0 (major)");
+    expect(text).toContain("serde 1.0.228 -> 1.0.229");
+    expect(text).not.toContain("serde 1.0.228 -> 1.0.229 (major)");
+    expect(text).toMatch(/#17\s+\[cargo\s*\] major/);
   });
 
   it("names the files two bot PRs contest", () => {

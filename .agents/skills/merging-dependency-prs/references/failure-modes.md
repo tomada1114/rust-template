@@ -131,3 +131,36 @@ side is a gate change (`changing-gates`).
 found one.
 
 **Fix:** hold it until it has; never pin a different version than the bot proposed.
+
+## F11: One side of a Tauri pair
+
+**Symptom:** a PR that moves a Tauri-family package (normally `cargo-tauri` or
+`npm-tauri`) fails only in one or more of these ways, and every other job and step
+passes:
+
+- `Repo Lint & Harness` fails at "Harness self-checks"; the only `FAIL` line is
+  `FAIL  tauri-versions`, and the only codes are `ERR_CHECK_TAURI_VERSIONS_DIVERGED` /
+  `ERR_CHECK_TAURI_PLUGIN_VERSIONS_DIVERGED`.
+- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at
+  `check-harness`, with the same `tauri-versions` failure.
+- `macOS Build & Smoke` fails at "Build the debug app bundle" with Tauri's "Found
+  version mismatched Tauri packages".
+
+**Cause:** Dependabot updates cargo and npm in separate PRs, so each PR carries one side
+of a new Tauri minor, or of a plugin's new exact version. The harness and `tauri build`
+both refuse a pair on two versions. This is not a regression: as in F2, the bump is
+untested until its other side joins it.
+
+**Fix:**
+
+- If the survey prints `split across #<a> #<b>`, both PRs go into one combined branch
+  (Step 4b). That branch's CI is the first real signal.
+- If it prints `MISMATCH` (only one side is open), move the missing side by hand in the
+  combined branch, but only to a version published at least 7 days ago. For npm,
+  pnpm's `minimumReleaseAge` refuses a younger one (F3). For a crate, read
+  `version.created_at` from `https://crates.io/api/v1/crates/<crate>/<version>`.
+- Otherwise hold the PR; Dependabot opens the other side on a later weekly run.
+- Any other failing step, or any other code in the log, is diagnosed under its own entry
+  and is never waved through as the split.
+
+Where to read the log: the command at the top of this file.

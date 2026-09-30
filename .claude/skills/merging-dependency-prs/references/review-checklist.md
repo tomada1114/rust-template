@@ -8,7 +8,9 @@ and passes the tests, not that it is the version anyone meant to trust.
 
 - Read the release notes or changelog for every **major** bump and every **0.x minor**
   (the survey already reports a 0.x minor as `major`: below 1.0.0 a minor release is
-  allowed to break, and Cargo's and npm's caret ranges treat it that way). Note removed
+  allowed to break, and Cargo's and npm's caret ranges treat it that way). Dependabot's
+  `update-types` counts a 0.x minor as a minor, so it arrives inside a
+  `*-minor-and-patch` group, and the survey marks that bump `(major)`. Note removed
   APIs, a raised minimum Rust version (`rust-version` in `Cargo.toml` is `1.90`, and
   raising it is an ADR decision), a raised Node engine, and new lints.
 - Where to find them: the PR body's release-notes section, or
@@ -72,7 +74,8 @@ almost always contains one.
 - The survey's Tauri section says `aligned` for every pair the batch moves (`tauri`
   and `@tauri-apps/api`/`cli` on one minor, a plugin crate and its package on one exact
   version), or the combined branch moves the missing side (`merging-dependency-prs`
-  "The Tauri rule").
+  "The Tauri rule"). A pair the survey marks `split across` goes into the combined
+  branch as a whole (`failure-modes.md` F11).
 - A Tauri major is held and becomes a migration issue; it is never merged in a batch.
 - A new `tauri-plugin-*` crate or `@tauri-apps/plugin-*` package appearing in a bump is
   a new dependency and a new capability, not a bump: stop and ask.

@@ -5,6 +5,7 @@
  * whether the batch keeps each Tauri crate in step with its `@tauri-apps/*` npm packages.
  * Read-only: it runs `gh pr list` and reads `Cargo.lock` and `package.json`, and it
  * is the one step of the skill that runs before the human's approval.
+ * It marks a Tauri pair split across PRs that each break it alone, and each major bump.
  *
  *   node .agents/skills/merging-dependency-prs/scripts/survey-prs.ts [--json]
  *
@@ -56,6 +57,11 @@ export interface TauriPair {
   /** The pull requests that move a member of the pair. */
   readonly prs: readonly number[];
   readonly aligned: boolean;
+  /**
+   * The batch aligns the pair, but only together: two or more PRs move it, and at least
+   * one of them, landed alone on the checkout's versions, leaves the pair apart.
+   */
+  readonly split: boolean;
   /** Each member's version once the batch lands; `pr` names the PR that moves it. */
   readonly versions: readonly {
     readonly name: string;
@@ -263,6 +269,14 @@ export function tauriReport(
       if (key !== undefined) moved.set(key, [...new Set([...(moved.get(key) ?? []), row.number])]);
     }
   }
+  const alignedAlone = (key: string, row: Row): boolean => {
+    const alone = new Map(current);
+    for (const bump of row.bumps) alone.set(bump.name, bump.to);
+    const steps = new Set(
+      [...alone].filter(([name]) => pairKey(name) === key).map(([, v]) => stepOf(key, v)),
+    );
+    return steps.size === 1;
+  };
   const pairs = [...moved].map(([key, prs]): TauriPair => {
     const versions = [...landed]
       .filter(([name]) => pairKey(name) === key)
@@ -271,7 +285,12 @@ export function tauriReport(
         pr === undefined ? { name, version } : { name, version, pr },
       );
     const steps = new Set(versions.map(({ version }) => stepOf(key, version)));
-    return { key, prs: [...prs].sort((a, b) => a - b), aligned: steps.size === 1, versions };
+    const aligned = steps.size === 1;
+    const split =
+      aligned &&
+      prs.length >= 2 &&
+      rows.some((row) => prs.includes(row.number) && !alignedAlone(key, row));
+    return { key, prs: [...prs].sort((a, b) => a - b), aligned, split, versions };
   });
   return { pairs, majors };
 }
@@ -386,7 +405,10 @@ function report(
         `checks=${row.checks.padEnd(8)} merge=${row.mergeState}`,
     );
     context.log(`        ${row.title}`);
-    for (const bump of row.bumps) context.log(`        ${bump.name} ${bump.from} -> ${bump.to}`);
+    for (const bump of row.bumps) {
+      const marker = semverLevel(bump.from, bump.to) === "major" ? " (major)" : "";
+      context.log(`        ${bump.name} ${bump.from} -> ${bump.to}${marker}`);
+    }
     if (row.failingChecks.length > 0) context.log(`        HELD: ${row.failingChecks.join(", ")}`);
     context.log(`        files: ${row.files.join(", ") || "(none)"}`);
   }
@@ -410,7 +432,10 @@ function report(
             `${name} ${version}${pr === undefined ? "" : ` (#${String(pr)})`}`,
         )
         .join(", ");
-      context.log(`  ${pair.key}: ${pair.aligned ? "aligned" : "MISMATCH"} -- ${members}`);
+      const split = pair.split
+        ? `, split across ${pair.prs.map((n) => `#${String(n)}`).join(" ")}`
+        : "";
+      context.log(`  ${pair.key}: ${pair.aligned ? "aligned" : "MISMATCH"}${split} -- ${members}`);
     }
   }
   if (tauri.majors.length > 0) {
