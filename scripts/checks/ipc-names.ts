@@ -3,11 +3,15 @@
  *
  * - Commands: the functions registered in `tauri::generate_handler![…]` (in any `.rs`
  *   file under `src-tauri/src/`; each entry's last path segment is the command name)
- *   equal the names `ui/src/ipc/commands.ts` passes to `invoke`.
- * - Events: the names Rust emits (the event argument of every `.emit`, `.emit_to`,
- *   `.emit_filter`, and `emit_str*` call under `src-tauri/src/` — a string literal, or a
- *   `const NAME: &str = "…"` declared there, `src-tauri/src/commands.rs`'s `pub const`s
- *   in practice) equal the names `ui/src/ipc/events.ts` passes to `listen` or `once`.
+ *   equal the names passed to `invoke` anywhere in `ui/src/ipc/` (every non-test
+ *   TypeScript or JavaScript file there; `commands.ts` in practice).
+ * - Events: the names Rust emits (the event argument of every `emit`, `emit_to`,
+ *   `emit_filter`, and `emit_str*` call under `src-tauri/src/`, called as a method —
+ *   `app.emit(…)` — or through a path — `tauri::Emitter::emit(app, …)`,
+ *   `<AppHandle as Emitter>::emit(&app, …)`, whose first argument is the emitter — and
+ *   named by a string literal, or a `const NAME: &str = "…"` declared there,
+ *   `src-tauri/src/commands.rs`'s `pub const`s in practice) equal the names passed to
+ *   `listen` or `once` anywhere in `ui/src/ipc/` (`events.ts` in practice).
  *
  * Rust is read as text with comments removed; TypeScript with the TypeScript compiler's
  * parser. A TypeScript name is a string literal, a template literal without
@@ -35,8 +39,11 @@ import { checkMain, readRepoFile, type Check } from "./lib.ts";
 
 const RUST_DIR = "src-tauri/src";
 const LIB_RS = `${RUST_DIR}/lib.rs`;
-const COMMANDS_TS = "ui/src/ipc/commands.ts";
-const EVENTS_TS = "ui/src/ipc/events.ts";
+const IPC_DIR = "ui/src/ipc";
+const COMMANDS_TS = `${IPC_DIR}/commands.ts`;
+const EVENTS_TS = `${IPC_DIR}/events.ts`;
+const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
+const TEST_FILE = /\.test\.[cm]?[jt]sx?$/;
 
 /** Where a name was found: `path:line`. */
 type Sites = Map<string, string[]>;
@@ -187,7 +194,11 @@ function rustCommands(files: readonly RustFile[]): Found | undefined {
   return seen ? { names, violations } : undefined;
 }
 
-const EMIT = /\.\s*(emit(?:_str)?(?:_to|_filter)?)\s*(?:::\s*<[^>]*>\s*)?\(/g;
+/**
+ * A call of an `Emitter` method: `.emit(` as a method, or `::emit(` through a path, where
+ * the emitter is the first argument and the event moves one place right.
+ */
+const EMIT = /(\.|::)\s*(emit(?:_str)?(?:_to|_filter)?)\s*(?:::\s*<[^>]*>\s*)?\(/g;
 const RUST_CONST =
   /\bconst\s+([A-Za-z_]\w*)\s*:\s*&\s*(?:'static\s+)?str\s*=\s*"((?:[^"\\]|\\.)*)"\s*;/g;
 
@@ -200,9 +211,10 @@ function rustEvents(files: readonly RustFile[]): Found {
   const violations: FailureDetails[] = [];
   for (const { path, text } of files) {
     for (const match of text.matchAll(EMIT)) {
-      const method = match[1] ?? "";
+      const throughPath = match[1] === "::";
+      const method = match[2] ?? "";
       const args = callArguments(text, match.index + match[0].length - 1);
-      const arg = args[method.endsWith("_to") ? 1 : 0];
+      const arg = args[(method.endsWith("_to") ? 1 : 0) + (throughPath ? 1 : 0)];
       const site = `${path}:${String(lineAt(text, match.index))}`;
       const expr = (arg?.text ?? "").trim().replace(/^&\s*/, "");
       const literal = /^"((?:[^"\\]|\\.)*)"$/.exec(expr)?.[1];
@@ -212,7 +224,7 @@ function rustEvents(files: readonly RustFile[]): Found {
         violations.push(
           unparsed(
             site,
-            `the event \`${expr}\` passed to .${method} is not a string literal or a \`const …: &str\` under ${RUST_DIR}`,
+            `the event \`${expr}\` passed to ${throughPath ? "::" : "."}${method} is not a string literal or a \`const …: &str\` under ${RUST_DIR}`,
             'each event emitted with a `pub const NAME: &str = "…"` (design D4), or a string literal',
           ),
         );
@@ -222,10 +234,39 @@ function rustEvents(files: readonly RustFile[]): Found {
   return { names, violations };
 }
 
-/** The names `path` passes as the first argument to calls of `callees`. */
-function tsNames(root: string, path: string, callees: ReadonlySet<string>): Found {
+/** Every non-test TypeScript or JavaScript file under `dir`, sorted. */
+function scriptFiles(root: string, dir: string): string[] {
+  return readdirSync(join(root, dir), { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) return scriptFiles(root, path);
+      return SCRIPT_FILE.test(entry.name) && !TEST_FILE.test(entry.name) ? [path] : [];
+    });
+}
+
+const SCRIPT_KINDS: readonly (readonly [RegExp, ts.ScriptKind])[] = [
+  [/\.tsx$/, ts.ScriptKind.TSX],
+  [/\.jsx$/, ts.ScriptKind.JSX],
+  [/\.[cm]?js$/, ts.ScriptKind.JS],
+];
+
+/** The names `paths` pass as the first argument to calls of `callees`. */
+function tsNames(root: string, paths: readonly string[], callees: ReadonlySet<string>): Found {
+  const names: Sites = new Map();
+  const violations: FailureDetails[] = [];
+  for (const path of paths) {
+    const found = fileNames(root, path, callees);
+    for (const [name, sites] of found.names) for (const site of sites) addSite(names, name, site);
+    violations.push(...found.violations);
+  }
+  return { names, violations };
+}
+
+function fileNames(root: string, path: string, callees: ReadonlySet<string>): Found {
   const text = readRepoFile(root, path) ?? "";
-  const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const kind = SCRIPT_KINDS.find(([pattern]) => pattern.test(path))?.[1] ?? ts.ScriptKind.TS;
+  const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, kind);
   const consts = new Map<string, string>();
   const calls: ts.CallExpression[] = [];
   const visit = (node: ts.Node): void => {
@@ -314,9 +355,10 @@ function run(root: string): FailureDetails[] {
   if (missing.length > 0) return missing;
 
   const files = rustFiles(root, RUST_DIR);
+  const ipcFiles = scriptFiles(root, IPC_DIR);
   const violations: FailureDetails[] = [];
   const commands = rustCommands(files);
-  const invoked = tsNames(root, COMMANDS_TS, new Set(["invoke"]));
+  const invoked = tsNames(root, ipcFiles, new Set(["invoke"]));
   if (commands === undefined) {
     violations.push(
       unparsed(
@@ -335,13 +377,13 @@ function run(root: string): FailureDetails[] {
         commands.names,
         "generate_handler!",
         invoked.names,
-        COMMANDS_TS,
+        `${IPC_DIR}/'s invokes`,
       ),
     );
   }
 
   const emitted = rustEvents(files);
-  const heard = tsNames(root, EVENTS_TS, new Set(["listen", "once"]));
+  const heard = tsNames(root, ipcFiles, new Set(["listen", "once"]));
   const eventProblems = [...emitted.violations, ...heard.violations];
   violations.push(...eventProblems);
   if (eventProblems.length === 0) {
@@ -352,7 +394,7 @@ function run(root: string): FailureDetails[] {
         emitted.names,
         `${RUST_DIR}'s emits`,
         heard.names,
-        EVENTS_TS,
+        `${IPC_DIR}/'s listens`,
       ),
     );
   }

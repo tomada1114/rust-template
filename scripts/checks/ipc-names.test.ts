@@ -1,10 +1,11 @@
 /**
  * ipc-names against a fixture tree: `fixtures/ipc-names/pass` registers, invokes, emits,
  * and listens to the same names through every form the check reads (a path in
- * `generate_handler!`, a literal, a const, `emit_to`, `emit_filter`, `once`). Each
- * failing case copies it to a temp root and breaks one thing.
+ * `generate_handler!`, a literal, a const, `emit_to`, `emit_filter`, a path call through
+ * `Emitter`, `once`, an invoke outside commands.ts, a test file's invoke that does not
+ * count). Each failing case copies it to a temp root and breaks one thing.
  */
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -104,6 +105,29 @@ describe("ipc-names", () => {
       expect(text(violations)).toContain(`${COMMANDS_TS}:10`);
     });
 
+    it("reads an invoke in another ui/src/ipc/ file", () => {
+      const root = copyPass();
+      writeFileSync(
+        join(root, "ui/src/ipc/danger.ts"),
+        'import { invoke } from "@tauri-apps/api/core";\nexport const nuke = () => invoke("delete_everything");\n',
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_COMMANDS_DIVERGED"]);
+      expect(text(violations)).toContain("`delete_everything` at ui/src/ipc/danger.ts:2");
+    });
+
+    it("reads an invoke in a nested ui/src/ipc/ JavaScript file", () => {
+      const root = copyPass();
+      mkdirSync(join(root, "ui/src/ipc/extra"));
+      writeFileSync(
+        join(root, "ui/src/ipc/extra/raw.jsx"),
+        'export const x = () => invoke("ghost");\n',
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_COMMANDS_DIVERGED"]);
+      expect(text(violations)).toContain("ui/src/ipc/extra/raw.jsx:1");
+    });
+
     it("fails on an invoke with no arguments", () => {
       const root = copyPass();
       appendFile(root, COMMANDS_TS, "export const none = () => invoke();\n");
@@ -143,6 +167,51 @@ describe("ipc-names", () => {
       const violations = check.run(root);
       expect(codes(violations)).toEqual(["ERR_CHECK_IPC_EVENTS_DIVERGED"]);
       expect(text(violations)).toContain('"tick"');
+    });
+
+    it.each([
+      ["a path call through tauri::Emitter", 'tauri::Emitter::emit(app, "ghost-event", ());'],
+      ["a path call through Emitter", 'Emitter :: emit(&app, "ghost-event", ());'],
+      ["a qualified path call", '<AppHandle<R> as Emitter<R>>::emit(app, "ghost-event", ());'],
+      ["a path call with a turbofish", 'Emitter::emit::<()>(app, "ghost-event", ());'],
+      ["an emit_to path call", 'Emitter::emit_to(app, "main", "ghost-event", ());'],
+      [
+        "an emit_str_filter path call",
+        'Emitter::emit_str_filter(app, "ghost-event", s, |_| true);',
+      ],
+    ])("reads the event of %s from the argument after the emitter", (_label, call) => {
+      const root = copyPass();
+      appendFile(
+        root,
+        COMMANDS_RS,
+        `fn later<R: Runtime>(app: &AppHandle<R>) { let _ = ${call} }\n`,
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_EVENTS_DIVERGED"]);
+      expect(text(violations)).toContain(`"ghost-event" at ${COMMANDS_RS}:13`);
+    });
+
+    it("fails on a path-call emit whose event it cannot resolve", () => {
+      const root = copyPass();
+      appendFile(
+        root,
+        COMMANDS_RS,
+        "fn later(app: &AppHandle) { Emitter::emit(app, name(), ()); }\n",
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_UNPARSED"]);
+      expect(text(violations)).toContain("::emit");
+    });
+
+    it("reads a listen in another ui/src/ipc/ file", () => {
+      const root = copyPass();
+      writeFileSync(
+        join(root, "ui/src/ipc/more.ts"),
+        'export const onTick = () => listen("tick", () => {});\n',
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_EVENTS_DIVERGED"]);
+      expect(text(violations)).toContain("ui/src/ipc/more.ts:1");
     });
 
     it("fails when events.ts listens to an event Rust never emits", () => {
