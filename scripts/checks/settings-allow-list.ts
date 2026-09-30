@@ -5,11 +5,14 @@
  *
  *   node scripts/checks/settings-allow-list.ts [--root DIR]
  *
- * An `allow` rule admits a recipe when it names `just <recipe>` anywhere (so
- * `Bash(mise exec -- just run)` counts), or when its pattern, matched the way Claude Code
- * matches a Bash rule, covers `just <recipe>` or `just <recipe> <args>`: a bare `Bash`,
- * `Bash(*)`, and `Bash(just:*)` admit every one. In a pattern `*` stands for any text, a
- * trailing `:*` is a trailing ` *`, and a trailing ` *` that is the only wildcard also
+ * An `allow` rule admits a recipe when it names `just <recipe>` anywhere, with any global
+ * flags (each with up to two values) between `just` and the recipe (so
+ * `Bash(mise exec -- just run)` and `Bash(just --justfile justfile run)` count), or when
+ * its pattern, matched the way Claude Code matches a Bash rule, covers one of the
+ * candidate commands `just <recipe>`, `mise exec -- just <recipe>`, or `x just <recipe>`,
+ * each also followed by an argument: a bare `Bash`, `Bash(*)`, `Bash(just:*)`,
+ * `Bash(mise exec -- just:*)`, and `Bash(* just run)` all count. In a pattern `*` stands
+ * for any text, a trailing `:*` is a trailing ` *`, and a trailing ` *` that is the only wildcard also
  * matches the bare command. Only `allow` is read: `ask` and `deny` are where these recipes
  * belong. The file is optional. No git work tree needed.
  *
@@ -40,6 +43,9 @@ const PATH = ".claude/settings.json";
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Commands a rule may wrap `just <recipe>` in: bare, under `mise exec --`, or after any prefix. */
+const PREFIXES = ["", "mise exec -- ", "x "] as const;
+
 /** The command texts a Bash rule matches, as a regex; undefined for a rule of another tool. */
 function bashRule(rule: string): RegExp | undefined {
   if (rule === "Bash") return /^/;
@@ -59,9 +65,13 @@ function admitted(rule: string): string[] {
   if (matcher === undefined) return [];
   return HUMAN_RECIPES.filter(
     (recipe) =>
-      matcher.test(`just ${recipe}`) ||
-      matcher.test(`just ${recipe} x`) ||
-      new RegExp(`(?<![A-Za-z0-9_-])just\\s+${escape(recipe)}(?![A-Za-z0-9_-])`).test(rule),
+      PREFIXES.some(
+        (prefix) =>
+          matcher.test(`${prefix}just ${recipe}`) || matcher.test(`${prefix}just ${recipe} x`),
+      ) ||
+      new RegExp(
+        `(?<![A-Za-z0-9_-])just(?:\\s+-\\S*(?:\\s+[^-\\s]\\S*){0,2})*\\s+${escape(recipe)}(?![A-Za-z0-9_-])`,
+      ).test(rule),
   );
 }
 

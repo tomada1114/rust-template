@@ -74,16 +74,27 @@ describe("settings-allow-list", () => {
     "Bash(just run*)",
     "Bash(just run --release)",
     "Bash(mise exec -- just run)",
+    "Bash(* just run)",
+    "Bash(*just run*)",
+    "Bash(just --justfile justfile run)",
+    "Bash(just -v run)",
+    "Bash(just --dotenv-load --set x y run:*)",
   ])("reports the spelling %s", (rule) => {
     expect(admittedBy([rule])).toEqual([["run"]]);
   });
 
-  it.each(["Bash", "Bash(*)", "Bash(just:*)", "Bash(just *)", "Bash(just*)"])(
-    "reports %s, which admits every recipe",
-    (rule) => {
-      expect(admittedBy([rule])).toEqual([[...HUMAN_RECIPES]]);
-    },
-  );
+  it.each([
+    "Bash",
+    "Bash(*)",
+    "Bash(just:*)",
+    "Bash(just *)",
+    "Bash(just*)",
+    "Bash(mise exec -- just:*)",
+    "Bash(mise exec -- just *)",
+    "Bash(* just *)",
+  ])("reports %s, which admits every recipe", (rule) => {
+    expect(admittedBy([rule])).toEqual([[...HUMAN_RECIPES]]);
+  });
 
   it("reports each recipe a partial wildcard reaches, and only those", () => {
     expect(admittedBy(["Bash(just r*)"])).toEqual([
@@ -99,12 +110,15 @@ describe("settings-allow-list", () => {
     },
   );
 
-  it.each(["Bash(just runner)", "Bash(just test-fast run)", "Bash(just clean-cache)"])(
-    "passes %s, which names no human recipe",
-    (rule) => {
-      expect(admittedBy([rule])).toEqual([]);
-    },
-  );
+  it.each([
+    "Bash(just runner)",
+    "Bash(just test-fast run)",
+    "Bash(just clean-cache)",
+    "Bash(just lint)",
+    "Bash(mise exec -- just test-fast:*)",
+  ])("passes %s, which names no human recipe", (rule) => {
+    expect(admittedBy([rule])).toEqual([]);
+  });
 
   it("reports the rule's line and one violation per rule", () => {
     const content = settings([...ROUTINE, "Bash(just dev)", "Bash(just ruleset:*)"]);
