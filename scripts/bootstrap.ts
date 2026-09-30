@@ -247,6 +247,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "docs/getting-started.md", forms: ["bundleId", "slug"] },
   { file: "justfile", forms: ["bundleId", "name", "slug"] },
   { file: "package.json", forms: ["name", "slug"] },
+  { file: "scripts/bindings.ts", forms: ["slug"] },
   { file: "scripts/build-sidecar.test.ts", forms: ["slug"] },
   { file: "scripts/build-sidecar.ts", forms: ["slug"] },
   { file: "scripts/checks/bundle-identifier.test.ts", forms: ["bundleId", "name", "slug"] },
