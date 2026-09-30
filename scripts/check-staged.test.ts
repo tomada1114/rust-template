@@ -258,6 +258,86 @@ describe("check-staged", () => {
     ).toBe("ERR_STAGED_READ_FAILED");
   });
 
+  it("reads every staged blob through one git cat-file --batch", () => {
+    const dir = repo();
+    for (let i = 0; i < 5; i += 1)
+      writeFileSync(join(dir, `f${String(i)}.txt`), `clean ${String(i)}\n`);
+    writeFileSync(join(dir, "multi.txt"), "na\u00efve \u2603\n");
+    writeFileSync(join(dir, "f9.txt"), `${AWS_KEY_ID}\n`);
+    git(dir, "add", ".");
+    const catFiles: (readonly string[])[] = [];
+    const run: Run = (command, args, options) => {
+      if (args[0] === "cat-file") catFiles.push(args);
+      return runCommand(command, args, options);
+    };
+    const error = failure(() => {
+      main(context(dir, gitEnv(process.env), run));
+    });
+    expect(catFiles).toEqual([["cat-file", "--batch"]]);
+    expect(error.details.actual).toBe(
+      "ERR_STAGED_CREDENTIAL_SHAPED: f9.txt — content matches the aws-access-key-id pattern",
+    );
+  });
+
+  it("fails closed when --batch reports a staged blob missing", () => {
+    const present = "a".repeat(40);
+    const missing = "c".repeat(40);
+    const run: Run = (_command, args) => {
+      if (args[0] === "rev-parse") return { status: 0, stdout: "true\n", stderr: "" };
+      if (args[0] === "diff")
+        return {
+          status: 0,
+          stdout: `:000000 100644 ${"0".repeat(40)} ${present} A\0a.txt\0:000000 100644 ${"0".repeat(40)} ${missing} A\0b.txt\0`,
+          stderr: "",
+        };
+      return { status: 0, stdout: `${present} blob 3\nok\n\n${missing} missing\n`, stderr: "" };
+    };
+    const error = failure(() => {
+      main(context("/nowhere", {}, run));
+    });
+    expect(error.details.code).toBe("ERR_STAGED_READ_FAILED");
+    expect(error.details.summary).toContain("b.txt");
+    expect(error.details.actual).toContain(`${missing} missing`);
+  });
+
+  it("fails closed on a truncated --batch frame", () => {
+    const blob = "a".repeat(40);
+    const run: Run = (_command, args) => {
+      if (args[0] === "rev-parse") return { status: 0, stdout: "true\n", stderr: "" };
+      if (args[0] === "diff")
+        return {
+          status: 0,
+          stdout: `:000000 100644 ${"0".repeat(40)} ${blob} A\0a.txt\0`,
+          stderr: "",
+        };
+      return { status: 0, stdout: `${blob} blob 10\nshort`, stderr: "" };
+    };
+    expect(
+      failure(() => {
+        main(context("/nowhere", {}, run));
+      }).details.code,
+    ).toBe("ERR_STAGED_READ_FAILED");
+  });
+
+  it("skips a gitlink inside a batch and reads only the blobs", () => {
+    const blob = "a".repeat(40);
+    const commit = "b".repeat(40);
+    const inputs: (string | undefined)[] = [];
+    const run: Run = (_command, args, options) => {
+      if (args[0] === "rev-parse") return { status: 0, stdout: "true\n", stderr: "" };
+      if (args[0] === "diff")
+        return {
+          status: 0,
+          stdout: `:000000 160000 ${"0".repeat(40)} ${commit} A\0vendor/lib\0:000000 100644 ${"0".repeat(40)} ${blob} A\0a.txt\0`,
+          stderr: "",
+        };
+      inputs.push(options?.input);
+      return { status: 0, stdout: `${blob} blob 3\nok\n\n`, stderr: "" };
+    };
+    main(context("/nowhere", {}, run));
+    expect(inputs).toEqual([`${blob}\n`]);
+  });
+
   it("skips a submodule entry, which has no blob to scan", () => {
     const commit = "b".repeat(40);
     const calls: string[] = [];

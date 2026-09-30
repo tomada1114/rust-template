@@ -4,9 +4,10 @@
  *
  * Two phases per staged path: the path (scripts/lib/guard/paths.ts), then — only if the
  * path passes — the staged blob (scripts/lib/guard/credentials.ts), read by blob id from
- * the index, so a partially staged file is judged as it will be committed. Every finding
- * is collected before failing once. Output never contains file content: a finding names
- * the path and the rule, never the matched text.
+ * the index through one `git cat-file --batch` for the whole run, so a partially staged
+ * file is judged as it will be committed. Every finding is collected before failing
+ * once. Output never contains file content: a finding names the path and the rule,
+ * never the matched text.
  *
  * Deletions are never inspected (a deletion cannot add a secret, and refusing it would
  * block the commit that removes one). Spawned git keeps GIT_INDEX_FILE, which
@@ -19,13 +20,14 @@ import { ScriptError } from "./lib/fail.ts";
 import { stagedGuardEnv } from "./lib/git-env.ts";
 import { credentialCategory } from "./lib/guard/credentials.ts";
 import { blockedPathReason } from "./lib/guard/paths.ts";
-import { runScript, type ScriptContext } from "./lib/script.ts";
+import { runScript, type RunOptions, type RunResult, type ScriptContext } from "./lib/script.ts";
 
 const GITLINK_MODE = "160000";
 /**
  * spawnSync's 1 MiB default would refuse any larger staged file (ENOBUFS). GitHub
  * rejects a file over 100 MiB, so a blob past this cap cannot be pushed anyway, and
- * the guard fails closed on it rather than skipping it.
+ * the guard fails closed on it rather than skipping it. Every blob is read by one
+ * `git cat-file --batch`, so the cap bounds all staged content together.
  */
 const READ_MAX_BUFFER = 256 * 1024 * 1024;
 
@@ -56,10 +58,65 @@ function readFailed(summary: string, expected: string, actual: string): ScriptEr
   });
 }
 
+/**
+ * Read every blob through one `git cat-file --batch`, whose output is a
+ * `<id> blob <size>\n<content>\n` frame per requested id (or `<id> missing\n`). Output
+ * is decoded as latin1 so a byte size is a string length; each blob is re-decoded as
+ * UTF-8, as `git cat-file blob` output was. Any frame that is not the blob asked for
+ * fails closed.
+ */
+function readBlobs(
+  git: (options: RunOptions, ...args: string[]) => RunResult,
+  entries: readonly StagedEntry[],
+): Map<string, string> {
+  const contents = new Map<string, string>();
+  if (entries.length === 0) return contents;
+  const expected = "`git cat-file --batch` to print every staged blob (at most 256 MiB in total)";
+  const batch = git(
+    { input: entries.map(({ blob }) => `${blob}\n`).join(""), encoding: "latin1" },
+    "cat-file",
+    "--batch",
+  );
+  if (batch.status !== 0) {
+    throw readFailed(
+      "could not read the staged content",
+      expected,
+      Buffer.from(batch.stderr, "latin1").toString("utf8").trim(),
+    );
+  }
+  const out = batch.stdout;
+  let offset = 0;
+  for (const { blob, path } of entries) {
+    const headerEnd = out.indexOf("\n", offset);
+    const header = headerEnd === -1 ? out.slice(offset) : out.slice(offset, headerEnd);
+    const [id, type, sizeText = ""] = header.split(" ");
+    const size = Number(sizeText);
+    const start = headerEnd + 1;
+    if (
+      headerEnd === -1 ||
+      id !== blob ||
+      type !== "blob" ||
+      !/^\d+$/.test(sizeText) ||
+      out.length < start + size + 1 ||
+      out[start + size] !== "\n"
+    ) {
+      throw readFailed(
+        `could not read the staged content of ${path}`,
+        expected,
+        `\`git cat-file --batch\` answered \`${header.slice(0, 200)}\` for ${blob}`,
+      );
+    }
+    contents.set(path, Buffer.from(out.slice(start, start + size), "latin1").toString("utf8"));
+    offset = start + size + 1;
+  }
+  return contents;
+}
+
 export function main(context: ScriptContext): void {
   const env = stagedGuardEnv(context.env);
-  const git = (...args: string[]) =>
-    context.run("git", args, { cwd: context.root, env, maxBuffer: READ_MAX_BUFFER });
+  const gitWith = (options: RunOptions, ...args: string[]) =>
+    context.run("git", args, { ...options, cwd: context.root, env, maxBuffer: READ_MAX_BUFFER });
+  const git = (...args: string[]) => gitWith({}, ...args);
 
   if (git("rev-parse", "--is-inside-work-tree").stdout.trim() !== "true") {
     throw new ScriptError({
@@ -90,23 +147,22 @@ export function main(context: ScriptContext): void {
     );
   }
 
+  const entries = parseRaw(listed.stdout);
+  const toRead = entries.filter(
+    ({ mode, path }) => blockedPathReason(path) === null && mode !== GITLINK_MODE, // a submodule names a commit elsewhere; no blob here
+  );
+  const contents = readBlobs(gitWith, toRead);
+
   const findings: { code: string; line: string }[] = [];
-  for (const { mode, blob, path } of parseRaw(listed.stdout)) {
+  for (const { path } of entries) {
     const reason = blockedPathReason(path);
     if (reason !== null) {
       findings.push({ code: "ERR_STAGED_BLOCKED_PATH", line: `${path} — ${reason}` });
       continue;
     }
-    if (mode === GITLINK_MODE) continue; // a submodule names a commit elsewhere; no blob here
-    const content = git("cat-file", "blob", blob);
-    if (content.status !== 0) {
-      throw readFailed(
-        `could not read the staged content of ${path}`,
-        "`git cat-file blob` to print every staged blob (each at most 256 MiB)",
-        content.stderr.trim(),
-      );
-    }
-    const category = credentialCategory(content.stdout);
+    const content = contents.get(path);
+    if (content === undefined) continue;
+    const category = credentialCategory(content);
     if (category !== null) {
       findings.push({
         code: "ERR_STAGED_CREDENTIAL_SHAPED",

@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The pre-commit staged guard reads every staged blob through one `git cat-file --batch`
+  instead of one `git cat-file blob` per file, so a 1,000-file merge is judged in under a
+  second rather than about 20 s. The 256 MiB read cap now bounds all staged content
+  together, and a missing or unreadable blob still fails with `ERR_STAGED_READ_FAILED`.
 - A harness check (`scripts/checks/clippy-allow-invalid.ts`, run by `just check-harness`)
   fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` when any `clippy.toml` sets `allow-invalid`,
   the key that hides an unresolvable ban path from `scripts/clippy-guard.ts` and so lets
