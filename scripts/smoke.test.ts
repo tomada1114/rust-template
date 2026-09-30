@@ -172,7 +172,7 @@ describe("main", () => {
 
     const build = calls[0];
     expect(build?.command).toBe("pnpm");
-    expect(build?.args).toEqual(["tauri", "build", "--bundles", "app"]);
+    expect(build?.args).toEqual(["tauri", "build", "--bundles", "app", "--", "--locked"]);
     expect(build?.options?.env?.["APPLE_SIGNING_IDENTITY"]).toBeUndefined();
 
     const app = join(root, "target/release/bundle/macos/MyApp.app");

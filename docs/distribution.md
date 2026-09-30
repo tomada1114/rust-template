@@ -52,8 +52,9 @@ signing pass.
    (`[workspace.package]`), `src-tauri/tauri.conf.json`, and `package.json`;
    otherwise the job fails.
 3. **Tests.** The core and UI tests run again: nothing unverified ships.
-4. **Build.** `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg`, signed
-   as described below. Rust's build cache is not used on this path.
+4. **Build.** `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg --
+   --locked` (the `--locked` goes to cargo), signed as described below. Rust's build
+   cache is not used on this path.
 5. **Verify** the built app before anything is uploaded (see
    [Verifying a build](#verifying-a-build)).
 6. **Publish.** A `SHA256SUMS` file, a build-provenance attestation

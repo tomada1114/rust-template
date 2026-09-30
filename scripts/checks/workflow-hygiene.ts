@@ -7,9 +7,12 @@
  *
  *   node scripts/checks/workflow-hygiene.ts [--root DIR]
  *
- * Files: <root>/.github/workflows/*.yml|*.yaml (absent directory: nothing to check), and
- * for the bot-prefix rule <root>/.github/dependabot.yml|.yaml and the first JSON Renovate
- * config found (RENOVATE_FILES; a JSON5 config is not read). Rules, per workflow:
+ * Files: <root>/.github/workflows/*.yml|*.yaml (absent directory: nothing to check); the
+ * repository's own composite actions (every action.yml|action.yaml under
+ * <root>/.github/actions/, and any other one a step's `uses: ./…` names); <root>/justfile
+ * for the lockfile rule; and for the bot-prefix rule <root>/.github/dependabot.yml|.yaml
+ * and the first JSON Renovate config found (RENOVATE_FILES; a JSON5 config is not read).
+ * Rules, per workflow (the step rules also per composite action step):
  *   - pins: every `uses:` (a step's, or a job's reusable-workflow call) other than a
  *     local `./` action is `owner/repo[/path]@<40 lowercase hex>`, and the raw source
  *     line carrying it has a `# vX.Y.Z` comment (the form Dependabot keeps when it bumps
@@ -20,18 +23,28 @@
  *   - every `actions/checkout` step sets `persist-credentials: false`;
  *   - no `pull_request_target` trigger;
  *   - a workflow triggered on `pull_request` has a top-level `concurrency` whose group
- *     names `github.workflow`. A workflow also triggered on `push` never cancels a push
- *     run: `cancel-in-progress` is absent, false, or an expression true only for pull
- *     requests (`github.event_name == 'pull_request'` or `!= 'push'`), and its group
- *     is unique per push run (`github.sha`, `github.run_id`, or `github.run_number`),
- *     since GitHub also cancels a *pending* run that a newer one joins in its group;
+ *     names `github.workflow`. On a workflow also triggered on `push`, every
+ *     `concurrency` — the top-level one and each job's — never cancels a push run: its
+ *     `cancel-in-progress` is absent, false, or an expression that is false on a push,
+ *     and its group, evaluated for a push (shared/expressions.ts), contains
+ *     `github.sha`, `github.run_id`, or `github.run_number`, since GitHub also cancels a
+ *     *pending* run that a newer one joins in its group. An expression the evaluator
+ *     cannot read counts as unproven, never as safe;
+ *   - no `continue-on-error` on a job or a step, other than `false`: a failing step
+ *     would report success;
  *   - fail-closed `run:` steps: each resolves (step `shell`, then the job's, then the
  *     workflow's `defaults.run.shell`) to exactly FAIL_CLOSED_SHELL, or its first
  *     command is `set -euo pipefail` (`-Eeuo` and similar count). A step whose own
  *     shell is not sh-family (`pwsh`, `python`) is outside this rule;
- *   - every `pnpm install`/`pnpm i` in a `run:` has `--frozen-lockfile`, and every
- *     `cargo build|test|clippy|nextest|llvm-cov|run` has `--locked` (or `--frozen`)
- *     before any `--`. A `just <recipe>` call is exempt: the justfile carries `--locked`.
+ *   - fail-open commands: no `set +e`/`+u` (or `set +o errexit|nounset|pipefail`) in a
+ *     `run:`, and no command whose failure is swallowed by an `|| true`, `|| :`,
+ *     `|| exit 0`, `|| echo …`, or `|| printf …` fallback;
+ *   - every `pnpm install`/`pnpm i` (global options such as `--dir ui` before it
+ *     included) has `--frozen-lockfile`; no `npm install`/`npm i`/`npm add`; every
+ *     `cargo` CARGO_LOCKED subcommand has `--locked` (or `--frozen`) before any `--`;
+ *     and every `tauri build`/`tauri dev` passes `--locked` (or `--frozen`) to cargo as
+ *     a runner argument after its `--`. The same rule reads every justfile recipe line,
+ *     which is what lets a `run:` that calls `just <recipe>` rely on the recipe.
  * And once for the repository:
  *   - bot commit prefixes: every Dependabot `updates[].commit-message.prefix` (and
  *     `prefix-development`), and Renovate's `commitMessagePrefix` (top level and in
@@ -43,7 +56,7 @@
  *
  * Errors (FailureDetails, one per finding; the runner prints them all):
  *   ERR_CHECK_USAGE                          bad arguments (scripts/checks/lib.ts)
- *   ERR_CHECK_WORKFLOW_UNREADABLE            a workflow is not YAML, not a mapping, or has no `jobs` mapping
+ *   ERR_CHECK_WORKFLOW_UNREADABLE            a workflow (or local action) is not YAML, not a mapping, or has no `jobs` (`runs`) mapping
  *   ERR_CHECK_WORKFLOW_UNPINNED              a `uses:` is not pinned to a full commit SHA
  *   ERR_CHECK_WORKFLOW_PIN_COMMENT           a SHA pin has no `# vX.Y.Z` comment on its line
  *   ERR_CHECK_WORKFLOW_TIMEOUT               a job has no `timeout-minutes`
@@ -51,9 +64,11 @@
  *   ERR_CHECK_WORKFLOW_JOB_PERMISSIONS       a job declares no `permissions` mapping of its own
  *   ERR_CHECK_WORKFLOW_CHECKOUT_CREDENTIALS  an actions/checkout step keeps its credentials
  *   ERR_CHECK_WORKFLOW_PULL_REQUEST_TARGET   a workflow triggers on `pull_request_target`
- *   ERR_CHECK_WORKFLOW_CONCURRENCY           a PR workflow has no concurrency, or it can cancel a push run
+ *   ERR_CHECK_WORKFLOW_CONCURRENCY           a PR workflow has no concurrency, or a concurrency can cancel a push run
+ *   ERR_CHECK_WORKFLOW_CONTINUE_ON_ERROR     a job or step sets `continue-on-error`
  *   ERR_CHECK_WORKFLOW_SHELL                 a `run:` step does not fail closed
- *   ERR_CHECK_WORKFLOW_UNLOCKED              an install or cargo command ignores the lockfile
+ *   ERR_CHECK_WORKFLOW_FAIL_OPEN             a `run:` turns errexit off or swallows a failure with an `||` fallback
+ *   ERR_CHECK_WORKFLOW_UNLOCKED              an install, cargo, or tauri command (in a workflow, an action, or the justfile) ignores the lockfile
  *   ERR_CHECK_WORKFLOW_BOT_PREFIX            a bot's commit prefix is missing or not a PR-title type
  */
 import { basename } from "node:path";
@@ -61,22 +76,28 @@ import { basename } from "node:path";
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
+import { isWholeExpression, templateOnPush, truthy, type PushValue } from "./shared/expressions.ts";
 import {
   DEPENDABOT_FILES,
   RENOVATE_FILES,
+  actionStepsOf,
+  continuesOnError,
   isRecord,
   jobsOf,
+  readActions,
   readWorkflows,
   readYaml,
   scriptLines,
   stepsOf,
   triggerNames,
+  type Action,
   type Key,
   type Workflow,
   type YamlFile,
 } from "./shared/workflows.ts";
 
 const WORKFLOWS_DIR = ".github/workflows";
+const JUSTFILE = "justfile";
 
 /** The shell every `run:` step resolves to unless it starts with `set -euo pipefail`. */
 export const FAIL_CLOSED_SHELL = "bash --noprofile --norc -euo pipefail {0}";
@@ -100,10 +121,32 @@ const TITLE_ACTION = "amannn/action-semantic-pull-request@";
 const PINNED = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[^@\s]+)?@[0-9a-f]{40}$/;
 const VERSION_COMMENT = /#\s*v\d+\.\d+\.\d+(?:[\s-]|$)/;
 const SET_FAIL_CLOSED = /^set\s+-(?=[A-Za-z]*e)(?=[A-Za-z]*u)[A-Za-z]*o\s+pipefail(?:[\s;]|$)/;
-const PR_ONLY_CANCEL = /^\$\{\{\s*github\.event_name\s*(?:==\s*'pull_request'|!=\s*'push')\s*\}\}$/;
-const PER_RUN_GROUP = /github\.(?:sha|run_id|run_number)\b/;
+const PER_RUN_CONTEXTS = new Set(["github.sha", "github.run_id", "github.run_number"]);
 const SH_FAMILY = new Set(["sh", "bash", "dash", "ksh", "zsh"]);
-const CARGO_LOCKED = new Set(["build", "test", "clippy", "nextest", "llvm-cov", "run"]);
+/** Cargo subcommands that resolve Cargo.lock, and so take `--locked`. */
+const CARGO_LOCKED = new Set([
+  "bench",
+  "build",
+  "check",
+  "clippy",
+  "deny",
+  "doc",
+  "fetch",
+  "install",
+  "llvm-cov",
+  "nextest",
+  "run",
+  "shear",
+  "test",
+]);
+const PNPM_INSTALL = new Set(["install", "i"]);
+const NPM_INSTALL = new Set(["install", "i", "add"]);
+const TAURI_BUILDS = new Set(["build", "dev"]);
+/** An `||` whose right side is a command that always succeeds. */
+const SWALLOWING_FALLBACK =
+  /\|\|\s*(?:(?:true|:|exit\s+0)(?=\s*(?:$|[;&|)}#]))|(?:echo|printf)(?=$|[\s;&|)}]))/;
+const ERREXIT_OFF =
+  /^set\s(?:.*\s)?(?:\+[A-Za-z]*[eu][A-Za-z]*|\+o\s+(?:errexit|nounset|pipefail))(?:\s|$)/;
 
 interface Rule {
   readonly code: string;
@@ -150,19 +193,31 @@ const RULES = {
   concurrency: {
     code: "ERR_CHECK_WORKFLOW_CONCURRENCY",
     expected:
-      "a top-level `concurrency:` on every pull_request workflow with a group naming `github.workflow`; on a workflow also run on push, a group unique per push run and a cancel limited to pull requests",
+      "a top-level `concurrency:` on every pull_request workflow with a group naming `github.workflow`; on a workflow also run on push, every concurrency (top-level and per job) with a group that is unique per push run when evaluated for a push, and a cancel that is false on a push",
     next: "copy ci.yml's block: `group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}` and `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`",
+  },
+  continueOnError: {
+    code: "ERR_CHECK_WORKFLOW_CONTINUE_ON_ERROR",
+    expected:
+      "no `continue-on-error` on a job or step (AGENTS.md › Security and human approval lists it as weakening a gate)",
+    next: "remove it; a step that must not run in some case is skipped by an `if:` on that condition instead",
   },
   shell: {
     code: "ERR_CHECK_WORKFLOW_SHELL",
     expected: `every \`run:\` step to resolve to \`shell: ${FAIL_CLOSED_SHELL}\` or to start with \`set -euo pipefail\``,
     next: `add a top-level \`defaults: run: shell: ${FAIL_CLOSED_SHELL}\` (as ci.yml does), or start the script with \`set -euo pipefail\``,
   },
+  failOpen: {
+    code: "ERR_CHECK_WORKFLOW_FAIL_OPEN",
+    expected:
+      "no `set +e`/`set +u`/`set +o errexit|nounset|pipefail`, and no `|| true`, `|| :`, `|| exit 0`, `|| echo`, or `|| printf` fallback, in a `run:`",
+    next: "let the command fail the step; when a failure is expected, test for it explicitly (`if ! cmd; then …; exit 1; fi`) or skip the step with an `if:`",
+  },
   unlocked: {
     code: "ERR_CHECK_WORKFLOW_UNLOCKED",
     expected:
-      "`--frozen-lockfile` on every `pnpm install` and `--locked` on every cargo build/test/clippy/nextest/llvm-cov/run, before any `--`",
-    next: "add the flag, or call the `just` recipe that already carries it",
+      "`--frozen-lockfile` on every `pnpm install`, no `npm install`, `--locked` on every cargo build/check/clippy/doc/test/bench/run/install/fetch/nextest/llvm-cov/deny/shear before any `--`, and `-- --locked` on every `tauri build`/`tauri dev`",
+    next: "add the flag (a `tauri build` passes it to cargo after `--`), or call the `just` recipe that already carries it",
   },
   botPrefix: {
     code: "ERR_CHECK_WORKFLOW_BOT_PREFIX",
@@ -180,13 +235,57 @@ function at(file: YamlFile, keys: readonly Key[]): string {
   return `${file.path}:${String(file.locate(keys).line)}`;
 }
 
-function checkUses(workflow: Workflow, keys: readonly Key[], uses: string): FailureDetails[] {
+/** One step, in a workflow's job or a composite action, with what the step rules need. */
+interface StepSite {
+  readonly file: YamlFile;
+  /** Who owns the step, for a message: "job `build`" or "action `…/action.yml`". */
+  readonly owner: string;
+  /** The key path to the step mapping. */
+  readonly keys: readonly Key[];
+  readonly step: Record<string, unknown>;
+  /** The job's or workflow's `defaults.run.shell`, which a step without its own inherits. */
+  readonly defaultShell: string | undefined;
+}
+
+function shellOf(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const run = value["run"];
+  if (!isRecord(run)) return undefined;
+  const shell = run["shell"];
+  return typeof shell === "string" ? shell : undefined;
+}
+
+function workflowSteps(workflow: Workflow): StepSite[] {
+  const workflowShell = shellOf(workflow.data["defaults"]);
+  return jobsOf(workflow).flatMap(([id, job]) => {
+    const defaultShell = shellOf(job["defaults"]) ?? workflowShell;
+    return stepsOf(job).map(([index, step]) => ({
+      file: workflow,
+      owner: `job \`${id}\``,
+      keys: ["jobs", id, "steps", index],
+      step,
+      defaultShell,
+    }));
+  });
+}
+
+function actionSteps(action: Action): StepSite[] {
+  return actionStepsOf(action).map(([index, step]) => ({
+    file: action,
+    owner: `action \`${action.path}\``,
+    keys: ["runs", "steps", index],
+    step,
+    defaultShell: undefined,
+  }));
+}
+
+function checkUses(file: YamlFile, keys: readonly Key[], uses: string): FailureDetails[] {
   if (uses.startsWith("./")) return [];
-  const where = at(workflow, keys);
+  const where = at(file, keys);
   if (!PINNED.test(uses)) {
     return [finding(RULES.unpinned, `${where}: \`${uses}\` is not pinned to a commit SHA`, uses)];
   }
-  const raw = workflow.lines[workflow.locate(keys).line - 1] ?? "";
+  const raw = file.lines[file.locate(keys).line - 1] ?? "";
   if (!VERSION_COMMENT.test(raw)) {
     return [
       finding(RULES.pinComment, `${where}: \`${uses}\` has no \`# vX.Y.Z\` comment`, raw.trim()),
@@ -195,19 +294,16 @@ function checkUses(workflow: Workflow, keys: readonly Key[], uses: string): Fail
   return [];
 }
 
-function checkPins(workflow: Workflow): FailureDetails[] {
+function checkJobCalls(workflow: Workflow): FailureDetails[] {
   return jobsOf(workflow).flatMap(([id, job]) => {
-    const found: FailureDetails[] = [];
     const call = job["uses"];
-    if (typeof call === "string") found.push(...checkUses(workflow, ["jobs", id, "uses"], call));
-    for (const [index, step] of stepsOf(job)) {
-      const uses = step["uses"];
-      if (typeof uses === "string") {
-        found.push(...checkUses(workflow, ["jobs", id, "steps", index, "uses"], uses));
-      }
-    }
-    return found;
+    return typeof call === "string" ? checkUses(workflow, ["jobs", id, "uses"], call) : [];
   });
+}
+
+function checkStepPins(site: StepSite): FailureDetails[] {
+  const uses = site.step["uses"];
+  return typeof uses === "string" ? checkUses(site.file, [...site.keys, "uses"], uses) : [];
 }
 
 function checkTimeouts(workflow: Workflow): FailureDetails[] {
@@ -259,25 +355,57 @@ function checkPermissions(workflow: Workflow): FailureDetails[] {
   return found;
 }
 
-function checkCheckouts(workflow: Workflow): FailureDetails[] {
-  const found: FailureDetails[] = [];
-  for (const [id, job] of jobsOf(workflow)) {
-    for (const [index, step] of stepsOf(job)) {
-      const uses = step["uses"];
-      if (typeof uses !== "string" || !uses.startsWith("actions/checkout@")) continue;
-      const withInputs = step["with"];
-      const persist = isRecord(withInputs) ? withInputs["persist-credentials"] : undefined;
-      if (persist === false || persist === "false") continue;
-      found.push(
-        finding(
-          RULES.checkout,
-          `${at(workflow, ["jobs", id, "steps", index, "uses"])}: actions/checkout in job \`${id}\` keeps its credentials`,
-          `persist-credentials: ${describePermissions(persist)}`,
-        ),
-      );
-    }
+function checkCheckout(site: StepSite): FailureDetails[] {
+  const uses = site.step["uses"];
+  if (typeof uses !== "string" || !uses.startsWith("actions/checkout@")) return [];
+  const withInputs = site.step["with"];
+  const persist = isRecord(withInputs) ? withInputs["persist-credentials"] : undefined;
+  if (persist === false || persist === "false") return [];
+  return [
+    finding(
+      RULES.checkout,
+      `${at(site.file, [...site.keys, "uses"])}: actions/checkout in ${site.owner} keeps its credentials`,
+      `persist-credentials: ${describePermissions(persist)}`,
+    ),
+  ];
+}
+
+/** Why a push run's concurrency group is not unique per run, or undefined when it is. */
+function sharedPushGroup(group: string): string | undefined {
+  const parts = templateOnPush(group);
+  if (parts === undefined) {
+    return `group \`${group}\` cannot be evaluated for a push run (only literals, contexts, !, ==, !=, &&, ||, and parentheses are read), so it is not shown unique per push run`;
   }
-  return found;
+  const perRun = parts.some(
+    (part: PushValue) => part.kind === "context" && PER_RUN_CONTEXTS.has(part.path),
+  );
+  if (perRun) return undefined;
+  return `group \`${group}\` is shared by push runs (on a push it has no github.sha, run_id, or run_number), so a newer push cancels a pending one`;
+}
+
+/** Whether a `cancel-in-progress` value is false on a push run. */
+function cancelSafeOnPush(cancel: unknown): boolean {
+  if (cancel === undefined || cancel === false || cancel === "false") return true;
+  if (typeof cancel !== "string" || !isWholeExpression(cancel)) return false;
+  const [value] = templateOnPush(cancel.trim()) ?? [];
+  return value !== undefined && truthy(value) === false;
+}
+
+/** What is wrong with one concurrency (top-level or a job's) on a workflow run on push. */
+function pushConcurrencyProblems(concurrency: unknown): string[] {
+  const group = isRecord(concurrency) ? concurrency["group"] : concurrency;
+  const cancel = isRecord(concurrency) ? concurrency["cancel-in-progress"] : undefined;
+  const problems: string[] = [];
+  if (!cancelSafeOnPush(cancel)) {
+    problems.push(
+      `cancel-in-progress \`${JSON.stringify(cancel)}\` is not false on a push, so it can cancel a push run`,
+    );
+  }
+  if (typeof group === "string") {
+    const shared = sharedPushGroup(group);
+    if (shared !== undefined) problems.push(shared);
+  }
+  return problems;
 }
 
 function checkTriggersAndConcurrency(workflow: Workflow): FailureDetails[] {
@@ -291,6 +419,25 @@ function checkTriggersAndConcurrency(workflow: Workflow): FailureDetails[] {
         `on: ${events.join(", ")}`,
       ),
     );
+  }
+  const onPush = events.includes("push");
+  for (const [id, job] of jobsOf(workflow)) {
+    const own = job["concurrency"];
+    if (own === undefined || !onPush) continue;
+    const group = isRecord(own) ? own["group"] : own;
+    const problems = pushConcurrencyProblems(own);
+    if (typeof group !== "string" || group.trim() === "") {
+      problems.unshift("the job's concurrency has no group");
+    }
+    for (const problem of problems) {
+      found.push(
+        finding(
+          RULES.concurrency,
+          `${at(workflow, ["jobs", id, "concurrency"])}: job \`${id}\`: ${problem}`,
+          JSON.stringify(own),
+        ),
+      );
+    }
   }
   const concurrency = workflow.data["concurrency"];
   const where = at(workflow, ["concurrency"]);
@@ -308,7 +455,6 @@ function checkTriggersAndConcurrency(workflow: Workflow): FailureDetails[] {
     return found;
   }
   const group = isRecord(concurrency) ? concurrency["group"] : concurrency;
-  const cancel = isRecord(concurrency) ? concurrency["cancel-in-progress"] : undefined;
   const problems: string[] = [];
   if (typeof group !== "string" || group.trim() === "") {
     problems.push("the concurrency has no group");
@@ -317,64 +463,129 @@ function checkTriggersAndConcurrency(workflow: Workflow): FailureDetails[] {
       `group \`${group}\` does not name github.workflow, so another workflow can share it`,
     );
   }
-  if (events.includes("push")) {
-    const cancelSafe =
-      cancel === undefined ||
-      cancel === false ||
-      cancel === "false" ||
-      (typeof cancel === "string" && PR_ONLY_CANCEL.test(cancel.trim()));
-    if (!cancelSafe) {
-      problems.push(
-        `cancel-in-progress \`${JSON.stringify(cancel)}\` is not limited to pull requests, so it can cancel a push run`,
-      );
-    }
-    if (typeof group === "string" && !PER_RUN_GROUP.test(group)) {
-      problems.push(
-        `group \`${group}\` is shared by push runs, so a newer push cancels a pending one (key push runs by github.sha)`,
-      );
-    }
-  }
+  if (onPush) problems.push(...pushConcurrencyProblems(concurrency));
   for (const problem of problems) {
     found.push(finding(RULES.concurrency, `${where}: ${problem}`, JSON.stringify(concurrency)));
   }
   return found;
 }
 
-function shellOf(value: unknown): string | undefined {
-  if (!isRecord(value)) return undefined;
-  const run = value["run"];
-  if (!isRecord(run)) return undefined;
-  const shell = run["shell"];
-  return typeof shell === "string" ? shell : undefined;
+function checkJobContinueOnError(workflow: Workflow): FailureDetails[] {
+  return jobsOf(workflow)
+    .filter(([, job]) => continuesOnError(job["continue-on-error"]))
+    .map(([id, job]) =>
+      finding(
+        RULES.continueOnError,
+        `${at(workflow, ["jobs", id, "continue-on-error"])}: job \`${id}\` sets continue-on-error, so its failure never fails the run`,
+        `continue-on-error: ${JSON.stringify(job["continue-on-error"])}`,
+      ),
+    );
+}
+
+function checkStepContinueOnError(site: StepSite): FailureDetails[] {
+  const value = site.step["continue-on-error"];
+  if (!continuesOnError(value)) return [];
+  return [
+    finding(
+      RULES.continueOnError,
+      `${at(site.file, [...site.keys, "continue-on-error"])}: a step in ${site.owner} sets continue-on-error, so its failure never fails the job`,
+      `continue-on-error: ${JSON.stringify(value)}`,
+    ),
+  ];
 }
 
 const normalize = (text: string): string => text.trim().replace(/\s+/g, " ");
 
-function checkShells(workflow: Workflow): FailureDetails[] {
-  const found: FailureDetails[] = [];
-  const workflowShell = shellOf(workflow.data["defaults"]);
-  for (const [id, job] of jobsOf(workflow)) {
-    const jobShell = shellOf(job["defaults"]);
-    for (const [index, step] of stepsOf(job)) {
-      const run = step["run"];
-      if (typeof run !== "string") continue;
-      const own = typeof step["shell"] === "string" ? step["shell"] : undefined;
-      const shell = own ?? jobShell ?? workflowShell;
-      const program = basename(shell?.trim().split(/\s+/)[0] ?? "bash");
-      if (!SH_FAMILY.has(program)) continue;
-      if (shell !== undefined && normalize(shell) === FAIL_CLOSED_SHELL) continue;
-      const first = scriptLines(run)[0]?.[1] ?? "";
-      if (SET_FAIL_CLOSED.test(first)) continue;
-      found.push(
-        finding(
-          RULES.shell,
-          `${at(workflow, ["jobs", id, "steps", index, "run"])}: a run step in job \`${id}\` does not fail closed`,
-          `shell: ${shell ?? "(the runner's default, bash -e {0})"}; first command: ${first}`,
-        ),
-      );
+function checkShell(site: StepSite): FailureDetails[] {
+  const run = site.step["run"];
+  if (typeof run !== "string") return [];
+  const own = typeof site.step["shell"] === "string" ? site.step["shell"] : undefined;
+  const shell = own ?? site.defaultShell;
+  const program = basename(shell?.trim().split(/\s+/)[0] ?? "bash");
+  if (!SH_FAMILY.has(program)) return [];
+  if (shell !== undefined && normalize(shell) === FAIL_CLOSED_SHELL) return [];
+  const first = scriptLines(run)[0]?.[1] ?? "";
+  if (SET_FAIL_CLOSED.test(first)) return [];
+  return [
+    finding(
+      RULES.shell,
+      `${at(site.file, [...site.keys, "run"])}: a run step in ${site.owner} does not fail closed`,
+      `shell: ${shell ?? "(the runner's default, bash -e {0})"}; first command: ${first}`,
+    ),
+  ];
+}
+
+/** A run script's logical lines with the file line each starts on. */
+function runLines(site: StepSite): [number, string][] {
+  const run = site.step["run"];
+  if (typeof run !== "string") return [];
+  const { line, block } = site.file.locate([...site.keys, "run"]);
+  return scriptLines(run).map(([offset, text]): [number, string] => [
+    block ? line + 1 + offset : line,
+    text,
+  ]);
+}
+
+/** A line with its single-quoted strings emptied and a trailing comment dropped. */
+const unquoted = (text: string): string =>
+  text.replace(/'[^']*'/g, "''").replace(/(?:^|\s)#.*$/, "");
+
+/** Why one shell line fails open, or undefined when it does not. */
+export function failOpenLine(line: string): string | undefined {
+  const text = unquoted(line);
+  const fallback = SWALLOWING_FALLBACK.exec(text);
+  if (fallback !== null) {
+    return `\`${normalize(fallback[0])}\` swallows the failure of the command before it`;
+  }
+  for (const command of text.split(/&&|\|\||;|\||\bthen\b|\bdo\b/)) {
+    if (ERREXIT_OFF.test(command.trim())) {
+      return `\`${normalize(command)}\` turns off failing on an error`;
     }
   }
+  return undefined;
+}
+
+function checkFailOpen(site: StepSite): FailureDetails[] {
+  const lines = runLines(site);
+  const found: FailureDetails[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const [lineNumber, first] = lines[index] ?? [0, ""];
+    let text = first;
+    // Bash continues a line that ends in `||` onto the next one.
+    while (/\|\|\s*$/.test(text) && index + 1 < lines.length) {
+      index += 1;
+      text = `${text} ${lines[index]?.[1] ?? ""}`;
+    }
+    const problem = failOpenLine(text);
+    if (problem === undefined) continue;
+    found.push(
+      finding(
+        RULES.failOpen,
+        `${site.file.path}:${String(lineNumber)}: a run step in ${site.owner} fails open: ${problem}`,
+        text,
+      ),
+    );
+  }
   return found;
+}
+
+/** The subcommand after a package manager's global options, with its index. */
+function subcommand(
+  words: readonly string[],
+  index: number,
+  wanted: ReadonlySet<string>,
+): string | undefined {
+  let at = index + 1;
+  while (words[at]?.startsWith("-") === true) {
+    const flag = words[at] ?? "";
+    at += 1;
+    const next = words[at];
+    // `--dir ui install`: a flag's value, unless it is already the wanted subcommand.
+    if (!flag.includes("=") && next !== undefined && !next.startsWith("-") && !wanted.has(next)) {
+      at += 1;
+    }
+  }
+  return words[at];
 }
 
 /** Why one shell command ignores the lockfile, or undefined when it does not. */
@@ -383,17 +594,35 @@ export function unlockedCommand(command: string): string | undefined {
   for (let index = 0; index < words.length; index += 1) {
     const word = words[index];
     if (word === "pnpm") {
-      const sub = words[index + 1];
-      if ((sub === "install" || sub === "i") && !words.includes("--frozen-lockfile")) {
+      const sub = subcommand(words, index, PNPM_INSTALL);
+      if (sub !== undefined && PNPM_INSTALL.has(sub) && !words.includes("--frozen-lockfile")) {
         return "`pnpm install` without --frozen-lockfile";
       }
     }
+    if (word === "npm") {
+      const sub = subcommand(words, index, NPM_INSTALL);
+      if (sub !== undefined && NPM_INSTALL.has(sub)) {
+        return `\`npm ${sub}\`, which resolves without pnpm-lock.yaml (use \`pnpm install --frozen-lockfile\`)`;
+      }
+    }
+    if (word === "tauri") {
+      const sub = words[index + 1];
+      if (sub === undefined || !TAURI_BUILDS.has(sub)) continue;
+      const rest = words.slice(index + 2);
+      const separator = rest.indexOf("--");
+      const runner = separator === -1 ? [] : rest.slice(separator + 1);
+      const appSeparator = runner.indexOf("--");
+      const runnerArgs = appSeparator === -1 ? runner : runner.slice(0, appSeparator);
+      if (!runnerArgs.includes("--locked") && !runnerArgs.includes("--frozen")) {
+        return `\`tauri ${sub}\` without \`-- --locked\` for cargo`;
+      }
+    }
     if (word === "cargo") {
-      let subIndex = index + 1;
-      if (words[subIndex]?.startsWith("+") === true) subIndex += 1;
-      const sub = words[subIndex];
+      const start = words[index + 1]?.startsWith("+") === true ? index + 1 : index;
+      const sub = subcommand(words, start, CARGO_LOCKED);
       if (sub === undefined || !CARGO_LOCKED.has(sub)) continue;
-      const rest = words.slice(subIndex + 1);
+      // Global flags before the subcommand count too: `cargo --locked build` is locked.
+      const rest = words.slice(start + 1);
       const separator = rest.indexOf("--");
       const args = separator === -1 ? rest : rest.slice(0, separator);
       if (!args.includes("--locked") && !args.includes("--frozen")) {
@@ -404,27 +633,69 @@ export function unlockedCommand(command: string): string | undefined {
   return undefined;
 }
 
-function checkLocked(workflow: Workflow): FailureDetails[] {
+const COMMAND_SEPARATORS = /&&|\|\||;|\|/;
+
+function checkLocked(site: StepSite): FailureDetails[] {
   const found: FailureDetails[] = [];
-  for (const [id, job] of jobsOf(workflow)) {
-    for (const [index, step] of stepsOf(job)) {
-      const run = step["run"];
-      if (typeof run !== "string") continue;
-      const keys = ["jobs", id, "steps", index, "run"];
-      const { line, block } = workflow.locate(keys);
-      for (const [offset, text] of scriptLines(run)) {
-        for (const command of text.split(/&&|\|\||;|\|/)) {
-          const problem = unlockedCommand(command);
-          if (problem === undefined) continue;
-          const where = `${workflow.path}:${String(block ? line + 1 + offset : line)}`;
-          found.push(
-            finding(RULES.unlocked, `${where}: ${problem} in job \`${id}\``, command.trim()),
-          );
-        }
-      }
+  for (const [line, text] of runLines(site)) {
+    for (const command of text.split(COMMAND_SEPARATORS)) {
+      const problem = unlockedCommand(command);
+      if (problem === undefined) continue;
+      found.push(
+        finding(
+          RULES.unlocked,
+          `${site.file.path}:${String(line)}: ${problem} in ${site.owner}`,
+          command.trim(),
+        ),
+      );
     }
   }
   return found;
+}
+
+/**
+ * The lockfile rule over every justfile recipe line (an indented line, `\` continuations
+ * joined, a leading `@`/`-` dropped), since a workflow's `just <recipe>` relies on it.
+ */
+function checkJustfileLocked(root: string): FailureDetails[] {
+  const text = readRepoFile(root, JUSTFILE);
+  if (text === undefined) return [];
+  const lines = text.split("\n");
+  const found: FailureDetails[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const start = index;
+    let line = lines[index] ?? "";
+    if (!/^\s+\S/.test(line)) continue;
+    while (line.endsWith("\\") && index + 1 < lines.length) {
+      index += 1;
+      line = `${line.slice(0, -1)} ${lines[index] ?? ""}`;
+    }
+    const body = line.trim().replace(/^[@-]+/, "");
+    if (body.startsWith("#")) continue;
+    for (const command of body.split(COMMAND_SEPARATORS)) {
+      const problem = unlockedCommand(command);
+      if (problem === undefined) continue;
+      found.push(
+        finding(
+          RULES.unlocked,
+          `${JUSTFILE}:${String(start + 1)}: ${problem} in a recipe`,
+          command.trim(),
+        ),
+      );
+    }
+  }
+  return found;
+}
+
+function checkSteps(sites: readonly StepSite[]): FailureDetails[] {
+  return sites.flatMap((site) => [
+    ...checkStepPins(site),
+    ...checkCheckout(site),
+    ...checkStepContinueOnError(site),
+    ...checkShell(site),
+    ...checkFailOpen(site),
+    ...checkLocked(site),
+  ]);
 }
 
 interface TitleCheck {
@@ -572,17 +843,20 @@ export const check: Check = {
   name: "workflow-hygiene",
   run: (root) => {
     const { workflows, unreadable } = readWorkflows(root);
+    const { actions, unreadable: unreadableActions } = readActions(root, workflows);
     return [
       ...unreadable,
+      ...unreadableActions,
       ...workflows.flatMap((workflow) => [
-        ...checkPins(workflow),
+        ...checkJobCalls(workflow),
         ...checkTimeouts(workflow),
         ...checkPermissions(workflow),
-        ...checkCheckouts(workflow),
         ...checkTriggersAndConcurrency(workflow),
-        ...checkShells(workflow),
-        ...checkLocked(workflow),
+        ...checkJobContinueOnError(workflow),
+        ...checkSteps(workflowSteps(workflow)),
       ]),
+      ...actions.flatMap((action) => checkSteps(actionSteps(action))),
+      ...checkJustfileLocked(root),
       ...checkBotPrefixes(root, workflows),
     ];
   },

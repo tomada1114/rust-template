@@ -121,8 +121,8 @@ release.
 
 On the merge commit on `main`, `git tag v<version>` and `git push origin v<version>`.
 The workflow then checks the tag against the three sites, re-runs the core and UI tests,
-builds `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg` without the
-Rust build cache, verifies, and publishes the `.dmg`, a `SHA256SUMS` file, and a
+builds `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked`
+without the Rust build cache, verifies, and publishes the `.dmg`, a `SHA256SUMS` file, and a
 build-provenance attestation with notes from `.github/release.yml`'s categories. A tag
 that fails the version check is deleted and re-pushed by the human after the fix, never
 moved silently.

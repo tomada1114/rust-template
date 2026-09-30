@@ -1,0 +1,8 @@
+# The only job that runs a gate is behind an `if:`.
+expect:
+  workflow-hygiene: []
+  just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
+edits:
+  - file: .github/workflows/ci.yml
+    from: "    timeout-minutes: 30\n"
+    to: "    timeout-minutes: 30\n    if: github.event_name == 'push'\n"

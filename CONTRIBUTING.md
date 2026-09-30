@@ -83,9 +83,9 @@ cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
 pnpm test:ui                                     # just test-ui
 pnpm test:scripts                                # just test-scripts
 cargo nextest run --locked -p myapp-platform -p myapp   # just test-macos
-pnpm tauri build --debug --bundles app           # just build (unset every APPLE_* variable first)
+pnpm tauri build --debug --bundles app -- --locked  # just build (unset every APPLE_* variable first)
 node scripts/smoke.ts                            # just smoke
-cargo deny check                                 # just deny
+cargo deny --locked check                        # just deny
 node scripts/release-prep.ts 0.2.0               # just release-prep 0.2.0
 ```
 

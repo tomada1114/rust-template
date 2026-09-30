@@ -53,6 +53,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `scripts/verify-bootstrap.ts`, so a placeholder the bootstrap leaves behind fails the
   pull request instead of only printing a warning.
 
+- The workflow harness checks now fail where they passed a weakened gate:
+  `workflow-hygiene` rejects `continue-on-error` on a job or step, `set +e`, and an
+  `|| true`, `|| :`, `|| exit 0`, `|| echo`, or `|| printf` fallback in a `run:`; checks
+  every job-level `concurrency` on a push workflow and evaluates a concurrency group for
+  a push run instead of looking for `github.sha` anywhere in it; applies its step rules
+  to local composite actions; and reads `pnpm --dir ui install`, `npm install`,
+  `cargo install`/`check`/`doc`/`deny`/`shear`, and `tauri build`/`dev` (in workflows
+  and in every justfile recipe) for the lockfile flag. `just-check-matches-ci` no longer
+  counts a gate CI runs only behind `if:`, with `continue-on-error`, with an `||`
+  fallback, or on a `uses:` step. CI, the release workflow, and the justfile now pass
+  `--locked` to `cargo deny`, `cargo shear`, and `tauri build`/`dev`.
+
 ### Security
 
 - The staged guard catches this template's own signing secrets it used to miss: an
