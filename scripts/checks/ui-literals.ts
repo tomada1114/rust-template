@@ -62,7 +62,9 @@
  *   `let` assigned from itself) adds nothing there, so no spelling makes the check
  *   recurse without end. A raw value a binding holds is reported once, where it is
  *   declared when it is flagged there (in whichever file), otherwise where it is used.
- *   Any other string is flagged when it is a hex color as a whole, holds a color
+ *   Any other string is flagged when it is a hex color as a whole (except one given
+ *   directly to `href`, `xlinkHref`, `id`, `htmlFor`, or an `aria-*` JSX attribute, where
+ *   `#add` is a fragment, not a color), holds a color
  *   function, or holds a CSS declaration of a color or font property (CSS in a template
  *   literal). A bare word such as `"red"` in an unrelated string is not flagged, nor is
  *   one an imported or `let` binding holds until a style reads it: copy and variant
@@ -845,7 +847,7 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Scanned> {
       const isModuleName =
         ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent);
       if ((ts.isStringLiteralLike(node) || ts.isTemplateExpression(node)) && !claimed.has(node)) {
-        if (!isModuleName) {
+        if (!isModuleName && !isAnchor(node)) {
           const parts = ts.isTemplateExpression(node)
             ? [node.head, ...node.templateSpans.map((span) => span.literal)]
             : [node];
@@ -868,6 +870,20 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Scanned> {
     ts.forEachChild(file, free);
   }
   return scanned;
+}
+
+/** A JSX attribute whose value is a reference, never CSS: `href="#add"` is a fragment. */
+const REFERENCE_ATTRIBUTE = /^(?:href|xlinkHref|id|htmlFor|aria-[a-z]+)$/;
+
+/** A whole-hex string given directly to a reference attribute, where it names an anchor. */
+function isAnchor(node: ts.Node): boolean {
+  if (!ts.isStringLiteralLike(node) || !WHOLE_HEX.test(node.text.trim())) return false;
+  const holder = ts.isJsxExpression(node.parent) ? node.parent.parent : node.parent;
+  return (
+    ts.isJsxAttribute(holder) &&
+    ts.isIdentifier(holder.name) &&
+    REFERENCE_ATTRIBUTE.test(holder.name.text)
+  );
 }
 
 const TAG_NAME = /[A-Za-z][\w:.-]*/y;

@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `just check-harness`'s UI literals check no longer reports a hex-looking fragment given to `href`, `xlinkHref`, `id`, `htmlFor`, or an `aria-*` JSX attribute (`<a href="#add">`) as a raw color; the same string in a style, a `fill`, or a binding is still flagged.
 - `no-issue-references` no longer reports an upstream project's `owner/repo#N` (such as
   `tauri-apps/tauri#1234`), which it now treats like the same issue's URL, as a source;
   a bare `#N` and this repository's own `owner/repo#N` are still references. It and
