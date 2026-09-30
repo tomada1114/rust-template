@@ -156,8 +156,9 @@ ${job}`;
     it.each([
       ["paths", '\n    paths: ["docs/**"]'],
       ["paths-ignore", '\n    paths-ignore: ["**.md"]'],
-      ["branches", "\n    branches: [main]"],
-      ["branches-ignore", '\n    branches-ignore: ["release/**"]'],
+      ["branches not matching main", '\n    branches: ["release/**"]'],
+      ["branches negating main", '\n    branches: ["**", "!main"]'],
+      ["branches-ignore matching main", "\n    branches-ignore: [main]"],
       ["types without synchronize", "\n    types: [opened, reopened]"],
     ])("rejects a context whose workflow's pull_request trigger filters %s", (_label, trigger) => {
       const found = check.run(
@@ -169,6 +170,32 @@ ${job}`;
       expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
       expect(found[0]?.summary).toContain('"Docs Only"');
       expect(found[0]?.actual).toContain(".github/workflows/docs.yml");
+    });
+
+    it.each([
+      ["branches: [main]", "\n    branches: [main]"],
+      ["a glob matching main", '\n    branches: ["**"]'],
+      ["branches-ignore not matching main", '\n    branches-ignore: ["dependabot/**"]'],
+    ])("passes a trigger with %s", (_label, trigger) => {
+      expect(
+        codes({
+          ".github/workflows/docs.yml": workflow(trigger, "    name: Docs Only\n"),
+          ".github/rulesets/main.json": ruleset(["Docs Only"]),
+        }),
+      ).toEqual([]);
+    });
+
+    it("reads the gated branch from a refs/heads include", () => {
+      const gated = JSON.stringify({
+        ...(JSON.parse(ruleset(["Docs Only"])) as Record<string, unknown>),
+        conditions: { ref_name: { include: ["refs/heads/trunk"], exclude: [] } },
+      });
+      expect(
+        codes({
+          ".github/workflows/docs.yml": workflow("\n    branches: [main]", "    name: Docs Only\n"),
+          ".github/rulesets/main.json": gated,
+        }),
+      ).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
     });
 
     it("passes a trigger whose types keep every default one", () => {

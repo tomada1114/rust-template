@@ -20,8 +20,9 @@
  *     `${{ matrix.os }}` would otherwise match every context. A matrix job whose name has
  *     no expression reports as `<name> (<values>)`, and matches that shape.
  *   - runs on every pull request: a matching job counts only when its workflow's
- *     `pull_request` trigger has no `paths`, `paths-ignore`, `branches`, or
- *     `branches-ignore` filter and its `types`, when set, include `opened`,
+ *     `pull_request` trigger has no `paths` or `paths-ignore` filter, its `branches`
+ *     (when set) match the ruleset's branch and no `!` pattern there matches it, its
+ *     `branches-ignore` (when set) do not match it, and its `types`, when set, include `opened`,
  *     `synchronize`, and `reopened`; its `if:`, when set, is true on every pull request
  *     (evaluated as above; one the evaluator cannot read is unproven, never true); and
  *     every job it `needs` runs on every pull request too.
@@ -51,7 +52,7 @@ import {
 
 const RULESET = ".github/rulesets/main.json";
 const EVENT = "pull_request";
-const FILTERS = ["paths", "paths-ignore", "branches", "branches-ignore"];
+const FILTERS = ["paths", "paths-ignore"];
 /** The activity types a `pull_request` trigger runs on when it names none. */
 const DEFAULT_TYPES = ["opened", "synchronize", "reopened"];
 const EMBEDDED = /\$\{\{([\s\S]*?)\}\}/g;
@@ -99,14 +100,66 @@ interface ReportingJob {
   readonly skips: readonly string[];
 }
 
-/** Why a workflow's `pull_request` trigger may not fire on every pull request. */
-function triggerSkips(workflow: Workflow): string[] {
+/**
+ * Whether a GitHub branch filter pattern matches `branch`: `**` matches any text, `*`
+ * any text but `/`, `?` one character.
+ */
+export function branchMatches(pattern: string, branch: string): boolean {
+  let source = "";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern.charAt(i);
+    if (char === "*" && pattern.charAt(i + 1) === "*") {
+      source += ".*";
+      i += 1;
+    } else if (char === "*") source += "[^/]*";
+    else if (char === "?") source += ".";
+    else source += escape(char);
+  }
+  return new RegExp(`^${source}$`).test(branch);
+}
+
+/** The branch the ruleset gates: a `refs/heads/<name>` include, else `main`. */
+export function rulesetBranch(ruleset: unknown): string {
+  const conditions = isRecord(ruleset) ? ruleset["conditions"] : undefined;
+  const refName = isRecord(conditions) ? conditions["ref_name"] : undefined;
+  const include = isRecord(refName) ? refName["include"] : undefined;
+  const first: unknown = Array.isArray(include) ? include[0] : undefined;
+  return typeof first === "string" && first.startsWith("refs/heads/")
+    ? first.slice("refs/heads/".length)
+    : "main";
+}
+
+function branchSkips(trigger: Record<string, unknown>, branch: string, path: string): string[] {
+  const list = (key: string): string[] | undefined => {
+    const value = trigger[key];
+    if (value === undefined) return undefined;
+    return (Array.isArray(value) ? value : [value]).map(String);
+  };
+  const skips: string[] = [];
+  const branches = list("branches");
+  if (
+    branches !== undefined &&
+    (!branches.some((p) => !p.startsWith("!") && branchMatches(p, branch)) ||
+      branches.some((p) => p.startsWith("!") && branchMatches(p.slice(1), branch)))
+  ) {
+    skips.push(`${path}: its pull_request trigger's \`branches\` do not match \`${branch}\``);
+  }
+  const ignored = list("branches-ignore");
+  if (ignored?.some((p) => branchMatches(p, branch)) === true) {
+    skips.push(`${path}: its pull_request trigger's \`branches-ignore\` match \`${branch}\``);
+  }
+  return skips;
+}
+
+/** Why a workflow's `pull_request` trigger may not fire on every pull request into `branch`. */
+function triggerSkips(workflow: Workflow, branch: string): string[] {
   const on = workflow.data["on"];
   const trigger = isRecord(on) ? on[EVENT] : undefined;
   if (!isRecord(trigger)) return [];
   const skips = FILTERS.filter((key) => trigger[key] !== undefined).map(
     (key) => `${workflow.path}: its pull_request trigger filters \`${key}\``,
   );
+  skips.push(...branchSkips(trigger, branch, workflow.path));
   const types = trigger["types"];
   if (types !== undefined) {
     const listed = Array.isArray(types) ? types : [types];
@@ -149,11 +202,11 @@ function jobSkips(
   return skips;
 }
 
-function pullRequestJobs(root: string): ReportingJob[] {
+function pullRequestJobs(root: string, branch: string): ReportingJob[] {
   return readWorkflows(root)
     .workflows.filter((workflow) => triggerNames(workflow.data).includes(EVENT))
     .flatMap((workflow) => {
-      const trigger = triggerSkips(workflow);
+      const trigger = triggerSkips(workflow, branch);
       const jobs = new Map(jobsOf(workflow));
       return [...jobs].map(([id, job]) => {
         const strategy = job["strategy"];
@@ -199,7 +252,7 @@ function contextViolation(context: string, jobs: readonly ReportingJob[]): Failu
       code: "ERR_CHECK_RULESET_CONTEXT_SKIPPED",
       summary: `${RULESET}: required context "${context}" is reported only by jobs that may not run on every pull request`,
       expected:
-        "a job reporting each required context on every pull request: no paths or branches filter on its workflow's pull_request trigger, the default activity types, and no `if:` (on it or a job it needs) that can be false",
+        "a job reporting each required context on every pull request: no paths filter and no branch filter excluding the gated branch on its workflow's pull_request trigger, the default activity types, and no `if:` (on it or a job it needs) that can be false",
       actual: [...new Set(matching.flatMap((job) => job.skips))].join("; "),
       next: `drop the filter or the \`if:\` from the job ${RULESET} requires (skip inside its steps instead), or remove the context from ${RULESET} (then \`just ruleset\` after merging, a human's step)`,
     },
@@ -235,7 +288,7 @@ export const check: Check = {
         },
       ];
     }
-    const jobs = pullRequestJobs(root);
+    const jobs = pullRequestJobs(root, rulesetBranch(ruleset));
     return requiredContexts(ruleset).flatMap((context) => contextViolation(context, jobs));
   },
 };
