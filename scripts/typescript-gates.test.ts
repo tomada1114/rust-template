@@ -1,5 +1,5 @@
 // The TypeScript rules the skills and .claude/rules/typescript.md say a gate enforces,
-// probed against the real eslint.config.mjs and ui/tsconfig.json: each case is code the
+// probed against the real eslint.config.mjs, tsconfig.json, and ui/tsconfig.json: each case is code the
 // gate must refuse, beside the code it must still accept. Linting reads the checkout and
 // writes nothing; the tsc probe writes only to a temp directory.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -18,6 +18,7 @@ const SCREEN = "ui/src/counter/useCounter.ts";
 const SCREEN_TEST = "ui/src/counter/useCounter.test.tsx";
 const IPC = "ui/src/ipc/commands.ts";
 const IPC_TEST = "ui/src/ipc/commands.test.ts";
+const IPC_TESTING = "ui/src/ipc/testing.ts";
 const LOG_FORWARDER = "ui/src/ipc/log.ts";
 const TEST_SETUP = "ui/src/test/setup.ts";
 
@@ -98,6 +99,8 @@ describe("the IPC import boundary", () => {
     ["../ipc/generated/CounterError", SCREEN],
     ["../ipc/testing", SCREEN],
     ["./testing", IPC],
+    ["@tauri-apps/api/mocks", IPC],
+    ["@tauri-apps/api/mocks", LOG_FORWARDER],
     ["@tauri-apps/api/core", SCREEN_TEST],
     ["../ipc/generated/CounterError", SCREEN_TEST],
   ])("refuses a dynamic import of %s from %s", async (specifier, file) => {
@@ -113,6 +116,11 @@ describe("the IPC import boundary", () => {
   it.each([
     ['export { mockCommands } from "../ipc/testing";\n', SCREEN],
     ['export { mockCommands } from "./testing";\n', IPC],
+    ['export { mockIPC } from "@tauri-apps/api/mocks";\n', IPC],
+    [
+      'import { clearMocks } from "@tauri-apps/api/mocks";\nexport const reset = clearMocks;\n',
+      IPC,
+    ],
     ['export { invoke } from "@tauri-apps/api/core";\n', SCREEN],
     ['export type { CounterError } from "../ipc/generated/CounterError";\n', SCREEN],
   ])("refuses the static import %j in %s", async (code, file) => {
@@ -123,6 +131,10 @@ describe("the IPC import boundary", () => {
     [dynamic("@tauri-apps/api/window"), IPC],
     [dynamic("./generated/CounterError"), IPC],
     [dynamic("./testing"), IPC_TEST],
+    ['export { clearMocks, mockIPC } from "@tauri-apps/api/mocks";\n', IPC_TESTING],
+    [dynamic("@tauri-apps/api/mocks"), IPC_TESTING],
+    ['export { mockIPC } from "@tauri-apps/api/mocks";\n', IPC_TEST],
+    [dynamic("@tauri-apps/api/mocks"), IPC_TEST],
     ['export { mockCommands } from "../ipc/testing";\n', SCREEN_TEST],
     ['export { resetIpcMocks } from "../ipc/testing";\n', TEST_SETUP],
   ])("accepts %j in %s", async (code, file) => {
@@ -142,16 +154,17 @@ describe("console outside ui/src/ipc/log.ts", () => {
   });
 });
 
-describe("ui/tsconfig.json", () => {
+// The root config covers vite.config.ts and vitest.config.ts; ui/ and scripts/ have their own.
+describe.each(["tsconfig.json", "ui/tsconfig.json"])("%s", (config) => {
   const dirs: string[] = [];
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  /** The diagnostic codes tsc reports for `code` compiled with ui/tsconfig.json's options. */
+  /** The diagnostic codes tsc reports for `code` compiled with `config`'s options. */
   function compile(code: string): number[] {
     const parsed = ts.getParsedCommandLineOfConfigFile(
-      join(ROOT, "ui", "tsconfig.json"),
+      join(ROOT, config),
       {},
       {
         ...ts.sys,
@@ -160,13 +173,13 @@ describe("ui/tsconfig.json", () => {
         },
       },
     );
-    if (parsed === undefined) throw new Error("ui/tsconfig.json did not parse");
+    if (parsed === undefined) throw new Error(`${config} did not parse`);
     const { options } = parsed;
-    const dir = mkdtempSync(join(tmpdir(), "ui-tsconfig-"));
+    const dir = mkdtempSync(join(tmpdir(), "tsconfig-probe-"));
     dirs.push(dir);
     const file = join(dir, "probe.ts");
     writeFileSync(file, code);
-    // `types` names packages resolved from ui/; the probe needs none of them.
+    // `types` names packages resolved from the config's own tree; the probe needs none.
     const program = ts.createProgram([file], { ...options, types: [] });
     return ts.getPreEmitDiagnostics(program).map((diagnostic) => diagnostic.code);
   }

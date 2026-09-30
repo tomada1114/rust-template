@@ -60,6 +60,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Renovate bumps, how pinned tools reach a recipe, and `changing-gates`' check for the
   scripts floors.
 
+- ESLint refuses a static or dynamic import of `@tauri-apps/api/mocks` from production
+  code inside `ui/src/ipc/`; only `ui/src/ipc/testing.ts` and tests there may import it,
+  so the IPC mocks reach production code neither directly nor through `testing.ts`. The
+  root `tsconfig.json` sets `erasableSyntaxOnly`, so an `enum`, `namespace`, or parameter
+  property in `vite.config.ts` or `vitest.config.ts` now fails `just lint`, as it already
+  did in `ui/` and `scripts/`.
+
 - The pre-commit hook's skills-mirror check compares the staged `.agents/skills/` and
   `.claude/skills/` (`node scripts/sync-agents.ts --check --staged`), so a commit that
   stages an edited skill without its synced mirror is refused instead of passing because

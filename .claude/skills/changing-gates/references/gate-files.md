@@ -95,11 +95,13 @@ only what each job names.
 ## `eslint.config.mjs`
 
 - The IPC boundary keeps `@tauri-apps/*` and `ui/src/ipc/generated/` inside
-  `ui/src/ipc/`, and `ui/src/ipc/testing.ts` inside tests and `ui/src/test/`. Each
+  `ui/src/ipc/`, `ui/src/ipc/testing.ts` inside tests and `ui/src/test/`, and, inside
+  `ui/src/ipc/`, `@tauri-apps/api/mocks` inside `testing.ts` and tests. Each
   boundary object feeds two rules through `importBoundaries()`: `no-restricted-imports`
   (import and export declarations) and `no-restricted-syntax` (a dynamic `import()`,
   which that rule never sees; a computed `import()` specifier is refused outright).
-  The `ui/react`, `ui/ipc-boundary`, `ui/tests`, and `ui/ipc-tests` blocks each pass
+  The `ui/react`, `ui/ipc-boundary`, `ui/ipc-testing`, `ui/tests`, and `ui/ipc-tests`
+  blocks each pass
   their full set. A later config object that gives a rule options **replaces** the
   earlier options rather than merging them
   (https://eslint.org/docs/latest/use/configure/rules, checked 2026-09-29), so a new
@@ -111,8 +113,8 @@ only what each job names.
 - `switch-exhaustiveness-check` sets `considerDefaultExhaustiveForUnions` and
   `allowDefaultCaseForExhaustiveSwitch` to `false`: a `switch` over a union names every
   member and has no `default`.
-- `scripts/typescript-gates.test.ts` probes each of these, and `ui/tsconfig.json`'s
-  `erasableSyntaxOnly`, against the real configs (`just test-scripts`).
+- `scripts/typescript-gates.test.ts` probes each of these, and `erasableSyntaxOnly` in
+  `tsconfig.json` and `ui/tsconfig.json`, against the real configs (`just test-scripts`).
 - `linterOptions.reportUnusedDisableDirectives: "error"` makes a stale disable comment
   fail.
 - `eslintConfigPrettier` stays the last element; anywhere else it stops turning off the
@@ -125,8 +127,8 @@ Three configs, one per tree: the root config files, the UI Vite bundles, and the
 scripts Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all
 three. `scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types
 without transforming code, so `enum`, `namespace`, and parameter properties would fail at
-run time, not at type-check time. `ui/tsconfig.json` sets it too, so `ui/src/` keeps the
-same language. Removing a strict option (`strict`,
+run time, not at type-check time. `ui/tsconfig.json` and the root `tsconfig.json` set it
+too, so `ui/src/` and the root config files keep the same language. Removing a strict option (`strict`,
 `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking for every
 file in that tree.
 

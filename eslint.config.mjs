@@ -41,6 +41,14 @@ const TESTING_ONLY_IN_TESTS_FROM_IPC = {
   message: TESTING_MESSAGE,
 };
 
+/** Inside ui/src/ipc/, Tauri's IPC mocks are reached only through ./testing, which tests import. */
+const API_MOCKS_ONLY_IN_TESTING = {
+  group: ["@tauri-apps/api/mocks", "@tauri-apps/api/mocks.*"],
+  specifier: /^@tauri-apps\/api\/mocks(\.[cm]?js)?$/,
+  message:
+    "Only ui/src/ipc/testing.ts and tests may import @tauri-apps/api/mocks; production code never mocks IPC.",
+};
+
 /** A computed `import()` specifier would slip past every boundary above. */
 const LITERAL_DYNAMIC_IMPORT = {
   selector: "ImportExpression:not([source.type='Literal'])",
@@ -146,6 +154,12 @@ export default defineConfig([
     name: "ui/ipc-boundary",
     files: ["ui/src/ipc/**/*.ts"],
     // The one place that may talk to Tauri and read the generated bindings.
+    rules: importBoundaries(TESTING_ONLY_IN_TESTS_FROM_IPC, API_MOCKS_ONLY_IN_TESTING),
+  },
+  {
+    name: "ui/ipc-testing",
+    files: ["ui/src/ipc/testing.ts"],
+    // The test helpers wrap Tauri's IPC mocks; tests reach them only through this file.
     rules: importBoundaries(TESTING_ONLY_IN_TESTS_FROM_IPC),
   },
   {
