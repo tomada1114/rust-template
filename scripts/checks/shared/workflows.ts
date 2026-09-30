@@ -25,6 +25,10 @@ export const RENOVATE_FILES = [
   ".renovaterc.json",
 ];
 
+/** Whether a `continue-on-error:` value lets a failure pass (anything but absent or false). */
+export const continuesOnError = (value: unknown): boolean =>
+  value !== undefined && value !== false && value !== "false";
+
 export type Key = string | number;
 
 /** Where a key path sits in a YAML file. */

@@ -81,6 +81,7 @@ import {
   DEPENDABOT_FILES,
   RENOVATE_FILES,
   actionStepsOf,
+  continuesOnError,
   isRecord,
   jobsOf,
   readActions,
@@ -469,9 +470,6 @@ function checkTriggersAndConcurrency(workflow: Workflow): FailureDetails[] {
   return found;
 }
 
-const continuesOnError = (value: unknown): boolean =>
-  value !== undefined && value !== false && value !== "false";
-
 function checkJobContinueOnError(workflow: Workflow): FailureDetails[] {
   return jobsOf(workflow)
     .filter(([, job]) => continuesOnError(job["continue-on-error"]))
@@ -620,11 +618,11 @@ export function unlockedCommand(command: string): string | undefined {
       }
     }
     if (word === "cargo") {
-      let subIndex = index + 1;
-      if (words[subIndex]?.startsWith("+") === true) subIndex += 1;
-      const sub = words[subIndex];
+      const start = words[index + 1]?.startsWith("+") === true ? index + 1 : index;
+      const sub = subcommand(words, start, CARGO_LOCKED);
       if (sub === undefined || !CARGO_LOCKED.has(sub)) continue;
-      const rest = words.slice(subIndex + 1);
+      // Global flags before the subcommand count too: `cargo --locked build` is locked.
+      const rest = words.slice(start + 1);
       const separator = rest.indexOf("--");
       const args = separator === -1 ? rest : rest.slice(0, separator);
       if (!args.includes("--locked") && !args.includes("--frozen")) {

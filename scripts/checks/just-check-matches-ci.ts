@@ -49,7 +49,14 @@
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
-import { isRecord, jobsOf, readYaml, scriptLines, stepsOf } from "./shared/workflows.ts";
+import {
+  continuesOnError,
+  isRecord,
+  jobsOf,
+  readYaml,
+  scriptLines,
+  stepsOf,
+} from "./shared/workflows.ts";
 
 const JUSTFILE = "justfile";
 const CI = ".github/workflows/ci.yml";
@@ -195,9 +202,6 @@ interface CiStep {
 }
 
 /** Whether a `continue-on-error` value lets a failure pass. */
-const continuesOnError = (value: unknown): boolean =>
-  value !== undefined && value !== false && value !== "false";
-
 /** Why a whole step never counts as running a gate, or undefined when it can. */
 function stepCondition(
   job: Record<string, unknown>,

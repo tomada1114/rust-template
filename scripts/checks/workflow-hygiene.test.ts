@@ -677,6 +677,13 @@ jobs:
       expect(unlockedCommand("cargo shear --locked")).toBeUndefined();
       expect(unlockedCommand("cargo deny --locked check")).toBeUndefined();
       expect(unlockedCommand("cargo")).toBeUndefined();
+      expect(unlockedCommand("cargo -q build")).toBeDefined();
+      expect(unlockedCommand("cargo -Zfoo build")).toBeDefined();
+      expect(unlockedCommand("cargo --color always build")).toBeDefined();
+      expect(unlockedCommand("cargo +nightly -q test")).toBeDefined();
+      expect(unlockedCommand("cargo --locked build")).toBeUndefined();
+      expect(unlockedCommand("cargo -q --frozen build")).toBeUndefined();
+      expect(unlockedCommand("cargo --color always build --locked")).toBeUndefined();
     });
   });
 
