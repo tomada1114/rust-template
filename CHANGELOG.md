@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The helper CLI now logs to `~/Library/Logs/<bundle id>/cli/`, so the app's log
+  retention no longer deletes the helper's files, each keeps its newest 14, and
+  `just logs` always prints the app's log.
 - The skills, `.claude/rules/rust.md`, and `docs/distribution.md` no longer give
   instructions the repository's config and code contradict. `create-pr` writes the
   pull request template's `**Release impact:** none | PATCH | MINOR | MAJOR` line,

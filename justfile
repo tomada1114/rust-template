@@ -14,6 +14,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 bundle_id := "com.example.myapp"
 app_name := "MyApp"
 log_dir := env("HOME", "") / "Library/Logs" / bundle_id
+log_prefix := "myapp"
 no_signing := "env -u APPLE_CERTIFICATE -u APPLE_CERTIFICATE_PASSWORD -u APPLE_SIGNING_IDENTITY -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_ISSUER -u APPLE_API_KEY -u APPLE_API_KEY_PATH"
 
 # List the recipes
@@ -127,14 +128,14 @@ smoke:
 logs:
     #!/usr/bin/env bash
     set -euo pipefail
-    newest="$(ls -t "{{ log_dir }}"/*.log 2>/dev/null | head -n 1 || true)"
-    if [[ -z "$newest" ]]; then echo "no log files in {{ log_dir }}"; exit 0; fi
+    newest="$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$newest" ]]; then echo "no {{ log_prefix }}.*.log files in {{ log_dir }}"; exit 0; fi
     echo "==> $newest"
     tail -n 50 "$newest"
 
 # Follow the newest app log (never ends: a human's recipe)
 logs-follow:
-    tail -F "$(ls -t "{{ log_dir }}"/*.log | head -n 1)"
+    tail -F "$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log | head -n 1)"
 
 # Reset the app's privacy (TCC) permissions so macOS asks again (a human's recipe)
 reset-permissions:
