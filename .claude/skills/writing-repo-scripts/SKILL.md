@@ -161,8 +161,9 @@ runs in Vitest's `scripts` project under `just test-scripts`.
   their own, so no committed file, the test included, trips the staged guard or GitHub
   push protection. Say so in the test's header comment.
 
-Enforced by: `vitest.config.ts` "thresholds" (`scripts/**` lines 85, functions 90;
-`scripts/lib/guard/**` lines 90, functions 100). An untested new file counts as 0%, so
+Enforced by: `vitest.config.ts` "thresholds" (`scripts/**` and a skill's
+`.agents/skills/*/scripts/**` lines 85, functions 90; `scripts/lib/guard/**` lines 90,
+functions 100). An untested new file counts as 0%, so
 it pulls the tree's number down from the moment it exists.
 
 ## Adding a script
