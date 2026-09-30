@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { ScriptContext } from "../lib/script.ts";
-import { check, main, nameMatches } from "./ruleset-contexts.ts";
+import { check, jobNames, main, matrixCombinations } from "./ruleset-contexts.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -341,17 +341,346 @@ jobs:
     });
   });
 
-  it("matches a name's expressions as wildcards", () => {
-    expect(nameMatches("Analyze (rust)", "Analyze (${{ matrix.language }})", false)).toBe(true);
-    expect(nameMatches("Analyze rust", "Analyze (${{ matrix.language }})", false)).toBe(false);
-    expect(nameMatches("a-x-b-y", "a-${{ x }}-b-${{ y }}", false)).toBe(true);
-    expect(nameMatches("Test (macos)", "Test", true)).toBe(true);
-    expect(nameMatches("Test", "Test", true)).toBe(false);
-    expect(nameMatches("Test.", "Test?", false)).toBe(false);
-    expect(nameMatches("anything", "${{ matrix.os }}", false)).toBe(false);
-    expect(nameMatches("Build", "${{ 'Build' }}", false)).toBe(true);
-    expect(nameMatches("", "${{ null }}", false)).toBe(true);
-    expect(nameMatches("Lint (x)", "Lint (${{ format('{0}', matrix.x) }})", false)).toBe(true);
+  describe("a name mixing text and an expression", () => {
+    it("fails a context whose matrix value the workflow no longer has", () => {
+      const found = check.run(
+        root({ ".github/rulesets/main.json": ruleset(["Analyze (python)"]) }),
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+      expect(found[0]?.actual).toContain("Analyze (rust), Analyze (actions)");
+    });
+
+    it("passes a context naming each value the matrix has", () => {
+      expect(
+        codes({ ".github/rulesets/main.json": ruleset(["Analyze (rust)", "Analyze (actions)"]) }),
+      ).toEqual([]);
+    });
+
+    const job = (name: string, matrix: string): string => `on: pull_request
+jobs:
+  any:
+    name: ${JSON.stringify(name)}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+${matrix}`;
+
+    it.each([
+      [
+        "an expression that is not fixed on a pull request",
+        "Lint (${{ github.head_ref }})",
+        "        os: [ubuntu]\n",
+        "Lint (anything)",
+        "`${{ github.head_ref }}` is not a fixed value",
+      ],
+      [
+        "a function call",
+        "Lint (${{ format('{0}', matrix.os) }})",
+        "        os: [ubuntu]\n",
+        "Lint (ubuntu)",
+        "is not a fixed value",
+      ],
+      [
+        "a matrix key the matrix does not have",
+        "Lint (${{ matrix.arch }})",
+        "        os: [ubuntu]\n",
+        "Lint (ubuntu)",
+        "`${{ matrix.arch }}`",
+      ],
+      [
+        "a matrix computed from another job's output",
+        "Lint (${{ matrix.os }})",
+        "        os: ${{ fromJSON(needs.plan.outputs.os) }}\n",
+        "Lint (ubuntu)",
+        "computed by an expression",
+      ],
+      [
+        "an include computed at run time",
+        "Lint (${{ matrix.os }})",
+        "        include: ${{ fromJSON(needs.plan.outputs.include) }}\n",
+        "Lint (ubuntu)",
+        "computed by an expression",
+      ],
+    ])("fails closed on %s, naming the job", (_label, name, matrix, context, reason) => {
+      const found = check.run(
+        root({
+          ".github/workflows/any.yml": job(name, matrix),
+          ".github/rulesets/main.json": ruleset([context]),
+        }),
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+      expect(found[0]?.actual).toContain(`\`${name}\``);
+      expect(found[0]?.actual).toContain(reason);
+    });
+
+    it("expands include and exclude as GitHub does", () => {
+      const matrix = `        os: [ubuntu, macos]
+        rust: [stable, beta]
+        exclude:
+          - os: macos
+            rust: beta
+        include:
+          - os: windows
+            rust: stable
+`;
+      const workflow = job("Test ${{ matrix.os }}-${{ matrix.rust }}", matrix);
+      for (const context of ["Test ubuntu-beta", "Test macos-stable", "Test windows-stable"]) {
+        expect(
+          codes({
+            ".github/workflows/any.yml": workflow,
+            ".github/rulesets/main.json": ruleset([context]),
+          }),
+          context,
+        ).toEqual([]);
+      }
+      expect(
+        codes({
+          ".github/workflows/any.yml": workflow,
+          ".github/rulesets/main.json": ruleset(["Test macos-beta"]),
+        }),
+      ).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+    });
+  });
+
+  describe("a job that calls a reusable workflow", () => {
+    const caller = (job: string): string => `on: pull_request
+jobs:
+  call:
+${job}`;
+    const reusable = `on:
+  workflow_call:
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+  matrix:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        os: [ubuntu, macos]
+  gated:
+    name: Gated
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+`;
+    const withCaller = (job: string, contexts: readonly string[], extra: Files = {}): string[] =>
+      codes({
+        ".github/workflows/caller.yml": caller(job),
+        ".github/workflows/reusable.yml": reusable,
+        ".github/rulesets/main.json": ruleset(contexts),
+        ...extra,
+      });
+
+    it("passes a context naming <caller> / <called job>", () => {
+      expect(
+        withCaller("    name: Reusable\n    uses: ./.github/workflows/reusable.yml\n", [
+          "Reusable / Checks",
+          "Reusable / matrix (macos)",
+        ]),
+      ).toEqual([]);
+      expect(
+        withCaller("    uses: ./.github/workflows/../workflows/reusable.yml\n", ["call / Checks"]),
+      ).toEqual([]);
+    });
+
+    it("expands a calling job's matrix in front of the called job", () => {
+      const job = `    name: Reusable (\${{ matrix.target }})
+    strategy:
+      matrix:
+        target: [app, cli]
+    uses: ./.github/workflows/reusable.yml
+`;
+      expect(withCaller(job, ["Reusable (cli) / Checks"])).toEqual([]);
+      expect(withCaller(job, ["Reusable (web) / Checks"])).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+    });
+
+    it("follows a called workflow that calls another", () => {
+      const middle = `on: workflow_call
+jobs:
+  inner:
+    name: Inner
+    uses: ./.github/workflows/reusable.yml
+`;
+      expect(
+        withCaller(
+          "    name: Outer\n    uses: ./.github/workflows/middle.yml\n",
+          ["Outer / Inner / Checks"],
+          {
+            ".github/workflows/middle.yml": middle,
+          },
+        ),
+      ).toEqual([]);
+    });
+
+    it("rejects the caller's name, or the called job's, on its own", () => {
+      for (const context of ["Reusable", "Checks"]) {
+        expect(
+          withCaller("    name: Reusable\n    uses: ./.github/workflows/reusable.yml\n", [context]),
+          context,
+        ).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+      }
+    });
+
+    it("rejects a called job that may be skipped, or a caller that may be", () => {
+      const found = check.run(
+        root({
+          ".github/workflows/caller.yml": caller(
+            "    name: Reusable\n    uses: ./.github/workflows/reusable.yml\n",
+          ),
+          ".github/workflows/reusable.yml": reusable,
+          ".github/rulesets/main.json": ruleset(["Reusable / Gated"]),
+        }),
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+      expect(found[0]?.actual).toContain("reusable.yml: job `gated`");
+      expect(
+        withCaller(
+          "    name: Reusable\n    if: github.event_name == 'push'\n    uses: ./.github/workflows/reusable.yml\n",
+          ["Reusable / Checks"],
+        ),
+      ).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+    });
+
+    it.each([
+      [
+        "another repository's workflow",
+        "octo/ci/.github/workflows/x.yml@v1",
+        {},
+        "outside this repository",
+      ],
+      ["a missing file", "./.github/workflows/nowhere.yml", {}, "not a readable workflow"],
+      [
+        "a file outside .github/workflows",
+        "./reusable.yml",
+        { "reusable.yml": reusable },
+        "not a readable workflow",
+      ],
+      [
+        "a workflow with no workflow_call trigger",
+        "./.github/workflows/push.yml",
+        {},
+        "does not name `workflow_call`",
+      ],
+      [
+        "a workflow that calls back",
+        "./.github/workflows/loop.yml",
+        {
+          ".github/workflows/loop.yml":
+            "on: workflow_call\njobs:\n  again:\n    uses: ./.github/workflows/loop.yml\n",
+        },
+        "through a cycle",
+      ],
+    ])("fails closed on %s", (_label, uses, extra: Files, reason) => {
+      const found = check.run(
+        root({
+          ".github/workflows/caller.yml": caller(`    name: Reusable\n    uses: ${uses}\n`),
+          ".github/rulesets/main.json": ruleset(["Reusable / Checks"]),
+          ...extra,
+        }),
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+      expect(found[0]?.actual).toContain(reason);
+    });
+
+    it("fails closed on a uses: that is not a string", () => {
+      expect(withCaller("    uses: [1]\n", ["call / Checks"])).toEqual([
+        "ERR_CHECK_RULESET_CONTEXT",
+      ]);
+    });
+
+    it("fails closed on a strategy that is not a mapping", () => {
+      expect(
+        withCaller(
+          "    name: Reusable\n    strategy: [1]\n    uses: ./.github/workflows/reusable.yml\n",
+          ["Reusable / Checks"],
+        ),
+      ).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+    });
+  });
+
+  describe("jobNames", () => {
+    it("reports a name without a matrix as its evaluated text", () => {
+      expect(jobNames("Build", undefined)).toEqual({ names: ["Build"] });
+      expect(jobNames("${{ 'Build' }}", undefined)).toEqual({ names: ["Build"] });
+      expect(jobNames("a${{ null }}b", undefined)).toEqual({ names: ["ab"] });
+      expect(jobNames("${{ matrix.os }}", undefined)).toHaveProperty("unresolved");
+    });
+
+    it("suffixes a matrix job's name with its values when the name has no expression", () => {
+      expect(jobNames("Test", { os: ["ubuntu", "macos"], n: [1] })).toEqual({
+        names: ["Test (ubuntu, 1)", "Test (macos, 1)"],
+      });
+      expect(jobNames("Test", { include: [{ os: "a", flag: true, none: null }] })).toEqual({
+        names: ["Test (a, true, )"],
+      });
+      expect(jobNames("Test", { os: [{ name: "a" }] })).toHaveProperty("unresolved");
+    });
+
+    it("reads nested matrix values case-insensitively", () => {
+      expect(jobNames("T ${{ Matrix.Target.OS }}", { target: [{ Os: "mac" }] })).toEqual({
+        names: ["T mac"],
+      });
+      expect(jobNames("T ${{ matrix.target }}", { target: [{ os: "mac" }] })).toHaveProperty(
+        "unresolved",
+      );
+    });
+
+    it("evaluates a matrix job's expression name per combination, with no suffix", () => {
+      expect(
+        jobNames("${{ github.event_name == 'pull_request' && 'PR' || 'Push' }}", { os: ["a"] }),
+      ).toEqual({ names: ["PR"] });
+    });
+
+    it("lists each name once", () => {
+      expect(jobNames("Lint", undefined)).toEqual({ names: ["Lint"] });
+      expect(jobNames("Lint ${{ matrix.os }}", { os: ["a", "a"] })).toEqual({ names: ["Lint a"] });
+    });
+  });
+
+  describe("matrixCombinations", () => {
+    const shape = (matrix: unknown): unknown => {
+      const found = matrixCombinations(matrix);
+      return typeof found === "string"
+        ? found
+        : found.map((combination) => Object.fromEntries(combination));
+    };
+
+    it("follows GitHub's documented include example", () => {
+      expect(
+        shape({
+          fruit: ["apple", "pear"],
+          animal: ["cat", "dog"],
+          include: [
+            { color: "green" },
+            { color: "pink", animal: "cat" },
+            { fruit: "apple", shape: "circle" },
+            { fruit: "banana" },
+            { fruit: "banana", animal: "cat" },
+          ],
+        }),
+      ).toEqual([
+        { fruit: "apple", animal: "cat", color: "pink", shape: "circle" },
+        { fruit: "apple", animal: "dog", color: "green", shape: "circle" },
+        { fruit: "pear", animal: "cat", color: "pink" },
+        { fruit: "pear", animal: "dog", color: "green" },
+        { fruit: "banana" },
+        { fruit: "banana", animal: "cat" },
+      ]);
+    });
+
+    it.each([
+      ["an expression", "${{ fromJSON(needs.a.outputs.m) }}", "computed"],
+      ["a list", ["a"], "not a mapping"],
+      ["an empty list", { os: [] }, "not a non-empty list"],
+      ["a scalar dimension", { os: "ubuntu" }, "not a non-empty list"],
+      ["an include that is not a list of mappings", { os: ["a"], include: ["b"] }, "`include`"],
+      ["an exclude that is not a list", { os: ["a"], exclude: { os: "a" } }, "`exclude`"],
+      ["every combination excluded", { os: ["a"], exclude: [{ os: "a" }] }, "no combinations"],
+      ["nothing at all", {}, "no combinations"],
+      ["absent", undefined, "not a mapping"],
+    ])("does not know a matrix that is %s", (_label, matrix, reason) => {
+      expect(shape(matrix)).toContain(reason);
+    });
   });
 
   it("main logs ok, or throws the first violation", () => {

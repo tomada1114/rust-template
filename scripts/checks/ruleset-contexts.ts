@@ -13,19 +13,25 @@
  *     `parameters.required_status_checks`. A ruleset with no such rule requires nothing.
  *   - jobs: those of workflows whose `on:` names `pull_request` (not
  *     `pull_request_target`: it runs the base branch's workflow, so a renamed job would
- *     not report under it either). A job reports as its `name:`, or its id without one.
- *     Each `${{ … }}` in a name is evaluated for a pull request (shared/expressions.ts):
- *     one that is a literal there is that text, and any other matches any text — unless
- *     the name has no literal text of its own, when it matches nothing, since
- *     `${{ matrix.os }}` would otherwise match every context. A matrix job whose name has
- *     no expression reports as `<name> (<values>)`, and matches that shape.
+ *     not report under it either). A job reports as its `name:`, or its id without one,
+ *     and a context must equal one of the names it reports exactly. A `strategy.matrix`
+ *     written as literal lists is expanded as GitHub does (the product of its lists,
+ *     less `exclude`, plus `include`), and each `${{ … }}` in a name is evaluated for a
+ *     pull request with one combination's `matrix.*` values (shared/expressions.ts). A
+ *     matrix job whose name has no expression reports as `<name> (<values>)`, its
+ *     combination's values joined by `, `. A job that calls a reusable workflow in this
+ *     repository (`uses: ./.github/workflows/x.yml`) reports each called job as
+ *     `<caller> / <called job>`. A name this check cannot know from the files — an
+ *     expression that is not a literal there, a computed matrix, a workflow in another
+ *     repository — matches nothing (fail closed), and is named in the failure.
  *   - runs on every pull request: a matching job counts only when its workflow's
  *     `pull_request` trigger has no `paths` or `paths-ignore` filter, its `branches`
  *     (when set) match the ruleset's branch and no `!` pattern there matches it, its
  *     `branches-ignore` (when set) do not match it, and its `types`, when set, include `opened`,
  *     `synchronize`, and `reopened`; its `if:`, when set, is true on every pull request
  *     (evaluated as above; one the evaluator cannot read is unproven, never true); and
- *     every job it `needs` runs on every pull request too.
+ *     every job it `needs` runs on every pull request too. A called job counts only when
+ *     the calling job and the called job (with the `needs` inside its workflow) both do.
  *   A workflow that does not parse is workflow-hygiene's to report; its jobs match nothing
  *   here.
  *
@@ -38,10 +44,17 @@
  *   ERR_CHECK_RULESET_CONTEXT          a required context matches no job in a pull_request workflow
  *   ERR_CHECK_RULESET_CONTEXT_SKIPPED  a required context matches only jobs that may not run on every pull request
  */
+import { posix } from "node:path";
+
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
-import { conditionOn, evaluateOn } from "./shared/expressions.ts";
+import {
+  conditionOn,
+  evaluateOn,
+  type ExpressionValue,
+  type Resolve,
+} from "./shared/expressions.ts";
 import {
   isRecord,
   jobsOf,
@@ -56,46 +69,158 @@ const FILTERS = ["paths", "paths-ignore"];
 /** The activity types a `pull_request` trigger runs on when it names none. */
 const DEFAULT_TYPES = ["opened", "synchronize", "reopened"];
 const EMBEDDED = /\$\{\{([\s\S]*?)\}\}/g;
+const WORKFLOWS_PREFIX = ".github/workflows/";
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** One matrix combination: each key's value, in the order GitHub lists them. */
+export type Combination = ReadonlyMap<string, unknown>;
+
+/** The names a job reports on a pull request, or why they cannot be known from the files. */
+export type JobNames = { readonly names: readonly string[] } | { readonly unresolved: string };
+
+type Scalar = string | number | boolean | null;
+
+const isScalar = (value: unknown): value is Scalar =>
+  value === null || ["string", "number", "boolean"].includes(typeof value);
+
+const hasExpression = (value: unknown): boolean =>
+  value !== undefined && JSON.stringify(value).includes("${{");
+
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+function entryList(
+  matrix: Record<string, unknown>,
+  key: "include" | "exclude",
+): Record<string, unknown>[] | string {
+  const value = matrix[key];
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every(isRecord)) {
+    return `its matrix's \`${key}\` is not a list of mappings`;
+  }
+  return value;
+}
+
 /**
- * Whether a status context is what a job named `name` reports on a pull request: each
- * `${{ … }}` that is a literal there stands for its text, and any other matches any
- * text, unless the name has no literal text besides whitespace (then it matches
- * nothing). A matrix job whose name has no expression reports as `<name> (<values>)`.
+ * A `strategy.matrix`'s combinations as GitHub expands them, or why they cannot be known
+ * from the file: the product of its lists, less every combination an `exclude` entry
+ * matches, then each `include` entry added to every combination whose original values
+ * it agrees with (overwriting only values an earlier `include` added), or appended as a
+ * combination of its own when it agrees with none. A matrix, list, or entry holding an
+ * expression is computed at run time, so it is not known.
  */
-export function nameMatches(context: string, name: string, matrix: boolean): boolean {
-  let pattern = "";
-  let text = "";
-  let last = 0;
-  let open = false;
-  let expressions = 0;
-  for (const match of name.matchAll(EMBEDDED)) {
-    expressions += 1;
-    const before = name.slice(last, match.index);
-    pattern += escape(before);
-    text += before;
-    const value = evaluateOn(EVENT, match[1] ?? "");
-    if (value?.kind === "literal") {
-      pattern += escape(value.value === null ? "" : String(value.value));
-    } else {
-      pattern += ".*";
-      open = true;
+export function matrixCombinations(matrix: unknown): Combination[] | string {
+  if (hasExpression(matrix)) return "its matrix is computed by an expression";
+  if (!isRecord(matrix)) return "its matrix is not a mapping";
+  const dimensions = Object.entries(matrix).filter(
+    ([key]) => key !== "include" && key !== "exclude",
+  );
+  let combinations: Map<string, unknown>[] =
+    dimensions.length === 0 ? [] : [new Map<string, unknown>()];
+  for (const [key, values] of dimensions) {
+    if (!Array.isArray(values) || values.length === 0) {
+      return `its matrix's \`${key}\` is not a non-empty list`;
     }
+    combinations = combinations.flatMap((combination) =>
+      values.map((value: unknown) => new Map<string, unknown>([...combination, [key, value]])),
+    );
+  }
+  const exclude = entryList(matrix, "exclude");
+  const include = entryList(matrix, "include");
+  if (typeof exclude === "string") return exclude;
+  if (typeof include === "string") return include;
+  combinations = combinations.filter(
+    (combination) =>
+      !exclude.some((entry) =>
+        Object.entries(entry).every(([key, value]) => same(combination.get(key), value)),
+      ),
+  );
+  const original = new Set(dimensions.map(([key]) => key));
+  const expanded = combinations.length;
+  for (const entry of include) {
+    const pairs = Object.entries(entry);
+    const agreeing = combinations
+      .slice(0, expanded)
+      .filter((combination) =>
+        pairs.every(([key, value]) => !original.has(key) || same(combination.get(key), value)),
+      );
+    for (const combination of agreeing) {
+      for (const [key, value] of pairs) combination.set(key, value);
+    }
+    if (agreeing.length === 0) combinations.push(new Map(pairs));
+  }
+  return combinations.length === 0 ? "its matrix has no combinations" : combinations;
+}
+
+/** The `matrix.*` paths one combination defines, matched case-insensitively as GitHub does. */
+function matrixResolver(combination: Combination | undefined): Resolve {
+  return (path: string): ExpressionValue | undefined => {
+    if (combination === undefined || !path.startsWith("matrix.")) return undefined;
+    let entries: [string, unknown][] = [...combination];
+    let value: unknown;
+    for (const key of path.split(".").slice(1)) {
+      const found = entries.find(([name]) => name.toLowerCase() === key);
+      if (found === undefined) return undefined;
+      value = found[1];
+      entries = isRecord(value) ? Object.entries(value) : [];
+    }
+    return isScalar(value) ? { kind: "literal", value } : { kind: "unknown" };
+  };
+}
+
+/** A name with its expressions evaluated for a pull request and one combination, or why not. */
+function renderName(
+  name: string,
+  combination: Combination | undefined,
+): { readonly name: string } | { readonly unresolved: string } {
+  let rendered = "";
+  let last = 0;
+  for (const match of name.matchAll(EMBEDDED)) {
+    const value = evaluateOn(EVENT, match[1] ?? "", matrixResolver(combination));
+    if (value?.kind !== "literal") {
+      return { unresolved: `\`${match[0]}\` is not a fixed value on a pull request` };
+    }
+    rendered += name.slice(last, match.index) + (value.value === null ? "" : String(value.value));
     last = match.index + match[0].length;
   }
-  const after = name.slice(last);
-  pattern += escape(after);
-  text += after;
-  if (open && text.trim() === "") return false;
-  if (matrix && expressions === 0) pattern += " \\(.*\\)";
-  return new RegExp(`^${pattern}$`, "s").test(context);
+  return { name: rendered + name.slice(last) };
+}
+
+/**
+ * Every name a job written as `name` reports on a pull request, given its
+ * `strategy.matrix` (undefined without one). A matrix job whose name has no expression
+ * reports as `<name> (<values>)`; one whose name has an expression reports the name
+ * evaluated for each combination, with no suffix.
+ */
+export function jobNames(name: string, matrix: unknown): JobNames {
+  if (matrix === undefined) {
+    const rendered = renderName(name, undefined);
+    return "name" in rendered ? { names: [rendered.name] } : rendered;
+  }
+  const combinations = matrixCombinations(matrix);
+  if (typeof combinations === "string") return { unresolved: combinations };
+  const expressions = [...name.matchAll(EMBEDDED)].length;
+  const names: string[] = [];
+  for (const combination of combinations) {
+    if (expressions === 0) {
+      const values = [...combination.values()];
+      if (!values.every(isScalar)) return { unresolved: "a matrix value is not a scalar" };
+      names.push(
+        `${name} (${values.map((value) => (value === null ? "" : String(value))).join(", ")})`,
+      );
+      continue;
+    }
+    const rendered = renderName(name, combination);
+    if (!("name" in rendered)) return rendered;
+    names.push(rendered.name);
+  }
+  return { names: [...new Set(names)] };
 }
 
 interface ReportingJob {
-  readonly name: string;
-  readonly matrix: boolean;
+  /** The job as written, for messages: its name, or `<caller> / <called job>`. */
+  readonly label: string;
+  readonly names: JobNames;
   /** Why the job may not run on every pull request; empty when it always does. */
   readonly skips: readonly string[];
 }
@@ -202,20 +327,76 @@ function jobSkips(
   return skips;
 }
 
+/** The workflow a job-level `uses:` calls, or why it cannot be read here. */
+function calledWorkflow(
+  uses: unknown,
+  byPath: ReadonlyMap<string, Workflow>,
+  stack: readonly string[],
+): Workflow | string {
+  if (typeof uses !== "string") return "its `uses:` is not a string";
+  if (!uses.startsWith("./")) {
+    return `it calls \`${uses}\`, a workflow outside this repository that this check cannot read`;
+  }
+  const path = posix.normalize(uses.slice(2));
+  const workflow = byPath.get(path);
+  if (!path.startsWith(WORKFLOWS_PREFIX) || workflow === undefined) {
+    return `it calls \`${uses}\`, which is not a readable workflow under ${WORKFLOWS_PREFIX}`;
+  }
+  if (stack.includes(path)) return `it calls \`${uses}\`, which calls back through a cycle`;
+  if (!triggerNames(workflow.data).includes("workflow_call")) {
+    return `it calls \`${uses}\`, whose \`on:\` does not name \`workflow_call\``;
+  }
+  return workflow;
+}
+
+const joinNames = (caller: JobNames, called: JobNames): JobNames => {
+  if ("unresolved" in caller) return caller;
+  if ("unresolved" in called) return called;
+  return {
+    names: caller.names.flatMap((outer) => called.names.map((inner) => `${outer} / ${inner}`)),
+  };
+};
+
+/**
+ * What each job of a workflow reports, a job calling a reusable workflow standing for
+ * each job it calls. `stack` is the chain of workflow paths being read, to stop a cycle.
+ */
+function reportingJobs(
+  workflow: Workflow,
+  byPath: ReadonlyMap<string, Workflow>,
+  stack: readonly string[],
+): ReportingJob[] {
+  const jobs = new Map(jobsOf(workflow));
+  return [...jobs].flatMap(([id, job]): ReportingJob[] => {
+    const label = typeof job["name"] === "string" ? job["name"] : id;
+    const strategy = job["strategy"];
+    const names =
+      strategy === undefined || isRecord(strategy)
+        ? jobNames(label, strategy?.["matrix"])
+        : { unresolved: "its `strategy` is not a mapping" };
+    const skips = jobSkips(workflow, jobs, id, new Set());
+    if (job["uses"] === undefined) return [{ label, names, skips }];
+    const called = calledWorkflow(job["uses"], byPath, stack);
+    if (typeof called === "string") return [{ label, names: { unresolved: called }, skips }];
+    return reportingJobs(called, byPath, [...stack, called.path]).map((inner) => ({
+      label: `${label} / ${inner.label}`,
+      names: joinNames(names, inner.names),
+      skips: [...skips, ...inner.skips],
+    }));
+  });
+}
+
 function pullRequestJobs(root: string, branch: string): ReportingJob[] {
-  return readWorkflows(root)
-    .workflows.filter((workflow) => triggerNames(workflow.data).includes(EVENT))
+  const { workflows } = readWorkflows(root);
+  const byPath = new Map(workflows.map((workflow) => [workflow.path, workflow]));
+  return workflows
+    .filter((workflow) => triggerNames(workflow.data).includes(EVENT))
     .flatMap((workflow) => {
       const trigger = triggerSkips(workflow, branch);
-      const jobs = new Map(jobsOf(workflow));
-      return [...jobs].map(([id, job]) => {
-        const strategy = job["strategy"];
-        return {
-          name: typeof job["name"] === "string" ? job["name"] : id,
-          matrix: isRecord(strategy) && strategy["matrix"] !== undefined,
-          skips: [...trigger, ...jobSkips(workflow, jobs, id, new Set())],
-        };
-      });
+      return reportingJobs(workflow, byPath, [workflow.path]).map((job) => ({
+        ...job,
+        skips: [...trigger, ...job.skips],
+      }));
     });
 }
 
@@ -233,16 +414,24 @@ function requiredContexts(ruleset: unknown): string[] {
 }
 
 function contextViolation(context: string, jobs: readonly ReportingJob[]): FailureDetails[] {
-  const matching = jobs.filter((job) => nameMatches(context, job.name, job.matrix));
+  const matching = jobs.filter((job) => "names" in job.names && job.names.names.includes(context));
   if (matching.length === 0) {
+    const reported = jobs.flatMap((job) => ("names" in job.names ? job.names.names : []));
+    const unknown = jobs.flatMap((job) =>
+      "unresolved" in job.names ? [`\`${job.label}\` (${job.names.unresolved})`] : [],
+    );
     return [
       {
         code: "ERR_CHECK_RULESET_CONTEXT",
         summary: `${RULESET}: required context "${context}" matches no job in a pull_request-triggered workflow`,
         expected:
           "every required context to equal a job's `name:` (or id) in a .github/workflows/*.yml triggered on pull_request",
-        actual: `pull_request jobs report: ${jobs.map((job) => job.name).join(", ") || "none"}`,
-        next: `rename the context in ${RULESET} to the job's current name, or restore the job (then \`just ruleset\` after merging, a human's step)`,
+        actual: `pull_request jobs report: ${reported.join(", ") || "none"}${
+          unknown.length > 0
+            ? `; and jobs whose names this check cannot know from the files: ${unknown.join("; ")}`
+            : ""
+        }`,
+        next: `rename the context in ${RULESET} to a name the job reports, or restore the job (a job whose name is computed can be required only once its name and matrix are literal); then \`just ruleset\` after merging, a human's step`,
       },
     ];
   }
