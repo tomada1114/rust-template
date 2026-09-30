@@ -41,8 +41,8 @@ what was built; each entry says what the design said, what was done, and why.
 
 ## Decisions made during the run
 
-- **pnpm reaches `PATH` through corepack.** mise pins Node (which ships corepack in
-  the 24 line) and `package.json` pins pnpm once in `packageManager`, as D9 requires;
+- **pnpm reaches `PATH` through corepack.** mise pins Node and, since Node 25
+  stopped bundling it, corepack itself (`npm:corepack`, installed with npm) and `package.json` pins pnpm once in `packageManager`, as D9 requires;
   `just install` runs `corepack enable pnpm` so no second pnpm pin exists. CI uses
   `pnpm/action-setup`, which reads the same field.
 - **`trustPolicyExclude: semver@6.3.1`.** `eslint-plugin-react-hooks` 7 (required by

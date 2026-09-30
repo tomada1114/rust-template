@@ -12,10 +12,11 @@ repository, which commands to run, and how a change gets merged.
 - [rustup](https://rustup.rs/). It installs the toolchain `rust-toolchain.toml` pins
   (with clippy, rustfmt, and `llvm-tools`) the first time `cargo` runs.
 - [mise](https://mise.jdx.dev/), which installs every other pinned tool from `mise.toml`:
-  Node, Just, lefthook, cargo-llvm-cov, cargo-nextest, cargo-deny, cargo-shear, typos,
+  Node, corepack, Just, lefthook, cargo-llvm-cov, cargo-nextest, cargo-deny, cargo-shear, typos,
   actionlint, zizmor, gitleaks, and shellcheck.
 - [Just](https://just.systems/man/en/) to start the first `just install` (mise then
-  pins it). pnpm comes through corepack, at the version `package.json`'s
+  pins it). pnpm comes through corepack (pinned in
+  `mise.toml`, since Node 25 no longer bundles it), at the version `package.json`'s
   `packageManager` names.
 
 Then:

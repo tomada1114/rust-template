@@ -1,5 +1,5 @@
 // Test setup for the `ui` Vitest project. @tauri-apps/api/mocks needs
-// crypto.getRandomValues, which Node 24 provides globally inside jsdom as well.
+// crypto.getRandomValues, which Node 26 provides globally inside jsdom as well.
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup } from "@testing-library/react";

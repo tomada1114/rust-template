@@ -89,7 +89,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node just
+          install_args: node npm:corepack just
 
       - name: Enable pnpm (the version package.json's packageManager names)
         run: corepack enable pnpm
@@ -131,7 +131,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node just typos actionlint shellcheck lefthook
+          install_args: node npm:corepack just typos actionlint shellcheck lefthook
 
       - name: Enable pnpm (the version package.json's packageManager names)
         run: corepack enable pnpm
@@ -179,7 +179,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node just aqua:nextest-rs/nextest/cargo-nextest
+          install_args: node npm:corepack just aqua:nextest-rs/nextest/cargo-nextest
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
@@ -225,7 +225,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest shellcheck typos actionlint lefthook
+          install_args: node npm:corepack just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest shellcheck typos actionlint lefthook
 
       - name: Clone the checkout into a scratch directory
         run: |
