@@ -157,8 +157,10 @@ no machine could have verified anyway.
 - [ ] The port takes and returns core types only; core's `Cargo.toml` names no OS crate
       (`just check-harness` fails when core's closure reaches `objc2*` or similar).
 - [ ] The adapter maps every OS failure to a core error kind, and carries no OS text.
-- [ ] macOS-only code and its crates are behind `cfg(target_os = "macos")`; `just lint`
-      and `just test-core` still pass.
+- [ ] macOS-only code and its crates are behind `cfg(target_os = "macos")`. No local
+      run proves it: on a Mac the `cfg` is true, so `just lint` and `just test-core`
+      pass with it misplaced. CI's `Rust Core` job, on Linux, is the check; read its
+      result on the pull request (`gh pr checks`).
 - [ ] Every `unsafe` block has a `// SAFETY:` comment, inside the one module the ADR
       allows; no `unsafe impl Send`/`Sync`.
 - [ ] The port's fake and contract function exist; the contract runs against both.

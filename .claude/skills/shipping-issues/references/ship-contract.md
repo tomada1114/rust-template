@@ -26,7 +26,7 @@ run files.
 | `blocked-by=` / `blocks=` | `dependency-triage.md` | Stated edges rather than scraped ones. |
 | `touches=` | the parallel grouping | The one field that changes what this skill can do mechanically -- see below. |
 | `area=` | `file_followup.py`, labels | The area label a follow-up inherits. |
-| `design=` | the readiness gate | `design=open` holds the issue out of automatic implementation exactly as a `blocked: design` label does. |
+| `design=` | the readiness gate | `design=open` holds the issue out of automatic implementation exactly as a `blocked: design` label does. `apply_priority_labels.py --clear-design` clears both forms, rewriting the field to `design=settled`; `design=settled` alone never clears a label. |
 
 `touches=` is the load-bearing one. Without it, deciding whether two issues can
 run in parallel worktrees is a judgement about which files they *might* collide

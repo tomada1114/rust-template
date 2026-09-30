@@ -40,13 +40,13 @@ by nothing but review, and the fix that is not a suppression.
 
 ## The one rule every gate change shares
 
-A gate calls the same command every other layer calls; it never defines a rule of its
-own. The `justfile` is the one definition of each check: `just check` runs the local
-set (verify-hooks, fmt, lint, lint-repo, agents-check, test-scripts, check-harness, test, test-macos, build,
-smoke), CI's jobs run the same recipes or the same `cargo` and `pnpm` commands as
-separate steps so a reader sees which step failed, and each `lefthook.yml` job runs
-the same executable and flags as its recipe, narrowed to the staged files. A check that
-lives in only one layer passes there and fails in the others, or the reverse.
+A gate calls the same command every other layer calls; it never defines a rule of its own.
+The `justfile` is the one definition of each check: `just check` runs the local set
+(verify-hooks, fmt, lint, lint-repo, agents-check, test-scripts, check-harness, test,
+test-macos, build, smoke), CI's jobs run the same recipes or the same `cargo` and `pnpm`
+commands as separate steps so a reader sees which step failed, and each `lefthook.yml` job
+runs the same executable and flags as its recipe, narrowed to the staged files. A check
+that lives in only one layer passes there and fails in the others, or the reverse.
 
 So a new check is several edits, not one:
 
@@ -129,13 +129,13 @@ review. `paths.ts`'s list and `AGENTS.md`'s never-read list change together. Enf
 ## What no gate here sees
 
 `AGENTS.md` › "Enforcement layers" names the gaps and the reasons they stay open: a
-UI-to-Rust wiring mistake only the running app shows, the `#[ignore]`d tests only a
-human runs, `--no-verify` and the hook's other bypasses, a ruleset that may not be
-applied, and a new recipe that takes over the Mac. Add to that list the release path:
-`release.yml` runs only on a tag or a manual dispatch, so a change to it is proven by
-its `dry_run` (`releasing-the-app`), never by a pull request's checks. A gate proposed to close any gap is a real gate
-change and belongs in its pull request as one, with its "Enforcement layers" row
-updated or removed.
+UI-to-Rust wiring mistake only the running app shows, the `#[ignore]`d tests only a human
+runs, `--no-verify` and the hook's other bypasses, a ruleset that may not be applied, and
+a new recipe that takes over the Mac. Add to that list the release path: `release.yml`
+runs only on a tag or a manual dispatch, so a change to it is proven by its `dry_run`
+(`releasing-the-app`), never by a pull request's checks. A gate proposed to close any gap
+is a real gate change and belongs in its pull request as one, with its "Enforcement
+layers" row updated or removed.
 
 ## Checking a gate change
 
@@ -143,8 +143,9 @@ Run the check the gate feeds, then the harness, then everything:
 
 ```bash
 just lint            # a lint, format, or tsconfig change
-just test            # a floor or a vitest.config.ts change
-just test-scripts    # lefthook.yml, the guard, or a script a gate runs
+just test            # core's floors, or vitest.config.ts's ui/src/ thresholds
+just test-scripts    # lefthook.yml, the guard, a gate's script, or a floor on scripts/
+                     # or .agents/skills/*/scripts/ (both 85/90)
 just deny            # deny.toml
 just check-harness   # workflows, the ruleset, recipes, cooldowns, ignore lists
 just check

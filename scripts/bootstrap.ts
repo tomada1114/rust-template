@@ -312,8 +312,9 @@ const STARTING_AN_APP_RENAME_STEP = `2. **Rename.** \`just bootstrap\` rewrites 
    agent runs it only when asked). It prompts for, or takes as flags, the display name
    (\`MyApp\`), the slug used for crate and binary names (\`myapp\`), the bundle identifier
    (\`com.example.myapp\`), the GitHub \`owner/repo\`, the author, and the copyright holder.
-   **REQUIRED:** [references/bootstrap.md](references/bootstrap.md) before running it
-   again, changing it, or chasing a leftover placeholder.
+   It needs step 1's \`just install\`. **REQUIRED:**
+   [references/bootstrap.md](references/bootstrap.md), for its flags, defaults, and
+   validation, before running it, changing it, or chasing a leftover placeholder.
 `;
 
 const STARTING_AN_APP_RENAME_DONE = `2. **Rename.** Done: the bootstrap rewrote the template's placeholders to this app's
@@ -376,11 +377,18 @@ so \`just check-harness\` fails while one is left.`,
     find: "at a glance); a link to\n`docs/template/` (gone after the bootstrap).",
     replace: "at a glance).",
   })),
-  ...bothSkillTrees("updating-docs/SKILL.md").map((file): TextEdit => ({
-    file,
-    find: "rejects, how the\ntemplate becomes an app (`just bootstrap`), how a release is built and signed, and",
-    replace: "rejects, how a\nrelease is built and signed, and",
-  })),
+  ...bothSkillTrees("updating-docs/SKILL.md").flatMap((file): TextEdit[] => [
+    {
+      file,
+      find: "rejects, how the\ntemplate becomes an app (`just bootstrap`), how a release is built and signed, and",
+      replace: "rejects, how a\nrelease is built and signed, and",
+    },
+    {
+      file,
+      find: "\nOnly the files `MARKER_FILES` in `scripts/bootstrap.ts` lists have their blocks removed.\nA block in any other file adds that file to the list in the same change, or its marker\nlines survive into the app and `node scripts/verify-bootstrap.ts` (CI's Template\nBootstrap Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`.\n",
+      replace: "",
+    },
+  ]),
   {
     file: "osv-scanner.toml",
     find: "# Every entry expires after 90 days and is recorded in docs/template/implementation-notes.md.\n",

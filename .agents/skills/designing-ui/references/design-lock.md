@@ -21,8 +21,8 @@ hand, and write down every reference so the owner can look at it too.
    reference for a desktop window; say so when you use one.
 3. **Pick one primary reference** and say what makes it right for this app. When a later
    choice is unclear, the lock leans towards it.
-4. **Draft the lock block and the fields below**, each field a value or the words
-   "system default".
+4. **Draft the lock block and the fields below**, each field a value, or the words
+   "base values" or "system default" where its row offers them.
 5. **Measure** every new text/background pair before proposing it: add the pairs to
    `ui/src/design/contrast-pairs.ts` and the values to a branch's `tokens.css`, then
    `just test-ui` prints each ratio. A pair that fails is changed, never exempted.
@@ -64,13 +64,13 @@ Source is `Reference: <app>` (researched), `Owner` (the owner decided, with wher
 
 ## Fields
 
-Every field is a value or "system default". "System default" is a real decision, often
-the right one for a first version; a field left out is a gap, listed under Open
-questions until decided.
+Every field is a value, or "base values" (keep what `tokens.css` ships) or "system
+default" where its row offers one. Either is a real decision, often the right one for a
+first version; a field left out is a gap, listed under Open questions until decided.
 
 | Field | What "decided" looks like | Where it lands |
 |---|---|---|
-| Accent | "System default" (the base's blue), or one color with light and dark values and what it marks | `--palette-*` and `--color-accent`, `--color-text-on-accent`, `--color-focus-ring` in `ui/src/design/tokens.css` |
+| Accent | "Base values" (the fixed `--color-accent` the base ships, a light and a dark value; native form controls follow the user's system accent through `accent-color: auto` either way), or one color with light and dark values and what it marks | `--palette-*` and `--color-accent`, `--color-text-on-accent`, `--color-focus-ring` in `ui/src/design/tokens.css` |
 | Other colors | Each semantic role's light and dark value, or "base values" | the `--color-*` tokens; every new pair in `contrast-pairs.ts` |
 | Type | The text styles used and for what; a custom font and its licence, or "system font only" | `--font-*` tokens; `Text`'s variants in `ui/src/design/Text.tsx` |
 | Spacing scale | The steps, and which separates what (control from control, group from group, content from edge) | `--space-*`; `Stack`'s gaps |
@@ -78,7 +78,7 @@ questions until decided.
 | Shape | Corner radii for controls and panels, or "system default" | `--radius-control`, `--radius-panel` |
 | Iconography | Glyphs only, or which icon set and its licence | the `glyph` of `IconButton`; an icon set is a dependency |
 | Motion | "Transitions only on state change", or which animations exist and what each says | `--duration-*`, `--easing-standard`; the reduced-motion block |
-| Materials | "None": opaque surfaces from the tokens, or where a translucent window or panel is used and why | the surface tokens; a translucent window is also a window setting in `src-tauri/tauri.conf.json` (`changing-gates`) |
+| Materials | "None": opaque surfaces from the tokens, or where a translucent window or panel is used and why | the surface tokens; a translucent window is also `transparent` on the window in `src-tauri/tauri.conf.json`, which on macOS needs `app.macOSPrivateApi` and tauri's `macos-private-api` feature, and a private API keeps the app out of the Mac App Store (<https://docs.rs/tauri-utils/2.9.3/tauri_utils/config/struct.WindowConfig.html>, the version `Cargo.lock` pins, checked 2026-09-30). `tauri.conf.json` is a sign-off change (`AGENTS.md` › "Validating a change"), and leaving the App Store is a distribution decision (`AGENTS.md` › "Before changing the architecture") |
 | Window sizing | Default and minimum size; for a menu-bar agent, the panel's fixed size | `app.windows` in `src-tauri/tauri.conf.json` |
 | Menus | The app-specific menus and the shortcuts they carry | the menu built in `src-tauri/src/lib.rs` |
 | Copy style | Title or sentence case per element type; the app's voice in one sentence | `ui/src/copy/` |
@@ -94,7 +94,7 @@ system" describes, with its row in `docs/design/design-system.md`.
 
 Primary reference: <app>: …
 
-- Accent: system default. Nothing in the app depends on its hue.
+- Accent: base values. Nothing in the app depends on its hue.
 - Other colors: base values.
 - Type: system font only; `title` for the window heading, `body` for content,
   `secondary` for supporting facts, `largeTitle` for the one main value.

@@ -80,8 +80,9 @@ it.each(["1.0", "v1.0.0", "1.0.0-rc.1", "01.0.0", "1.0.0+4"])(
 ## The contract suite (Rust)
 
 One function per port in `crates/myapp-test-support/`, called once per implementation.
-The real adapter's `make` gives each call its own temporary directory, and keeps every
-`TempDir` alive until the test ends:
+The function calls `make` again for each group of clauses, so `make` runs several times
+per test: the real adapter's gives each call its own temporary directory, and keeps
+every `TempDir` alive until the test ends:
 
 ```rust
 // crates/myapp-core/tests/contracts.rs — the fake

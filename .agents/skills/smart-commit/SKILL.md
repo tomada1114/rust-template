@@ -88,11 +88,16 @@ tells matters more than the commit count: three related one-line edits are one c
 |---|---|
 | Rust under `crates/*/src/` or `src-tauri/src/`, TypeScript under `ui/src/` | `feat`, `fix`, `refactor`, or `perf` by what it does |
 | Tests only (`crates/*/tests/`, `src-tauri/tests/`, `*.test.ts(x)`) | `test` |
-| Docs (`*.md`, `docs/`, a skill) | `docs` |
+| Docs (`*.md`, `.github/PULL_REQUEST_TEMPLATE.md` included, `docs/`, a skill) | `docs` |
 | A dependency bump or addition | `deps` |
 | `justfile`, `scripts/`, `lefthook.yml` | `build` |
-| `.github/` | `ci` |
+| `.github/workflows/`, and `.github/zizmor.yml` (the workflow security linter's config) | `ci` |
+| The rest of `.github/` that is not Markdown: issue forms, `labels.yml`, `rulesets/`, the Dependabot, Renovate, and release-notes config | `chore` |
 | Tool config (`mise.toml`, `typos.toml`, `.claude/`, an editor file) | `chore` |
+
+Where two rows match one file, the more specific row wins: a Markdown file is `docs`
+wherever it lives (the PR template too), a test under `scripts/` is `test`, and a
+skill's mirror under `.claude/skills/` is `docs`.
 
 These always travel in one commit, whatever the grouping otherwise says:
 
@@ -124,9 +129,10 @@ git commit -m "<type>(<optional scope>): <summary>"
   `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`,
   `revert`, `deps`. A squash merge makes the PR title the commit on `main`, so the same
   list governs both.
-- Imperative mood, lowercase start, no final period, under 72 characters; say what
-  changed, not how. A scope, when one helps, is the area: `core`, `platform`, `shell`,
-  `cli`, `ui`, `scripts`.
+- Imperative mood, lowercase start, no final period, under 72 characters (no check
+  enforces it; `create-pr` sets the same limit for the title); say what changed, not
+  how. A scope, when one helps, is the area: `core`, `platform`, `shell`, `cli`, `ui`,
+  `scripts`.
 - A breaking change to a contract (a command or event name, a payload shape, an on-disk
   format) carries `!` after the type and says so in the body.
 
