@@ -9,9 +9,10 @@
  * - renames `crates/myapp-*` to `crates/<slug>-*`, after `cargo fetch --locked`, and updates
  *   Cargo.lock offline (`cargo update --workspace --offline`);
  * - removes the `<!-- template-only -->` … `<!-- /template-only -->` blocks, `docs/template/`,
- *   the `Template Bootstrap Smoke` CI job and its required context, the `bootstrap` recipe
- *   and every mention of it, and the skill reference that only describes this script,
- *   and rewrites the passages outside those blocks that describe the template (TEXT_EDITS);
+ *   the `Template Bootstrap Smoke` CI job and its required context, the `bootstrap` and
+ *   `verify-bootstrap` recipes and every mention of them, and the skill reference that only
+ *   describes this script, and rewrites the passages outside those blocks that describe
+ *   the template (TEXT_EDITS);
  * - resets CHANGELOG.md to an empty [Unreleased] and the three version sites to 0.1.0,
  *   writes the author into package.json and the copyright line into LICENSE;
  * - formats what it rewrote (`cargo fmt --all`, Prettier), deletes itself and
@@ -380,6 +381,16 @@ export const TEXT_EDITS: readonly TextEdit[] = [
   },
   {
     file: "AGENTS.md",
+    find: "just verify-bootstrap    # Bootstrap a scratch clone in a temp directory; fail on anything it leaves behind (template only)\n",
+    replace: "",
+  },
+  {
+    file: "AGENTS.md",
+    find: "| A new file, or a new spelling of a placeholder (`MyApp`, `myapp`, `myapp-core`, `myapp_lib`, `MYAPP_SMOKE`, `com.example.myapp`) — template only: the bootstrap removes this row | `just verify-bootstrap` (it bootstraps a scratch clone in a temporary directory and fails on a placeholder the rename misses, template-only text, or a dangling reference); `just test-scripts` too for a change to `scripts/bootstrap.ts` |\n",
+    replace: "",
+  },
+  {
+    file: "AGENTS.md",
     find: "(`com.example.myapp` until the bootstrap renames it)",
     replace: "(`com.example.myapp`)",
   },
@@ -487,7 +498,7 @@ export const TEXT_EDITS: readonly TextEdit[] = [
     file: "scripts/checks/just-check-matches-ci.ts",
     find: `  ciOnlyJobs: {
     "Template Bootstrap Smoke":
-      "template-only: bootstraps a throwaway copy and runs \`just check\` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
+      "template-only (the bootstrap removes the job and the \`verify-bootstrap\` recipe): it runs scripts/verify-bootstrap.ts, which fails when this tree holds a placeholder spelling, template-only text, or a dangling reference the bootstrap would leave behind, then bootstraps a throwaway copy and runs \`just check\` there. \`just check\` leaves it out because it clones the tree, needs cargo's registry, and would run a second \`just check\`; \`just verify-bootstrap\` runs the verification locally, and AGENTS.md › Validating a change says when",
   },`,
     replace: "  ciOnlyJobs: {},",
   },
@@ -596,6 +607,11 @@ const JUSTFILE_RECIPE = `
 [positional-arguments]
 bootstrap *args:
     node scripts/bootstrap.ts "$@"
+`;
+const JUSTFILE_VERIFY_RECIPE = `
+# Bootstrap a scratch clone in a temp directory and fail on any placeholder, template-only text, or dangling reference left behind (\`--keep\` keeps the clone)
+verify-bootstrap *args:
+    node scripts/verify-bootstrap.ts {{ args }}
 `;
 const CARGO_VERSION = /^(\[workspace\.package\][^[]*?^version\s*=\s*")([^"]*)(")/m;
 const JSON_VERSION = /("version"\s*:\s*")[^"]*(")/;
@@ -1143,10 +1159,18 @@ function removeRulesetContext(text: string): string {
   return result;
 }
 
-function removeRecipe(text: string): string {
-  const count = text.split(JUSTFILE_RECIPE).length - 1;
-  if (count !== 1) throw siteMissing("justfile", `${String(count)} copies of the bootstrap recipe`);
-  return text.replace(JUSTFILE_RECIPE, "");
+/** Remove the `bootstrap` and `verify-bootstrap` recipes: both run a script the bootstrap deletes. */
+function removeRecipes(text: string): string {
+  let result = text;
+  for (const [name, recipe] of [
+    ["bootstrap", JUSTFILE_RECIPE],
+    ["verify-bootstrap", JUSTFILE_VERIFY_RECIPE],
+  ] as const) {
+    const count = result.split(recipe).length - 1;
+    if (count !== 1) throw siteMissing("justfile", `${String(count)} copies of the ${name} recipe`);
+    result = result.replace(recipe, () => "");
+  }
+  return result;
 }
 
 function resetChangelog(text: string): string {
@@ -1231,7 +1255,7 @@ function structuredEdits(answers: Answers, year: number): readonly (readonly [st
     ],
     [CI_FILE, removeCiJob],
     [RULESET_FILE, removeRulesetContext],
-    ["justfile", removeRecipe],
+    ["justfile", removeRecipes],
   ];
 }
 

@@ -81,6 +81,7 @@ just agents-sync   # Regenerate the .claude/skills/ mirror from .agents/skills/
 just agents-check  # Fail if .claude/skills/ differs from .agents/skills/
 just clean         # Remove build output (target/, dist/, coverage/, src-tauri/binaries/)
 just release-prep 0.2.0  # Bump the three version sites, refresh Cargo.lock, roll CHANGELOG.md (no commit/tag/push)
+just verify-bootstrap    # Bootstrap a scratch clone in a temp directory; fail on anything it leaves behind (template only)
 
 # A human's recipes — they open the app, never end, or change the Mac; an agent runs them only when asked
 just dev               # Run the app with hot reload (opens a window)
@@ -132,6 +133,7 @@ developer's Mac").
 | `mise.toml` or `rust-toolchain.toml` | `mise install` for `mise.toml` (rustup installs a new `rust-toolchain.toml` channel on the next `cargo` call: `.claude/rules/project.md` › Tool Pinning), then `just check` |
 | `.github/labels.yml`, or an issue form under `.github/ISSUE_TEMPLATE/` | `mise exec -- typos <file>`, then `just check-harness` (every applied label declared, once) |
 | `.github/rulesets/main.json`, or `scripts/apply-ruleset.ts` | `just test-scripts`; `just check-harness` for `main.json` (every required context names a job that runs on every pull request) |
+| A new file, or a new spelling of a placeholder (`MyApp`, `myapp`, `myapp-core`, `myapp_lib`, `MYAPP_SMOKE`, `com.example.myapp`) — template only: the bootstrap removes this row | `just verify-bootstrap` (it bootstraps a scratch clone in a temporary directory and fails on a placeholder the rename misses, template-only text, or a dangling reference); `just test-scripts` too for a change to `scripts/bootstrap.ts` |
 
 ## Architecture
 
