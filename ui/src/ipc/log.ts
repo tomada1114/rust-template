@@ -1,6 +1,6 @@
 /**
- * Forward the UI's warnings and errors to the app's log file through `log_from_ui`
- * (design D7). The one module in ui/src/ allowed to use `console`: when the bridge
+ * Forward the UI's warnings and errors to the app's log file through
+ * `log_from_ui`. The one module in ui/src/ allowed to use `console`: when the bridge
  * itself is down, the WebView's console is the only place left to say so.
  */
 import type { RootOptions } from "react-dom/client";

@@ -65,6 +65,12 @@ then hand edits. A new lint that asks for a real design change is held and repor
 what it wants. Never an `#[allow]`, an `#[expect]`, an `eslint-disable`, or a config
 change to get past it (`AGENTS.md` › "Security and human approval").
 
+A toolchain bump can also fail clippy through `scripts/clippy-guard.ts` with no lint in
+the code: `ERR_CLIPPY_BAN_UNRESOLVED` when a ban's path in a `clippy.toml` was renamed
+or moved in that Rust release (point it at the new path), or `ERR_CLIPPY_CONFIG_INVALID`
+when clippy deprecated or dropped a key (rename it as the message says). Either fix
+keeps every ban; never `allow-invalid = true`.
+
 ## F5: `cargo deny` or `cargo shear`
 
 **Symptom:** the `Rust Core` job fails at `cargo deny` (a new advisory, a licence outside
@@ -90,8 +96,9 @@ to accommodate a version nobody has decided to accept, and never lower a floor.
 ## F7: `BEHIND` or `DIRTY`
 
 Not a CI failure. `BEHIND` means `main` moved; `DIRTY` means a real conflict. Comment
-`@dependabot rebase`; a PR that keeps conflicting, which is normal once two cargo or two
-npm PRs are open, goes into the combined branch.
+`@dependabot rebase` once the approved plan lists it, or when an earlier approved
+merge moved `main` (`SKILL.md` › "Step 4a"); a PR that keeps conflicting, which is
+normal once two cargo or two npm PRs are open, goes into the combined branch.
 
 ## F8: A check that never reports
 
@@ -100,7 +107,8 @@ npm PRs are open, goes into the combined branch.
 **Cause:** a run cancelled by a newer one in the same `concurrency` group, or a workflow
 whose triggers do not fire for the bot.
 
-**Fix:** `gh run rerun <run-id>`. A missing check is not a passing one.
+**Fix:** `gh run rerun <run-id>`, once the approved plan lists it. A missing check is
+not a passing one.
 
 ## F9: Held for a conclusion that is not a failure
 
@@ -112,9 +120,10 @@ usually a run superseded by a newer event on the same PR (`pr-label.yml` and
 `UNKNOWN` means the rollup entry carried no conclusion.
 
 **Fix:** none of these is a test result, so do not read the diff for a cause. Open the
-run, find why it did not complete, and `gh run rerun <run-id>`. A state that should pass
-and does not is a bug to fix in `survey-prs.ts` with a test, never a reason to merge past
-the verdict.
+run, find why it did not complete, and `gh run rerun <run-id>` once the approved plan
+lists it. A state that should pass and does not is a bug to fix in
+`scripts/lib/dependency-prs.ts` (the survey's logic) with a test, never a reason to merge
+past the verdict.
 
 ## Not a failure mode here: the PR-title check
 
@@ -125,9 +134,53 @@ commit on `main`, so the prefixes (`commit-message` in `.github/dependabot.yml`,
 harness check that keeps them agreeing is `just check-harness`'s, and changing either
 side is a gate change (`changing-gates`).
 
-## F10: A mise or rust-toolchain PR is green but `mise install` fails here
+## F10: A mise or rust-toolchain PR is green but the new pin will not install here
+
+**Symptom:** `mise install` fails for a `mise.toml` pin, or the next `cargo` call fails
+as rustup installs a `rust-toolchain.toml` channel (rustup installs a missing active
+toolchain by default, `RUSTUP_AUTO_INSTALL`:
+https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).
 
 **Cause:** the pinned version has no build for this Mac yet, though CI's Linux runner
 found one.
 
-**Fix:** hold it until it has; never pin a different version than the bot proposed.
+**Fix:** hold it until it has; never pin a different version than the bot proposed,
+except the Tauri side the approved plan names under F11.
+
+## F11: One side of a Tauri pair
+
+**Symptom:** a PR that moves a Tauri-family package (normally `cargo-tauri` or
+`npm-tauri`) fails only in one or more of these ways, and every other job and step
+passes:
+
+- `Repo Lint & Harness` fails at "Harness self-checks"; the only `FAIL` line is
+  `FAIL  tauri-versions`, and the only codes are `ERR_CHECK_TAURI_VERSIONS_DIVERGED` /
+  `ERR_CHECK_TAURI_PLUGIN_VERSIONS_DIVERGED`.
+- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at
+  `check-harness`, with the same `tauri-versions` failure.
+- `macOS Build & Smoke` fails at "Build the debug app bundle" with the Tauri CLI
+  refusing the crate and npm packages on different versions.
+
+**Cause:** Dependabot updates cargo and npm in separate PRs, so each PR carries one side
+of a new Tauri minor, or of a plugin's new exact version. The harness refuses a pair on two
+versions, and the build may too. This is not a regression: as in F2, the bump is
+untested until its other side joins it.
+
+**Fix:** such a PR is eligible for the combined branch only, never landed alone, with
+the relaxed merge state `SKILL.md` Step 3 gives; the combined branch's own PR lands only
+when `CLEAN` and all green.
+
+- If the survey prints `split across #<a> #<b>`, both PRs go into one combined branch
+  (Step 4b). That branch's CI is the first real signal.
+- If it prints `MISMATCH` (the open PRs leave the pair on different versions: one side
+  unopened, or both open but on different minors), move the missing or lagging side by
+  hand in the combined branch, naming package, from, and to in the approval plan, and
+  only to a version published at least 7 days ago. For npm,
+  pnpm's `minimumReleaseAge` refuses a younger one (F3). For a crate, read
+  `version.created_at` from `https://crates.io/api/v1/crates/<crate>/<version>`
+  (observed on this Mac with `curl` for `tauri` 2.11.6, 2026-09-30).
+- Otherwise hold the PR until the other side's PR is open, then survey again.
+- Any other failing step, or any other code in the log, is diagnosed under its own entry
+  and is never waved through as the split.
+
+Where to read the log: the command at the top of this file.

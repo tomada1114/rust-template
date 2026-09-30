@@ -1,4 +1,4 @@
-//! The commands the UI invokes and the event it listens to (design D4, D6).
+//! The commands the UI invokes and the event it listens to.
 //!
 //! A command decides nothing: it moves the work to a blocking thread (file I/O stays off
 //! the IPC thread), calls core, emits the change, and logs one line. Command and event
@@ -98,12 +98,20 @@ pub async fn reset<R: Runtime>(
     change("reset", &state, &app, CounterService::reset).await
 }
 
-/// Record a warning or error the UI caught (`ui/src/ipc/log.ts`).
+/// Record a warning or error the UI caught (`ui/src/ipc/log.ts`), as one line holding
+/// core's escaped and length-capped [`UiLogEntry::loggable_message`]. The log writer is
+/// synchronous, so the write runs on a blocking thread, off the main thread.
 #[tauri::command]
-pub fn log_from_ui(entry: UiLogEntry) {
-    let UiLogEntry { level, message } = entry;
-    match level {
-        UiLogLevel::Warn => tracing::warn!(target: "ui", %message),
-        UiLogLevel::Error => tracing::error!(target: "ui", %message),
+pub async fn log_from_ui(entry: UiLogEntry) {
+    let written = tauri::async_runtime::spawn_blocking(move || {
+        let message = entry.loggable_message();
+        match entry.level {
+            UiLogLevel::Warn => tracing::warn!(target: "ui", %message),
+            UiLogLevel::Error => tracing::error!(target: "ui", %message),
+        }
+    })
+    .await;
+    if let Err(error) = written {
+        tracing::warn!(%error, "a UI log entry was not written");
     }
 }

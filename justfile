@@ -1,7 +1,7 @@
-# Task runner (design D10). Every recipe is a thin call into cargo, pnpm, or scripts/.
+# Task runner. Every recipe is a thin call into cargo, pnpm, or scripts/.
 # `just --list` shows them all.
 #
-# Never taking over the developer's Mac (design D22): recipes that open the app (dev, run,
+# Never taking over the developer's Mac: recipes that open the app (dev, run,
 # install-app) and recipes a human starts on purpose (test-local, reset-permissions,
 # logs-follow) are never part of `just check`, and an agent runs them only when the human
 # asks. Local builds make the app bundle only (`--bundles app`): building a disk image
@@ -14,13 +14,14 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 bundle_id := "com.example.myapp"
 app_name := "MyApp"
 log_dir := env("HOME", "") / "Library/Logs" / bundle_id
+log_prefix := "myapp"
 no_signing := "env -u APPLE_CERTIFICATE -u APPLE_CERTIFICATE_PASSWORD -u APPLE_SIGNING_IDENTITY -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_ISSUER -u APPLE_API_KEY -u APPLE_API_KEY_PATH"
 
 # List the recipes
 default:
     @just --list
 
-# Everything a Mac runs without a human, in CI's order (opens no window; see D22 above)
+# Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
 check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-macos build smoke
 
 # Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
@@ -55,7 +56,7 @@ verify-hooks:
 
 # Run the app with hot reload (opens a window: a human's recipe, never part of `just check`)
 dev: sidecar
-    {{ no_signing }} pnpm tauri dev
+    {{ no_signing }} pnpm tauri dev -- --locked
 
 # Format every Rust and TypeScript file
 fmt:
@@ -71,7 +72,7 @@ fix:
 # Check formatting, lints, and types in both languages
 lint: sidecar
     cargo fmt --all --check
-    cargo clippy --workspace --all-targets --locked -- -D warnings
+    node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
     pnpm typecheck
     pnpm lint
     pnpm format:check
@@ -103,8 +104,7 @@ test-local: sidecar
 
 # Regenerate ui/src/ipc/generated/ from core's ts-rs types (commit the result; CI fails on drift)
 bindings:
-    rm -rf ui/src/ipc/generated
-    cargo test --locked -p myapp-core --lib export_bindings --quiet
+    node scripts/bindings.ts
 
 # Build the myapp-cli helper into src-tauri/binaries/ (Tauri's externalBin needs it before the Tauri crate compiles)
 sidecar *args:
@@ -112,7 +112,7 @@ sidecar *args:
 
 # Build the debug app bundle (target/debug/bundle/macos/); no disk image
 build: sidecar
-    {{ no_signing }} pnpm tauri build --debug --bundles app
+    {{ no_signing }} pnpm tauri build --debug --bundles app -- --locked
 
 # Build, quit any running copy, and open the debug app (shows a window: a human's recipe)
 run: build
@@ -127,14 +127,18 @@ smoke:
 logs:
     #!/usr/bin/env bash
     set -euo pipefail
-    newest="$(ls -t "{{ log_dir }}"/*.log 2>/dev/null | head -n 1 || true)"
-    if [[ -z "$newest" ]]; then echo "no log files in {{ log_dir }}"; exit 0; fi
+    newest="$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$newest" ]]; then echo "no {{ log_prefix }}.*.log files in {{ log_dir }}"; exit 0; fi
     echo "==> $newest"
     tail -n 50 "$newest"
 
 # Follow the newest app log (never ends: a human's recipe)
 logs-follow:
-    tail -F "$(ls -t "{{ log_dir }}"/*.log | head -n 1)"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    newest="$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$newest" ]]; then echo "no {{ log_prefix }}.*.log files in {{ log_dir }}"; exit 0; fi
+    tail -F "$newest"
 
 # Reset the app's privacy (TCC) permissions so macOS asks again (a human's recipe)
 reset-permissions:
@@ -142,7 +146,7 @@ reset-permissions:
 
 # Build the release app and copy it to ~/Applications, quitting an older copy first (a human's recipe)
 install-app:
-    {{ no_signing }} pnpm tauri build --bundles app
+    {{ no_signing }} pnpm tauri build --bundles app -- --locked
     -pkill -x myapp
     mkdir -p "$HOME/Applications"
     rm -rf "$HOME/Applications/{{ app_name }}.app"
@@ -150,7 +154,7 @@ install-app:
 
 # Supply-chain checks for crates: advisories, licences, bans, sources
 deny:
-    cargo deny check
+    cargo deny --locked check
 
 # Remove build output
 clean:

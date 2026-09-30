@@ -68,6 +68,21 @@ fn increment_by_stops_with_an_error_past_the_maximum() {
 }
 ```
 
+A UI change starts the same way, in a `.test.tsx` beside the hook or component it
+drives: `mockCommands` stands in for Rust, and the assertion is on the state the hook
+exposes or on what the user sees, queried by role and name. In the sample,
+`ui/src/counter/useCounter.test.tsx`:
+
+```tsx
+it("shows the new view after increment", async () => {
+  mockCommands({ get_counter: () => ONE, increment: () => TWO });
+  const { result } = renderHook(() => useCounter());
+  await waitFor(() => { expect(result.current.state.status).toBe("ready"); });
+  await act(() => result.current.increment());
+  expect(result.current.state).toEqual({ status: "ready", view: TWO, error: null });
+});
+```
+
 ## Step 2: prove it fails
 
 ```bash
@@ -75,18 +90,23 @@ just test-fast increment_by              # core: cargo nextest, filtered by test
 pnpm exec vitest run --project ui ui/src/counter/useCounter.test.tsx   # one UI file (the sample's)
 ```
 
-Read the failure. For a function that does not exist yet, the compile error naming it
-counts as red. For a change to existing behavior, the run must show the assertion
-itself failing — `assert_eq!` prints the `left` and `right` values — because a test
-that fails for another reason (a typo, a missing import) proves nothing about the
-behavior. **Do not skip this run**: a test that has never failed may never be able to.
+Read the failure. For a Rust function that does not exist yet, the compile error
+naming it counts as red. In Vitest a missing export arrives as `undefined`, so the run
+fails with a `TypeError` at the call: that counts only when the message names the
+missing function (`… is not a function`). For a change to existing behavior,
+the run must show the assertion itself failing — `assert_eq!` prints the `left` and
+`right` values, and `expect` its diff — because a test that fails for another reason (a
+typo, a missing import) proves nothing about the behavior. **Do not skip this run**: a
+test that has never failed may never be able to.
 
 ## Step 3: GREEN — the minimum that passes
 
 Write the smallest change in core that makes the test pass, following `writing-rust`
 (no `unwrap`, a typed error, `self` in and a new value out). Re-run the same filter,
 then a broader one that covers every test the change could touch; in the sample,
-`just test-fast counter`. All must pass, the new ones and the old.
+`just test-fast counter`. All must pass, the new ones and the old. In the UI the
+smallest change is in the hook or component the test drives, and never a domain rule a
+hook would need an `if` for (Step 0); re-run the same file, then `just test-ui`.
 
 ## Step 4: REFACTOR — with the gates on
 
@@ -99,6 +119,8 @@ the change can fail:
 | a core type that crosses IPC | `just bindings`, then `just test-ui` and `just lint` (tsc) |
 | `ui/src/` | `just test-ui` (its floors), then `just lint` |
 | `src-tauri/` or `crates/myapp-platform/` | `just test-macos` |
+| `crates/myapp-cli/` | `just test-core` (it runs the CLI's tests), then `just smoke` (it runs the bundled copy) |
+| `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-macos` (platform runs them against the real adapters) |
 | `scripts/` | `just test-scripts` (**REQUIRED:** `writing-repo-scripts`) |
 
 Before the pull request, `just check` runs everything a Mac runs without a human. None

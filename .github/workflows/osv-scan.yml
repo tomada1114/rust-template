@@ -27,7 +27,7 @@ jobs:
 
       - name: OSV scan
         # The runnable action lives in the osv-scanner-action/ subdirectory.
-        # Ignores, if any, live in osv-scanner.toml under design D17's advisory scope.
+        # Ignores, if any, live in osv-scanner.toml, under the scope its header sets.
         uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           scan-args: |-

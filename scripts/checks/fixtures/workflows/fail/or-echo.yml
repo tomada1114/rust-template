@@ -1,0 +1,8 @@
+# A gate run as `just test-ui || echo skipped`: the echo succeeds, so the step does.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_FAIL_OPEN]
+  just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
+edits:
+  - file: .github/workflows/ci.yml
+    from: "      - run: just test-ui\n"
+    to: "      - run: just test-ui || echo skipped\n"

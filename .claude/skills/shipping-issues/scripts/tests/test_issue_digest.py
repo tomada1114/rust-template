@@ -613,6 +613,25 @@ class MainEndToEndTest(DigestRunner, unittest.TestCase):
         self.assertEqual(rc, 0, err)
         self.assertIn("select: #1", out)
 
+    def test_more_open_prs_than_the_cap_fails_loudly(self):
+        issues = [gh_issue(n, labels=["priority: P2"]) for n in (1, 2)]
+        prs = [gh_pr(10 + n, head=f"x{n}") for n in range(3)]
+        with patch.object(idg, "PR_LIMIT", 2):
+            rc, out, err = self._run(["--select"], issues, prs=prs)
+        self.assertEqual(rc, 1)
+        self.assertIn("more than 2 open pull requests", err)
+        self.assertNotIn("select:", out)
+        pr_list = next(c for c in self.gh_calls if c[:2] == ["pr", "list"])
+        self.assertEqual(pr_list[pr_list.index("--limit") + 1], "3")
+
+    def test_open_prs_exactly_at_the_cap_are_used(self):
+        issues = [gh_issue(n, labels=["priority: P2"]) for n in (1, 2)]
+        prs = [gh_pr(10, body="Closes #1"), gh_pr(11, head="x")]
+        with patch.object(idg, "PR_LIMIT", 2):
+            rc, out, err = self._run(["--select"], issues, prs=prs)
+        self.assertEqual(rc, 0, err)
+        self.assertIn("select: #2", out)
+
     def test_a_limit_below_one_is_a_usage_error(self):
         rc, out, err = self._run(["--limit", "0"], [gh_issue(1)])
         self.assertEqual(rc, 2)
@@ -735,6 +754,46 @@ class ShipContractTest(unittest.TestCase):
     def test_numbers_parse_with_or_without_hash(self):
         c = idg.parse_ship_contract("<!-- ship: blocked-by=12,#13 -->")
         self.assertEqual(c["depends_on"], [12, 13])
+
+
+class ShipContractInCodeTest(unittest.TestCase):
+    """A ship block quoted inside a fenced code block or inline code is an
+    example, not the contract."""
+
+    EXAMPLE = "<!-- ship: tier=P0 blocked-by=#1 touches=* design=open -->"
+
+    def test_fenced_example_before_the_real_contract_is_ignored(self):
+        for fence in ("```", "~~~", "````"):
+            with self.subTest(fence=fence):
+                body = (f"Quoted:\n\n{fence}\n{self.EXAMPLE}\n{fence}\n\n"
+                        f"Prose.\n\n{CONTRACT}\n")
+                c = idg.parse_ship_contract(body)
+                self.assertEqual(c["tier"], "P1")
+                self.assertEqual(c["design"], "settled")
+                self.assertEqual(len(idg.find_ship_contracts(body)), 1)
+
+    def test_fenced_example_after_the_real_contract_is_ignored(self):
+        # Last-real-block-wins: a later quoted example must not win.
+        body = f"{CONTRACT}\n\n~~~md\n{self.EXAMPLE}\n~~~\n"
+        self.assertEqual(idg.parse_ship_contract(body)["tier"], "P1")
+
+    def test_a_shorter_fence_line_does_not_close_the_block(self):
+        body = f"{CONTRACT}\n````\n```\n{self.EXAMPLE}\n````\n"
+        self.assertEqual(idg.parse_ship_contract(body)["tier"], "P1")
+
+    def test_inline_code_example_is_ignored(self):
+        for tick in ("`", "``"):
+            with self.subTest(tick=tick):
+                body = f"{CONTRACT}\n\nWrite {tick}{self.EXAMPLE}{tick} like so."
+                self.assertEqual(idg.parse_ship_contract(body)["tier"], "P1")
+
+    def test_only_a_fenced_example_means_no_contract(self):
+        self.assertIsNone(idg.parse_ship_contract(f"```\n{self.EXAMPLE}\n```\n"))
+        self.assertIsNone(idg.parse_ship_contract(f"~~~\n{self.EXAMPLE}\n"))
+
+    def test_an_unmatched_backtick_does_not_hide_the_contract(self):
+        body = f"A stray ` backtick.\n\n{CONTRACT}"
+        self.assertEqual(idg.parse_ship_contract(body)["tier"], "P1")
 
 
 class ContractIntegrationTest(DigestRunner, unittest.TestCase):

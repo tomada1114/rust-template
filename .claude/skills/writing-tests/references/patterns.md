@@ -14,7 +14,10 @@ In the sample, `crates/myapp-core/tests/counter_service.rs` (shown with
 
 ```rust
 const T0: UnixMillis = FixedClock::DEFAULT;
-const TUNING: Tuning = Tuning { min: 0, max: 2 };
+const TUNING: Tuning = match Tuning::new(0, 2) {
+    Ok(tuning) => tuning,
+    Err(TuningError::MinAboveMax) => panic!("0 to 2 is a valid range"),
+};
 
 #[test]
 fn increment_at_the_maximum_fails_and_saves_nothing() {
@@ -26,8 +29,10 @@ fn increment_at_the_maximum_fails_and_saves_nothing() {
 }
 ```
 
-A tiny `Tuning` reaches the bound in one step; `Arc::clone` (here `store.clone()`) keeps
-a handle so the test can read what the service saved.
+A tiny `Tuning` reaches the bound in one step, and the `const` `match` on
+`Tuning::new` turns an invalid range into a compile error rather than a failing test;
+`Arc::clone` (here `store.clone()`) keeps a handle so the test can read what the service
+saved.
 
 ## Moving time without waiting (Rust)
 
@@ -49,7 +54,7 @@ assert_eq!(
 
 The standard harness has no parameterized tests. Loop over the cases and name each in
 the assertion message, so a failure says which case broke. In a unit test beside
-`Counter`, where `TUNING` is `Tuning { min: 0, max: 3 }`:
+`Counter`, where `TUNING` is `Tuning::new(0, 3)`:
 
 ```rust
 for (value, expected) in [(-5, 0), (2, 2), (40, 3)] {
@@ -75,8 +80,9 @@ it.each(["1.0", "v1.0.0", "1.0.0-rc.1", "01.0.0", "1.0.0+4"])(
 ## The contract suite (Rust)
 
 One function per port in `crates/myapp-test-support/`, called once per implementation.
-The real adapter's `make` gives each call its own temporary directory, and keeps every
-`TempDir` alive until the test ends:
+The function calls `make` again for each group of clauses, so `make` runs several times
+per test: the real adapter's gives each call its own temporary directory, and keeps
+every `TempDir` alive until the test ends:
 
 ```rust
 // crates/myapp-core/tests/contracts.rs — the fake

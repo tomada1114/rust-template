@@ -1,9 +1,12 @@
 version: 2
 # Weekly, with a 7-day cooldown equal to Renovate's and pnpm's minimumReleaseAge (a
-# harness check keeps the three equal). Minor and patch updates arrive grouped, one PR
-# per ecosystem; a major stays out of every group and gets its own PR, reviewed against
-# its migration notes (merging-dependency-prs). The tauri crates and the @tauri-apps
-# npm packages must land at the same minor: a harness check fails on a mismatch.
+# harness check keeps the three equal). Minor and patch updates arrive grouped; a major
+# stays out of every group and gets its own PR, reviewed against its migration notes
+# (merging-dependency-prs). Dependabot reads a 0.x minor as a minor, so such a bump
+# rides in a group; the survey marks it (major). The Tauri family has its own group in
+# each ecosystem, listed first because a dependency joins the first group it matches:
+# a Tauri minor therefore holds only those two PRs, which merging-dependency-prs
+# combines, because a harness check requires both sides on one minor.
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
@@ -16,6 +19,9 @@ updates:
     labels:
       - "dependencies"
     groups:
+      cargo-tauri:
+        patterns: ["tauri", "tauri-*"]
+        update-types: ["minor", "patch"]
       cargo-minor-and-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
@@ -31,6 +37,9 @@ updates:
     labels:
       - "dependencies"
     groups:
+      npm-tauri:
+        patterns: ["@tauri-apps/*"]
+        update-types: ["minor", "patch"]
       npm-minor-and-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]

@@ -1,6 +1,6 @@
 /**
  * Every skill under `.agents/skills/` loads in both Claude Code and Codex CLI, and
- * `AGENTS.md`'s Skills table indexes exactly those skills (design D14). A skill with a
+ * `AGENTS.md`'s Skills table indexes exactly those skills. A skill with a
  * stray key, a mismatched name, or a value Codex CLI's strict YAML parser rejects mirrors
  * cleanly and then silently never loads; one with no row is never found by a reader.
  *
@@ -10,7 +10,10 @@
  * mirror, checked by `just agents-check`):
  *   - `<dir>/SKILL.md` opens with a `---` line and a later `---` line closes the block;
  *     the block parses as strict YAML (the `yaml` package, duplicate keys rejected) into
- *     a mapping of exactly `name` and `description`;
+ *     a mapping of exactly `name` and `description`. This approximates Codex CLI's own
+ *     YAML parser, which this check does not run: strict `yaml` is a proxy that rejects
+ *     the failures seen so far, and a value it accepts may still fail under Codex CLI
+ *     (or the reverse). A skill found not to load there gets a fixture and a rule here;
  *   - `name` is a string equal to `<dir>`: lowercase letters, digits, and single hyphens,
  *     at most 64 characters (the Agent Skills format);
  *   - `description` is a non-empty string of printable ASCII (tab and newline allowed),

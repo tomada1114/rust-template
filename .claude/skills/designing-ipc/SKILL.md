@@ -43,14 +43,17 @@ has the code for every step, taken from the sample.
 
 1. **Core function and DTO** in `myapp-core`, test first (`tdd`). Everything the UI
    receives or sends is a type in core deriving `Serialize` (or `Deserialize` for an
-   argument), `ts_rs::TS`, `#[serde(rename_all = "camelCase")]`, and `#[ts(export)]`.
-   It lives in core so CI's Linux job, which never compiles Tauri, can regenerate every
-   binding. Check: `just test-fast <filter>`, then `just test-core`.
+   argument), `ts_rs::TS`, `#[serde(rename_all = "camelCase")]`, and
+   `#[cfg_attr(feature = "export-bindings", ts(export))]`; a bare `#[ts(export)]` fails
+   its export test in `just test-core`. The type lives in core so CI's Linux job, which
+   never compiles Tauri, can regenerate every binding. Check: `just test-fast <filter>`,
+   then `just test-core`.
 2. **Bindings.** `just bindings` regenerates `ui/src/ipc/generated/` (ts-rs writes each
-   exported type from a generated test; `.cargo/config.toml` sets the directory and
-   exports 64-bit integers as `number`). Commit the output with the Rust change, and
-   re-export the new type from `ui/src/ipc/types.ts`, the only way the rest of the UI
-   may import it. CI regenerates and fails on any diff; never edit the generated files.
+   exported type from a test that only core's `export-bindings` feature compiles, so no
+   other test run touches the directory; `.cargo/config.toml` exports 64-bit integers as
+   `number`). Commit the output with the Rust change, and re-export the new type from
+   `ui/src/ipc/types.ts`, the only way the rest of the UI may import it. CI regenerates
+   and fails on any diff; never edit the generated files.
 3. **The command** in `src-tauri/src/commands.rs`: borrow the state, call one core
    function (on a blocking thread if it reaches a slow port), emit an event after a
    change, log one line, return `Result<Dto, CoreError>`. See "The command" below.
@@ -65,10 +68,13 @@ has the code for every step, taken from the sample.
    `commands.test.ts` asserts the name and the argument object through `mockCommands`.
 6. **The command test** in `src-tauri/tests/commands.rs`, through `tauri::test` against
    fakes: the JSON the UI receives (camelCase), each error as `{ code }`, and the event
-   it emits. Check: `just test-macos`.
+   it emits. Invoke it with the argument object the wrapper in `commands.ts` sends, key
+   for key: Tauri camel-cases each Rust parameter name, and no other check compares
+   argument keys. Check: `just test-macos`.
 7. **Before the pull request:** `just test-macos`, `just test-ui`, then
-   `just check-harness`, which fails when the names in `generate_handler!` and in
-   `commands.ts` differ; `just smoke` if startup or `AppState` changed.
+   `just check-harness`, which fails when the command names in `generate_handler!` and
+   in `commands.ts` differ (names only, never argument keys); `just smoke` if startup or
+   `AppState` changed.
 
 ## The command
 
@@ -78,14 +84,17 @@ has the code for every step, taken from the sample.
   borrowed, as `State<'_, …>` is, has to return a `Result`: the page's other remedy,
   an owned argument, does not exist for state
   (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29). So anything that touches I/O is `async` and returns `Result`;
-  only a command that does no slow work and cannot fail may be a plain `fn`
-  (`log_from_ui` only emits a `tracing` event).
+  only a command that does no slow work and cannot fail may be a plain `fn`. Writing a
+  log line is I/O too: `log_from_ui` takes an owned argument, so it is `async` without
+  a `Result` and writes on a blocking thread.
 - **A slow port runs on a blocking thread.** Core is synchronous by design (no async to
   learn), so the command moves the call with `tauri::async_runtime::spawn_blocking`.
   The closure must own what it uses (`'static`: it may outlive the borrow of `State`),
   so clone the `Arc` first; cloning an `Arc` copies a pointer, not the service.
-  `on_blocking_thread` is the sample's helper, and it maps a dead worker to a core
-  error rather than panicking (`designing-errors`).
+  `on_blocking_thread` is the sample's helper, and it maps the join error (a worker
+  that panicked, which only a debug or test build reports, or a task cancelled at
+  shutdown, in any build) to a core error rather than unwrapping it
+  (`designing-errors`).
 - **Shared state is `AppState`**, one struct in `commands.rs` holding `Arc`s of core
   services, built once in `build_state` (`lib.rs`) from the real adapters and given to
   Tauri with `app.manage`. A test builds the same struct over fakes. A second service
@@ -142,15 +151,20 @@ adding a command never touches `src-tauri/capabilities/`. A Tauri plugin's comma
 need a permission there, and a plugin is a new dependency, an ADR, and a sign-off change
 (`AGENTS.md` › "Security and human approval"). `src-tauri/capabilities/default.json`
 grants `core:default` only; widen it by the narrowest permission the plugin documents.
+The CSP in `tauri.conf.json` applies only to a built app, never under `just dev`
+(`docs/architecture.md` › "Security settings").
 
 ## The helper executable
 
 The shell links core and platform itself, so a command calls core directly, never by
 running `myapp-cli`. Spawning the bundled helper from the GUI is for work that must be
-that separate executable (what a launchd job will run), and it costs `tauri-plugin-shell`
-(dependency, ADR, sign-off). Spawned from Rust it needs no capability; exposed to the UI
-it needs a shell permission scoped to that one sidecar. `docs/architecture.md` › "The
-helper executable" has the mechanics.
+that separate executable (what a launchd job will run). Spawned from Rust it needs no
+plugin and no capability: a `myapp-platform` adapter runs it with
+`std::process::Command` from the directory of the app's own executable
+(`std::env::current_exe()`), behind a port like any other system command
+(`integrating-system-apis`). Only a UI that spawns it itself costs `tauri-plugin-shell`
+(dependency, ADR, sign-off) and a shell permission scoped to that one sidecar.
+`docs/architecture.md` › "The helper executable" has the mechanics.
 
 ## What is contract
 
@@ -172,5 +186,6 @@ built separately from the Rust side, and nothing but the checks below ties them.
 
 Delete it from `commands.rs`, from `with_commands`, from `commands.ts` or `events.ts`,
 and its tests, then `just bindings` (a DTO nothing exports any more leaves a stale file:
-`just bindings` removes the directory first, so the regenerated tree is exact), then the
-checks in step 7. `rg` for the name in `docs/architecture.md`, which lists every command.
+`just bindings` replaces the whole directory once the export succeeds, so the
+regenerated tree is exact), then the checks in step 7. `rg` for the name in
+`docs/architecture.md`, which lists every command.

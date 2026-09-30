@@ -1,7 +1,7 @@
 /**
  * The gates `just check` runs and the steps CI runs stay the same set, apart from a
  * reasoned exception list (EXCEPTIONS below), so a gate added to one side cannot pass
- * locally and fail in CI, or the reverse (design D10, D14). Ported from
+ * locally and fail in CI, or the reverse. Ported from
  * macos-app-template's just-check-matches-ci.sh; ci.yml is read with `yaml`, the
  * justfile (not YAML or TOML) line by line.
  *
@@ -15,12 +15,19 @@
  *   - a recipe's commands: its body lines, `\` continuations joined, comment and
  *     shebang lines dropped, a leading `@`/`-` removed, whitespace collapsed.
  *   - CI's steps: every `run:` in ci.yml's jobs (a job named in EXCEPTIONS.ciOnlyJobs
- *     aside), split into command lines the same way.
+ *     aside), split into command lines the same way. A step that also names `uses:`
+ *     runs nothing of its own.
+ *   - what CI runs unconditionally: a command line counts as running a gate only in a
+ *     step that runs on every CI run and whose failure fails the run — no `if:` on the
+ *     step or its job, no `continue-on-error` other than `false` on either — and only
+ *     when the line neither has an `||` fallback nor is a condition (`if`, `elif`,
+ *     `while`, `until`, or `!` in front). Anything else may never run the gate, or run
+ *     it without failing, so it counts as not running it.
  * Both directions:
- *   - every gate is run by CI: some step says `just <gate>` (or `just` a recipe that
- *     reaches it), or every command in its body is a CI command line verbatim (so
- *     `lint`'s lines, split across CI's jobs, count), or its body is empty (its
- *     dependencies are gates themselves), or it is in EXCEPTIONS.localOnly;
+ *   - every gate is run by CI unconditionally: some step says `just <gate>` (or `just`
+ *     a recipe that reaches it), or every command in its body is a CI command line
+ *     verbatim (so `lint`'s lines, split across CI's jobs, count), or its body is empty
+ *     (its dependencies are gates themselves), or it is in EXCEPTIONS.localOnly;
  *   - every CI step is a gate: a step that calls `just` calls only gates (or
  *     EXCEPTIONS.ciOnlyRecipes; its other lines are glue, such as the bindings diff),
  *     and each line of a step that calls no recipe is a gate's command verbatim or in
@@ -36,13 +43,20 @@
  *   ERR_CHECK_USAGE              bad arguments (scripts/checks/lib.ts)
  *   ERR_CHECK_JUST_CI_INPUT      the justfile or ci.yml is missing, or ci.yml has no jobs mapping
  *   ERR_CHECK_JUST_CI_NO_CHECK   the justfile defines no `check` recipe
- *   ERR_CHECK_JUST_CI_DIVERGED   a gate runs on one side only and is not an exception
+ *   ERR_CHECK_JUST_CI_DIVERGED   a gate runs on one side only (or in CI only conditionally) and is not an exception
  *   ERR_CHECK_JUST_CI_STALE      an exception no longer applies
  */
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
-import { isRecord, jobsOf, readYaml, scriptLines, stepsOf } from "./shared/workflows.ts";
+import {
+  continuesOnError,
+  isRecord,
+  jobsOf,
+  readYaml,
+  scriptLines,
+  stepsOf,
+} from "./shared/workflows.ts";
 
 const JUSTFILE = "justfile";
 const CI = ".github/workflows/ci.yml";
@@ -80,11 +94,11 @@ export const EXCEPTIONS: Exceptions = {
       "hands the pnpm store path to actions/cache: CI plumbing with no local meaning",
     "pnpm install --frozen-lockfile":
       "dependency install: `just install` runs it once on a developer's Mac, not on every `just check`",
-    "cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
+    "node scripts/clippy-guard.ts cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
       "the Linux job lints only the crates that build without WebKitGTK; the macOS job runs `just lint`'s whole-workspace clippy line verbatim",
-    "cargo deny check":
+    "cargo deny --locked check":
       "`just deny`: fetches the RustSec advisory database over the network, so it stays out of the offline local gate; AGENTS.md › Validating a change runs it when a manifest or lockfile changes",
-    "cargo shear":
+    "cargo shear --locked":
       "unused-dependency detection; AGENTS.md › Validating a change runs `mise exec -- cargo shear` when a manifest changes, and CI on every change",
     "cargo fetch --locked":
       "fills the Linux harness job's registry so `cargo metadata --offline` (the core-boundary check) can resolve; a developer's Mac already holds the crates after any build",
@@ -93,7 +107,7 @@ export const EXCEPTIONS: Exceptions = {
   },
   ciOnlyJobs: {
     "Template Bootstrap Smoke":
-      "template-only (design D19): bootstraps a throwaway copy and runs `just check` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
+      "template-only: bootstraps a throwaway copy and runs `just check` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
   },
 };
 
@@ -181,6 +195,32 @@ interface CiStep {
   readonly job: string;
   readonly lines: string[];
   readonly calls: string[];
+  /** The lines that run whenever CI runs and fail it when they fail. */
+  readonly counted: string[];
+  /** Each other line, with why it does not count as running what it calls. */
+  readonly uncounted: { readonly line: string; readonly why: string }[];
+}
+
+/** Whether a `continue-on-error` value lets a failure pass. */
+/** Why a whole step never counts as running a gate, or undefined when it can. */
+function stepCondition(
+  job: Record<string, unknown>,
+  step: Record<string, unknown>,
+): string | undefined {
+  if (job["if"] !== undefined) return "behind its job's `if:`";
+  if (continuesOnError(job["continue-on-error"])) return "in a job with `continue-on-error`";
+  if (step["if"] !== undefined) return "behind the step's `if:`";
+  if (continuesOnError(step["continue-on-error"])) return "with `continue-on-error`";
+  return undefined;
+}
+
+const CONDITION = /^(?:if|elif|while|until|!)\s/;
+
+/** Why one command line does not count as running what it calls, or undefined. */
+function lineCondition(line: string): string | undefined {
+  if (line.replace(/'[^']*'/g, "''").includes("||")) return "with an `||` fallback";
+  if (CONDITION.test(line)) return "as a condition";
+  return undefined;
 }
 
 function input(actual: string): FailureDetails[] {
@@ -209,14 +249,24 @@ function readCiSteps(root: string, exceptions: Exceptions): CiStep[] | FailureDe
     }
     for (const [index, step] of stepsOf(job)) {
       const run = step["run"];
-      if (typeof run !== "string") continue;
+      if (typeof run !== "string" || step["uses"] !== undefined) continue;
       const { line } = file.locate(["jobs", id, "steps", index, "run"]);
       const lines = scriptLines(run).map(([, text]) => normalize(text));
+      const condition = stepCondition(job, step);
+      const counted: string[] = [];
+      const uncounted: { line: string; why: string }[] = [];
+      for (const text of lines) {
+        const why = condition ?? lineCondition(text);
+        if (why === undefined) counted.push(text);
+        else uncounted.push({ line: text, why });
+      }
       steps.push({
         where: `${CI}:${String(line)}`,
         job: id,
         lines,
         calls: lines.flatMap(justCalls),
+        counted,
+        uncounted,
       });
     }
   }
@@ -257,13 +307,29 @@ export function compare(root: string, exceptions: Exceptions): FailureDetails[] 
 
   const gates = closure(recipes, ["check"]);
   const gateCommands = new Set([...gates].flatMap((gate) => recipes.get(gate)?.commands ?? []));
+  // Every line CI runs, for the stray and stale checks; only the counted ones run a gate.
   const ciCommands = new Set(ciSteps.flatMap((step) => step.lines));
   const ciCalls = new Set(ciSteps.flatMap((step) => step.calls));
-  const ciReach = closure(recipes, [...ciCalls]);
+  const countedCommands = new Set(ciSteps.flatMap((step) => step.counted));
+  const countedReach = closure(
+    recipes,
+    ciSteps.flatMap((step) => step.counted.flatMap(justCalls)),
+  );
   const unrun = (gate: string): string[] | undefined => {
-    if (ciReach.has(gate)) return undefined;
-    const missing = (recipes.get(gate)?.commands ?? []).filter((line) => !ciCommands.has(line));
+    if (countedReach.has(gate)) return undefined;
+    const missing = (recipes.get(gate)?.commands ?? []).filter(
+      (line) => !countedCommands.has(line),
+    );
     return missing.length === 0 ? undefined : missing;
+  };
+  /** Where CI runs a gate only conditionally, for the message. */
+  const conditionally = (gate: string): string[] => {
+    const commands = new Set(recipes.get(gate)?.commands ?? []);
+    return ciSteps.flatMap((step) =>
+      step.uncounted
+        .filter(({ line }) => commands.has(line) || closure(recipes, justCalls(line)).has(gate))
+        .map(({ line, why }) => `\`${line}\` at ${step.where}, ${why}`),
+    );
   };
 
   const found: FailureDetails[] = [];
@@ -271,10 +337,17 @@ export function compare(root: string, exceptions: Exceptions): FailureDetails[] 
     if (gate === "check" || exceptions.localOnly[gate] !== undefined) continue;
     const missing = unrun(gate);
     if (missing === undefined) continue;
+    const partial = conditionally(gate);
     found.push({
       ...DIVERGED,
-      summary: `${JUSTFILE}: \`just check\` runs \`just ${gate}\`, but no ${CI} step runs it`,
-      actual: `CI runs neither \`just ${gate}\` nor these lines of its recipe: ${missing.join("; ")}`,
+      summary:
+        partial.length === 0
+          ? `${JUSTFILE}: \`just check\` runs \`just ${gate}\`, but no ${CI} step runs it`
+          : `${JUSTFILE}: \`just check\` runs \`just ${gate}\`, but ${CI} runs it only conditionally, so a failure can pass CI`,
+      actual: [
+        `CI runs neither \`just ${gate}\` nor these lines of its recipe on every run, failing on failure: ${missing.join("; ")}`,
+        ...(partial.length === 0 ? [] : [`it runs only as ${partial.join("; ")}`]),
+      ].join("; "),
     });
   }
   for (const step of ciSteps) {

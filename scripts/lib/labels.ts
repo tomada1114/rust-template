@@ -1,5 +1,5 @@
 /**
- * `.github/labels.yml`, the one declaration of this repository's labels (design D14):
+ * `.github/labels.yml`, the one declaration of this repository's labels:
  * a list of `{ name, color, description }`. Parsing validates what GitHub itself would
  * reject, so `just labels` fails before its first API call instead of halfway through.
  */

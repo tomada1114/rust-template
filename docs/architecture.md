@@ -46,7 +46,7 @@ them, and platform does not know the shell exists.
 |---|---|
 | Compile time | `crates/myapp-core/Cargo.toml` names no Tauri, OS, or platform crate, so code in core cannot call one. |
 | Dependency closure | A harness check (`just check-harness`) reads `cargo metadata` and fails if core's normal dependency closure contains `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`, or if a non-dev edge points at `myapp-test-support`. `deny.toml`'s `[bans]` adds direct-edge rules: `tauri` may be a direct dependency of `myapp` only, and `myapp-platform` of `myapp` and `myapp-cli` only. |
-| clippy in core | `crates/myapp-core/clippy.toml` bans `println!`/`eprintln!`/`dbg!`, `std::process::Command`, `std::fs::File` and the `std::fs` read and write functions, `SystemTime::now`, `Instant::now`, `std::env::var`, and `thread::sleep`. `clippy::wildcard_enum_match_arm` is denied, so every `match` on a core enum names each variant. |
+| clippy in core | `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`, `std::io::{stdin, stdout, stderr}`, `std::fs::{File, OpenOptions, DirBuilder}` and every `std::fs` free function, `std::os::unix::fs::{symlink, chown, fchown, lchown, chroot}`, `std::path::Path`'s file-system queries (`exists`, `metadata`, `read_dir`, `is_file`, …), `std::net::{TcpStream, TcpListener, UdpSocket}`, `std::os::unix::net::{UnixStream, UnixListener, UnixDatagram}`, and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit, abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`, `Instant::now`, both types' `elapsed`, `std::env`'s argument, variable, and directory functions (including `current_exe` and `home_dir`), and `std::thread::{spawn, sleep, park_timeout, available_parallelism}` and `Builder::spawn`; `std::thread::scope` is allowed, since it joins its threads before it returns and so cannot outlive the call. `clippy::wildcard_enum_match_arm` is denied, so every `match` on a core enum names each variant. A ban whose path clippy cannot resolve would only warn and do nothing, so `just lint` and CI run clippy through `scripts/clippy-guard.ts`, which fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead. |
 | ESLint | `no-restricted-imports` and, for a dynamic `import()`, `no-restricted-syntax` forbid `@tauri-apps/*` outside `ui/src/ipc/`, `ui/src/ipc/generated/` outside `ui/src/ipc/`, and `ui/src/ipc/testing.ts` outside tests; `no-console` and `no-restricted-properties` forbid `console` outside `ui/src/ipc/log.ts` and `scripts/`. |
 
 The forbidden-crate lists in `AGENTS.md`, the closure check, and `deny.toml` are kept
@@ -100,12 +100,14 @@ The moment one needs a decision, the decision moves into core behind the port.
 |---|---|
 | `#[tauri::command]` functions in `src-tauri/src/commands.rs`, registered once in `with_commands` (`src-tauri/src/lib.rs`), which the app and the command tests share | one wrapper per command in `ui/src/ipc/commands.ts` |
 | one `pub const` per event name (`COUNTER_CHANGED`), emitted with `app.emit` | one typed `listen` per event in `ui/src/ipc/events.ts` |
-| every DTO lives in core and derives `ts_rs::TS` with `#[ts(export)]` | `ui/src/ipc/generated/`, committed, never hand-edited; the rest of the UI imports from `ui/src/ipc/types.ts` |
+| every DTO lives in core and derives `ts_rs::TS` with `#[cfg_attr(feature = "export-bindings", ts(export))]` | `ui/src/ipc/generated/`, committed, never hand-edited; the rest of the UI imports from `ui/src/ipc/types.ts` |
 
-`just bindings` regenerates `ui/src/ipc/generated/` (`.cargo/config.toml` sets the
-export directory and exports 64-bit integers as `number`); CI regenerates and fails on a
-diff. A harness check compares the names in `generate_handler!` with those
-`commands.ts` invokes, and the event constants with those `events.ts` listens to.
+`just bindings` regenerates `ui/src/ipc/generated/`: it exports into a fresh directory
+with core's `export-bindings` feature and replaces the tracked one only once that
+succeeds, so no other test run rewrites it (`.cargo/config.toml` exports 64-bit integers
+as `number`). CI regenerates and fails on a diff. A harness check compares the names in
+`generate_handler!` with those `commands.ts` invokes, and the event constants with those
+`events.ts` listens to.
 
 A command decides nothing: it moves the work to a blocking thread, calls core, emits
 `counter-changed` after a change, and logs one line. The shell watches nothing in the
@@ -117,7 +119,19 @@ behind a port whose callback the shell turns into the same event.
 ### Security settings
 
 - `app.security.csp` in `src-tauri/tauri.conf.json`: `default-src 'self'`, IPC only
-  through `ipc:` and `http://ipc.localhost`, no remote origin.
+  through `ipc:` and `http://ipc.localhost`, no remote origin. It is enforced only in a
+  built app: Tauri attaches the header when it serves the bundled assets over
+  `tauri://` (tauri 2.11.6,
+  <https://docs.rs/crate/tauri/2.11.6/source/src/protocol/tauri.rs>, checked
+  2026-09-30), and `just dev` loads `devUrl` (`http://localhost:1420`) from Vite with no
+  CSP, so a violation shows in a built app, never under `just dev`.
+  `app.security.devCsp` stays unset, because no setting makes `just dev` enforce a CSP
+  on the desktop: in dev the window loads `devUrl` directly, and Tauri applies `devCsp`
+  (or `csp`) only to the assets it serves itself (`get_app_url` and `csp` in
+  <https://docs.rs/crate/tauri/2.11.6/source/src/manager/mod.rs>, checked 2026-09-30).
+  Try a CSP-sensitive change (a new asset origin, an inline style or script) in a built
+  app before relying on it, and weigh any production CSP change when preparing a
+  distribution.
 - `withGlobalTauri: false`: the UI reaches Tauri only through the imports in
   `ui/src/ipc/`.
 - One capability, `src-tauri/capabilities/default.json`, granting `core:default` to the
@@ -139,24 +153,32 @@ lists it in `bundle.externalBin` and runs the build in `beforeDevCommand` and
 on `just sidecar`, because `tauri-build` fails when an `externalBin` file is missing.
 
 The GUI does not run the helper in the sample, so no shell plugin and no shell
-permission ship. An app whose GUI must run it adds `tauri-plugin-shell` (a new
+permission ship. An app whose GUI must run it spawns it from Rust with
+`std::process::Command`, in a `myapp-platform` adapter behind a port, at the path next
+to the app's own executable (`std::env::current_exe()`'s directory; `tauri-build`
+places every `externalBin` there with its target triple stripped), which needs no plugin
+and no capability entry. Only a UI that runs it itself adds `tauri-plugin-shell` (a new
 dependency: an ADR and a maintainer's sign-off), registers it with
-`.plugin(tauri_plugin_shell::init())`, and spawns it from Rust with
-`app.shell().sidecar("myapp-cli")` (`tauri_plugin_shell::ShellExt`). Run from Rust
-only, it needs no capability entry; run from the UI, it needs a `shell:allow-execute` or
-`shell:allow-spawn` permission scoped to that one sidecar. Source:
-<https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
+`.plugin(tauri_plugin_shell::init())`, and needs a `shell:allow-execute` or
+`shell:allow-spawn` permission scoped to that one sidecar. Where the helper lands:
+`copy_binaries` in tauri-build 2.6.3, the version `Cargo.lock` pins
+(<https://docs.rs/crate/tauri-build/2.6.3/source/src/lib.rs>, checked 2026-09-30). The
+plugin route: <https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
 
 ## Logging
 
-Every crate logs through the `tracing` macros; only the shell and the CLI install a
-subscriber (`myapp_platform::init_logging`). Files go to
-`~/Library/Logs/com.example.myapp/`, one per day, and the newest 14 are kept. The writer
-is synchronous: the volume is low, and Tauri exits through `process::exit`, which would
+The shell, the CLI, and `myapp-platform` log through the `tracing` macros; `myapp-core`
+has no `tracing` dependency and logs nothing. Only the shell and the CLI install a
+subscriber (`myapp_platform::init_logging`). The app's files go to
+`~/Library/Logs/com.example.myapp/` and the helper's to its `cli/` subdirectory, one per
+day each, and the newest 14 of each are kept. Each writer has its own directory because
+retention counts every file whose name starts with the writer's prefix. The writer is
+synchronous: the volume is low, and Tauri exits through `process::exit`, which would
 drop a background writer's last lines. A debug build also writes to stderr. The UI sends
 its warnings and errors to the `log_from_ui` command through `ui/src/ipc/log.ts`,
 including a render error React reports to the root and a window `error` or
-`unhandledrejection` no code handled. No log line carries user data. `just logs` prints the newest file's last lines and exits.
+`unhandledrejection` no code handled. No log line carries user data. `just logs` prints
+the newest app file's last lines and exits.
 
 ## Smoke mode
 
@@ -206,7 +228,7 @@ launchd job, or the user. These are contract; everything else is private.
 
 | Contract | What depends on it | What changing it requires |
 |---|---|---|
-| **Core's public API** — every `pub` item re-exported from `crates/myapp-core/src/lib.rs` (`Counter`, `CounterService`, `CounterView`, `CounterError`, `CounterStore`, `StoredCounter`, `StorageError`, `StorageErrorKind`, `Tuning`, `Clock`, `UnixMillis`, `UiLogEntry`, `UiLogLevel`) | `myapp-platform`, `myapp-test-support`, `myapp-cli`, the shell, and their tests | Update every caller in the same pull request; the compiler finds them. A new port is an ADR. |
+| **Core's public API** — every `pub` item re-exported from `crates/myapp-core/src/lib.rs` (`Counter`, `CounterService`, `CounterView`, `CounterError`, `CounterStore`, `StoredCounter`, `StorageError`, `StorageErrorKind`, `Tuning`, `TuningError`, `Clock`, `UnixMillis`, `UiLogEntry`, `UiLogLevel`) | `myapp-platform`, `myapp-test-support`, `myapp-cli`, the shell, and their tests | Update every caller in the same pull request; the compiler finds them. A new port is an ADR. |
 | **The bundle identifier** — `com.example.myapp`: `identifier` in `src-tauri/tauri.conf.json`, `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the justfile, and `scripts/smoke.ts` | Everything macOS keys by it on a user's Mac: the data directory `~/Library/Application Support/com.example.myapp/`, the log directory `~/Library/Logs/com.example.myapp/`, and privacy (TCC) grants | Fixed once a build has left your machine: a new identifier is a new app to macOS, and the user's data and grants stay behind under the old one. Changing it is a human's decision, recorded as an ADR; the bootstrap sets it once. |
 | **IPC command and event names, and their payloads** — commands `get_counter`, `increment`, `decrement`, `reset`, `log_from_ui`; event `counter-changed`; the JSON shapes of `CounterView` (`{ value, lastChangedAt }`), `CounterError`'s codes, and `UiLogEntry` (`{ level: "warn" \| "error", message }`) | The UI, which is built separately from the Rust side | Change both sides in one pull request; `just bindings`, the harness check, and the command tests catch a mismatch. |
 | **On-disk file formats** — see below | Files already on a user's disk; `just logs`, `just smoke`, and anyone reading the logs | A new version still reads the old format: a format version and a migration, with a test that reads a sample of the previous format. |
@@ -241,12 +263,13 @@ fresh counter; an unreadable file or an unknown `version` is a `corrupt` storage
 never silently replaced. A field is added with `#[serde(default)]`; renaming or removing
 one bumps `version`, and the reader keeps accepting the old version.
 
-**Log files**, in `~/Library/Logs/com.example.myapp/`: `myapp.YYYY-MM-DD.log` from the
-app and `myapp-cli.YYYY-MM-DD.log` from the helper, dated in UTC, one per day, the
-newest 14 of each kept. Each line is `tracing-subscriber`'s plain text format: an
-RFC 3339 timestamp, the level, the target, the message, and its fields. The message
-wording is private, with one exception: the launch smoke looks for the app's
-`startup complete` line carrying `pid=<pid>`, so that line keeps its message and field.
+**Log files**: `myapp.YYYY-MM-DD.log` from the app in `~/Library/Logs/com.example.myapp/`,
+and `myapp-cli.YYYY-MM-DD.log` from the helper in `~/Library/Logs/com.example.myapp/cli/`,
+dated in UTC, one per day, the newest 14 of each kept. Each line is
+`tracing-subscriber`'s plain text format: an RFC 3339 timestamp, the level, the target,
+the message, and its fields. The message wording is private, with one exception: the
+launch smoke looks for the app's `startup complete` line carrying `pid=<pid>`, so that
+line keeps its message and field.
 
 **Private** is everything else: `pub(crate)` and private items, how an adapter talks to
 the OS behind its port, component structure, CSS, file and module layout, test helpers,

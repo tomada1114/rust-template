@@ -7,7 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
-# Only platform-neutral crates belong here (design D3): a harness check fails if this
+# Only platform-neutral crates belong here: a harness check fails if this
 # crate's normal dependency closure reaches tauri, wry, tao, objc2, core-foundation,
 # security-framework, or myapp-platform.
 [dependencies]
@@ -18,6 +18,12 @@ ts-rs = { workspace = true }
 [dev-dependencies]
 myapp-test-support = { workspace = true }
 serde_json = { workspace = true }
+
+# Compiles ts-rs's `export_bindings_*` tests, which write one `.ts` file per IPC type into
+# `TS_RS_EXPORT_DIR`. Only `just bindings` enables it, so `just test-core`, `test-fast`,
+# and coverage runs never rewrite the tracked `ui/src/ipc/generated/`.
+[features]
+export-bindings = []
 
 [lints]
 workspace = true

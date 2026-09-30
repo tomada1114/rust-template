@@ -1,3 +1,12 @@
 .screen {
+  --local-gap: 12px;
   padding: var(--space-5);
+  gap: var(--local-gap);
+  font-size: var(--local-size, var(--font-size-body));
+  font-family: var(--font-family-system, inherit);
+  will-change: background;
+}
+
+.screen__title {
+  --local-size: var(--font-size-title1);
 }

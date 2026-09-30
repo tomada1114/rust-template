@@ -39,7 +39,8 @@ fewest machines while still able to fail for the behavior:
 | The helper CLI | `crates/myapp-cli/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
 | A hook, a component, an IPC wrapper, copy | `ui/src/**/<name>.test.ts(x)`, beside the source | `just test-ui` | `ui/src/**` floor |
 | A repository script | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor, and `scripts/lib/guard/**` for the staged guard |
-| A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | none: counted in the report, no floor |
+| A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | `.agents/skills/*/scripts/**` floor |
+| A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/shipping-issues/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
 | What only the assembled app shows | no test file: `just smoke`, then the manual check | `just smoke`; `just run` + `just logs` by a human | none |
 
 A domain decision tested only in a row that no floor measures is in the wrong place:
@@ -63,7 +64,8 @@ only invite tests of glue.
   The Book on this layout:
   https://doc.rust-lang.org/book/ch11-03-test-organization.html
 - A code example in a `///` comment on a core item is compiled and run as a doctest by
-  `just test-core`; keep one only if it is meant to run.
+  `just test-core`; keep one only if it is meant to run. In the sample, `Tuning` and
+  `UiLogEntry::loggable_message` carry one each.
 
 ## Fakes and contracts: `myapp-test-support`
 

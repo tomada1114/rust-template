@@ -36,7 +36,7 @@ over the developer's Mac"). This is the default, and usually enough.
 
 ```bash
 just smoke   # release .app: build, signature, entitlements, bundled helper, windowless run
-just logs    # the newest log file's last 50 lines, then exit
+just logs    # the newest app log file's last 50 lines, then exit
 ```
 
 - **`just smoke`** builds the release bundle (app only, never a disk image), verifies
@@ -48,11 +48,10 @@ just logs    # the newest log file's last 50 lines, then exit
   a `startup complete` line carrying that run's `pid`. So a change to `run()`,
   `build_state`, `with_commands`, or an adapter's construction is proven wired by a
   green smoke; its failure codes (`ERR_SMOKE_*`) name the step that broke.
-- **`just logs`** prints the tail of the newest `*.log` in
-  `~/Library/Logs/com.example.myapp/`. Both the app (`myapp.YYYY-MM-DD.log`) and the
-  helper (`myapp-cli.YYYY-MM-DD.log`) write there, dated in UTC, so after a helper run
-  `just logs` shows the helper's file. For the app's own file, name it:
-  `tail -n 100 ~/Library/Logs/com.example.myapp/myapp.$(date -u +%F).log`.
+- **`just logs`** prints the tail of the newest app file, `myapp.YYYY-MM-DD.log` in
+  `~/Library/Logs/com.example.myapp/`. The helper writes `myapp-cli.YYYY-MM-DD.log` in
+  that directory's `cli/` subdirectory, dated in UTC; read it with
+  `tail -n 100 ~/Library/Logs/com.example.myapp/cli/myapp-cli.$(date -u +%F).log`.
 - A line reads `<UTC timestamp>  INFO myapp_lib: startup complete pid=15240 smoke=true`
   (observed in this Mac's log, 2026-09-29). Each command logs one line naming itself
   (`log_outcome` in `src-tauri/src/commands.rs`), and the UI's forwarded warnings and

@@ -1,0 +1,8 @@
+# A justfile recipe running `cargo deny check` without --locked, which a workflow's `just deny` would rely on.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
+  just-check-matches-ci: []
+edits:
+  - file: justfile
+    from: "    cargo deny --locked check\n"
+    to: "    cargo deny check\n"

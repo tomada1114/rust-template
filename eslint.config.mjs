@@ -10,14 +10,14 @@ import tseslint from "typescript-eslint";
 // dynamic `import()`. An `import("…")` type is already refused everywhere by
 // consistent-type-imports.
 
-/** Only ui/src/ipc/ talks to Tauri (design D3). */
+/** Only ui/src/ipc/ talks to Tauri. */
 const TAURI_ONLY_IN_IPC = {
   group: ["@tauri-apps/*", "@tauri-apps/**"],
   specifier: /^@tauri-apps\//,
   message: "Only ui/src/ipc/ may import @tauri-apps/*. Add a typed wrapper there and import it.",
 };
 
-/** Generated bindings are reached through ui/src/ipc/types.ts (design D4). */
+/** Generated bindings are reached through ui/src/ipc/types.ts. */
 const GENERATED_ONLY_IN_IPC = {
   group: ["**/ipc/generated", "**/ipc/generated/**", "./generated/**", "../generated/**"],
   specifier: /(^|\/)ipc\/generated(\/|$)|^\.\.?\/generated\//,
@@ -39,6 +39,14 @@ const TESTING_ONLY_IN_TESTS_FROM_IPC = {
   group: ["**/ipc/testing", "**/ipc/testing.ts", "./testing", "./testing.ts"],
   specifier: /(^|\/)ipc\/testing(\.ts)?$|^\.\/testing(\.ts)?$/,
   message: TESTING_MESSAGE,
+};
+
+/** Inside ui/src/ipc/, Tauri's IPC mocks are reached only through ./testing, which tests import. */
+const API_MOCKS_ONLY_IN_TESTING = {
+  group: ["@tauri-apps/api/mocks", "@tauri-apps/api/mocks.*"],
+  specifier: /^@tauri-apps\/api\/mocks(\.[cm]?js)?$/,
+  message:
+    "Only ui/src/ipc/testing.ts and tests may import @tauri-apps/api/mocks; production code never mocks IPC.",
 };
 
 /** A computed `import()` specifier would slip past every boundary above. */
@@ -146,6 +154,12 @@ export default defineConfig([
     name: "ui/ipc-boundary",
     files: ["ui/src/ipc/**/*.ts"],
     // The one place that may talk to Tauri and read the generated bindings.
+    rules: importBoundaries(TESTING_ONLY_IN_TESTS_FROM_IPC, API_MOCKS_ONLY_IN_TESTING),
+  },
+  {
+    name: "ui/ipc-testing",
+    files: ["ui/src/ipc/testing.ts"],
+    // The test helpers wrap Tauri's IPC mocks; tests reach them only through this file.
     rules: importBoundaries(TESTING_ONLY_IN_TESTS_FROM_IPC),
   },
   {

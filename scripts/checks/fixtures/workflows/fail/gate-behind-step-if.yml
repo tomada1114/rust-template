@@ -1,0 +1,8 @@
+# The only step that runs a gate is behind an `if:`, so a pull request never runs it.
+expect:
+  workflow-hygiene: []
+  just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
+edits:
+  - file: .github/workflows/ci.yml
+    from: "      - run: just test-ui\n"
+    to: "      - if: github.event_name == 'push'\n        run: just test-ui\n"

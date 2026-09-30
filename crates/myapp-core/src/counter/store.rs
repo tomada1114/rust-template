@@ -16,7 +16,7 @@ pub struct StoredCounter {
     pub last_changed_at: Option<UnixMillis>,
 }
 
-/// Where the counter lives between launches. Synchronous on purpose (design D2): the
+/// Where the counter lives between launches. Synchronous on purpose: the
 /// shell moves calls onto a blocking thread.
 pub trait CounterStore: Send + Sync {
     /// The saved counter, or `Ok(None)` when nothing was saved yet — not an error.
@@ -56,7 +56,7 @@ pub trait CounterStore: Send + Sync {
 /// Why storage failed, as a code the UI can map to wording. A kind, not an error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub enum StorageErrorKind {
     /// The storage could not be read or written (missing permission, full disk, …).
     Unavailable,

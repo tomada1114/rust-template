@@ -1,6 +1,6 @@
 # Design system
 
-The base design system every screen is built from (design D23). It is deliberately
+The base design system every screen is built from. It is deliberately
 neutral and macOS-native, after Apple's
 [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)
 (checked 2026-09-28), so an app that never runs design research still looks like a Mac
@@ -63,7 +63,7 @@ durations become `0ms` under `prefers-reduced-motion: reduce`.
 | Primitive | Recipe |
 |---|---|
 | `Button` | A text push button. `variant="primary"` (accent fill) for the one main action in a view, `secondary` otherwise. Always `type="button"` unless it submits a form. |
-| `IconButton` | A glyph-only button. `label` is required and becomes the accessible name (`aria-label`, and the tooltip); the glyph is `aria-hidden`. Tests find it by that name (issue-triage #169). |
+| `IconButton` | A glyph-only button. `label` is required and becomes the accessible name (`aria-label`, and the tooltip); the glyph is `aria-hidden`. Tests find it by that name. |
 | `Stack` | A flex row or column: `direction`, `gap` (`s`/`m`/`l`), `align`. The only way screens space things. |
 | `Panel` | A raised surface. `as="section"` with `labelledBy` makes it a named landmark region. |
 | `Text` | Text in a style: `largeTitle`, `title`, `body`, `secondary`, `danger`; `as` picks the element, `role` makes it a live `status` or `alert`. |
@@ -73,9 +73,17 @@ A screen uses these and the tokens, never a literal value (`building-react-scree
 ## How it is enforced
 
 - **The literal check** (a harness check, `just check-harness`) fails on a raw color
-  (hex, `rgb()`, `hsl()`, a named color), a `font-family`, or a pixel font size anywhere
-  in `ui/src/` outside `tokens.css`. `currentColor`, `transparent`, `inherit`, `none`,
-  `initial`, and `unset` are allowed.
+  (hex, `rgb()`, `hsl()`, a named color, a CSS system color such as `CanvasText`, or a
+  WebKit one such as `-apple-system-label`), a `font-family`, or a pixel font size
+  outside `tokens.css` in anything the WebView styles with: everything under `ui/src/`,
+  each entry page directly under `ui/` such as `ui/index.html` (its `theme-color` meta
+  and inline scripts included), and the stylesheets in `ui/public/` (not its images or
+  vendored scripts). That includes a value carried by a local custom property, a
+  `const` (imported ones too), or a `let`. A file it cannot read fails it rather than
+  passing: a Less, indented Sass, Stylus, SugarSS, Vue, Svelte, MDX, or Astro file
+  (`ERR_CHECK_UI_UNSUPPORTED_FILE`), or an inline script of an unknown type, with a
+  syntax error, or with no `</script>` (`ERR_CHECK_UI_UNPARSED`). `currentColor`,
+  `transparent`, `inherit`, `none`, `initial`, and `unset` are allowed.
 - **The contrast test** (`ui/src/design/tokens.test.ts`, part of `just test-ui`) parses
   `tokens.css`, fails if a semantic color has no dark value of its own, and checks every
   pair in `contrast-pairs.ts` in both appearances: 4.5:1 for body text, 3:1 for large

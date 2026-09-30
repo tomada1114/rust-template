@@ -16,7 +16,7 @@ In the sample, `crates/myapp-core/src/counter/mod.rs`:
 /// What the UI renders. The only counter type that crosses IPC.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub struct CounterView {
     pub value: i64,
     pub last_changed_at: Option<UnixMillis>,
@@ -35,7 +35,7 @@ An argument the UI sends is a DTO deriving `Deserialize` instead. In the sample,
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub struct UiLogEntry {
     pub level: UiLogLevel,
     pub message: String,
@@ -53,10 +53,11 @@ so the expected JSON is written out by hand, not produced by serializing a value
 just bindings
 ```
 
-The recipe deletes `ui/src/ipc/generated/` and runs core's `export_bindings` tests,
-which ts-rs generates for each `#[ts(export)]` type
-(<https://docs.rs/ts-rs/latest/ts_rs/>, checked 2026-09-29). Then add the new type to
-`ui/src/ipc/types.ts`:
+The recipe (`scripts/bindings.ts`) runs core's `export_bindings` tests, the ones ts-rs
+generates for each type marked `ts(export)` and only the `export-bindings` feature
+compiles (<https://docs.rs/ts-rs/latest/ts_rs/>, checked 2026-09-29). They export into a
+fresh directory, which replaces `ui/src/ipc/generated/` only when the export succeeds.
+Then add the new type to `ui/src/ipc/types.ts`:
 
 ```ts
 export type { CounterView } from "./generated/CounterView";
@@ -92,14 +93,25 @@ pub async fn increment<R: Runtime>(
 
 `change` calls `on_blocking_thread`, logs the outcome, and on success calls
 `announce`, which emits `COUNTER_CHANGED`. A read-only command skips the emit
-(`get_counter`). A command whose use case takes an argument passes it into the closure
-by value, since the closure must own everything it touches.
+(`get_counter`).
+
+A command whose use case takes an argument cannot hand it to `on_blocking_thread` or
+`change`. Their `action` is a function pointer (`fn(&CounterService) -> …`), and a
+closure that captures the argument is not one: for a hypothetical use case
+`set_to(value)`, passing `move |service| service.set_to(value)` fails with E0308,
+mismatched types, whose note says a closure coerces to `fn` only when it captures
+nothing (<https://doc.rust-lang.org/error_codes/E0308.html>). Either widen the helper to
+a generic `F: FnOnce(&CounterService) -> Result<CounterView, CounterError> + Send +
+'static`, so the closure moves in only the argument and the helper keeps cloning the
+`Arc`, or call `tauri::async_runtime::spawn_blocking` in that command directly, with a
+`move` closure that owns the argument and its own `Arc::clone(&state.counter)`. Either
+way the closure runs on another thread, so it owns everything it touches.
 
 A command that takes an argument names it as the UI will (camelCase on the wire):
 
 ```rust
 #[tauri::command]
-pub fn log_from_ui(entry: UiLogEntry) { … }
+pub async fn log_from_ui(entry: UiLogEntry) { … }
 ```
 
 A new service goes into `AppState` as another `Arc` field, constructed in `build_state`

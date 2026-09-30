@@ -1,6 +1,6 @@
 /**
- * Content-shaped commit rules: text that must never land in a tracked file (design
- * D11). The union of macos-app-template's scripts/guard/credentials.sh and
+ * Content-shaped commit rules: text that must never land in a tracked file. The
+ * union of macos-app-template's scripts/guard/credentials.sh and
  * typescript-template's scripts/lib/guard/credentials.mjs, plus the signing secrets
  * release.yml and docs/distribution.md name: a `*_PASSWORD` assignment, and the base64
  * `.p12` in `APPLE_CERTIFICATE` (or any base64 PKCS#12, recognised by its version-3

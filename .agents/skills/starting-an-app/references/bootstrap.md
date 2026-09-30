@@ -13,19 +13,52 @@ script rewrites an **explicit list of placeholder sites**, never a global replac
 site is a known file and a known spelling, and a site the list does not name is left
 alone and caught by the leftover check below.
 
+## Before it runs
+
+`just install` first: the script imports its TOML and YAML parsers from `node_modules`
+and fails with `ERR_BOOTSTRAP_NO_DEPS` without them, and it formats with Prettier from
+there too. In a git work tree it refuses uncommitted or untracked changes
+(`ERR_BOOTSTRAP_DIRTY`), so the rewrite is the only change to review; outside one it
+still runs, without that check and without the closing scan for placeholders outside
+the site list.
+
 ## What it asks for
 
-It prompts for each value, or takes it as a flag for a non-interactive run, which is
-how CI's smoke runs it:
+Each value comes from its flag, else from a prompt on a terminal, else from its default:
 
-| Value | Template placeholder | Where it shows up |
-|---|---|---|
-| Display name | `MyApp` | `productName` and the window title in `tauri.conf.json`, the `.app` bundle name, README's title |
-| Slug | `myapp` | crate names (`myapp-core`), Rust identifiers (`myapp_core`), the environment variable prefix (`MYAPP_SMOKE`), binary and log file names |
-| Bundle identifier | `com.example.myapp` | `identifier` in `tauri.conf.json`, `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the `justfile`, the data and log directories |
-| GitHub `owner/repo` | this template's repository | the README badges, `SECURITY.md`'s advisory link, the attestation example in `docs/distribution.md` |
-| Author | the template's author | the metadata sites on the script's list |
-| Copyright holder | the template's owner | `LICENSE` |
+| Value | Flag | Template placeholder | Where it shows up |
+|---|---|---|---|
+| Display name | `--name` | `MyApp` | `productName` and the window title in `tauri.conf.json`, the `.app` bundle name, README's title |
+| Slug | `--slug` | `myapp` | crate names (`myapp-core`), Rust identifiers (`myapp_core`), the environment variable prefix (`MYAPP_SMOKE`), binary and log file names |
+| Bundle identifier | `--bundle-id` | `com.example.myapp` | `identifier` in `tauri.conf.json`, `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the `justfile`, the data and log directories |
+| GitHub `owner/repo` | `--repo` | this template's repository | the README badges, `SECURITY.md`'s advisory link, the attestation example in `docs/distribution.md` |
+| Author | `--author` | the template's author | the metadata sites on the script's list |
+| Copyright holder | `--copyright` | the template's owner | `LICENSE` |
+
+A flag takes its value as the next argument or after `=` (`--name="Tide Pool"`); quote a
+value with spaces, through `just` or `node` alike. `--yes` (`-y`) skips the prompts and
+the confirmation, and so does a run whose standard input is not a terminal: then the
+slug defaults to one derived from the name (`Tide Pool` becomes `tide-pool`), the
+copyright holder to the author, and any other missing value fails with
+`ERR_BOOTSTRAP_MISSING_VALUE`. On a terminal it shows every value and asks before it
+changes anything. `--help` prints the usage line; an unknown, repeated, or valueless
+flag fails with `ERR_BOOTSTRAP_USAGE`.
+
+Every value is trimmed and validated before anything is written, each failure with its
+own `ERR_BOOTSTRAP_INVALID_<FIELD>` code:
+
+- **Name**: 1-50 letters, digits, spaces, hyphens, or periods, starting and ending with
+  a letter or digit, no double space.
+- **Slug**: lower-case letters and digits in words joined by single hyphens, starting
+  with a letter, at most 40 characters; not a Rust keyword, a built-in crate, or a name
+  Cargo reserves, and not a package name a dependency already uses.
+- **Bundle identifier**: reverse-DNS, two or more dot-separated parts of letters,
+  digits, and hyphens, at most 155 characters; not under `com.apple.`, not ending in
+  `.app`.
+- **Repository**: `OWNER/REPO` as GitHub spells it, without `.git`.
+- **Author and copyright holder**: 1-100 printable characters on one line.
+- **Every value**: none may contain the placeholder `myapp` or the template's
+  repository name, because the leftover scan looks for them.
 
 The slug is used in three forms: hyphenated for crate and directory names, underscored
 where Rust needs an identifier (a hyphen is not legal in one), and upper-case for
@@ -36,34 +69,53 @@ machine it is fixed, because macOS keys the app's data, logs, and privacy grants
 
 ## What it does
 
-1. Rewrites the placeholder sites with the values above.
-2. Renames the crate directories under `crates/` to the new slug, and updates
-   `Cargo.lock` offline, so no network fetch and no new crate version slips into the
-   rename.
-3. Removes every `<!-- template-only -->` … `<!-- /template-only -->` block, and the
-   template's own design notes.
-4. Resets `CHANGELOG.md` to a fresh history and the version at its three sites to
-   `0.1.0`.
-5. Removes the template-only CI job, `Template Bootstrap Smoke`, and its required
-   context in `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the
-   app runs.
-6. Deletes itself.
-7. Prints the next steps: fill `AGENTS.md` › Product, fill
-   `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just install`,
-   `just labels`, `just ruleset`, and the GitHub security settings.
+Every edit is computed and checked in memory first, so a drifted site list fails
+(`ERR_BOOTSTRAP_SITE_MISSING`) with nothing written. Then:
+
+1. Runs `cargo fetch --locked`, which needs the network once: it downloads the versions
+   `Cargo.lock` already pins, and nothing is written if it fails (`ERR_BOOTSTRAP_FETCH`).
+2. Writes the planned edits in one pass: the placeholder sites with the values above;
+   every `<!-- template-only -->` … `<!-- /template-only -->` block, the `bootstrap`
+   recipe, and every passage that names it, removed; the passages outside a block that
+   hold only in the template (`TEXT_EDITS`: the Product section's introduction, the
+   README's first sentence, the checks' exclusion of `docs/template/`) rewritten; the
+   template-only CI job, `Template Bootstrap Smoke`, removed with its required context
+   in `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the app runs;
+   `CHANGELOG.md` reset to an empty `[Unreleased]` and the version at its three sites to
+   `0.1.0`; the author written into `package.json` and the copyright line into
+   `LICENSE`.
+3. Renames the crate directories under `crates/` to the new slug, and updates
+   `Cargo.lock` with `cargo update --workspace --offline`, so no new crate version slips
+   into the rename (`ERR_BOOTSTRAP_LOCKFILE`).
+4. Formats what it rewrote: `cargo fmt --all`, then Prettier on the rewritten files
+   that are neither Markdown nor Rust (`ERR_BOOTSTRAP_FORMAT`).
+5. Deletes the template's own material: `docs/template/`, this page in both skill
+   trees, `scripts/bootstrap.ts` and `scripts/verify-bootstrap.ts`, and their tests.
+6. Scans for a placeholder left outside the site list and warns about it, then prints
+   the next steps: `just install` and commit the rewrite, fill `AGENTS.md` › Product,
+   fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
+   to `main`, `just labels` (and `dependencies` added by hand to any Dependabot pull
+   request opened earlier), the GitHub security settings and the Renovate GitHub App,
+   and `just ruleset`.
+
+A failure from step 3 on leaves a half-rewritten clone; see "Running it, and running it
+again" below.
 
 ## How it is proven
 
 - `scripts/verify-bootstrap.ts` bootstraps a temporary copy of the tree and fails on
-  any leftover placeholder or template-only marker, a dangling skill reference, or a
-  mismatch between the names it produced.
+  any leftover placeholder or template-only marker, text that holds only in the
+  template (`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT`), a dangling skill reference, a
+  mismatch between the names it produced, or a Product section that filling its four
+  bullets does not make pass (`ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION`).
 - CI's `Template Bootstrap Smoke` job (macOS, `timeout-minutes: 60`) runs
   `scripts/verify-bootstrap.ts` first — the bootstrap itself only warns about a
   placeholder outside its site list, so this is the step that fails on one. It then
   bootstraps a fresh `git clone` with a hyphenated multi-word slug, asserts that
   `just check-harness` **fails** with the Product-section code (the check must fire on
-  an app nobody has described yet), writes a stub Product section in that copy, and
-  runs `just check` there. It runs on every pull request, so the bootstrap cannot rot unnoticed.
+  an app nobody has described yet), runs `just test-scripts` on that unfilled app,
+  fills in only the Product section's four bullets, and runs `just check` there. It
+  runs on every pull request, so the bootstrap cannot rot unnoticed.
 - The generated tree, not this checkout, is what a bootstrap change is tested against.
   Build the temporary copy from the tracked files (`git ls-files`), never the working
   directory, so ignored build output (`target/`, `node_modules/`) cannot change a

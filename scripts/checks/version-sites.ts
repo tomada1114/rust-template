@@ -1,5 +1,5 @@
 /**
- * The app's version is one value at its three sites (design D18): `version` under
+ * The app's version is one value at its three sites: `version` under
  * `[workspace.package]` in Cargo.toml, `version` in src-tauri/tauri.conf.json, and
  * `version` in package.json. `just release-prep` sets all three, and the release
  * workflow refuses a tag that differs from them; this catches a hand edit to one of
@@ -65,7 +65,7 @@ function run(root: string): FailureDetails[] {
       violations.push({
         code: "ERR_CHECK_INPUT_MISSING",
         summary: `${site.path} does not exist`,
-        expected: `${site.path}, one of the app's three version sites (design D18)`,
+        expected: `${site.path}, one of the app's three version sites`,
         actual: "no such file",
         next: `restore ${site.path} from version control`,
       });
@@ -84,7 +84,7 @@ function run(root: string): FailureDetails[] {
       code: "ERR_CHECK_VERSION_DIVERGED",
       summary: "the app's version differs between its three sites",
       expected:
-        "one version in Cargo.toml [workspace.package], src-tauri/tauri.conf.json, and package.json (design D18)",
+        "one version in Cargo.toml [workspace.package], src-tauri/tauri.conf.json, and package.json",
       actual: found.map((f) => `${f.path}: ${f.version}`).join("; "),
       next: "run `just release-prep <version>`, which sets all three and Cargo.lock, rather than editing one by hand",
     });

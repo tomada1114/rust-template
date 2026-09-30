@@ -1,5 +1,5 @@
 /**
- * `just smoke`: the launch smoke (design D15, D22). Builds the release `.app` (app bundle
+ * `just smoke`: the launch smoke. Builds the release `.app` (app bundle
  * only — never a disk image locally), checks its signature, its entitlements, and the
  * bundled helper, then runs the app's executable directly with `MYAPP_SMOKE=1` — never
  * through `open`, which would activate it. In smoke mode the app shows no window, takes
@@ -7,17 +7,19 @@
  * It first runs the executable in smoke mode with `HOME` unset, which must fail startup
  * cleanly: exit 1 (not a signal) and `HOME is not set` on stderr.
  *
- * Failure codes: ERR_SMOKE_ARGS, ERR_SMOKE_HOME, ERR_SMOKE_BUILD, ERR_SMOKE_APP_MISSING,
- * ERR_SMOKE_CODESIGN, ERR_SMOKE_ENTITLEMENTS, ERR_SMOKE_SIDECAR, ERR_SMOKE_STARTUP_ERROR,
- * ERR_SMOKE_EXIT, ERR_SMOKE_STARTUP_LINE.
+ * Failure codes: ERR_SMOKE_ARGS, ERR_SMOKE_HOME, ERR_SMOKE_TARGET_DIR, ERR_SMOKE_BUILD,
+ * ERR_SMOKE_APP_MISSING, ERR_SMOKE_CODESIGN, ERR_SMOKE_ENTITLEMENTS, ERR_SMOKE_SIDECAR,
+ * ERR_SMOKE_STARTUP_ERROR, ERR_SMOKE_EXIT, ERR_SMOKE_STARTUP_LINE.
  *
  * Usage: node scripts/smoke.ts [--app <path to MyApp.app>]
  * With --app it checks an already-built bundle (the release workflow's artifact) instead
- * of building one.
+ * of building one. Without it, the bundle is looked for under the target directory
+ * `cargo metadata` reports, where the Tauri CLI puts it.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import { cargoTargetDir } from "./lib/cargo.ts";
 import { ScriptError } from "./lib/fail.ts";
 import { runScript, type ScriptContext } from "./lib/script.ts";
 
@@ -62,9 +64,16 @@ export function newestLog(dir: string, prefix: string): string | undefined {
   return candidates[0]?.path;
 }
 
-/** The `startup complete` line written by the process with this pid, if any. */
+/**
+ * The shell's own `startup complete` line written by the process with this pid, if any:
+ * an optional timestamp, `INFO`, then a target other than `ui` (the bootstrap renames the
+ * shell's crate, so its target is not spelled out) — a UI message quoting the text never
+ * matches.
+ */
 export function startupLineFor(text: string, pid: number): string | undefined {
-  const pattern = new RegExp(`startup complete.*\\bpid=${String(pid)}\\b`);
+  const pattern = new RegExp(
+    `^(?:\\S+\\s+)?INFO (?!ui:)[A-Za-z0-9_:]+: startup complete pid=${String(pid)}\\b`,
+  );
   return text.split("\n").find((line) => pattern.test(line));
 }
 
@@ -110,10 +119,12 @@ export function main(context: ScriptContext): void {
     );
   }
 
-  let app = options.app ?? join(root, "target", "release", "bundle", "macos", `${APP_NAME}.app`);
+  let app = options.app;
   if (options.build) {
+    // The Tauri CLI runs cargo in src-tauri/, where a relative CARGO_TARGET_DIR resolves.
+    const targetDir = cargoTargetDir(run, join(root, "src-tauri"), "SMOKE");
     log("smoke: building the release app bundle (no disk image)");
-    const built = run("pnpm", ["tauri", "build", "--bundles", "app"], {
+    const built = run("pnpm", ["tauri", "build", "--bundles", "app", "--", "--locked"], {
       cwd: root,
       inherit: true,
       env: withoutSigning(context.env),
@@ -122,18 +133,18 @@ export function main(context: ScriptContext): void {
       fail(
         "ERR_SMOKE_BUILD",
         "the release build failed",
-        "`pnpm tauri build --bundles app` to exit 0",
+        "`pnpm tauri build --bundles app -- --locked` to exit 0",
         `exit status ${String(built.status)}`,
         "read the build output above, fix it, and rerun `just smoke`",
       );
     }
-    app = join(root, "target", "release", "bundle", "macos", `${APP_NAME}.app`);
+    app = join(targetDir, "release", "bundle", "macos", `${APP_NAME}.app`);
   }
-  if (!existsSync(app)) {
+  if (app === undefined || !existsSync(app)) {
     fail(
       "ERR_SMOKE_APP_MISSING",
       "the app bundle is not there",
-      app,
+      app ?? `${APP_NAME}.app`,
       "no such directory",
       "build it with `just smoke` (no --app), or pass the right path",
     );

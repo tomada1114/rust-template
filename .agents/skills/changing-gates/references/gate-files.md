@@ -25,15 +25,25 @@ current values.
 - Core's file adds the bans that keep I/O, time, the environment, processes, and sleeping
   behind ports (`disallowed-macros`, `disallowed-methods`, `disallowed-types`, each with a
   `reason` clippy prints).
-- clippy uses the first `clippy.toml` it finds walking up from the crate's directory
-  and merges nothing (https://doc.rust-lang.org/clippy/configuration.html, checked
-  2026-09-29), so a crate-local file replaces the root one entirely. That is why core's file repeats the two test settings; a new crate-local
-  file must do the same.
+- clippy uses the first `clippy.toml` it finds walking up from the crate's directory and
+  merges nothing (https://doc.rust-lang.org/clippy/configuration.html, checked
+  2026-09-29), so a crate-local file replaces the root one entirely. That is why core's
+  file repeats the two test settings; a new crate-local file must do the same.
 - Core also denies `clippy::wildcard_enum_match_arm` in its source, so a `match` on a
   core enum names every variant and a new variant is a compile error wherever a decision
   is owed.
 - Core's ban list and `AGENTS.md`'s description of it change together. Adding a ban is
   the routine direction; removing one is weakening a gate.
+- A `path` clippy cannot resolve (a typo, an item a Rust release renamed or moved, a
+  `std::os::unix` path on another target) is only a configuration warning, which
+  `-D warnings` does not turn into an error, so the ban would silently do nothing.
+  `just lint` and CI's clippy steps therefore run clippy through `scripts/clippy-guard.ts`,
+  which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on such a path, and with
+  `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic located in a `clippy.toml` (a
+  deprecated key, which clippy also only warns about, or an unknown one). Clippy's
+  suggested `allow-invalid = true` hides the warning, which makes it weakening a gate;
+  fix the path instead. CI's Linux and macOS jobs both run the
+  guard, so a path must resolve on both.
 
 ## `rustfmt.toml`
 
@@ -65,10 +75,13 @@ does not pin. Changing an option reformats the whole tree: land the option and t
 
 ## `rust-toolchain.toml`, `mise.toml`, and `package.json`'s `packageManager`
 
-Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup and mise both
-read it), Node and every CLI tool in `mise.toml`, pnpm in `packageManager`. Never
-`latest`, never a range, and prefer the prebuilt-binary backends over `cargo:`, which
-compiles from source. Renovate opens the bumps after its 7-day minimum release age.
+Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup reads it;
+`mise.toml` lists no `rust` tool), Node and every CLI tool in `mise.toml`, pnpm in
+`packageManager`. Never `latest`, never a range, and prefer the prebuilt-binary backends
+over `cargo:`, which compiles from source. Renovate opens the bumps for the first two
+after its 7-day minimum release age; its `enabledManagers` in `.github/renovate.json`
+are `mise` and `rust-toolchain` only, so it never touches `packageManager`, and
+`package.json` is Dependabot's `npm` ecosystem (`.github/dependabot.yml`).
 
 A bump of Rust, clippy, ESLint, typescript-eslint, or TypeScript can fire a finding
 the old version did not. The fix goes into the code on that pull request; skipping the
@@ -78,7 +91,13 @@ only what each job names.
 
 ## `lefthook.yml`
 
-- `skip: [merge, rebase]`: a merge or rebase replays commits that already passed.
+- `skip: [merge, rebase]` sits on the four style jobs only, never on the hook: the
+  commit that concludes a conflicted merge carries a resolution no hook has seen, so the
+  staged guard and the skills mirror run for it, while the style jobs, which CI reruns
+  over the whole tree, skip re-linting everything the other side changed. A `reword` or
+  a `git commit --amend` at an `edit` stop runs the guard and the mirror too, over what
+  is staged against HEAD at that stop. `scripts/lefthook.test.ts` drives a real
+  conflicted merge and a conflicted rebase stop through the real lefthook.
 - `parallel: true`: every job is check-only, so none depends on another's output. A
   job that wrote files would break that and would need ordering; that is one more
   reason jobs never write.
@@ -92,11 +111,13 @@ only what each job names.
 ## `eslint.config.mjs`
 
 - The IPC boundary keeps `@tauri-apps/*` and `ui/src/ipc/generated/` inside
-  `ui/src/ipc/`, and `ui/src/ipc/testing.ts` inside tests and `ui/src/test/`. Each
+  `ui/src/ipc/`, `ui/src/ipc/testing.ts` inside tests and `ui/src/test/`, and, inside
+  `ui/src/ipc/`, `@tauri-apps/api/mocks` inside `testing.ts` and tests. Each
   boundary object feeds two rules through `importBoundaries()`: `no-restricted-imports`
   (import and export declarations) and `no-restricted-syntax` (a dynamic `import()`,
   which that rule never sees; a computed `import()` specifier is refused outright).
-  The `ui/react`, `ui/ipc-boundary`, `ui/tests`, and `ui/ipc-tests` blocks each pass
+  The `ui/react`, `ui/ipc-boundary`, `ui/ipc-testing`, `ui/tests`, and `ui/ipc-tests`
+  blocks each pass
   their full set. A later config object that gives a rule options **replaces** the
   earlier options rather than merging them
   (https://eslint.org/docs/latest/use/configure/rules, checked 2026-09-29), so a new
@@ -108,8 +129,8 @@ only what each job names.
 - `switch-exhaustiveness-check` sets `considerDefaultExhaustiveForUnions` and
   `allowDefaultCaseForExhaustiveSwitch` to `false`: a `switch` over a union names every
   member and has no `default`.
-- `scripts/typescript-gates.test.ts` probes each of these, and `ui/tsconfig.json`'s
-  `erasableSyntaxOnly`, against the real configs (`just test-scripts`).
+- `scripts/typescript-gates.test.ts` probes each of these, and `erasableSyntaxOnly` in
+  `tsconfig.json` and `ui/tsconfig.json`, against the real configs (`just test-scripts`).
 - `linterOptions.reportUnusedDisableDirectives: "error"` makes a stale disable comment
   fail.
 - `eslintConfigPrettier` stays the last element; anywhere else it stops turning off the
@@ -118,19 +139,20 @@ only what each job names.
 
 ## `tsconfig.json`, `ui/tsconfig.json`, `scripts/tsconfig.json`
 
-Three configs, one per tree: the root config files, the UI Vite bundles, and the
-scripts Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all
-three. `scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types
-without transforming code, so `enum`, `namespace`, and parameter properties would fail at
-run time, not at type-check time. `ui/tsconfig.json` sets it too, so `ui/src/` keeps the
-same language. Removing a strict option (`strict`,
-`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking for every
-file in that tree.
+Three configs, one per tree: the root config files, the UI Vite bundles, and the scripts
+Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all three.
+`scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types without
+transforming code, so `enum`, `namespace`, and parameter properties would fail at run
+time, not at type-check time. `ui/tsconfig.json` and the root `tsconfig.json` set it too,
+so `ui/src/` and the root config files keep the same language. Removing a strict option
+(`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking
+for every file in that tree.
 
 ## `vitest.config.ts`
 
 - `thresholds` are per glob (`ui/src/**` 80/80, `scripts/**` 85/90,
-  `scripts/lib/guard/**` 90/100) so one tree cannot subsidise another.
+  `.agents/skills/*/scripts/**` 85/90, `scripts/lib/guard/**` 90/100) so one tree
+  cannot subsidise another.
 - `coverage.include` counts every source file, tested or not, so a new untested file
   shows as 0% rather than disappearing. Each `exclude` entry that takes source code out
   carries a reason; a new one is weakening unless the file holds nothing to decide
@@ -194,9 +216,18 @@ narrows a security-relevant step says why the protection no longer applies.
 
 ## `.github/rulesets/main.json`
 
-Each required context is a job `name:` in a `pull_request` workflow, and
-`just check-harness` fails when one names no job. Renaming or splitting a required job,
-or adding one, edits this file in the same pull request; `just ruleset` then applies it
-to the live repository, which is a human's step. A new job is not required until the
-owner decides it is: adding one never adds its context here on its own. `bypass_actors` stays empty: a bypass
-lets an admin token merge without the checks the ruleset exists to require.
+Each required context is a job `name:` in a `pull_request` workflow that runs on every
+pull request, and `just check-harness` fails when one names no job, or only a job whose
+workflow filters `paths` or `branches` or whose `if:` (or a `needs` job's) can be false on
+a pull request: such a check never reports, or is skipped and passes unrun. Renaming or
+splitting a required job, or adding one, edits this file in the same pull request; `just
+ruleset` then applies it to the live repository, which is a human's step. A new job is not
+required until the owner decides it is: adding one never adds its context here on its own.
+`bypass_actors` stays empty: a bypass lets an admin token merge without the checks the
+ruleset exists to require.
+
+The check needs the default branch's name only when a required job's `pull_request`
+trigger filters branches. It reads it offline from the one literal branch in `ci.yml`'s
+`on: push: branches:` (patterns aside), checked against the clone's `origin/HEAD`, or
+from `origin/HEAD` alone when `ci.yml` names no single literal branch, so those push
+branches are a gate input: renaming the default branch renames it there too.

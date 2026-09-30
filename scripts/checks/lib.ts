@@ -1,5 +1,5 @@
 /**
- * The shape every harness check under `scripts/checks/` shares (design D14). A check
+ * The shape every harness check under `scripts/checks/` shares. A check
  * module exports `check`: a name and a `run(root)` that returns its violations (empty
  * when the claim holds), so the runner (`scripts/check-harness.ts`, `just check-harness`)
  * can run them all and a test can run one against a fixture root. Each module also runs

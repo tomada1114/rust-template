@@ -1,5 +1,5 @@
 /**
- * The three supply-chain cooldowns wait the same number of days (design D8, D14):
+ * The three supply-chain cooldowns wait the same number of days:
  * Dependabot's `cooldown`, Renovate's `minimumReleaseAge`, and pnpm's
  * `minimumReleaseAge`. A bot that waits less than pnpm opens a PR whose install pnpm
  * refuses; one that waits more holds back a release the other bot already pulled.
@@ -10,10 +10,13 @@
  *
  * Files, each optional (an absent one is not compared):
  *   - .github/dependabot.yml|.yaml: every `updates[]` entry's `cooldown.default-days`,
- *     a whole number of days. The per-semver `semver-*-days` are not read.
- *   - the first JSON Renovate config found (workflow-hygiene.ts's RENOVATE_FILES):
- *     the top-level `minimumReleaseAge` (required) and any in `packageRules`, each a
- *     duration read by toDays (`7 days`, `1 week`, `168 hours`, `10080 minutes`).
+ *     a whole number of days, and each `semver-major-days`, `semver-minor-days`, and
+ *     `semver-patch-days` it sets (a whole number, 0 included, so `semver-patch-days: 0`
+ *     disagrees with a 7-day policy instead of passing unseen).
+ *   - the Renovate config (shared/workflows.ts's readRenovate: the first of
+ *     RENOVATE_FILES present): the top-level `minimumReleaseAge` (required) and any in
+ *     `packageRules`, each a duration read by toDays (`7 days`, `1 week`, `168 hours`,
+ *     `10080 minutes`). A JSON5 config is unreadable here, never skipped.
  *   - pnpm-workspace.yaml: `minimumReleaseAge`, in minutes (10080 = 7 days).
  * Every stated value must be a whole number of days, and all of them the same number.
  *
@@ -21,16 +24,17 @@
  *
  * Errors (FailureDetails; the runner prints them all):
  *   ERR_CHECK_USAGE                   bad arguments (scripts/checks/lib.ts)
- *   ERR_CHECK_BOTS_UNREADABLE         a config does not parse
+ *   ERR_CHECK_BOTS_UNREADABLE         a config does not parse, or the Renovate config is JSON5
  *   ERR_CHECK_BOTS_COOLDOWN_MISSING   a present config states no cooldown, or one that is not whole days
  *   ERR_CHECK_BOTS_COOLDOWN_DISAGREE  the stated cooldowns are not all the same number of days
  */
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
-import { DEPENDABOT_FILES, isRecord, readYaml, RENOVATE_FILES } from "./shared/workflows.ts";
+import { DEPENDABOT_FILES, isRecord, readRenovate, readYaml } from "./shared/workflows.ts";
 
 const PNPM_WORKSPACE = "pnpm-workspace.yaml";
+const SEMVER_DAYS = ["semver-major-days", "semver-minor-days", "semver-patch-days"];
 const MINUTES_PER_DAY = 24 * 60;
 const UNIT_MINUTES: Record<string, number> = {
   m: 1,
@@ -91,34 +95,37 @@ function dependabot(root: string): Reading {
   (Array.isArray(updates) ? updates : []).forEach((entry: unknown, index) => {
     if (!isRecord(entry)) return;
     const ecosystem = entry["package-ecosystem"];
-    const cooldown = entry["cooldown"];
-    const value = isRecord(cooldown) ? cooldown["default-days"] : undefined;
-    const keys = ["updates", index, "cooldown", "default-days"];
+    const who = `Dependabot \`${typeof ecosystem === "string" ? ecosystem : `updates[${String(index)}]`}\``;
+    const cooldown = isRecord(entry["cooldown"]) ? entry["cooldown"] : {};
+    const at = (key: string): string =>
+      `${path}:${String(file.locate(["updates", index, "cooldown", key]).line)}`;
+    const value = cooldown["default-days"];
     cooldowns.push({
-      where: `${path}:${String(file.locate(keys).line)}`,
-      setting: `Dependabot \`${typeof ecosystem === "string" ? ecosystem : `updates[${String(index)}]`}\` cooldown.default-days`,
+      where: at("default-days"),
+      setting: `${who} cooldown.default-days`,
       value,
       days: typeof value === "number" ? wholeDays(value * MINUTES_PER_DAY) : undefined,
     });
+    for (const key of SEMVER_DAYS.filter((name) => cooldown[name] !== undefined)) {
+      const days = cooldown[key];
+      cooldowns.push({
+        where: at(key),
+        setting: `${who} cooldown.${key}`,
+        value: days,
+        days: typeof days === "number" && Number.isInteger(days) && days >= 0 ? days : undefined,
+      });
+    }
   });
   return { cooldowns, unreadable: [] };
 }
 
 function renovate(root: string): Reading {
-  const path = RENOVATE_FILES.find((candidate) => readRepoFile(root, candidate) !== undefined);
-  if (path === undefined) return EMPTY;
-  let config: unknown;
-  try {
-    config = JSON.parse(readRepoFile(root, path) ?? "");
-  } catch (error: unknown) {
-    return {
-      cooldowns: [],
-      unreadable: [`${path}: not JSON (${error instanceof Error ? error.message : String(error)})`],
-    };
-  }
-  const top = isRecord(config) ? config : {};
-  const entries: [string, unknown][] = [["minimumReleaseAge", top["minimumReleaseAge"]]];
-  const rules = top["packageRules"];
+  const reading = readRenovate(root);
+  if (reading === undefined) return EMPTY;
+  if ("problem" in reading) return { cooldowns: [], unreadable: [reading.problem] };
+  const { path, config } = reading;
+  const entries: [string, unknown][] = [["minimumReleaseAge", config["minimumReleaseAge"]]];
+  const rules = config["packageRules"];
   (Array.isArray(rules) ? rules : []).forEach((rule: unknown, index) => {
     if (isRecord(rule) && rule["minimumReleaseAge"] !== undefined) {
       entries.push([`packageRules[${String(index)}].minimumReleaseAge`, rule["minimumReleaseAge"]]);
@@ -175,7 +182,7 @@ export const check: Check = {
         code: "ERR_CHECK_BOTS_COOLDOWN_MISSING",
         summary: `${cooldown.where}: ${cooldown.setting} is ${cooldown.value === undefined ? "not set" : "not a whole number of days"}`,
         expected:
-          "every Dependabot entry's cooldown.default-days, Renovate's minimumReleaseAge, and pnpm's minimumReleaseAge (minutes) set to a whole number of days",
+          "every Dependabot entry's cooldown.default-days (and any semver-*-days), Renovate's minimumReleaseAge, and pnpm's minimumReleaseAge (minutes) set to a whole number of days",
         actual: cooldown.value === undefined ? "absent" : JSON.stringify(cooldown.value),
         next: NEXT,
       });
@@ -186,7 +193,7 @@ export const check: Check = {
         code: "ERR_CHECK_BOTS_COOLDOWN_DISAGREE",
         summary: "the supply-chain cooldowns are not the same number of days",
         expected:
-          "Dependabot's cooldown, Renovate's minimumReleaseAge, and pnpm's minimumReleaseAge equal",
+          "Dependabot's cooldown (default-days and every semver-*-days), Renovate's minimumReleaseAge, and pnpm's minimumReleaseAge equal",
         actual: stated
           .map((entry) => `${entry.where}: ${entry.setting} = ${String(entry.days)} day(s)`)
           .join("; "),

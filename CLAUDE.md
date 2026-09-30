@@ -9,14 +9,19 @@ only records what Claude Code adds on top of them.
   their `paths:` globs (`AGENTS.md` › Rules lists them). They restate nothing a gate
   already enforces; the gate's config is the source of truth.
 - **`.claude/settings.json` is committed and reviewed like code.** Its `allow` list
-  covers the `just` recipes that neither open a window nor write to GitHub, and
-  read-only `gh`; its `deny` list refuses `git commit --no-verify`/`-n`, force pushes,
-  and edits to `src-tauri/Entitlements.plist`. Its one `PostToolUse` hook runs
-  `scripts/format-edited-file.ts` on the file an `Edit`/`Write`/`MultiEdit` touched
-  (rustfmt for `.rs`, Prettier for `.ts`/`.tsx`) and reports a formatter failure back
-  to you; the git hook and CI remain the gate. Personal permissions belong in
-  `~/.claude/settings.json` or the gitignored `.claude/settings.local.json`, and editing
-  either needs a human's sign-off (`AGENTS.md` › Security and human approval).
+  covers the `just` recipes that neither open a window nor write to GitHub (a harness
+  check keeps the others out), and read-only `gh`; its `deny` list refuses the hook
+  bypasses (`git commit --no-verify`/`-n` and its abbreviations, `LEFTHOOK=0` and its
+  siblings, `core.hooksPath`), force pushes, a second `-X`/`--method` on an allowed
+  `gh api` read, `--web` on the allowed `gh` reads, and edits to
+  `src-tauri/Entitlements.plist`. Its one `PostToolUse` hook runs
+  `scripts/format-edited-file.ts` on the one file an `Edit`/`Write`/`MultiEdit` touched
+  (rustfmt for `.rs`, fed on stdin so a `mod` child is not rewritten; Prettier for the
+  TypeScript, JavaScript, JSON, CSS, HTML, and YAML the pre-commit hook checks) and
+  reports a formatter failure back to you; the git hook and CI remain the gate.
+  Personal permissions belong in `~/.claude/settings.json` or the gitignored
+  `.claude/settings.local.json`, and editing either needs a human's sign-off
+  (`AGENTS.md` › Security and human approval).
 - **Sub-agent tiers.** `.claude/agents/` defines `executor` (`opus`, low effort),
   `architect` (`opus`, high effort), and `worker` (`sonnet`, medium effort); hand a
   step to one by `subagent_type`, never by a bare `model`. A same-named agent in

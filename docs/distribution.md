@@ -26,7 +26,9 @@ Silicon graph only.
 bundle only, never a disk image: Tauri's disk-image step drives Finder through
 AppleScript unless `CI=true`
 (<https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-bundler/src/bundle/macos/dmg/mod.rs>,
-checked 2026-09-28), so only the release workflow on a CI runner builds one. Every
+checked 2026-09-28), so only the release workflow on a CI runner builds one.
+`tauri.conf.json`'s `bundle.targets` is `["app"]`, so a plain `pnpm tauri build` makes
+no disk image either; the release workflow asks for one with `--bundles app,dmg`. Every
 building recipe unsets the `APPLE_*` variables, so a local build is always ad-hoc signed
 and never signs as a developer or contacts Apple.
 
@@ -52,8 +54,9 @@ signing pass.
    (`[workspace.package]`), `src-tauri/tauri.conf.json`, and `package.json`;
    otherwise the job fails.
 3. **Tests.** The core and UI tests run again: nothing unverified ships.
-4. **Build.** `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg`, signed
-   as described below. Rust's build cache is not used on this path.
+4. **Build.** `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg --
+   --locked` (the `--locked` goes to cargo), signed as described below. Rust's build
+   cache is not used on this path.
 5. **Verify** the built app before anything is uploaded (see
    [Verifying a build](#verifying-a-build)).
 6. **Publish.** A `SHA256SUMS` file, a build-provenance attestation
@@ -73,12 +76,18 @@ just release-prep 0.2.0            # writes the three version sites, Cargo.lock,
 git switch -c release/0.2.0
 git add Cargo.toml Cargo.lock src-tauri/tauri.conf.json package.json CHANGELOG.md
 git commit -m 'chore: release v0.2.0'
-gh pr create --fill
+git push -u origin release/0.2.0
+gh pr create --base main --title 'chore: release v0.2.0' --body-file release-pr.md
 # once that pull request is merged into main:
 git switch main && git pull
 git tag v0.2.0
 git push origin v0.2.0             # pushing the tag starts the release
 ```
+
+`release-pr.md` is a scratch copy of `.github/PULL_REQUEST_TEMPLATE.md` filled in, never
+committed: the Summary, its `**Release impact:**` line naming the level of this release,
+the Test Plan, and the Checklist, the same body the `create-pr` skill writes. Filling the
+body from the commit message instead (`--fill`) drops all four.
 
 ## The two signing paths
 
@@ -179,11 +188,11 @@ gh attestation verify "MyApp_0.2.0_aarch64.dmg" --repo tomada1114/tauri-template
 ## The App Sandbox is off
 
 `Entitlements.plist` does not set `com.apple.security.app-sandbox`, which is Tauri's
-default. The first app cut from this template manages launchd jobs: it must write
-`~/Library/LaunchAgents` and run `launchctl`, which the sandbox forbids. What that
-costs:
+default. It starts off so that an app can reach what the sandbox forbids — managing
+launchd jobs for its bundled helper, for example, means writing `~/Library/LaunchAgents`
+and running `launchctl`. What that costs:
 
-- **The Mac App Store is out.** The sandbox is a store requirement; this template ships
+- **The Mac App Store is out.** The sandbox is a store requirement; releases here ship
   through direct download anyway.
 - **A bug reaches further.** An unsandboxed app can touch anything the user can, which
   is why the core bans direct I/O and every OS call sits in a reviewed adapter.

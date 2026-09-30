@@ -262,7 +262,20 @@ fi
 poll_runs() {
   gh run list --commit "$HEAD_SHA" --limit 100 \
     --json databaseId,workflowName,status,conclusion,url \
-    -q '.[] | [.databaseId, .workflowName, .status, .conclusion, .url] | @tsv' 2>/dev/null
+    -q '.[] | [.databaseId, .workflowName, .status, .conclusion, .url] | @tsv' 2>/dev/null \
+    | newest_run_per_workflow
+}
+
+# A workflow with `cancel-in-progress` leaves a `cancelled` run behind every
+# time a newer one starts on the same commit, so only the newest run of each
+# workflow speaks for it. Newest is the highest databaseId: GitHub assigns it
+# in creation order, and a re-run keeps its id, so it cannot be outranked by
+# an older run the way a createdAt tie could.
+newest_run_per_workflow() {
+  awk -F'\t' '
+    !($2 in best) || $1 + 0 > id[$2] + 0 { best[$2] = $0; id[$2] = $1 }
+    !($2 in seen) { seen[$2] = 1; order[++n] = $2 }
+    END { for (i = 1; i <= n; i++) print best[order[i]] }'
 }
 
 poll_statuses() {

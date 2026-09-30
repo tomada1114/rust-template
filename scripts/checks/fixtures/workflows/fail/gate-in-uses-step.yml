@@ -1,0 +1,8 @@
+# A gate's `run:` on a step that also names `uses:`, which GitHub never runs as a script.
+expect:
+  workflow-hygiene: []
+  just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
+edits:
+  - file: .github/workflows/ci.yml
+    from: "      - run: just test-ui\n"
+    to: "      - uses: ./.github/actions/setup\n        run: just test-ui\n"

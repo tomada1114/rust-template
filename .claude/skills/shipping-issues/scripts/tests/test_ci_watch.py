@@ -317,7 +317,7 @@ exec "{fake_gh}" "$@"
             "mergeable,mergeStateStatus,reviewDecision,isDraft,state",
         )
         proc, calls = run_script(
-            [pr, "--timeout", "1"],
+            [pr, "--timeout", "600"],
             {
                 rollup: "1\n",
                 checks_watch: "",
@@ -354,7 +354,7 @@ exec "{fake_gh}" "$@"
             for pending in ("PENDING", "QUEUED", "IN_PROGRESS"):
                 with self.subTest(watch_rc=watch_rc, pending=pending):
                     proc, calls = run_script(
-                        [pr, "--timeout", "1"],
+                        [pr, "--timeout", "600"],
                         {
                             ROLLUP(pr): "2\n",
                             checks_watch: "",
@@ -382,7 +382,7 @@ exec "{fake_gh}" "$@"
     def test_green_completions_other_than_success_still_pass(self):
         pr = "25"
         proc, calls = run_script(
-            [pr, "--timeout", "1"],
+            [pr, "--timeout", "600"],
             {
                 ROLLUP(pr): "3\n",
                 ("pr", "checks", pr, "--watch", "--interval", "20"): "",
@@ -400,7 +400,7 @@ exec "{fake_gh}" "$@"
         # A failed check is final; waiting on the rest changes nothing.
         pr = "26"
         proc, calls = run_script(
-            [pr, "--timeout", "1"],
+            [pr, "--timeout", "600"],
             {
                 ROLLUP(pr): "2\n",
                 ("pr", "checks", pr, "--watch", "--interval", "20"): "",
@@ -428,7 +428,7 @@ exec "{fake_gh}" "$@"
         )
         run_view = ("run", "view", "123", "--log-failed")
         proc, calls = run_script(
-            [pr, "--timeout", "1", "--log-bytes", "32"],
+            [pr, "--timeout", "600", "--log-bytes", "32"],
             {
                 rollup: "1\n",
                 checks_watch: "",
@@ -562,6 +562,38 @@ class CiWatchFallbackTest(unittest.TestCase):
         self.assertNotIn("  - CI [completed/success]", proc.stdout)
         self.assertEqual([c for c in calls if c[:2] == ["run", "view"]],
                          [["run", "view", "2", "--log-failed"]])
+
+    def test_a_cancelled_run_superseded_by_a_newer_run_is_ignored(self):
+        # cancel-in-progress leaves the older run of a workflow cancelled
+        # whenever a PR edit starts a newer one; only the newest run counts.
+        pr = "37"
+        self.args = [pr]
+        proc, calls = self.forbidden(pr, {
+            RUNS(SHA): (
+                "12\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/12\n"
+                "11\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/11\n"
+                "5\tCI\tcompleted\tsuccess\thttps://x/actions/runs/5\n"
+            ),
+        })
+
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("verdict: PASS\n", proc.stdout)
+        self.assertEqual([c for c in calls if c[:2] == ["run", "view"]], [])
+
+    def test_a_cancelled_run_that_is_the_newest_of_its_workflow_fails(self):
+        pr = "38"
+        self.args = [pr]
+        proc, _ = self.forbidden(pr, {
+            RUNS(SHA): (
+                "11\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/11\n"
+                "12\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/12\n"
+            ),
+            ("run", "view", "12", "--log-failed"): "cancelled\n",
+        })
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("verdict: FAIL\n", proc.stdout)
+        self.assertIn("  - PR Title [completed/cancelled] ", proc.stdout)
 
     def test_failing_commit_status_fails_without_an_actions_run(self):
         # Commit statuses are the other half of what a fine-grained PAT can

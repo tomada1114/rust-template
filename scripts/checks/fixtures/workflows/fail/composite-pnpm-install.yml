@@ -1,0 +1,8 @@
+# A local composite action that runs `pnpm install` without the lockfile.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
+  just-check-matches-ci: []
+edits:
+  - file: .github/actions/setup/action.yml
+    from: "run: pnpm install --frozen-lockfile\n"
+    to: "run: pnpm install\n"

@@ -32,9 +32,14 @@ Usage:
     apply_priority_labels.py --check-labels
 
 `--set-design`/`--clear-design` mark or clear the soft "design not settled"
-block (`blocked: design` or a recognized equivalent) that excludes an issue
-from automatic selection -- see references/dependency-triage.md. Independent
-of the tier machinery above; tier and design-readiness are orthogonal.
+block that excludes an issue from automatic selection -- see
+references/dependency-triage.md. The block has two forms, and issue_digest.py
+honors either: the label (`blocked: design` or a recognized equivalent) and a
+`design=open` field in the body's `<!-- ship: ... -->` contract.
+`--set-design` writes only the label; `--clear-design` clears both, rewriting
+`design=open` to `design=settled` and leaving the rest of the body as it was.
+Independent of the tier machinery above; tier and design-readiness are
+orthogonal.
 
 `--clear-dependency` removes a dependency-block label (`blocked: dependency`
 or a recognized equivalent) once issue_digest.py reports every dependency the
@@ -61,9 +66,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -71,8 +79,10 @@ from typing import Any
 # there, which `just agents-check` reports as drift.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from issue_digest import (DEPENDENCY_BLOCK_LABELS, DESIGN_BLOCK_LABELS, TIER_ALIASES,
-                          TIER_LABELS, TIER_ORDER, normalize_label, resolve_design_label)
+from issue_digest import (CONTRACT_FIELD_RE, DEPENDENCY_BLOCK_LABELS, DESIGN_BLOCK_LABELS,
+                          TIER_ALIASES, TIER_LABELS, TIER_ORDER,
+                          find_ship_contracts, normalize_label, parse_ship_contract,
+                          resolve_design_label)
 
 DIGEST = Path(__file__).resolve().parent / "issue_digest.py"
 
@@ -84,8 +94,10 @@ PERMISSION_MARKERS = ("HTTP 403", "Resource not accessible", "must have admin",
 
 def gh(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     try:
+        # UTF-8, not the locale's encoding: clear_design() writes a body read
+        # here back to GitHub as UTF-8, and the round trip must be symmetric.
         return subprocess.run(["gh", *args], capture_output=True, text=True,
-                              check=check, timeout=120)
+                              encoding="utf-8", check=check, timeout=120)
     except FileNotFoundError:
         print("error: gh CLI not found", file=sys.stderr)
         raise SystemExit(1)
@@ -191,13 +203,86 @@ def clear_labels_in(number: int, label_set: set[str], dry_run: bool) -> list[str
     return carried
 
 
+# How issue_digest.py names a contract's `design=open` among an issue's
+# design_labels, so a caller reads one vocabulary for both forms of the block.
+CONTRACT_DESIGN_MARKER = "ship:design=open"
+
+
+def settle_contract_design(body: str) -> str | None:
+    """`body` with its ship contract's `design=open` rewritten to
+    `design=settled`, or None when there is nothing to settle: no contract, no
+    `design=` field, or one parse_ship_contract() already reads as settled.
+
+    Only the value of a `design=open` field inside a `<!-- ship: ... -->` block
+    changes (a block quoted inside code is left alone, as the parser ignores
+    it); the key's spelling, the spacing, every other field, and the prose
+    around the block are kept byte for byte. Every such field is rewritten, not
+    only the one the parser's last-block-wins rule reads, so no stale `open`
+    is left for a human to misread."""
+    contract = parse_ship_contract(body)
+    if not contract or contract["design"] != "open":
+        return None
+
+    def settle_field(field: re.Match[str]) -> str:
+        if field.group(1).lower() != "design" or field.group(2).lower() != "open":
+            return field.group(0)
+        return field.group(0)[: field.start(2) - field.start(0)] + "settled"
+
+    def settle_block(block: re.Match[str]) -> str:
+        inner = CONTRACT_FIELD_RE.sub(settle_field, block.group(1))
+        return (block.group(0)[: block.start(1) - block.start(0)] + inner
+                + block.group(0)[block.end(1) - block.start(0):])
+
+    out: list[str] = []
+    pos = 0
+    for block in find_ship_contracts(body):
+        out += [body[pos:block.start()], settle_block(block)]
+        pos = block.end()
+    return "".join(out) + body[pos:]
+
+
 def clear_design(number: int, dry_run: bool) -> list[str]:
-    """Remove whichever design-block label(s) the issue actually carries.
-    Returns the label names removed -- empty when the issue carried none, which
-    is success, not an error (this is the routine call after a design is
-    decided, and the issue may have been taken on with --include-design
-    instead of ever being labeled)."""
-    return clear_labels_in(number, DESIGN_BLOCK_LABELS, dry_run)
+    """Clear both forms of the design block: remove whichever design-block
+    label(s) the issue carries, and settle a `design=open` field in its ship
+    contract (see settle_contract_design), in one `gh issue edit` call. The
+    call is not atomic -- gh may send the label removal and the body change as
+    separate mutations -- so on failure re-run --clear-design, which
+    recomputes what is left.
+
+    Returns what was cleared: the label names, plus CONTRACT_DESIGN_MARKER when
+    the contract was rewritten. Empty when the issue carried neither, which is
+    success, not an error (this is the routine call after a design is decided,
+    and the issue may have been taken on with --include-design instead of ever
+    being labeled).
+
+    `design=settled` never clears a label (issue_digest.py's invariant): the
+    label goes because this call was made, not because of what the body says.
+    The body is read and written back whole, so an edit made to it between the
+    two is overwritten; the window is one gh round trip."""
+    raw = gh(["issue", "view", str(number), "--json", "labels,body"]).stdout or "{}"
+    issue = json.loads(raw)
+    carried = [lbl["name"] for lbl in issue.get("labels", [])
+               if normalize_label(lbl["name"]) in DESIGN_BLOCK_LABELS]
+    settled = settle_contract_design(issue.get("body") or "")
+    cleared = carried + ([CONTRACT_DESIGN_MARKER] if settled is not None else [])
+    if not cleared or dry_run:
+        return cleared
+    args = ["issue", "edit", str(number)]
+    for lbl in carried:
+        args += ["--remove-label", lbl]
+    if settled is None:
+        gh(args)
+        return cleared
+    # gh reads the body from a file so no shell quoting can mangle it, and
+    # newline="" keeps a web-edited body's CRLF line endings as they were.
+    fd, path = tempfile.mkstemp(prefix=f"clear-design-{number}-", suffix=".md")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(settled)
+        gh([*args, "--body-file", path])
+    finally:
+        Path(path).unlink(missing_ok=True)
+    return cleared
 
 
 def clear_dependency(number: int, dry_run: bool) -> list[str]:
@@ -240,8 +325,10 @@ def main() -> int:
                         "excludes it from automatic selection until cleared")
     p.add_argument("--clear-design", action="append", default=[], type=int,
                    metavar="N",
-                   help="remove the design-not-settled label once the design "
-                        "is decided (repeatable); a no-op if not present")
+                   help="clear the design-not-settled block once the design "
+                        "is decided (repeatable): remove the label and settle "
+                        "the ship contract's design=open; a no-op if neither "
+                        "is present")
     p.add_argument("--clear-dependency", action="append", default=[], type=int,
                    metavar="N",
                    help="remove the dependency-block label once every "
@@ -293,9 +380,10 @@ def main() -> int:
             verb = "would set" if args.dry_run else "set"
             for n, lbl in design_set:
                 print(f"#{n}: needs-design -> {lbl}")
+            cleared_verb = "would clear" if args.dry_run else "cleared"
             for n, removed in design_cleared:
-                print(f"#{n}: needs-design cleared" if removed
-                      else f"#{n}: needs-design already clear")
+                print(f"#{n}: needs-design {cleared_verb} ({', '.join(removed)})"
+                      if removed else f"#{n}: needs-design already clear")
             for n, removed in dependency_cleared:
                 print(f"#{n}: dependency-block cleared" if removed
                       else f"#{n}: dependency-block already clear")

@@ -1,0 +1,8 @@
+# A gate run as `just build || :`, the `true` spelled as the null command (quoted, as YAML needs).
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_FAIL_OPEN]
+  just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
+edits:
+  - file: .github/workflows/ci.yml
+    from: "        run: just build\n"
+    to: "        run: 'just build || :'\n"

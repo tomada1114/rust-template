@@ -55,11 +55,13 @@ export default defineConfig({
         "**/*.d.ts",
       ],
       // Per-glob floors, never one combined number, so one tree cannot subsidise
-      // another (typescript-template's pattern; design D13).
+      // another (typescript-template's pattern).
       thresholds: {
         "ui/src/**": { lines: 80, functions: 80 },
         // Every repository script; scripts/lib/guard/** also counts here.
         "scripts/**": { lines: 85, functions: 90 },
+        // A skill's bundled TypeScript scripts, at the same floor as scripts/**.
+        ".agents/skills/*/scripts/**": { lines: 85, functions: 90 },
         // The credential and path rules of the staged guard: the most security-critical
         // code in the repository, so a higher floor.
         "scripts/lib/guard/**": { lines: 90, functions: 100 },

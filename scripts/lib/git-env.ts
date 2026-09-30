@@ -1,5 +1,5 @@
 /**
- * Environments for spawned git (design D12). A script that runs git strips every GIT_*
+ * Environments for spawned git. A script that runs git strips every GIT_*
  * variable first: inside a hook, git exports GIT_DIR, GIT_INDEX_FILE, and friends, and
  * a git command started with them would act on the hook's repository instead of the
  * one the script names (a temporary clone in a test, say).

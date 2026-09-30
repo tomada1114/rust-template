@@ -18,4 +18,5 @@ pub fn with_commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R
 /* A block comment: app.emit("block-commented", 1) */
 fn on_menu<R: Runtime>(app: &AppHandle<R>, view: &View) {
     let _ = app.emit_to("main", commands::COUNTER_CHANGED, (view, 'x', '\''));
+    let _ = tauri::Emitter::emit(app, commands::COUNTER_CHANGED, view);
 }

@@ -1,7 +1,7 @@
 /**
  * Every label something in the repository applies is declared exactly once in
  * `.github/labels.yml`, and every label `scripts/label-pr.ts` applies has a release-notes
- * category (design D14) — so `just labels` creates every label the repository expects,
+ * category — so `just labels` creates every label the repository expects,
  * never two conflicting ones, and no merged pull request falls out of the release notes.
  *
  *   node scripts/checks/labels-declared.ts [--root DIR]
@@ -18,18 +18,29 @@
  *   - `.github/dependabot.yml`: each `updates` entry's `labels`, or, for an entry without
  *     the key, Dependabot's default `dependencies` (its ecosystem label Dependabot creates
  *     itself, so it is not required); `labels: []` applies none;
- *   - `.github/renovate.json` and `renovate.json`: every `labels`/`addLabels` string list;
+ *   - the Renovate config (shared/workflows.ts's readRenovate): every `labels`/`addLabels`
+ *     string list; a JSON5 config is unreadable, never skipped;
  *   - `.github/release.yml`: the labels its categories and `exclude` name (`*` aside);
- *   - `scripts/label-pr.ts`, when the root has one: its `MANAGED_LABELS` (imported from
- *     this checkout's copy), each of which must also be listed by a release category.
+ *   - `scripts/label-pr.ts`, when the root has one: the labels of its `TYPE_LABELS` map,
+ *     read from the root's own copy with the TypeScript parser (a `new Map([…])` of
+ *     `["type", "label"]` string pairs; any other shape is unreadable), each of which must
+ *     also be listed by a release category.
+ * And, when the root has `scripts/label-pr.ts`: every type a PR-title check accepts (the
+ * `types` of each workflow step using amannn/action-semantic-pull-request, or the
+ * action's defaults) is a key of `TYPE_LABELS`, so no accepted title goes unlabelled and
+ * out of the release notes.
  * Matching is exact, case included. No git work tree needed.
  *
  * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no labels.yml), ERR_CHECK_INPUT_UNREADABLE
- * (a file above does not parse, or labels.yml is not a list of named items),
- * ERR_CHECK_LABEL_DUPLICATE, ERR_CHECK_LABEL_UNDECLARED, ERR_CHECK_LABEL_NO_CATEGORY.
+ * (a file above does not parse, labels.yml is not a list of named items or fails
+ * `parseLabelManifest` — the parser `just labels` uses, or label-pr's
+ * map is not a literal it can read), ERR_CHECK_LABEL_DUPLICATE, ERR_CHECK_LABEL_UNDECLARED,
+ * ERR_CHECK_LABEL_NO_CATEGORY, ERR_CHECK_LABEL_TYPE_UNMAPPED.
  */
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+
+import ts from "typescript";
 
 import {
   isMap,
@@ -42,13 +53,16 @@ import {
   type Node,
 } from "yaml";
 
-import type { FailureDetails } from "../lib/fail.ts";
+import { ScriptError, type FailureDetails } from "../lib/fail.ts";
+import { parseLabelManifest } from "../lib/labels.ts";
 import { runScript } from "../lib/script.ts";
-import { MANAGED_LABELS } from "../label-pr.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
+import { readRenovate, readWorkflows, titleChecks } from "./shared/workflows.ts";
 
 const LABELS = ".github/labels.yml";
 const RELEASE = ".github/release.yml";
+const LABEL_PR = "scripts/label-pr.ts";
+const TYPE_MAP = "TYPE_LABELS";
 
 interface Use {
   /** `path:line`, or a path alone. */
@@ -220,39 +234,92 @@ function dependabotUses(root: string, problems: FailureDetails[]): Use[] {
 }
 
 function renovateUses(root: string, problems: FailureDetails[]): Use[] {
-  return [".github/renovate.json", "renovate.json"].flatMap((path) => {
-    const text = readRepoFile(root, path);
-    if (text === undefined) return [];
-    let config: unknown;
-    try {
-      config = JSON.parse(text);
-    } catch (error: unknown) {
-      problems.push(unreadable(path, error instanceof Error ? error.message : String(error)));
-      return [];
+  const reading = readRenovate(root);
+  if (reading === undefined) return [];
+  if ("problem" in reading) {
+    problems.push(unreadable(reading.path, reading.problem));
+    return [];
+  }
+  const { path, text, config } = reading;
+  const labels: string[] = [];
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
     }
-    const labels: string[] = [];
-    const walk = (value: unknown): void => {
-      if (Array.isArray(value)) {
-        value.forEach(walk);
-        return;
+    if (typeof value !== "object" || value === null) return;
+    for (const [key, inner] of Object.entries(value)) {
+      if ((key === "labels" || key === "addLabels") && Array.isArray(inner)) {
+        labels.push(...inner.filter((label): label is string => typeof label === "string"));
+      } else {
+        walk(inner);
       }
-      if (typeof value !== "object" || value === null) return;
-      for (const [key, inner] of Object.entries(value)) {
-        if ((key === "labels" || key === "addLabels") && Array.isArray(inner)) {
-          labels.push(...inner.filter((label): label is string => typeof label === "string"));
-        } else {
-          walk(inner);
-        }
-      }
-    };
-    walk(config);
-    const lines = text.split("\n");
-    return labels.map((label) => ({
-      where: `${path}:${String(lines.findIndex((line) => line.includes(JSON.stringify(label))) + 1)}`,
-      label,
-      verb: "applies" as const,
-    }));
-  });
+    }
+  };
+  walk(config);
+  const lines = text.split("\n");
+  return labels.map((label) => ({
+    where: `${path}:${String(lines.findIndex((line) => line.includes(JSON.stringify(label))) + 1)}`,
+    label,
+    verb: "applies" as const,
+  }));
+}
+
+/** One `["type", "label"]` entry of label-pr's map, with its line. */
+interface TypeLabel {
+  readonly type: string;
+  readonly label: string;
+  readonly line: number;
+}
+
+/**
+ * label-pr's `TYPE_LABELS` as written in `text`: a `new Map([…])` whose entries are
+ * `["type", "label"]` string-literal pairs, or why it is not that.
+ */
+export function readTypeLabels(text: string): TypeLabel[] | string {
+  const file = ts.createSourceFile(LABEL_PR, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const lineOfNode = (node: ts.Node): number =>
+    file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
+  let initializer: ts.Expression | undefined;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === TYPE_MAP
+    ) {
+      initializer = node.initializer;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  if (initializer === undefined) return `no \`${TYPE_MAP}\` declaration with a value`;
+  const [entries] = ts.isNewExpression(initializer) ? (initializer.arguments ?? []) : [];
+  if (
+    !ts.isNewExpression(initializer) ||
+    !ts.isIdentifier(initializer.expression) ||
+    initializer.expression.text !== "Map" ||
+    initializer.arguments?.length !== 1 ||
+    entries === undefined ||
+    !ts.isArrayLiteralExpression(entries)
+  ) {
+    return `\`${TYPE_MAP}\` at line ${String(lineOfNode(initializer))} is not \`new Map([…])\` over an array literal`;
+  }
+  const pairs: TypeLabel[] = [];
+  for (const entry of entries.elements) {
+    const [type, label] = ts.isArrayLiteralExpression(entry) ? entry.elements : [];
+    if (
+      !ts.isArrayLiteralExpression(entry) ||
+      entry.elements.length !== 2 ||
+      type === undefined ||
+      label === undefined ||
+      !ts.isStringLiteralLike(type) ||
+      !ts.isStringLiteralLike(label)
+    ) {
+      return `the \`${TYPE_MAP}\` entry at line ${String(lineOfNode(entry))} is not a ["type", "label"] pair of string literals`;
+    }
+    pairs.push({ type: type.text, label: label.text, line: lineOfNode(entry) });
+  }
+  return pairs;
 }
 
 /** The labels release.yml's categories and exclude name, and the categorised ones. */
@@ -308,8 +375,8 @@ function declared(
   return names;
 }
 
-/** Every violation under `root`, with `managed` standing for label-pr's labels. */
-export function findLabelViolations(root: string, managed: ReadonlySet<string>): FailureDetails[] {
+/** Every violation under `root`. */
+export function findLabelViolations(root: string): FailureDetails[] {
   if (readRepoFile(root, LABELS) === undefined) {
     return [
       {
@@ -340,15 +407,39 @@ export function findLabelViolations(root: string, managed: ReadonlySet<string>):
     });
   }
 
+  // `just labels` parses through parseLabelManifest; a duplicate is already reported above.
+  if (names !== undefined && violations.length === 0) {
+    try {
+      parseLabelManifest(readRepoFile(root, LABELS) ?? "");
+    } catch (error: unknown) {
+      if (!(error instanceof ScriptError)) throw error;
+      problems.push(unreadable(LABELS, error.details.actual));
+    }
+  }
+
   const release = releaseLabels(root, problems);
-  const labelPr = readRepoFile(root, "scripts/label-pr.ts") === undefined ? [] : [...managed];
+  const labelPrText = readRepoFile(root, LABEL_PR);
+  const typeLabels = labelPrText === undefined ? [] : readTypeLabels(labelPrText);
+  if (typeof typeLabels === "string") {
+    problems.push({
+      ...unreadable(LABEL_PR, typeLabels),
+      expected: `${LABEL_PR}'s \`${TYPE_MAP}\` to be \`new Map([["type", "label"], …])\` of string literals`,
+      next: `restore that shape in ${LABEL_PR}, or update scripts/checks/labels-declared.ts's reader in the same change`,
+    });
+  }
+  const pairs = typeof typeLabels === "string" ? [] : typeLabels;
+  const labelPr = [...new Set(pairs.map(({ label }) => label))];
   const uses: Use[] = [
     ...formUses(root, problems),
     ...workflowUses(root, problems),
     ...dependabotUses(root, problems),
     ...renovateUses(root, problems),
     ...(release?.uses ?? []),
-    ...labelPr.map((label) => ({ where: "scripts/label-pr.ts", label, verb: "applies" as const })),
+    ...labelPr.map((label) => ({
+      where: `${LABEL_PR}:${String(pairs.find((pair) => pair.label === label)?.line ?? 0)}`,
+      label,
+      verb: "applies" as const,
+    })),
   ];
   const known = new Set((names ?? []).map(({ name }) => name));
   if (names !== undefined) {
@@ -369,18 +460,32 @@ export function findLabelViolations(root: string, managed: ReadonlySet<string>):
     if (release?.categorised.has(label) === true) continue;
     violations.push({
       code: "ERR_CHECK_LABEL_NO_CATEGORY",
-      summary: `scripts/label-pr.ts applies \`${label}\`, which no ${RELEASE} category lists`,
+      summary: `${LABEL_PR} applies \`${label}\`, which no ${RELEASE} category lists`,
       expected: `every label scripts/label-pr.ts applies to be listed by a category in ${RELEASE}, so its pull requests reach the release notes`,
       actual: release === undefined ? `no ${RELEASE}` : `no category's labels include \`${label}\``,
       next: `add \`${label}\` to a category in ${RELEASE}, or change the mapping in scripts/label-pr.ts`,
     });
+  }
+  if (labelPrText !== undefined && typeof typeLabels !== "string") {
+    const mapped = new Set(pairs.map(({ type }) => type));
+    for (const title of titleChecks(readWorkflows(root).workflows)) {
+      for (const type of title.types.filter((accepted) => !mapped.has(accepted))) {
+        violations.push({
+          code: "ERR_CHECK_LABEL_TYPE_UNMAPPED",
+          summary: `${title.where} accepts the PR-title type \`${type}\`, which ${LABEL_PR}'s ${TYPE_MAP} does not map to a label`,
+          expected: `every type a PR-title check accepts to be a key of ${LABEL_PR}'s ${TYPE_MAP}, so its pull requests are labelled and reach the release notes`,
+          actual: `${TYPE_MAP} maps: ${[...mapped].join(", ") || "nothing"}`,
+          next: `add \`["${type}", "<label>"]\` to ${TYPE_MAP} in ${LABEL_PR} (a label ${RELEASE} categorises), or drop \`${type}\` from the title check's \`types\``,
+        });
+      }
+    }
   }
   return [...problems, ...violations];
 }
 
 export const check: Check = {
   name: "labels-declared",
-  run: (root) => findLabelViolations(root, MANAGED_LABELS),
+  run: (root) => findLabelViolations(root),
 };
 export const main = checkMain(check);
 

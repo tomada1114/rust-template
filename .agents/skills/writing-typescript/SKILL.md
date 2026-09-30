@@ -65,9 +65,13 @@ open. The language itself is the TypeScript handbook
   form `@typescript-eslint/consistent-type-imports` autofixes to (`fixStyle:
   "inline-type-imports"`); a separate `import type { X }` is fine when every name in it
   is a type.
-- The marking is load-bearing: under `verbatimModuleSyntax` an unmarked import is kept
-  as a runtime import, so a type-only import of a module with side effects changes what
-  runs. Let `just fix` write the form; never hand-fix an import differently.
+- The marking is load-bearing: `verbatimModuleSyntax` emits every unmarked import as
+  written, so `tsc` rejects an unmarked import of a name that is only a type (TS1484,
+  "must be imported using a type-only import"): the emitted import would ask the module
+  at runtime for a name it does not export. A marked name is dropped from the output;
+  `import { type X }` still keeps the module's import (its side effects run), while
+  `import type { X }` removes it. Let `just fix` write the form; never hand-fix an
+  import differently.
 - Only `ui/src/ipc/` imports `@tauri-apps/*` or `ui/src/ipc/generated/`, and only a
   test or `ui/src/test/` imports `ui/src/ipc/testing.ts`. Enforced by:
   `eslint.config.mjs` `no-restricted-imports` for `import` and `export … from`, and
@@ -129,10 +133,10 @@ open. The language itself is the TypeScript handbook
   Declare an omissible option `readonly x?: T`. When a caller really forwards
   `undefined` (a prop threaded through a wrapper), widen that one property to
   `x?: T | undefined`; never turn the flag off.
-- No `enum`, no `namespace`, and no parameter property. Both `scripts/tsconfig.json`
-  and `ui/tsconfig.json` reject them at `tsc` (`erasableSyntaxOnly`): Node strips
-  `scripts/` types without compiling, and a string-literal union is what ts-rs
-  generates from a Rust enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
+- No `enum`, no `namespace`, and no parameter property. `scripts/tsconfig.json`,
+  `ui/tsconfig.json`, and the root `tsconfig.json` reject them at `tsc`
+  (`erasableSyntaxOnly`): Node strips `scripts/` types without compiling, and a
+  string-literal union is what ts-rs generates from a Rust enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
 
 ## Function boundaries
 
@@ -145,7 +149,9 @@ open. The language itself is the TypeScript handbook
 ## Silencing a check
 
 `@ts-ignore`, `@ts-expect-error`, a non-null `!`, an `as` cast, or an
-`// eslint-disable` added to make `just lint` pass is weakening a gate (`AGENTS.md` ›
-"Security and human approval"). `@ts-expect-error` is allowed only with a description,
-for a real defect in a dependency's types, and says so in the pull request. Fix the
-type instead.
+`// eslint-disable` added to make `just lint` pass is weakening a gate, and needs a
+human's sign-off before it lands (`AGENTS.md` › "Security and human approval"). Fix the
+type instead. The one case worth asking about is a real defect in a dependency's types:
+then `@ts-expect-error` with a description (`@typescript-eslint/ban-ts-comment` refuses
+`@ts-ignore`, and a description under 10 characters), named in the pull request for
+that sign-off.

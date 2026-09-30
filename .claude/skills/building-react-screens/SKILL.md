@@ -10,7 +10,7 @@ description: >
   var(--...) tokens, strings from ui/src/copy/, and verifying with Testing Library and
   mockCommands. Use when adding or changing a component, a hook, a screen's CSS, or its
   wording under ui/src/, when a getByRole query cannot find a control, or when the
-  harness literal check flags a color, font, or pixel size in ui/src/.
+  harness literal check flags a color, font, or pixel size under ui/.
 ---
 
 # Building React Screens
@@ -81,8 +81,10 @@ In the sample, `ui/src/counter/CounterScreen.tsx` renders over
 | Calling an action from `onClick`: `onClick={() => void increment()}` | Logging a rejection it cannot name | Formatting that needs a decision |
 | Picking the sentence for a code (through `ui/src/copy/`) | | The error codes themselves |
 
-`void` marks a promise the handler deliberately does not await, which typescript-eslint's
-`no-floating-promises` otherwise rejects; the hook already handled the error.
+`void` makes the handler return nothing instead of the promise it deliberately does not
+await: a promise-returning function where React expects a void-returning `onClick` is
+what typescript-eslint's `no-misused-promises` rejects (on through `strictTypeChecked`
+in `eslint.config.mjs`); the hook already handled the error.
 
 ## Loading, failed, empty
 
@@ -107,9 +109,9 @@ Every screen renders each state, and a test reaches each one:
   in the sample), an error in `role="alert"`.
 - **Keyboard:** every action is a native `button` (the primitives are), so Tab reaches it
   and Enter or Space presses it. Never a clickable `div`. The focus ring comes from
-  `base.css`; never remove an outline to tidy a control. An action the user repeats
-  also gets a menu item with a shortcut (`designing-ui` › "Menus and keyboard
-  shortcuts").
+  `base.css`; never remove an outline to tidy a control. Once the app has its own menu,
+  an action the user repeats also gets a menu item with a shortcut there
+  (`designing-ui` › "Menus and keyboard shortcuts"); the sample has none.
 - **Motion:** a transition uses `var(--duration-fast)` or `var(--duration-base)` with
   `var(--easing-standard)`; the tokens become `0ms` under `prefers-reduced-motion:
   reduce`, so the rule holds without code in the component. Nothing is communicated by
@@ -123,10 +125,15 @@ Every screen renders each state, and a test reaches each one:
 - Build from the primitives in `ui/src/design/` (`Button`, `IconButton`, `Stack`,
   `Panel`, `Text`); `docs/design/design-system.md` lists each one's recipe. Space with
   `Stack`'s `gap`, never with margins on the children.
-- A screen's CSS is layout only and reaches every color, font, size, and spacing value
-  through `var(--…)`. Enforced by:
-  the harness literal check (`just check-harness`), which fails on a raw color, a
-  `font-family`, or a pixel font size anywhere in `ui/src/` outside `tokens.css`.
+- A screen's CSS is layout only and reaches every color, font, font size, and spacing
+  value through `var(--…)`. Enforced by: the harness literal check
+  (`just check-harness`), which fails on a raw color, a `font-family`, or a pixel font
+  size outside `tokens.css` anywhere in `ui/src/`, an entry page such as
+  `ui/index.html`, or a stylesheet in `ui/public/`, and on a file it cannot read (a
+  `.vue`, `.less`, or other kind it does not parse; an unreadable inline script). A
+  literal spacing value or dimension passes it, so review is what holds the rest: in
+  the sample, `max-width: 360px` in `ui/src/counter/CounterScreen.css` is a literal no
+  check reads.
 - A screen that needs a value or a part the design system lacks gets it there first, as
   a token or a primitive with its row in `design-system.md` (`designing-ui`), never as a
   one-off style in the screen.

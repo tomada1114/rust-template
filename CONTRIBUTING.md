@@ -37,14 +37,15 @@ just test-core      # core: nextest under llvm-cov (lines 80, functions 80), doc
 just test-ui        # Vitest over ui/src with its floors (lines 80, functions 80)
 just test-fast increment   # one core test or a group of them, no coverage
 just test-macos     # platform adapters and the Tauri commands (tauri::test), macOS only
-just test-scripts   # the tests for scripts/, with their floors
+just test-scripts   # Vitest over scripts/ and skills' scripts with their floors, plus
+                    #   the bundled Python tests and shellcheck
 just check-harness  # the harness's checks about itself (scripts/checks/)
 just bindings       # regenerate ui/src/ipc/generated/ from core's types; commit the result
 just deny           # cargo deny: advisories, licences, bans, sources
 just build          # the debug .app (no disk image)
 just smoke          # the launch smoke: release .app, signature, entitlements, helper, smoke run
 just logs           # print the end of the newest app log and exit
-just check          # everything above that runs without a human, in CI's order
+just check          # the local gate, in CI's order; its steps are listed below
 just release-prep 0.2.0   # bump the three version sites and roll CHANGELOG.md (docs/distribution.md)
 ```
 
@@ -75,17 +76,18 @@ mise install && corepack enable pnpm && pnpm install --frozen-lockfile && leftho
 node scripts/verify-hooks.ts                     # just verify-hooks
 node scripts/build-sidecar.ts                    # just sidecar (the Tauri crate needs the helper first)
 cargo fmt --all --check                          # part of just lint
-cargo clippy --workspace --all-targets --locked -- -D warnings
+node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
 pnpm typecheck && pnpm lint && pnpm format:check
 cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
 cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
 pnpm test:ui                                     # just test-ui
-pnpm test:scripts                                # just test-scripts
+pnpm test:scripts                                # just test-scripts (plus Python tests, shellcheck)
 cargo nextest run --locked -p myapp-platform -p myapp   # just test-macos
-pnpm tauri build --debug --bundles app           # just build (unset every APPLE_* variable first)
+pnpm tauri build --debug --bundles app -- --locked  # just build (unset every APPLE_* variable first)
 node scripts/smoke.ts                            # just smoke
-cargo deny check                                 # just deny
+node scripts/bindings.ts                         # just bindings
+cargo deny --locked check                        # just deny
 node scripts/release-prep.ts 0.2.0               # just release-prep 0.2.0
 ```
 
@@ -110,7 +112,8 @@ A new crate or npm package needs a reason and a maintainer's sign-off.
 4. Open a pull request using the template, with a Conventional Commits title.
 
 Required checks: `Rust Core`, `Frontend`, `Repo Lint & Harness`, `macOS Build & Smoke`,
-`Workflow Security Lint`, `Dependency Review`, and `Validate PR title`.
+`Template Bootstrap Smoke`, `Workflow Security Lint`, `Dependency Review`, and
+`Validate PR title`.
 
 ### Code standards
 

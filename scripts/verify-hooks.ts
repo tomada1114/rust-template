@@ -1,5 +1,5 @@
 /**
- * Fails when lefthook's pre-commit hook is not installed in this checkout (design D11).
+ * Fails when lefthook's pre-commit hook is not installed in this checkout.
  * `just install` runs it last and `just check` first, so a clone that skipped
  * `lefthook install` is noticed before a commit bypasses the staged guard.
  *

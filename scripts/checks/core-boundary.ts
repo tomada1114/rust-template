@@ -1,17 +1,20 @@
 /**
- * The core boundary holds, and its three lists agree (design D2, D3):
+ * The core boundary holds, and its three lists agree:
  *
- * 1. `myapp-core`'s normal dependency closure (normal edges only — no dev- or
- *    build-dependency — across every target, from `cargo metadata`'s resolved graph)
- *    contains none of {@link FORBIDDEN_IN_CORE}. The walk stops at the first forbidden
- *    crate on a path, so each violation names the crate to remove and how core reaches it.
+ * 1. `myapp-core`'s dependency closure over normal and build edges (no dev-dependency,
+ *    across every target, from `cargo metadata`'s resolved graph) contains none of
+ *    {@link FORBIDDEN_IN_CORE}. A build edge counts because a `[build-dependencies]`
+ *    crate compiles and runs on every build of core, so `tauri-build` or `objc2` there
+ *    ties core to the platform as surely as a normal edge. The walk stops at the first
+ *    forbidden crate on a path, so each violation names the crate to remove and how core
+ *    reaches it, marking a build edge `-(build)->`.
  * 2. `myapp-test-support` is never a normal, optional, or build-dependency of a
  *    workspace crate: test-only code never ships.
- * 3. The crates AGENTS.md's boundary sentence names ("… normal dependency closure
+ * 3. The crates AGENTS.md's boundary sentence names ("… normal and build dependency closure
  *    reaches `a`, `b`, or `c`.") equal {@link FORBIDDEN_IN_CORE}, and `deny.toml`'s
- *    `[bans] deny` wrapper entries are D3's: `tauri` → `myapp` only, `myapp-platform` →
- *    `myapp` and `myapp-cli` only, and every `tauri-plugin-*` a workspace crate depends
- *    on has an entry with `myapp` as its only wrapper.
+ *    `[bans] deny` wrapper entries are the boundary's: `tauri` → `myapp` only,
+ *    `myapp-platform` → `myapp` and `myapp-cli` only, and every `tauri-plugin-*` a
+ *    workspace crate depends on has an entry with `myapp` as its only wrapper.
  *
  *   node scripts/checks/core-boundary.ts [--root DIR]
  *
@@ -25,7 +28,7 @@
  * shape), ERR_CHECK_CORE_BOUNDARY_CLOSURE, ERR_CHECK_TEST_SUPPORT_NOT_DEV,
  * ERR_CHECK_CORE_BOUNDARY_UNPARSED (a list could not be read),
  * ERR_CHECK_CORE_BOUNDARY_DIVERGED (AGENTS.md's list differs),
- * ERR_CHECK_CORE_BOUNDARY_WRAPPERS (a deny.toml wrapper entry differs from D3).
+ * ERR_CHECK_CORE_BOUNDARY_WRAPPERS (a deny.toml wrapper entry differs from the boundary).
  */
 import { spawnSync } from "node:child_process";
 
@@ -35,7 +38,7 @@ import type { FailureDetails } from "../lib/fail.ts";
 import { runScript, type Run } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
 
-/** What core's normal dependency closure must never contain; `x*` is a prefix. */
+/** What core's normal and build dependency closure must never contain; `x*` is a prefix. */
 export const FORBIDDEN_IN_CORE: readonly string[] = [
   "tauri*",
   "wry",
@@ -49,7 +52,7 @@ export const FORBIDDEN_IN_CORE: readonly string[] = [
 const CORE = "myapp-core";
 const TEST_SUPPORT = "myapp-test-support";
 const PLUGIN_PREFIX = "tauri-plugin-";
-/** D3's direct-edge rule: the only crates that may depend on each of these directly. */
+/** The boundary's direct-edge rule: the only crates that may depend on each of these directly. */
 const WRAPPERS: ReadonlyMap<string, readonly string[]> = new Map([
   ["tauri", ["myapp"]],
   ["myapp-platform", ["myapp", "myapp-cli"]],
@@ -221,25 +224,32 @@ function closureViolations(metadata: CargoMetadata): FailureDetails[] {
   const seen = new Set([core]);
   const queue = [core];
   const violations: FailureDetails[] = [];
+  const viaBuild = new Set<string>();
   for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
     for (const dep of nodes.get(id)?.deps ?? []) {
-      if (seen.has(dep.pkg) || !dep.kinds.includes(null)) continue;
+      const normal = dep.kinds.includes(null);
+      if (seen.has(dep.pkg) || (!normal && !dep.kinds.includes("build"))) continue;
       seen.add(dep.pkg);
       parent.set(dep.pkg, id);
+      if (!normal) viaBuild.add(dep.pkg);
       const name = nameOf(dep.pkg);
       const pattern = FORBIDDEN_IN_CORE.find((p) => matchesForbidden(name, p));
       if (pattern === undefined) {
         queue.push(dep.pkg);
         continue;
       }
-      const path = [dep.pkg];
-      for (let at = parent.get(dep.pkg); at !== undefined; at = parent.get(at)) path.unshift(at);
+      let path = nameOf(dep.pkg);
+      for (let at = dep.pkg, from = parent.get(at); from !== undefined;) {
+        path = `${nameOf(from)} ${viaBuild.has(at) ? "-(build)->" : "->"} ${path}`;
+        at = from;
+        from = parent.get(at);
+      }
       violations.push({
         code: "ERR_CHECK_CORE_BOUNDARY_CLOSURE",
-        summary: `${CORE}'s normal dependency closure reaches ${name} (forbidden as \`${pattern}\`)`,
-        expected: `no ${FORBIDDEN_IN_CORE.map((p) => `\`${p}\``).join(", ")} among ${CORE}'s normal dependencies, direct or transitive (design D3)`,
-        actual: `dependency path: ${path.map(nameOf).join(" -> ")}`,
-        next: `remove the edge that brings ${name} into core (crates/${CORE}/Cargo.toml, or a dependency's features); OS and Tauri code belongs in myapp-platform or src-tauri behind a port`,
+        summary: `${CORE}'s dependency closure reaches ${name} (forbidden as \`${pattern}\`)`,
+        expected: `no ${FORBIDDEN_IN_CORE.map((p) => `\`${p}\``).join(", ")} among ${CORE}'s normal or build dependencies, direct or transitive`,
+        actual: `dependency path: ${path}`,
+        next: `remove the edge that brings ${name} into core (crates/${CORE}/Cargo.toml's [dependencies] or [build-dependencies], or a dependency's features); OS and Tauri code belongs in myapp-platform or src-tauri behind a port`,
       });
     }
   }
@@ -258,7 +268,7 @@ function testSupportViolations(metadata: CargoMetadata): FailureDetails[] {
           return {
             code: "ERR_CHECK_TEST_SUPPORT_NOT_DEV",
             summary: `${pkg.name} takes ${TEST_SUPPORT} as ${edge}`,
-            expected: `${TEST_SUPPORT} only under [dev-dependencies] (design D2: test-only code never ships)`,
+            expected: `${TEST_SUPPORT} only under [dev-dependencies] (test-only code never ships)`,
             actual: `${pkg.name}'s Cargo.toml declares ${TEST_SUPPORT} as ${edge}`,
             next: `move ${TEST_SUPPORT} to ${pkg.name}'s [dev-dependencies]; a fake the shipped code needs is a real adapter in myapp-platform instead`,
           };
@@ -287,7 +297,7 @@ function agentsViolations(root: string): FailureDetails[] {
   const text = readRepoFile(root, "AGENTS.md");
   if (text === undefined)
     return [inputMissing("AGENTS.md", "its boundary sentence lists core's forbidden crates")];
-  const sentence = /normal dependency closure\s+reaches\s+([^.]*)\./.exec(
+  const sentence = /normal and build dependency\s+closure\s+reaches\s+([^.]*)\./.exec(
     text.replace(/\s+/g, " "),
   );
   const listed = [...(sentence?.[1] ?? "").matchAll(/`([^`]+)`/g)].map((m) => m[1] ?? "");
@@ -295,7 +305,7 @@ function agentsViolations(root: string): FailureDetails[] {
     return [
       unparsed(
         "AGENTS.md's forbidden-crate list could not be read",
-        'a sentence in AGENTS.md › Architecture: "… normal dependency closure reaches `tauri*`, `wry`, … or `myapp-platform`."',
+        'a sentence in AGENTS.md › Architecture: "… normal and build dependency closure reaches `tauri*`, `wry`, … or `myapp-platform`."',
         "no such sentence, or one naming no backticked crate",
       ),
     ];
@@ -383,7 +393,7 @@ function wrapperViolations(root: string, metadata: CargoMetadata | undefined): F
     if (have?.join(",") === want.join(",")) continue;
     violations.push({
       code: "ERR_CHECK_CORE_BOUNDARY_WRAPPERS",
-      summary: `deny.toml's [bans] entry for ${crate} does not match design D3`,
+      summary: `deny.toml's [bans] entry for ${crate} does not match the core boundary`,
       expected: `{ crate = "${crate}", wrappers = [${want.map((w) => `"${w}"`).join(", ")}] } in [bans] deny`,
       actual: entries.has(crate)
         ? `wrappers = [${(have ?? []).map((w) => `"${w}"`).join(", ")}]${found === undefined ? " (no wrappers: the crate is banned outright)" : ""}`

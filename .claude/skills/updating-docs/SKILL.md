@@ -121,13 +121,29 @@ and the template's own design notes, so an app never inherits text about the tem
 Text only a template reader needs (why the bootstrap exists, how to use the template)
 goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
 distribution flow) goes outside. A standing document outside a block never links into
-the template's design notes: that link dangles in every app.
+the template's design notes: that link dangles in every app. A sentence outside a block
+that holds only in the template is rewritten for the app by an entry in `TEXT_EDITS`
+in `scripts/bootstrap.ts`, in the same change.
+
+Only the files `MARKER_FILES` in `scripts/bootstrap.ts` lists have their blocks removed.
+A block in any other file adds that file to the list in the same change, or its marker
+lines survive into the app and `node scripts/verify-bootstrap.ts` (CI's Template
+Bootstrap Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`. It fails with
+`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` when the app still names the template's design
+record or README's template-only section, or a decision by its number in that record.
 
 ## What checks a document, and what does not
 
-- `just check-harness` fails when `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, or a skill
-  names a `just <recipe>` the `justfile` lacks, and when `AGENTS.md` or a skill carries
-  an issue-number reference.
+- `just check-harness` fails when `AGENTS.md`, `CLAUDE.md`, `README.md`,
+  `CONTRIBUTING.md`, the pull request template, a `.claude/rules/` file, a document under
+  `docs/`, or a skill names a `just <recipe>` the `justfile` lacks, and when `AGENTS.md`,
+  `CLAUDE.md`, a rule, a `docs/` document, or a skill cites this repository's issues or
+  pull requests: `#` and digits, an issue or pull-request URL on this repository or
+  relative to it, the word issue, PR, pull request, or merge request before a number
+  (`issue N`, `issue number N`, `PR-N`), `GH-` and digits, or a `gh issue`/`gh pr`
+  command given a number. An upstream project's issue URL passes as a source. Neither
+  check reads the template's own design record, the roadmap, or the ADRs, which link
+  issues and plan recipes by design.
 - `mise exec -- typos <file>` spell-checks Markdown (the hook and CI run it too).
 - Nothing formats Markdown (`.prettierignore` lists `*.md`); wrap prose at about 90
   columns by hand.

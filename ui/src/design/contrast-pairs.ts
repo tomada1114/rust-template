@@ -1,6 +1,6 @@
 /**
  * Every foreground/background pair the design system uses, with the WCAG minimum it must
- * meet in both appearances (design D23). tokens.test.ts checks each one; add a pair here
+ * meet in both appearances. tokens.test.ts checks each one; add a pair here
  * whenever a component puts a new token on top of another.
  */
 export type ContrastKind = "body" | "large" | "ui";

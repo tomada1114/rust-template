@@ -8,6 +8,9 @@ comment block anywhere in the body:
      touches=crates/myapp-core/src/,crates/myapp-core/tests/ design=settled -->
 ```
 
+A block quoted inside a fenced code block or inline code, as above, is an
+example and is ignored; the last block outside code is the contract.
+
 Nothing here is required, and a repo with no contracts works exactly as before --
 the heuristics stay. But every field an issue carries is one the run does not
 re-derive, which is why `file_followup.py` writes a contract on everything this
@@ -26,7 +29,7 @@ run files.
 | `blocked-by=` / `blocks=` | `dependency-triage.md` | Stated edges rather than scraped ones. |
 | `touches=` | the parallel grouping | The one field that changes what this skill can do mechanically -- see below. |
 | `area=` | `file_followup.py`, labels | The area label a follow-up inherits. |
-| `design=` | the readiness gate | `design=open` holds the issue out of automatic implementation exactly as a `blocked: design` label does. |
+| `design=` | the readiness gate | `design=open` holds the issue out of automatic implementation exactly as a `blocked: design` label does. `apply_priority_labels.py --clear-design` clears both forms, rewriting the field to `design=settled`; `design=settled` alone never clears a label. |
 
 `touches=` is the load-bearing one. Without it, deciding whether two issues can
 run in parallel worktrees is a judgement about which files they *might* collide

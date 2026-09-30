@@ -52,7 +52,11 @@ Judge the diff since the last release against what is contract, the table in
 |---|---|
 | A user's data or integration stops working: an on-disk format the new build cannot read, a helper command line or exit code changed incompatibly, a raised `minimumSystemVersion` | MAJOR |
 | A new user-visible capability: a screen, a setting, a helper subcommand, a format version that still reads the old one | MINOR |
-| A fix, a wording change, a dependency bump with no visible change, documentation | PATCH |
+| A fix, a wording change, a runtime dependency bump with no visible change | PATCH |
+
+A change that leaves the shipped `.app` and its helper untouched (documentation, CI,
+tests, repository scripts, skills, a dev-only dependency) has no level and does not call
+for a release on its own (`create-pr` › `references/release-impact.md`).
 
 The level is the highest row any change touches. While the app is below `1.0.0`, a
 MAJOR change ships as a minor bump; its changelog entry says what a user must do and
@@ -97,9 +101,11 @@ The script checks the same agreement while it is still cheap.
 ## 4. The release pull request
 
 Branch, commit the five files, open the pull request, and let a human merge it once CI
-is green:
-`docs/distribution.md` › "Preparing the version" has the exact commands. Nothing else
-rides in a release pull request, so its diff is the release.
+is green: `docs/distribution.md` › "Preparing the version" has the exact commands.
+Nothing else rides in a release pull request, so its diff is the release. Its body is
+the pull request template filled in like any other, with the level chosen in step 1 on
+its Release impact line, never a body filled from the commit message (`--fill`).
+**REQUIRED:** `create-pr`.
 
 ## 5. The dry run (a human starts it)
 
@@ -121,8 +127,8 @@ release.
 
 On the merge commit on `main`, `git tag v<version>` and `git push origin v<version>`.
 The workflow then checks the tag against the three sites, re-runs the core and UI tests,
-builds `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg` without the
-Rust build cache, verifies, and publishes the `.dmg`, a `SHA256SUMS` file, and a
+builds `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked`
+without the Rust build cache, verifies, and publishes the `.dmg`, a `SHA256SUMS` file, and a
 build-provenance attestation with notes from `.github/release.yml`'s categories. A tag
 that fails the version check is deleted and re-pushed by the human after the fix, never
 moved silently.

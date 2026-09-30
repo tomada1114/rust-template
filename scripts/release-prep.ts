@@ -1,5 +1,5 @@
 /**
- * Prepares a release in one checked step (design D18): sets the version at its three
+ * Prepares a release in one checked step: sets the version at its three
  * sites — `version` under [workspace.package] in Cargo.toml, `version` in
  * src-tauri/tauri.conf.json, and `version` in package.json — refreshes Cargo.lock, and
  * rolls CHANGELOG.md's [Unreleased] entries into a dated section, leaving an empty

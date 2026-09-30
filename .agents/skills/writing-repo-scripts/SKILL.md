@@ -69,21 +69,23 @@ if (import.meta.main) await runScript(main);
 - `main` receives everything from the process through the context (argv, env, the
   repository root, a `run` function for child processes, a logger, stdin), so its test
   calls it with fakes instead of spawning real tools.
-- Pinned tools are called by bare name; the caller provides PATH (`mise exec --` in a
-  recipe, `jdx/mise-action` in CI). A script never calls `mise exec` itself: a CI job
-  installs only the tools its `install_args` name, and asking mise for another would
-  start a download mid-run instead of failing on the missing tool. `git` and `gh` are
-  assumed on PATH, and tests stub both. A missing tool fails with a named code rather
-  than a spawn error (`scripts/apply-ruleset.ts`'s `ERR_RULESET_GH_MISSING`).
+- Pinned tools are called by bare name; the caller provides PATH: locally the shell that
+  runs `just` (mise activated, or `mise exec -- <command>`), since no recipe calls `mise
+  exec`, and `jdx/mise-action` in CI. A script never calls `mise exec` itself: a CI job
+  installs only the tools its `install_args` name, and asking mise for another would start
+  a download mid-run instead of failing on the missing tool. `git` and `gh` are assumed on
+  PATH, and tests stub both. A missing tool fails with a named code rather than a spawn
+  error (`scripts/apply-ruleset.ts`'s `ERR_RULESET_GH_MISSING`).
 
 ## Spawning git
 
 Git exports `GIT_DIR` and its siblings to every hook, and says a hook that runs git
-elsewhere must clear them (https://git-scm.com/docs/githooks, checked 2026-09-29);
-`git commit -- <path>` also exports a temporary `GIT_INDEX_FILE`. An inherited `GIT_DIR` outranks both the child's working
-directory and `git -C`, so a git command meant for another repository (a test's
-throwaway repository) writes into the outer one instead. Every spawned git therefore
-gets `gitEnv(env)` from `scripts/lib/git-env.ts`, which drops every `GIT_*` variable:
+elsewhere must clear them (https://git-scm.com/docs/githooks, checked 2026-09-29); `git
+commit -- <path>` also exports a temporary `GIT_INDEX_FILE`. An inherited `GIT_DIR`
+outranks both the child's working directory and `git -C`, so a git command meant for
+another repository (a test's throwaway repository) writes into the outer one instead.
+Every spawned git therefore gets `gitEnv(env)` from `scripts/lib/git-env.ts`, which drops
+every `GIT_*` variable:
 
 ```ts
 context.run("git", ["status", "--porcelain"], { cwd: context.root, env: gitEnv(context.env) });
@@ -161,8 +163,9 @@ runs in Vitest's `scripts` project under `just test-scripts`.
   their own, so no committed file, the test included, trips the staged guard or GitHub
   push protection. Say so in the test's header comment.
 
-Enforced by: `vitest.config.ts` "thresholds" (`scripts/**` lines 85, functions 90;
-`scripts/lib/guard/**` lines 90, functions 100). An untested new file counts as 0%, so
+Enforced by: `vitest.config.ts` "thresholds" (`scripts/**` and a skill's
+`.agents/skills/*/scripts/**` lines 85, functions 90; `scripts/lib/guard/**` lines 90,
+functions 100). An untested new file counts as 0%, so
 it pulls the tree's number down from the moment it exists.
 
 ## Adding a script
@@ -177,6 +180,9 @@ A new script usually lands with more than its own file:
 
 A script bundled inside a skill follows the same rules, or keeps its own language when
 it was ported with its tests; `just test-scripts` runs those suites too. Keep it a thin
-dispatcher: branching logic belongs under `scripts/`, where the floors apply.
+dispatcher: it parses its arguments, calls into `scripts/lib/`, and prints, with no
+decision of its own beyond choosing the output format. Branching logic belongs in
+`scripts/lib/`, under the `scripts/**` coverage floor, where another script or skill
+can reuse it.
 
 Check the work with `just test-scripts`, then `just lint` (tsc over `scripts/`, ESLint).

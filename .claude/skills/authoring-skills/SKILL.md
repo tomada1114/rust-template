@@ -29,8 +29,9 @@ skill says about its own subject.
   Code reads them (https://code.claude.com/docs/en/skills, checked 2026-09-29).
 - Loop: edit the `.agents/` copy, run `just agents-sync`, commit both trees together.
   Never hand-edit `.claude/skills/`: the next sync overwrites the edit without a word.
-  `just agents-check` fails when the trees differ; the pre-commit hook runs it when a
-  commit stages a skill path, and CI's `Repo Lint & Harness` job runs it on every PR.
+  `just agents-check` fails when the trees differ; the pre-commit hook runs the same
+  check on the staged trees when a commit stages a skill path, so stage both, and CI's
+  `Repo Lint & Harness` job runs it on every PR.
 - The mirror is real files, not a symlink: a symlink is only a link where git checks it
   out as one (`core.symlinks`, https://git-scm.com/docs/git-config, checked 2026-09-29),
   and real files let `just agents-check` compare bytes. The sync refuses a symlink.
@@ -161,17 +162,21 @@ A script under `.agents/skills/<name>/scripts/` follows `AGENTS.md` › "Reposit
 scripts", and its tests run under `just test-scripts`. A TypeScript script's
 `*.test.ts` joins Vitest's `scripts` project by its path; a suite in another language
 (`shipping-issues`' Python and shell) is added to the `test-scripts` recipe in the same
-pull request. **REQUIRED:** `writing-repo-scripts`. Keep it a thin dispatcher: no
-coverage floor applies under `.agents/skills/`, so branching logic belongs in `scripts/`,
-where the floors do.
+pull request. **REQUIRED:** `writing-repo-scripts`. Keep it a thin dispatcher: it
+parses its arguments, calls into `scripts/lib/`, and prints, with no decision of its
+own beyond choosing the output format. Branching logic belongs in `scripts/lib/`, under
+the `scripts/**` coverage floor, where another script or skill can reuse it.
 
 ## Before committing a skill
 
 A matching mirror proves nothing about the source: a `SKILL.md` whose frontmatter does
 not parse, whose `name` differs from its directory, or that carries a third key mirrors
 cleanly and never loads in either host. `just check-harness` covers the mechanical part,
-including no issue-number reference (`#` and digits): a skill states the rule and its
-reason itself.
+including no reference to this repository's issues or pull requests (`#` and digits, an
+issue or pull-request URL on this repository or relative to it, the word issue, PR, pull
+request, or merge request before a number, `GH-` and digits, or a `gh issue`/`gh pr`
+command given a number; an upstream project's issue URL passes as a source): a skill
+states the rule and its reason itself.
 
 ```bash
 just agents-sync

@@ -1,0 +1,8 @@
+# `continue-on-error: true` on the step that runs a gate: the step can fail and CI stays green.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_CONTINUE_ON_ERROR]
+  just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
+edits:
+  - file: .github/workflows/ci.yml
+    from: "      - run: just test-ui\n"
+    to: "      - run: just test-ui\n        continue-on-error: true\n"

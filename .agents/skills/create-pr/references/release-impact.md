@@ -6,19 +6,20 @@ Step 4 links here.
 ## The line
 
 Every pull request says whether it changes what a user of the app gets, so a reviewer
-can tell a deliberate "no release needed" from a decision nobody made. Write one of
-these two forms, literally:
+can tell a deliberate "no release needed" from a decision nobody made.
+`.github/PULL_REQUEST_TEMPLATE.md` carries the label `**Release impact:**` under the
+Summary; replace the comment after it with one of these two forms, literally:
 
 ```text
-Release impact: yes -- <MAJOR|MINOR|PATCH>. <one line: what changes for a user, and why>.
-Release impact: no -- <one line: why the shipped app does not change>.
+**Release impact:** <MAJOR|MINOR|PATCH> -- <one line: what changes for a user, and why>.
+**Release impact:** none -- <one line: why the shipped app does not change>.
 ```
 
-A missing line is not a "no"; ask for it before approving.
+A missing value is not `none`; ask for it before approving.
 
-**No** fits a change that leaves the shipped `.app` and its bundled helper untouched: CI
-workflows, docs, tests, repository scripts, skills, harness checks, a dev-only
-dependency. **Yes** fits everything that changes the bundle: Rust in any crate that
+**none** fits a change that leaves the shipped `.app` and its bundled helper untouched:
+CI workflows, docs, tests, repository scripts, skills, harness checks, a dev-only
+dependency. A level fits everything that changes the bundle: Rust in any crate that
 ships, the UI, `tauri.conf.json`, the entitlements, a runtime dependency.
 
 ## Choosing the level
@@ -32,10 +33,10 @@ never make a release breaking.
 
 | Change | Level |
 |---|---|
-| A new version cannot read a file an earlier version wrote, or an earlier version cannot read what the new one writes back | MAJOR |
+| A new version cannot read a file an earlier version wrote | MAJOR |
 | The helper's command line loses or renames a subcommand, flag, or exit code a launchd job may call | MAJOR |
 | `minimumSystemVersion` in `src-tauri/tauri.conf.json` goes up (a user on the older macOS loses the app) | MAJOR |
-| A user-visible feature, or a new helper subcommand | MINOR |
+| A user-visible feature, a new helper subcommand, or a new on-disk format version that still reads the old one | MINOR |
 | A new privacy (TCC) permission the user will be asked for | MINOR, and say so in the line |
 | A fix, a performance change, or a user-visible wording change | PATCH |
 | An internal refactor, or a runtime dependency bump, with no visible change | PATCH |

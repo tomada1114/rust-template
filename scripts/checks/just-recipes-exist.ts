@@ -1,32 +1,36 @@
 /**
  * Every `just <recipe>` the documents name exists, and every recipe `.claude/settings.json`
- * permits exists (design D14), so a renamed or removed recipe cannot leave a document
+ * permits exists, so a renamed or removed recipe cannot leave a document
  * pointing at nothing or a permission rule that can never match.
  *
  *   node scripts/checks/just-recipes-exist.ts [--root DIR]
  *
- * Read: `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `docs/*.md` (not subdirectories), and
- * every `*.md` under `.agents/skills/`. Only code is read — inline code spans (which may
- * wrap across lines, but never across a blank line) and fenced blocks — so English prose
- * ("just to be safe") never counts. A token is `just` not preceded by a name character,
+ * Read: every document an agent or a contributor follows — `AGENTS.md`, `CLAUDE.md`,
+ * `README.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, and every `*.md`
+ * under `docs/`, `.claude/rules/`, and `.agents/skills/` — except the planning and
+ * decision records, which may name a recipe before it exists (`docs/template/`, the
+ * roadmap, and the ADRs: UNCHECKED_DOCUMENTS in `shared/documents.ts`). Only code is read
+ * — inline code spans (which may wrap across lines, but never across a blank line) and
+ * fenced blocks — so English prose ("just to be safe") never counts. A token is `just` not preceded by a name character,
  * then a recipe name (a letter or `_`, then letters, digits, `_`, `-`), so `just --list`
  * and the placeholder `just <recipe>` name nothing. From `.claude/settings.json`, each
  * `permissions` rule of the form `Bash(just <recipe>…)`; a hook's command is not a rule.
  *
  * The recipes are parsed from the justfile's column-0 lines: each recipe header (with or
  * without parameters, `[private]` and `_`-prefixed ones included, since `just` still runs
- * them) and each `alias`. Every file but the justfile is optional. No git work tree needed.
+ * them) and each `alias`. The justfile and `AGENTS.md` are required, so a check run against
+ * the wrong root fails instead of passing on nothing; every other file is optional. No git
+ * work tree needed.
  *
- * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no justfile), ERR_CHECK_INPUT_UNREADABLE
- * (`.claude/settings.json` is not JSON), ERR_CHECK_RECIPE_MISSING (a document names an
- * undefined recipe), ERR_CHECK_PERMISSION_RECIPE_MISSING (a permission names one).
+ * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no justfile or no `AGENTS.md`),
+ * ERR_CHECK_INPUT_UNREADABLE (`.claude/settings.json` is not JSON), ERR_CHECK_RECIPE_MISSING
+ * (a document names an undefined recipe), ERR_CHECK_PERMISSION_RECIPE_MISSING (a
+ * permission names one).
  */
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
-
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
+import { markdownFiles } from "./shared/documents.ts";
 
 const NAME = "[A-Za-z_][A-Za-z0-9_-]*";
 const NOT_A_RECIPE = new Set(["set", "export", "unexport", "import", "mod", "alias"]);
@@ -140,19 +144,16 @@ function markdownTokens(text: string): Found[] {
 
 /** The Markdown files whose recipe references are checked, as root-relative paths. */
 function documents(root: string): string[] {
-  const paths = ["AGENTS.md", "README.md", "CONTRIBUTING.md"];
-  const list = (dir: string): string[] => {
-    try {
-      return readdirSync(join(root, dir), { withFileTypes: true }).flatMap((entry) => {
-        const path = `${dir}/${entry.name}`;
-        if (entry.isDirectory()) return dir === "docs" ? [] : list(path);
-        return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
-      });
-    } catch {
-      return [];
-    }
-  };
-  return [...paths, ...list("docs").sort(), ...list(".agents/skills").sort()];
+  return [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ...markdownFiles(root, "docs"),
+    ...markdownFiles(root, ".claude/rules"),
+    ...markdownFiles(root, ".agents/skills"),
+  ];
 }
 
 function settingsViolations(root: string, recipes: ReadonlySet<string>): FailureDetails[] {
@@ -211,6 +212,17 @@ function run(root: string): FailureDetails[] {
         expected: `a justfile at ${root}/justfile`,
         actual: "no such file",
         next: "run the check against the repository root (--root DIR)",
+      },
+    ];
+  }
+  if (readRepoFile(root, "AGENTS.md") === undefined) {
+    return [
+      {
+        code: "ERR_CHECK_INPUT_MISSING",
+        summary: "there is no AGENTS.md",
+        expected: `the project guide at ${root}/AGENTS.md, whose recipe references this check reads`,
+        actual: "no such file",
+        next: "restore AGENTS.md from version control, or run the check against the repository root (--root DIR)",
       },
     ];
   }

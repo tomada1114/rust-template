@@ -125,11 +125,17 @@ it in the pull request description instead. Never widen the pull request to fix 
 ## Requests from daily use
 
 A friction or an idea that comes up while using the app is routed the moment it is
-raised, so it is neither lost in a chat log nor shipped unreviewed. Pick one outcome:
+raised, so it is neither lost in a chat log nor shipped unreviewed. Filing is a remote
+write. When the human explicitly asked for an issue, that request is the sign-off for
+creating each issue it asks for and for comments on those issues in the same request
+(`AGENTS.md` › "Security and human approval", standing exceptions). A friction the
+human raises without asking for an issue was not explicitly asked for, any more than
+one you noticed or inferred: draft the title, labels, and body in the reply and wait
+for a yes. Pick one outcome:
 
-1. **File it now** when it stays inside the existing design (a default, a keyboard
+1. **File it** when it stays inside the existing design (a default, a keyboard
    shortcut, copy, a small change to how an existing screen behaves) and is in scope
-   under `AGENTS.md` › "Product". The request authorizes creating the issue and nothing
+   under `AGENTS.md` › "Product". The request covers creating the issue and nothing
    more: a type label, a tier (`priority: P2` unless the table above says otherwise),
    and a body that meets "What an issue body must contain". Several requests in one
    message get one issue each, unless they are one pull request's worth. Report the
@@ -139,8 +145,9 @@ raised, so it is neither lost in a chat log nor shipped unreviewed. Pick one out
    architecture decision first. File it the same way, add `on hold`, and comment the
    reason and what would change the call. It keeps its tier.
 3. **Drop it** without an issue when it contradicts a Product non-goal or duplicates an
-   open issue (comment on that one instead). Say so in the reply, with the reason, so
-   the decision is visible rather than silent.
+   open issue (draft a comment for that one; posting it on an issue this request did not
+   create waits for the human's yes). Say so in the reply, with the reason, so the
+   decision is visible rather than silent.
 
 A parked issue leaves the lane by a decision, never by age:
 
