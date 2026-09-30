@@ -116,8 +116,6 @@ class LandPrTest(unittest.TestCase):
                 draft_prefix(pr): "false\n",
                 base: "release\n",
                 default_branch: "main\n",
-                # closes already includes the issue so the --fix repair block
-                # (mktemp/gh pr edit) never has to run for this base check.
                 closing: f"{issue}\n",
             },
         )
@@ -126,14 +124,13 @@ class LandPrTest(unittest.TestCase):
         self.assertIn("result: WRONG_BASE\n", proc.stdout)
         self.assertEqual([call for call in calls if call[:2] == ["pr", "edit"]], [])
 
-    def test_not_linked_blocks_merge(self):
+    def test_not_linked_blocks_merge_without_editing_the_body(self):
         pr = "54"
         issue = "62"
         base = ("pr", "view", pr, "--json", "baseRefName")
         default_branch = ("repo", "view", "--json", "defaultBranchRef")
         closing = ("pr", "view", pr, "--json", "closingIssuesReferences")
         body = ("pr", "view", pr, "--json", "body")
-        edit = ("pr", "edit", pr)
         proc, calls = run_script(
             [pr, "--issue", issue],
             {
@@ -141,17 +138,52 @@ class LandPrTest(unittest.TestCase):
                 draft_prefix(pr): "false\n",
                 base: "main\n",
                 default_branch: "main\n",
-                # closes never includes the issue: the fix is attempted but
-                # `gh pr edit` fails, so no sleep/retry and no eventual link.
                 closing: "5\n",
-                body: "original body\n",
+                body: "Closes #62\n",
             },
-            exits={edit: 1},
         )
 
         self.assertEqual(proc.returncode, 1)
+        # link_check ran without --fix: it read the body to explain the missing
+        # link, and repaired nothing (that is the PR step's job).
+        self.assertIn(
+            "link| detail: the PR body has a closing keyword for #62, but GitHub has "
+            "not linked it (--fix re-saves the body)\n",
+            proc.stdout,
+        )
+        self.assertNotIn("link| fix:", proc.stdout)
         self.assertIn("result: NOT_LINKED\n", proc.stdout)
-        self.assertTrue(any(call[:2] == ["pr", "edit"] for call in calls))
+        self.assertNotIn("--fix", [arg for call in calls for arg in call])
+        self.assertEqual(
+            [call for call in calls if call[:2] in (["pr", "edit"], ["pr", "merge"])], []
+        )
+
+    def test_link_check_error_is_reported_as_error_and_never_merges(self):
+        pr = "58"
+        issue = "63"
+        base = ("pr", "view", pr, "--json", "baseRefName")
+        proc, calls = run_script(
+            [pr, "--issue", issue],
+            {
+                state_prefix(pr): "OPEN\n",
+                draft_prefix(pr): "false\n",
+                base: "",
+            },
+            exits={base: 1},
+        )
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("link| verdict: ERROR\n", proc.stdout)
+        self.assertIn("result: ERROR\n", proc.stdout)
+        self.assertIn(
+            f"detail: link_check.sh failed -- could not read PR #{pr}\n", proc.stdout
+        )
+        self.assertNotIn("result: NOT_LINKED", proc.stdout)
+        self.assertEqual(
+            [call for call in calls
+             if call[:2] in (["pr", "edit"], ["pr", "merge"], ["pr", "ready"])],
+            [],
+        )
 
     def test_draft_no_ready_reports_draft_result(self):
         pr = "55"
