@@ -15,8 +15,8 @@ Everything lives in `ui/src/design/`:
 | `base.css` | Element defaults (body text, focus ring, box sizing), from tokens only. |
 | `primitives.css` | The primitives' styles, from tokens only. |
 | `Button.tsx`, `IconButton.tsx`, `Stack.tsx`, `Panel.tsx`, `Text.tsx` | The primitives the sample uses. |
-| `contrast-pairs.ts` | Every foreground/background pair components use, with its WCAG minimum. |
-| `tokens.ts`, `tokens.test.ts` | The token parser and the contrast test. |
+| `contrast-pairs.ts` | Every foreground/background pair components use, with its WCAG minimum, and `SURFACES`, the backgrounds a component can sit on. |
+| `tokens.ts`, `tokens.test.ts` | The token parser, the pairing derivation over `primitives.css`, and the contrast test. |
 
 ## Tokens
 
@@ -29,11 +29,12 @@ Everything lives in `ui/src/design/`:
 | `--color-text-primary` | Body text and headings. |
 | `--color-text-secondary` | Supporting text ("Last changed …"). |
 | `--color-text-danger` | Error messages. |
-| `--color-accent` | The primary action's fill. A fixed stand-in for the system accent (see below). |
+| `--color-accent` | The primary action's fill and boundary; 3:1 against both surfaces, 4.5:1 under `--color-text-on-accent`. A fixed stand-in for the system accent (see below). Dark value `#3173d8`. |
 | `--color-text-on-accent` | Text on `--color-accent`. |
 | `--color-control-bg` | A secondary button's fill. |
 | `--color-control-text` | A secondary button's label. |
 | `--color-control-border` | A control's boundary (3:1 against the panel, WCAG 1.4.11). |
+| `--color-panel-border` | A panel's decorative edge (not a contrast pair: the panel is itself a surface). |
 | `--color-focus-ring` | The keyboard focus outline. |
 
 Light and dark values switch with `prefers-color-scheme`, so the app follows the macOS
@@ -54,7 +55,9 @@ value, because a user-chosen accent (yellow, say) cannot be checked for contrast
 ### Spacing, shape, motion
 
 `--space-1` … `--space-6` (4, 8, 12, 16, 24, 32 px); `--radius-control`,
-`--radius-panel`; `--border-width`, `--focus-ring-width`, `--control-height`.
+`--radius-panel`; `--border-width`, `--focus-ring-width`, `--focus-ring-offset` (1 px,
+the focus outline's gap), `--control-height`; `--width-content` (360 px, the widest a
+screen's content column grows).
 `--duration-fast`, `--duration-base`, and `--easing-standard` for transitions; both
 durations become `0ms` under `prefers-reduced-motion: reduce`.
 
@@ -66,7 +69,7 @@ durations become `0ms` under `prefers-reduced-motion: reduce`.
 | `IconButton` | A glyph-only button. `label` is required and becomes the accessible name (`aria-label`, and the tooltip); the glyph is `aria-hidden`. Tests find it by that name. |
 | `Stack` | A flex row or column: `direction`, `gap` (`s`/`m`/`l`), `align`. The only way screens space things. |
 | `Panel` | A raised surface. `as="section"` with `labelledBy` makes it a named landmark region. |
-| `Text` | Text in a style: `largeTitle`, `title`, `body`, `secondary`, `danger`; `as` picks the element, `role` makes it a live `status` or `alert`. |
+| `Text` | Text in a style: `largeTitle`, `title`, `body`, `secondary`, `danger`; `as` picks the element, `role` makes it a live `status` or `alert`, and `labelledBy` names it after another element (a status after its heading). |
 
 A screen uses these and the tokens, never a literal value (`building-react-screens`).
 
@@ -88,6 +91,14 @@ A screen uses these and the tokens, never a literal value (`building-react-scree
   `tokens.css`, fails if a semantic color has no dark value of its own, and checks every
   pair in `contrast-pairs.ts` in both appearances: 4.5:1 for body text, 3:1 for large
   text and UI components. The test names print each measured ratio.
+- **The pairing check** (the same file) derives the token pairs `primitives.css`
+  combines, rule by rule with a `.x--mod` or `.x:state` rule laid over its `.x` base: a
+  `color` with the rule's own background, or else with each of `SURFACES`; a border or
+  outline token with each of `SURFACES`, unless the rule's background is itself a
+  surface. It fails when one of those pairs has no `CONTRAST_PAIRS` entry, so a new
+  combination cannot skip the contrast test. It reads plain declarations only: a color
+  reached through a local custom property is not seen, and `filter` states (hover,
+  active) are not token pairs.
 
 ## Choosing an app's own
 

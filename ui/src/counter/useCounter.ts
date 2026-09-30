@@ -20,7 +20,13 @@ export type CounterFailure = CounterError | "unexpected";
 export type CounterState =
   | { readonly status: "loading" }
   | { readonly status: "failed"; readonly error: CounterFailure }
-  | { readonly status: "ready"; readonly view: CounterView; readonly error: CounterFailure | null };
+  | {
+      readonly status: "ready";
+      readonly view: CounterView;
+      readonly error: CounterFailure | null;
+      /** Failed changes since the last view; a new count re-mounts the alert so it is re-announced. */
+      readonly errorCount: number;
+    };
 
 export interface UseCounter {
   readonly state: CounterState;
@@ -42,7 +48,7 @@ export function useCounter(): UseCounter {
   useEffect(() => {
     let active = true;
     const showView = (view: CounterView): void => {
-      if (active) setState({ status: "ready", view, error: null });
+      if (active) setState({ status: "ready", view, error: null, errorCount: 0 });
     };
     commands.getCounter().then(showView, (error: unknown) => {
       if (active) setState({ status: "failed", error: toCounterFailure(error, "get_counter") });
@@ -62,11 +68,13 @@ export function useCounter(): UseCounter {
   const change = useCallback(async (name: string, action: () => Promise<CounterView>) => {
     try {
       const view = await action();
-      setState({ status: "ready", view, error: null });
+      setState({ status: "ready", view, error: null, errorCount: 0 });
     } catch (error: unknown) {
       const failure = toCounterFailure(error, name);
       setState((current) =>
-        current.status === "ready" ? { ...current, error: failure } : current,
+        current.status === "ready"
+          ? { ...current, error: failure, errorCount: current.errorCount + 1 }
+          : current,
       );
     }
   }, []);

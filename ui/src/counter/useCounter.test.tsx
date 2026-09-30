@@ -14,7 +14,12 @@ describe("useCounter", () => {
     const { result } = renderHook(() => useCounter());
     expect(result.current.state).toEqual({ status: "loading" });
     await waitFor(() => {
-      expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+      expect(result.current.state).toEqual({
+        status: "ready",
+        view: ONE,
+        error: null,
+        errorCount: 0,
+      });
     });
   });
 
@@ -25,7 +30,12 @@ describe("useCounter", () => {
       expect(result.current.state.status).toBe("ready");
     });
     await act(() => result.current.increment());
-    expect(result.current.state).toEqual({ status: "ready", view: TWO, error: null });
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: TWO,
+      error: null,
+      errorCount: 0,
+    });
     expect(calls).toContain("increment");
   });
 
@@ -40,12 +50,18 @@ describe("useCounter", () => {
       expect(result.current.state.status).toBe("ready");
     });
     await act(() => result.current.decrement());
-    expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: ONE,
+      error: null,
+      errorCount: 0,
+    });
     await act(() => result.current.reset());
     expect(result.current.state).toEqual({
       status: "ready",
       view: { value: 0, lastChangedAt: 5 },
       error: null,
+      errorCount: 0,
     });
     expect(calls).toEqual(expect.arrayContaining(["decrement", "reset"]));
   });
@@ -64,6 +80,7 @@ describe("useCounter", () => {
       status: "ready",
       view: TWO,
       error: { code: "atMaximum" },
+      errorCount: 1,
     });
   });
 
@@ -84,7 +101,39 @@ describe("useCounter", () => {
     });
     await act(() => result.current.increment());
     await act(() => result.current.decrement());
-    expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: ONE,
+      error: null,
+      errorCount: 0,
+    });
+  });
+
+  it("counts repeated rejections and resets the count on the next success", async () => {
+    mockCommands({
+      get_counter: () => TWO,
+      increment: () => rejectWith({ code: "atMaximum" }),
+      decrement: () => ONE,
+    });
+    const { result } = renderHook(() => useCounter());
+    await waitFor(() => {
+      expect(result.current.state.status).toBe("ready");
+    });
+    await act(() => result.current.increment());
+    await act(() => result.current.increment());
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: TWO,
+      error: { code: "atMaximum" },
+      errorCount: 2,
+    });
+    await act(() => result.current.decrement());
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: ONE,
+      error: null,
+      errorCount: 0,
+    });
   });
 
   it("fails with the error code when the first load is rejected", async () => {
@@ -129,7 +178,12 @@ describe("useCounter", () => {
     });
     await act(() => result.current.increment());
     await act(() => result.current.increment());
-    expect(result.current.state).toEqual({ status: "ready", view: TWO, error: "unexpected" });
+    expect(result.current.state).toEqual({
+      status: "ready",
+      view: TWO,
+      error: "unexpected",
+      errorCount: 2,
+    });
   });
 
   it("names the rejection's type, never its message, in the log line", async () => {
@@ -169,7 +223,12 @@ describe("useCounter", () => {
     );
     const { result, unmount } = renderHook(() => useCounter());
     await waitFor(() => {
-      expect(result.current.state).toEqual({ status: "ready", view: ONE, error: null });
+      expect(result.current.state).toEqual({
+        status: "ready",
+        view: ONE,
+        error: null,
+        errorCount: 0,
+      });
     });
     await waitFor(() => {
       expect(messages).toEqual([
@@ -192,7 +251,12 @@ describe("useCounter", () => {
     });
     await act(() => emitEvent("counter-changed", TWO));
     await waitFor(() => {
-      expect(result.current.state).toEqual({ status: "ready", view: TWO, error: null });
+      expect(result.current.state).toEqual({
+        status: "ready",
+        view: TWO,
+        error: null,
+        errorCount: 0,
+      });
     });
   });
 

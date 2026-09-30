@@ -35,7 +35,7 @@
   --palette-gray-dark-100: #e5e5ea;
   --palette-gray-dark-50: #f5f5f7;
   --palette-blue-dark-500: #3d8bfd;
-  --palette-blue-dark-600: #2f6fd0;
+  --palette-blue-dark-600: #3173d8;
   --palette-red-dark-400: #ff6961;
 
   /* Semantic colors: light */
@@ -49,6 +49,7 @@
   --color-control-bg: var(--palette-gray-100);
   --color-control-text: var(--palette-gray-900);
   --color-control-border: var(--palette-gray-450);
+  --color-panel-border: var(--palette-gray-100);
   --color-focus-ring: var(--palette-blue-600);
 
   /* Typography: the system font and a scale mirroring macOS text styles */
@@ -79,6 +80,8 @@
   --radius-panel: 10px;
   --border-width: 1px;
   --focus-ring-width: 3px;
+  --focus-ring-offset: 1px;
+  --width-content: 360px;
   --control-height: 28px;
 
   /* Motion: collapses to nothing under prefers-reduced-motion */
@@ -99,6 +102,7 @@
     --color-control-bg: var(--palette-gray-dark-800);
     --color-control-text: var(--palette-gray-dark-100);
     --color-control-border: var(--palette-gray-dark-400);
+    --color-panel-border: var(--palette-gray-dark-800);
     --color-focus-ring: var(--palette-blue-dark-500);
   }
 }

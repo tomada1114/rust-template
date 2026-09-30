@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -26,6 +26,28 @@ describe("CounterScreen", () => {
     expect(screen.getByRole("button", { name: "Decrement" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument();
     expect(screen.getByText("Not changed yet")).toBeInTheDocument();
+  });
+
+  it("names the value's status after the counter's title", async () => {
+    mockCommands({ get_counter: () => ({ value: 4, lastChangedAt: null }) });
+    render(<CounterScreen />);
+    expect(await screen.findByRole("status", { name: "Counter" })).toHaveTextContent("4");
+  });
+
+  it("mounts a new alert for a second identical failure, so it is announced again", async () => {
+    mockCommands({
+      get_counter: () => ({ value: 0, lastChangedAt: null }),
+      decrement: () => rejectWith({ code: "atMinimum" }),
+    });
+    render(<CounterScreen />);
+    const decrement = await screen.findByRole("button", { name: "Decrement" });
+    await userEvent.click(decrement);
+    const first = await screen.findByRole("alert");
+    await userEvent.click(decrement);
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).not.toBe(first);
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("already at its lowest value");
   });
 
   it("shows the loading state before the counter arrives", () => {

@@ -2,8 +2,10 @@
  * ipc-names against a fixture tree: `fixtures/ipc-names/pass` registers, invokes, emits,
  * and listens to the same names through every form the check reads (a path in
  * `generate_handler!`, a literal, a const, `emit_to`, `emit_filter`, a path call through
- * `Emitter`, `once`, an invoke outside commands.ts, a test file's invoke that does not
- * count). Each failing case copies it to a temp root and breaks one thing.
+ * `Emitter`, `once`, an invoke outside commands.ts, an invoke and a `once` imported from
+ * a local module that re-exports them, `window.__TAURI_INTERNALS__.invoke`, and a test
+ * file's invoke that does not count). Each failing case copies it to a temp root and
+ * breaks one thing.
  */
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -192,6 +194,172 @@ describe("ipc-names", () => {
       expect(missingInRust?.next).toContain("ui/src/ipc/danger.ts");
     });
 
+    it.each([
+      ["window's", 'window.__TAURI_INTERNALS__.invoke("ghost_one");\n'],
+      ["the bare global's", '__TAURI_INTERNALS__.invoke("ghost_one");\n'],
+      [
+        "globalThis's, by computed keys,",
+        'globalThis["__TAURI_INTERNALS__"]["invoke"]("ghost_one");\n',
+      ],
+      [
+        "a cast window's, optionally chained,",
+        '(window as unknown as { __TAURI_INTERNALS__: T }).__TAURI_INTERNALS__?.invoke("ghost_one");\n',
+      ],
+      [
+        "a class heritage's",
+        'export class A extends base(window.__TAURI_INTERNALS__.invoke("ghost_one")) {}\n',
+      ],
+    ])("compares a command invoked through %s __TAURI_INTERNALS__", (_label, source) => {
+      const root = copyPass();
+      writeFileSync(join(root, "ui/src/ipc/extra.ts"), source);
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_COMMANDS_DIVERGED"]);
+      expect(text(violations)).toContain("`ghost_one` at ui/src/ipc/extra.ts:1");
+    });
+
+    it.each([
+      ["a type alias", "type Internals = typeof window.__TAURI_INTERNALS__;\n"],
+      ["an annotation", "let t: { __TAURI_INTERNALS__: unknown } | undefined;\n"],
+      ["an ambient declaration", "declare const __TAURI_INTERNALS__: unknown;\n"],
+      ["an interface", "interface W {\n  __TAURI_INTERNALS__: unknown;\n}\n"],
+    ])("ignores __TAURI_INTERNALS__ named in %s, which never runs", (_label, source) => {
+      const root = copyPass();
+      writeFileSync(join(root, "ui/src/ipc/extra.ts"), source);
+      expect(check.run(root)).toEqual([]);
+    });
+
+    it("fails on a __TAURI_INTERNALS__.invoke whose name it cannot read", () => {
+      const root = copyPass();
+      writeFileSync(
+        join(root, "ui/src/ipc/extra.ts"),
+        "export const any = (name: string) => window.__TAURI_INTERNALS__.invoke(name);\n",
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_UNPARSED"]);
+      expect(text(violations)).toContain("ui/src/ipc/extra.ts:1");
+    });
+
+    it.each([
+      ["an alias", 'const t = window.__TAURI_INTERNALS__;\nt.invoke("get_counter");\n'],
+      ["destructuring", 'const { invoke } = window.__TAURI_INTERNALS__;\ninvoke("get_counter");\n'],
+      [
+        "its invoke kept for later",
+        'const f = window.__TAURI_INTERNALS__.invoke;\nf("get_counter");\n',
+      ],
+      [
+        "a key held in a const",
+        'const KEY = "__TAURI_INTERNALS__";\nwindow[KEY].invoke("get_counter");\n',
+      ],
+      ["a member other than invoke", "window.__TAURI_INTERNALS__.ipc(message);\n"],
+      ["an argument", "send(window.__TAURI_INTERNALS__);\n"],
+    ])("fails on __TAURI_INTERNALS__ reached through %s", (_label, source) => {
+      const root = copyPass();
+      writeFileSync(join(root, "ui/src/ipc/extra.ts"), source);
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_UNPARSED"]);
+      expect(text(violations)).toContain("ui/src/ipc/extra.ts:1");
+      expect(violations[0]?.next).toContain("@tauri-apps/api/core");
+    });
+
+    it.each([
+      [
+        "a named re-export",
+        'export { invoke } from "@tauri-apps/api/core";\n',
+        "{ invoke }",
+        "invoke",
+      ],
+      ["a star re-export", 'export * from "@tauri-apps/api/core";\n', "{ invoke }", "invoke"],
+      [
+        "a re-export under another name",
+        'import { invoke as call } from "@tauri-apps/api/core";\nexport { call as run };\n',
+        "{ run }",
+        "run",
+      ],
+      [
+        "an exported const alias",
+        'import { invoke } from "@tauri-apps/api/core";\nexport const run = invoke;\n',
+        "{ run }",
+        "run",
+      ],
+      [
+        "a default export",
+        'import { invoke } from "@tauri-apps/api/core";\nexport default invoke;\n',
+        "run",
+        "run",
+      ],
+      [
+        "a namespace import of the re-exporting module",
+        'export * from "@tauri-apps/api/core";\n',
+        "* as re",
+        "re.invoke",
+      ],
+      [
+        "a re-exported namespace",
+        'export * as core from "@tauri-apps/api/core";\n',
+        "{ core }",
+        "core.invoke",
+      ],
+    ])(
+      "compares an invoke imported from a local module through %s",
+      (_label, re, binding, callee) => {
+        const root = copyPass();
+        writeFileSync(join(root, "ui/src/ipc/re.ts"), re);
+        writeFileSync(
+          join(root, "ui/src/ipc/use.ts"),
+          `import ${binding} from "./re";\nexport const x = () => ${callee}("ghost_two");\n`,
+        );
+        const violations = check.run(root);
+        expect(codes(violations)).toEqual(["ERR_CHECK_IPC_COMMANDS_DIVERGED"]);
+        expect(text(violations)).toContain("`ghost_two` at ui/src/ipc/use.ts:2");
+      },
+    );
+
+    it("follows a re-export through a directory's index", () => {
+      const root = copyPass();
+      mkdirSync(join(root, "ui/src/ipc/tauri"));
+      writeFileSync(join(root, "ui/src/ipc/tauri/index.ts"), 'export * from "./core";\n');
+      writeFileSync(
+        join(root, "ui/src/ipc/tauri/core.ts"),
+        'export { invoke } from "@tauri-apps/api/core";\n',
+      );
+      writeFileSync(
+        join(root, "ui/src/ipc/use.ts"),
+        'import { invoke } from "./tauri";\nexport const x = () => invoke("ghost_two");\n',
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_COMMANDS_DIVERGED"]);
+      expect(text(violations)).toContain("`ghost_two` at ui/src/ipc/use.ts:2");
+    });
+
+    it("fails on a locally re-exported invoke whose name it cannot read", () => {
+      const root = copyPass();
+      writeFileSync(
+        join(root, "ui/src/ipc/re.ts"),
+        'export { invoke } from "@tauri-apps/api/core";\n',
+      );
+      writeFileSync(
+        join(root, "ui/src/ipc/use.ts"),
+        'import { invoke } from "./re";\nexport const any = (name: string) => invoke(name);\n',
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_UNPARSED"]);
+      expect(text(violations)).toContain("ui/src/ipc/use.ts:2");
+    });
+
+    it("ignores a helper of the app's own re-exported under Tauri's name", () => {
+      const root = copyPass();
+      writeFileSync(
+        join(root, "ui/src/ipc/memo.ts"),
+        "export function invoke(f: unknown) { return f; }\nexport const once = (f: unknown) => f;\n",
+      );
+      writeFileSync(join(root, "ui/src/ipc/re.ts"), 'export * from "./memo";\n');
+      writeFileSync(
+        join(root, "ui/src/ipc/use.ts"),
+        'import { invoke, once } from "./re";\nexport const x = () => [invoke(name), once(() => 1)];\n',
+      );
+      expect(check.run(root)).toEqual([]);
+    });
+
     it("fails on an invoke with no arguments", () => {
       const root = copyPass();
       appendFile(root, COMMANDS_TS, "export const none = () => invoke();\n");
@@ -304,6 +472,59 @@ describe("ipc-names", () => {
       const violations = check.run(root);
       expect(codes(violations)).toEqual(["ERR_CHECK_IPC_EVENTS_DIVERGED"]);
       expect(text(violations)).toContain("ui/src/ipc/more.ts:2");
+    });
+
+    it.each([
+      [
+        "a named re-export",
+        'export { listen } from "@tauri-apps/api/event";\n',
+        "{ listen }",
+        "listen",
+      ],
+      ["a star re-export", 'export * from "@tauri-apps/api/event";\n', "{ once }", "once"],
+      [
+        "a re-export under another name",
+        'import { listen as l } from "@tauri-apps/api/event";\nexport { l as on };\n',
+        "{ on }",
+        "on",
+      ],
+      [
+        "a re-exported value's method",
+        'export { getCurrentWindow } from "@tauri-apps/api/window";\n',
+        "{ getCurrentWindow }",
+        "getCurrentWindow().listen",
+      ],
+      [
+        "a re-exported const of a Tauri value",
+        'import { getCurrentWindow } from "@tauri-apps/api/window";\nexport const w = getCurrentWindow();\n',
+        "{ w }",
+        "w.once",
+      ],
+    ])("compares an event heard through %s from a local module", (_label, re, binding, callee) => {
+      const root = copyPass();
+      writeFileSync(join(root, "ui/src/ipc/re.ts"), re);
+      writeFileSync(
+        join(root, "ui/src/ipc/use.ts"),
+        `import ${binding} from "./re";\nexport const x = () => ${callee}("ghost-event", () => {});\n`,
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_EVENTS_DIVERGED"]);
+      expect(text(violations)).toContain('"ghost-event" at ui/src/ipc/use.ts:2');
+    });
+
+    it("fails on a locally re-exported listen whose event it cannot read", () => {
+      const root = copyPass();
+      writeFileSync(
+        join(root, "ui/src/ipc/re.ts"),
+        'export { listen } from "@tauri-apps/api/event";\n',
+      );
+      writeFileSync(
+        join(root, "ui/src/ipc/use.ts"),
+        'import { listen } from "./re";\nexport const on = (id: string) => listen(`tick-${id}`, () => {});\n',
+      );
+      const violations = check.run(root);
+      expect(codes(violations)).toEqual(["ERR_CHECK_IPC_UNPARSED"]);
+      expect(text(violations)).toContain("ui/src/ipc/use.ts:2");
     });
 
     it("fails when events.ts listens to an event Rust never emits", () => {
