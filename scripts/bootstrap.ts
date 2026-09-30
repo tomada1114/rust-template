@@ -1,5 +1,5 @@
 /**
- * Turns this template into a new app, once (design D19; `just bootstrap`). It asks for,
+ * Turns this template into a new app, once (`just bootstrap`). It asks for,
  * or takes as flags, the display name, the slug used for crate and binary names, the
  * bundle identifier, the GitHub owner/repo, the author, and the copyright holder, then:
  *
@@ -10,7 +10,8 @@
  *   Cargo.lock offline (`cargo update --workspace --offline`);
  * - removes the `<!-- template-only -->` … `<!-- /template-only -->` blocks, `docs/template/`,
  *   the `Template Bootstrap Smoke` CI job and its required context, the `bootstrap` recipe
- *   and every mention of it, and the skill reference that only describes this script;
+ *   and every mention of it, and the skill reference that only describes this script,
+ *   and rewrites the passages outside those blocks that describe the template (TEXT_EDITS);
  * - resets CHANGELOG.md to an empty [Unreleased] and the three version sites to 0.1.0,
  *   writes the author into package.json and the copyright line into LICENSE;
  * - formats what it rewrote (`cargo fmt --all`, Prettier), deletes itself and
@@ -322,19 +323,53 @@ const STARTING_AN_APP_RENAME_DONE = `2. **Rename.** Done: the bootstrap rewrote 
    fixed by hand, in every spelling (hyphenated, underscored, upper-case).
 `;
 
+// The Product section's introduction. In an app it must hold no `TODO:` of its own, so
+// that filling in the four bullets is all it takes to pass the product-section check.
+const PRODUCT_INTRO = `**TODO: in the template this section is a placeholder.** It is the one part of this
+file about the application rather than the harness, so every repository cut from the
+template writes its own: without it an agent implementing an issue here has no in-repo
+answer to "is this in scope?". Fill in every \`TODO:\` below right after the rename
+(\`README.md\`'s "Using This Template") — once \`scripts/bootstrap.ts\` has run,
+\`just check-harness\` fails while one is left.`;
+
+const PRODUCT_INTRO_IN_AN_APP = `This section is the one part of this file about the application rather than the
+harness: without it, an agent implementing an issue here has no in-repo answer to "is
+this in scope?". The owner writes each bullet (the \`starting-an-app\` skill says how);
+\`just check-harness\` fails while one still holds its \`TODO\` marker.`;
+
+const UPDATING_DOCS_TEMPLATE_SECTION = `## Template-only material
+
+The bootstrap removes every \`<!-- template-only -->\` … \`<!-- /template-only -->\` block
+and the template's own design notes, so an app never inherits text about the template.
+Text only a template reader needs (why the bootstrap exists, how to use the template)
+goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
+distribution flow) goes outside. A standing document outside a block never links into
+the template's design notes: that link dangles in every app. A sentence outside a block
+that holds only in the template is rewritten for the app by an entry in \`TEXT_EDITS\`
+in \`scripts/bootstrap.ts\`, in the same change.
+
+Only the files \`MARKER_FILES\` in \`scripts/bootstrap.ts\` lists have their blocks removed.
+A block in any other file adds that file to the list in the same change, or its marker
+lines survive into the app and \`node scripts/verify-bootstrap.ts\` (CI's Template
+Bootstrap Smoke job) fails with \`ERR_VERIFY_BOOTSTRAP_MARKER\`. It fails with
+\`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT\` when the app still names the template's design
+record or README's template-only section, or a decision by its number in that record.
+
+`;
+
 /**
- * Passages that name this script, its recipe, or `docs/template/`, and so would dangle
- * in an app. Each `find` must occur exactly once, in the template's spelling; the form
- * rewrite runs after these edits.
+ * Passages that name this script, its recipe, the template's design record, or
+ * README's template-only section, or that describe the template rather than the app,
+ * and so would dangle or mislead in an app. Each `find` must occur exactly once, in the
+ * template's spelling; the form rewrite runs after these edits.
  */
 export const TEXT_EDITS: readonly TextEdit[] = [
+  { file: "AGENTS.md", find: PRODUCT_INTRO, replace: PRODUCT_INTRO_IN_AN_APP },
   {
     file: "AGENTS.md",
-    find: `Fill in every \`TODO:\` below right after the rename
-(\`README.md\`'s "Using This Template") — once \`scripts/bootstrap.ts\` has run,
-\`just check-harness\` fails while one is left.`,
-    replace: `Fill in every \`TODO:\` below now: the bootstrap has run,
-so \`just check-harness\` fails while one is left.`,
+    find: "| `starting-an-app` | Turning the template into a new app: bootstrap, design system first, app shape |",
+    replace:
+      "| `starting-an-app` | The app's first decisions: Product section, design system first, app shape, removing the sample |",
   },
   {
     file: "AGENTS.md",
@@ -352,6 +387,16 @@ so \`just check-harness\` fails while one is left.`,
     replace: "holds no `TODO:` |",
   },
   { file: "AGENTS.md", find: "`release-prep`, `bootstrap`)", replace: "`release-prep`)" },
+  {
+    file: "AGENTS.md",
+    find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), and the skills name exists;",
+    replace: "`docs/` (apart from the roadmap and the ADRs), and the skills name exists;",
+  },
+  {
+    file: "AGENTS.md",
+    find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), or a skill;",
+    replace: "`docs/` (apart from the roadmap and the ADRs), or a skill;",
+  },
   ...bothSkillTrees("starting-an-app/SKILL.md").flatMap((file): TextEdit[] => [
     {
       file,
@@ -359,6 +404,11 @@ so \`just check-harness\` fails while one is left.`,
       replace: STARTING_AN_APP_DESCRIPTION_IN_AN_APP,
     },
     { file, find: STARTING_AN_APP_RENAME_STEP, replace: STARTING_AN_APP_RENAME_DONE },
+    {
+      file,
+      find: 'README\'s "Using This Template" is the reader-facing list of the steps below, in the same\norder; the bootstrap removes that section with the rest of the template-only material,\nso this skill is where an app still finds them.\n\n',
+      replace: "",
+    },
   ]),
   ...bothSkillTrees("authoring-skills/SKILL.md").flatMap((file): TextEdit[] => [
     {
@@ -383,12 +433,94 @@ so \`just check-harness\` fails while one is left.`,
       find: "rejects, how the\ntemplate becomes an app (`just bootstrap`), how a release is built and signed, and",
       replace: "rejects, how a\nrelease is built and signed, and",
     },
+    { file, find: UPDATING_DOCS_TEMPLATE_SECTION, replace: "" },
     {
       file,
-      find: "\nOnly the files `MARKER_FILES` in `scripts/bootstrap.ts` lists have their blocks removed.\nA block in any other file adds that file to the list in the same change, or its marker\nlines survive into the app and `node scripts/verify-bootstrap.ts` (CI's Template\nBootstrap Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`.\n",
-      replace: "",
+      find: "  README.md (Quickstart, Design Philosophy, Using This Template), AGENTS.md,\n",
+      replace: "  README.md (Quickstart, Design Philosophy), AGENTS.md,\n",
+    },
+    {
+      file,
+      find: "  steps drifted, when a template-only block is involved, or when deciding that an\n",
+      replace: "  steps drifted, or when deciding that an\n",
+    },
+    {
+      file,
+      find: '(the Quickstart,\n  what "Using This Template" asks), or when',
+      replace: "(the Quickstart),\n  or when",
+    },
+    {
+      file,
+      find: '| The tour: what the template is, Quickstart, Design Philosophy (a "Why" per decision), Using This Template, links onward |',
+      replace:
+        '| The tour: what the app is, Quickstart, Design Philosophy (a "Why" per decision), links onward |',
+    },
+    {
+      file,
+      find: "Neither\n  check reads the template's own design record, the roadmap, or the ADRs,",
+      replace: "Neither\n  check reads the roadmap or the ADRs,",
     },
   ]),
+  {
+    file: "README.md",
+    find: "A template for personal macOS desktop apps with a modest UI: a Rust core, a Tauri v2\nshell,",
+    replace: "A personal macOS desktop app with a modest UI: a Rust core, a Tauri v2\nshell,",
+  },
+  {
+    file: "scripts/checks/just-check-matches-ci.ts",
+    find: `  ciOnlyJobs: {
+    "Template Bootstrap Smoke":
+      "template-only: bootstraps a throwaway copy and runs \`just check\` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
+  },`,
+    replace: "  ciOnlyJobs: {},",
+  },
+  {
+    file: "scripts/checks/shared/documents.ts",
+    find: ` * Documents neither check reads. \`docs/template/\` is the template's own design record: it
+ * cites the upstream template's issues and plans recipes before they exist, and the
+ * bootstrap deletes it. The roadmap and the ADRs are an app's own planning and decision
+ * records:`,
+    replace: ` * Documents neither check reads. The roadmap and the ADRs are an app's own planning and
+ * decision records:`,
+  },
+  { file: "scripts/checks/shared/documents.ts", find: '  "docs/template",\n', replace: "" },
+  {
+    file: "scripts/checks/shared/documents.test.ts",
+    find: '      "docs/template/design.md",\n',
+    replace: "",
+  },
+  {
+    file: "scripts/checks/just-recipes-exist.ts",
+    find: "(`docs/template/`, the\n * roadmap, and the ADRs:",
+    replace: "(the roadmap and\n * the ADRs:",
+  },
+  {
+    file: "scripts/checks/just-recipes-exist.test.ts",
+    find:
+      String.raw`    "docs/template/plan.md": "A planned ${"`"}just not-yet${"`"} (docs/template/ is not read).\n",` +
+      "\n",
+    replace: "",
+  },
+  {
+    file: "scripts/checks/just-recipes-exist.test.ts",
+    find: `  it("reads neither docs/template/, the roadmap, nor an ADR, which plan recipes ahead", () => {
+    const root = fixture({
+      "docs/template/deep/x.md": "Run \`just bogus-template\`.\\n",
+`,
+    replace: `  it("reads neither the roadmap nor an ADR, which plan recipes ahead", () => {
+    const root = fixture({
+`,
+  },
+  {
+    file: "scripts/checks/no-issue-references.ts",
+    find: "(`docs/template/`, the\n * template's design record the bootstrap deletes; the roadmap,",
+    replace: "(the roadmap,",
+  },
+  {
+    file: "scripts/checks/no-issue-references.test.ts",
+    find: String.raw`    "docs/template/design.md": "Decided in #140 (issue 166).\n",` + "\n",
+    replace: "",
+  },
   {
     file: "osv-scanner.toml",
     find: "# Every entry expires after 90 days and is recorded in docs/template/implementation-notes.md.\n",
@@ -1358,7 +1490,9 @@ export function runBootstrap(
     "     (and so `just check`) fails until you do.",
     "  2. Fill in docs/architecture/roadmap.md (Now / Next / Later) with the steering-the-roadmap skill.",
     "  3. just install, then just check.",
-    "  4. Review the rewrite (`git status`, `git diff`) and commit it as one commit.",
+    "  4. Review the rewrite (`git status`, `git diff`) and commit it as one commit, then the",
+    "     Product section and roadmap as the next, and push both to main (the ruleset is not",
+    "     on yet, so main takes a direct push).",
     "  5. just labels — create the label set from .github/labels.yml on the new repository.",
     "  6. Turn on the GitHub security settings: secret scanning and push protection, private",
     "     vulnerability reporting, Dependabot alerts and security updates.",

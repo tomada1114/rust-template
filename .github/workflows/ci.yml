@@ -205,7 +205,7 @@ jobs:
 
   bootstrap-smoke:
     # Template-only: scripts/bootstrap.ts removes this job, and its required context in
-    # .github/rulesets/main.json, from every app it generates (design D19). A hyphenated
+    # .github/rulesets/main.json, from every app it generates. A hyphenated
     # multi-word slug exercises every spelling the rename writes: tide-pool-core,
     # tide_pool_lib, and TIDE_POOL_SMOKE.
     name: Template Bootstrap Smoke
@@ -267,22 +267,28 @@ jobs:
             exit 1
           fi
 
-      - name: Write a stub Product section
+      - name: Unit tests pass on the unfilled app
+        working-directory: ${{ runner.temp }}/bootstrap-smoke
+        # No test may read the real checkout's Product section: an app runs `just
+        # test-scripts` before anyone has described it.
+        run: just test-scripts
+
+      - name: Fill in only the Product section's four bullets
         working-directory: ${{ runner.temp }}/bootstrap-smoke
         run: |
+          # Each "- **Label** — TODO: …" bullet keeps its label and loses its indented
+          # continuation lines; every other line, the section's introduction included,
+          # stays as the bootstrap left it, so this proves filling the bullets is enough.
           awk '
-            /^## Product$/ {
+            /^## / { inside = ($0 == "## Product"); bullet = 0; print; next }
+            inside && /^- \*\*/ {
+              sub(/\*\* — .*/, "** — a stand-in answer for the Template Bootstrap Smoke job.")
               print
-              print ""
-              print "- **What it is, and who it is for** - a stand-in app for the Template Bootstrap Smoke job."
-              print "- **The core interaction** - none: the job only proves the bootstrap."
-              print "- **Non-goals** - everything else: this copy is deleted when the job ends."
-              print "- **Where these decisions are recorded** - the job itself, in .github/workflows/ci.yml."
-              skip = 1
+              bullet = 1
               next
             }
-            skip && /^## / { skip = 0; print "" }
-            !skip { print }
+            inside && bullet && /^  / { next }
+            { bullet = 0; print }
           ' AGENTS.md >"$RUNNER_TEMP/AGENTS.md"
           mv "$RUNNER_TEMP/AGENTS.md" AGENTS.md
 

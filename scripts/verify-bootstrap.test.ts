@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { gitEnv } from "./lib/git-env.ts";
 import { runCommand, type RunOptions, type RunResult, type ScriptContext } from "./lib/script.ts";
-import { assertGenerated, main, VERIFY_ANSWERS } from "./verify-bootstrap.ts";
+import { assertGenerated, fillProductBullets, main, VERIFY_ANSWERS } from "./verify-bootstrap.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -118,6 +118,19 @@ const LOG_PREFIX = "tide-pool";
     'jobs:\n  release:\n    env:\n      APP_NAME: "Tide Pool"\n    steps:\n      - run: echo "$APP_NAME.app"\n',
   ".github/rulesets/main.json": '{ "rules": [{ "context": "Lint" }] }\n',
   "osv-scanner.toml": "# Tracking issue: https://github.com/tomada1114/tauri-template/issues/3\n",
+  "AGENTS.md": `# Project Guide
+
+## Product
+
+The owner writes each bullet (the \`starting-an-app\` skill says how).
+
+- **What it is, and who it is for** — TODO: one paragraph. The problem it solves,
+  and whose problem that is.
+- **Non-goals** — TODO: what this app deliberately does not do.
+
+## Quick Reference
+`,
+  ".agents/skills/starting-an-app/SKILL.md": "---\nname: starting-an-app\n---\n\nSteps.\n",
 };
 
 function generatedTree(root: string = tempDir("verify-bootstrap-app-")): string {
@@ -177,6 +190,50 @@ describe("assertGenerated", () => {
       write(root, path, content);
       expect(codes(root)).toContain("ERR_VERIFY_BOOTSTRAP_TEMPLATE_FILE");
     }
+  });
+
+  it.each([
+    ["the design record", "See docs/template/design.md."],
+    ["a decision number", "Pinned once (design D9)."],
+    ["README's template-only section", 'Follow "Using This Template".'],
+    ["the first app", "The first app cut from this template manages launchd jobs."],
+  ])("fails on text about the template: %s", (_label, text) => {
+    const root = generatedTree();
+    write(root, "scripts/lib/notes.ts", `// ok\n// ${text}\n`);
+    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT"]);
+    expect(violations[0]?.actual).toContain("scripts/lib/notes.ts:2");
+  });
+
+  it("fails when the Product section passes unfilled", () => {
+    const root = generatedTree();
+    write(root, "AGENTS.md", "## Product\n\n- **Non-goals** — none.\n");
+    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION"]);
+    expect(violations[0]?.actual).toContain("passes on the unfilled section");
+  });
+
+  it("fails when filling the bullets alone does not pass the Product section", () => {
+    const root = generatedTree();
+    const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
+    write(root, "AGENTS.md", agents.replace("The owner writes", "TODO: the owner writes"));
+    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION"]);
+    expect(violations[0]?.actual).toContain("AGENTS.md:5 still holds");
+  });
+
+  it("fails when the Product section's Next line names a skill the app lacks", () => {
+    const root = generatedTree();
+    rmSync(join(root, ".agents/skills/starting-an-app"), { recursive: true });
+    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION"]);
+    expect(violations[0]?.actual).toContain("a skill the app lacks: starting-an-app");
+  });
+
+  it("fails on the Product section without AGENTS.md", () => {
+    const root = generatedTree();
+    rmSync(join(root, "AGENTS.md"));
+    expect(codes(root)).toEqual(["ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION"]);
   });
 
   it("ignores a link inside code and a placeholder link target", () => {
@@ -437,5 +494,45 @@ describe("main", () => {
         main(context(sourceRepo(), ["--fast"], () => ({})).context);
       }),
     ).toMatch(/^ERR_VERIFY_BOOTSTRAP_USAGE/);
+  });
+});
+
+describe("fillProductBullets", () => {
+  it("fills each Product bullet and drops its continuation lines, leaving every other line", () => {
+    const agents = [
+      "# Guide",
+      "",
+      "- **Elsewhere** — TODO: not in the section.",
+      "## Product",
+      "",
+      "Intro line.",
+      "",
+      "- **What it is** — TODO: one paragraph,",
+      "  continued here.",
+      "- **Non-goals** — TODO: none.",
+      "- no bold label",
+      "  kept, since it follows no filled bullet.",
+      "",
+      "## Next",
+      "- **Other** — TODO: after the section.",
+    ].join("\n");
+    expect(fillProductBullets(agents)).toBe(
+      [
+        "# Guide",
+        "",
+        "- **Elsewhere** — TODO: not in the section.",
+        "## Product",
+        "",
+        "Intro line.",
+        "",
+        "- **What it is** — a stand-in answer.",
+        "- **Non-goals** — a stand-in answer.",
+        "- no bold label",
+        "  kept, since it follows no filled bullet.",
+        "",
+        "## Next",
+        "- **Other** — TODO: after the section.",
+      ].join("\n"),
+    );
   });
 });

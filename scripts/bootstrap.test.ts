@@ -626,6 +626,9 @@ describe("runBootstrap", () => {
     expect(agents).toContain("use tide_pool_core::Counter; tide_pool_lib::run();");
     expect(agents).toContain("TIDE_POOL_SMOKE=1");
     expect(agents).toContain("~/Library/Logs/com.example.tide-pool/");
+    // The Product section's introduction holds no marker of its own in an app.
+    expect(agents).not.toContain("**TODO:");
+    expect(agents).toContain("fails while one still holds its `TODO` marker");
 
     const readme = read(root, "README.md");
     expect(readme).not.toContain("template-only");
@@ -686,6 +689,7 @@ describe("runBootstrap", () => {
       "just labels",
       "just ruleset",
       "secret scanning",
+      "push both to main",
     ]) {
       expect(output).toContain(step);
     }
@@ -748,7 +752,7 @@ describe("runBootstrap", () => {
     const root = templateTree();
     writeFileSync(
       join(root, "README.md"),
-      README.replace("<!-- /template-only -->\n\n## Q", "\n## Q"),
+      read(root, "README.md").replace("<!-- /template-only -->\n\n## Q", "\n## Q"),
     );
     const { context: ctx, calls } = context(root);
     expect(
