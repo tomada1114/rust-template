@@ -114,8 +114,9 @@ usually a run superseded by a newer event on the same PR (`pr-label.yml` and
 
 **Fix:** none of these is a test result, so do not read the diff for a cause. Open the
 run, find why it did not complete, and `gh run rerun <run-id>` once the approved plan
-lists it. A state that should pass and does not is a bug to fix in `survey-prs.ts` with a
-test, never a reason to merge past the verdict.
+lists it. A state that should pass and does not is a bug to fix in
+`scripts/lib/dependency-prs.ts` (the survey's logic) with a test, never a reason to merge
+past the verdict.
 
 ## Not a failure mode here: the PR-title check
 
