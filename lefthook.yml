@@ -15,8 +15,12 @@ pre-commit:
   # skip those states: the staged files then are everything the other side changed, which
   # they would re-lint slowly, and CI reruns all four over the whole tree. The staged guard
   # and the skills mirror never skip — no CI job reruns the guard over a pull request's
-  # diff, and a resolved skill conflict is where the mirror drifts. `git rebase --continue`
-  # commits a resolution without running pre-commit at all; see AGENTS.md's gaps.
+  # diff, and a resolved skill conflict is where the mirror drifts. They judge what is
+  # staged against HEAD, so a `reword` or a `git commit --amend` at an `edit` stop now runs
+  # them too, over what that stop newly stages (nothing, for a reword). The guard spawns one
+  # `git cat-file` per staged file, about 20 ms each (a 1,000-file merge takes ~20 s): a
+  # cost paid on a rare commit, not on every one. `git rebase --continue` commits a
+  # resolution without running pre-commit at all; see AGENTS.md's gaps.
   parallel: true
   jobs:
     # Secret-shaped paths and credential-shaped content in the staged blobs (not the

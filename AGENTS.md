@@ -549,9 +549,10 @@ removing or narrowing its bullet here:
   `git -c core.hooksPath=<dir>` each commit without the staged guard; and lefthook's
   generated hook exits 0 after printing that it cannot find lefthook when no binary
   resolves, so a checkout whose tools went missing commits unchecked without an error.
-  Git itself skips the hook for one commit: `git rebase --continue` commits a resolved
-  conflict without running pre-commit (`git merge --continue`, `git cherry-pick
-  --continue`, and a `git commit` at the rebase stop do run it).
+  Git itself skips pre-commit for some commits: `git rebase --continue` commits a resolved
+  conflict without it, `git am` and `git am --continue` run pre-applypatch instead, and a
+  merge git concludes itself (a clean one, or `-X ours`/`-X theirs`) runs
+  pre-merge-commit, which `lefthook.yml` does not configure.
   Nothing in this repository blocks these for every author. `.claude/settings.json`'s
   `deny` list refuses the usual spellings on Claude Code alone, and only as written,
   and `scripts/verify-hooks.ts` sees only that the hook file is lefthook's, not that

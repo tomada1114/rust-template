@@ -89,6 +89,39 @@ describe("check-staged", () => {
     expect(JSON.stringify(error.details)).not.toContain(AWS_KEY_ID);
   });
 
+  it("advises re-staging, never restoring to HEAD, while a merge is in progress", () => {
+    const dir = repo();
+    git(dir, "switch", "-q", "-c", "side");
+    writeFileSync(join(dir, "README.md"), "side\n");
+    git(dir, "commit", "-q", "-am", "side");
+    git(dir, "switch", "-q", "-");
+    writeFileSync(join(dir, "README.md"), "main\n");
+    git(dir, "commit", "-q", "-am", "main");
+    expect(
+      runCommand("git", ["merge", "side"], { cwd: dir, env: gitEnv(process.env) }).status,
+    ).not.toBe(0);
+    writeFileSync(join(dir, "README.md"), `resolved\n${AWS_KEY_ID}\n`);
+    git(dir, "add", "README.md");
+
+    const error = failure(() => {
+      main(context(dir));
+    });
+    expect(error.details.code).toBe("ERR_STAGED_CREDENTIAL_SHAPED");
+    expect(error.details.next).toContain("`git add` it again");
+    expect(error.details.next).not.toContain("`git restore --staged <path>`");
+  });
+
+  it("advises unstaging outside a merge", () => {
+    const dir = repo();
+    writeFileSync(join(dir, "a.txt"), `${AWS_KEY_ID}\n`);
+    git(dir, "add", "a.txt");
+    expect(
+      failure(() => {
+        main(context(dir));
+      }).details.next,
+    ).toContain("`git restore --staged <path>`");
+  });
+
   it("names every finding in one run", () => {
     const dir = repo();
     writeFileSync(join(dir, ".env"), "x\n");
