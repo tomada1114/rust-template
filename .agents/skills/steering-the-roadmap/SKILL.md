@@ -35,10 +35,10 @@ first says so, and the decision is made where it belongs.
 
 ## The template or an app
 
-The template ships `roadmap.md` as a `TODO:` skeleton, as it ships the Product section,
-and keeps its own direction in its issues: in the template, leave the page a skeleton.
-In an app, fill it in right after the Product section is written; the first Now outcome
-is usually the core interaction that section names. No check reads this page's `TODO:`
+`roadmap.md` starts as a `TODO:` skeleton, as the Product section does. In the template,
+which keeps its own direction in its issues, leave the page a skeleton. In an app, fill
+it in right after the Product section is written; the first Now outcome is usually the
+core interaction that section names. No check reads this page's `TODO:`
 markers (the harness's Product check reads only `AGENTS.md`), so a leftover marker is
 noticed only by the next person who opens the page.
 
