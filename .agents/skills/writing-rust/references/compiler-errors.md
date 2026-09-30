@@ -86,8 +86,10 @@ variants no match can name (`std::io::ErrorKind`, E0658), test the value with `=
 
 ## clippy findings met most here
 
-`just lint` runs `cargo clippy --workspace --all-targets --locked -- -D warnings` with
-`all` and `pedantic` on, so every warning fails. Each finding names its lint; look it up
+`just lint` runs `node scripts/clippy-guard.ts cargo clippy --workspace --all-targets
+--locked -- -D warnings` with `all` and `pedantic` on, so every warning fails, and the
+guard also fails on a `clippy.toml` entry clippy cannot resolve or read
+(`ERR_CLIPPY_BAN_UNRESOLVED`, `ERR_CLIPPY_CONFIG_INVALID`). Each finding names its lint; look it up
 in the lint list (https://rust-lang.github.io/rust-clippy/master/index.html).
 
 | Lint | What it wants | The fix here |

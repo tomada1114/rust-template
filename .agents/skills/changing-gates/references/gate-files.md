@@ -38,9 +38,11 @@ current values.
   `std::os::unix` path on another target) is only a configuration warning, which
   `-D warnings` does not turn into an error, so the ban would silently do nothing.
   `just lint` and CI's clippy steps therefore run clippy through `scripts/clippy-guard.ts`,
-  which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on any diagnostic located in a
-  `clippy.toml`. Clippy's suggested `allow-invalid = true` hides the warning, which makes
-  it weakening a gate; fix the path instead. CI's Linux and macOS jobs both run the
+  which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on such a path, and with
+  `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic located in a `clippy.toml` (a
+  deprecated key, which clippy also only warns about, or an unknown one). Clippy's
+  suggested `allow-invalid = true` hides the warning, which makes it weakening a gate;
+  fix the path instead. CI's Linux and macOS jobs both run the
   guard, so a path must resolve on both.
 
 ## `rustfmt.toml`

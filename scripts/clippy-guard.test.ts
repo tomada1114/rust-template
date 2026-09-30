@@ -3,11 +3,11 @@
  * 2026-09-30, rustc 1.98.1), with the checkout's absolute path replaced by ROOT and the
  * crates' names by CORE and SUPPORT (so the bootstrap's rename has nothing to rewrite
  * here): one run with `std::thread::park_timeout` in core's clippy.toml misspelled as
- * `park_timeoutz`, and one with main's list.
+ * `park_timeoutz`, one with a deprecated key added, and one with main's list.
  */
 import { describe, expect, it } from "vitest";
 
-import { configDiagnostics, main } from "./clippy-guard.ts";
+import { childEnv, configDiagnostics, main } from "./clippy-guard.ts";
 import { ScriptError } from "./lib/fail.ts";
 import type { RunOptions, RunResult, ScriptContext } from "./lib/script.ts";
 
@@ -56,6 +56,16 @@ error: use of a disallowed method \`std::thread::sleep\`
    = note: core never waits; the shell schedules
 
 error: could not compile \`${CORE}\` (lib) due to 1 previous error
+`;
+
+const DEPRECATED_KEY = `warning: error reading Clippy's configuration file: deprecated field \`blacklisted-names\`. Please use \`disallowed-names\` instead
+ --> ${ROOT}/crates/${CORE}/clippy.toml:6:1
+  |
+6 | blacklisted-names = ["foo"]
+  | ^^^^^^^^^^^^^^^^^
+
+warning: \`${CORE}\` (lib) generated 1 warning
+    Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 1.03s
 `;
 
 const ESC = String.fromCharCode(27);
@@ -127,13 +137,38 @@ describe("clippy-guard", () => {
     expect(outcome.error).toMatch(/^ERR_CLIPPY_FAILED/);
   });
 
-  it("fails when cargo does not finish", () => {
-    const outcome = guard(LINT, { status: null, stderr: "spawnSync cargo ENOENT" });
-    expect(outcome.error).toMatch(/^ERR_CLIPPY_FAILED/);
+  it("fails on a deprecated key, which clippy only warns about, under its own code", () => {
+    const outcome = guard(LINT, { status: 0, stderr: DEPRECATED_KEY });
+    expect(outcome.error).toMatch(/^ERR_CLIPPY_CONFIG_INVALID/);
+    expect(outcome.actual).toBe(
+      `error reading Clippy's configuration file: deprecated field \`blacklisted-names\`. Please use \`disallowed-names\` instead (crates/${CORE}/clippy.toml:6:1)`,
+    );
   });
 
-  it("fails when cargo does not finish and prints nothing", () => {
-    expect(guard(LINT, { status: null }).error).toMatch(/^ERR_CLIPPY_FAILED/);
+  it("reports an unresolved path before an invalid key", () => {
+    const outcome = guard(LINT, { status: 0, stderr: `${DEPRECATED_KEY}${MISSPELLED}` });
+    expect(outcome.error).toMatch(/^ERR_CLIPPY_BAN_UNRESOLVED/);
+    expect(outcome.actual).not.toContain("blacklisted-names");
+  });
+
+  it("names cargo's exit status on one line", () => {
+    const outcome = guard(LINT, { status: 101, stderr: LINT_FAILURE });
+    expect(outcome.actual).toBe("cargo exited 101; its findings are printed above");
+  });
+
+  it("reports a cargo that never started once, on one line", () => {
+    const outcome = guard(LINT, { status: null, pid: 0, stderr: "spawnSync cargo ENOENT" });
+    expect(outcome.error).toMatch(/^ERR_CLIPPY_FAILED/);
+    expect(outcome.actual).toBe("cargo did not start: spawnSync cargo ENOENT");
+    expect(outcome.lines).toEqual([]);
+  });
+
+  it("reports a cargo stopped before it exited without repeating its output", () => {
+    const outcome = guard(LINT, { status: null, pid: 42, stderr: LINT_FAILURE });
+    expect(outcome.error).toMatch(/^ERR_CLIPPY_FAILED/);
+    expect(outcome.actual).not.toContain("\n");
+    expect(outcome.actual).not.toContain("disallowed method");
+    expect(outcome.lines).toEqual([LINT_FAILURE.trimEnd()]);
   });
 
   it.each([
@@ -152,37 +187,45 @@ describe("configDiagnostics", () => {
   it("finds the unresolved path once, at its clippy.toml line", () => {
     expect(configDiagnostics(MISSPELLED)).toEqual([
       {
+        kind: "unresolved",
         message: "`std::thread::park_timeoutz` does not refer to a reachable function",
         location: `${ROOT}/crates/${CORE}/clippy.toml:32:3`,
       },
     ]);
   });
 
-  it("finds it in colored output (CI sets CARGO_TERM_COLOR=always)", () => {
+  it("finds it in colored output (CARGO_TERM_COLOR=always)", () => {
     const colored = MISSPELLED.split("\n")
       .map((line) => (line.startsWith("warning") ? paint(line) : line))
+      .map((line) => line.replace("  --> ", paint("  --> ")))
       .join("\n");
-    expect(configDiagnostics(colored)).toHaveLength(1);
+    expect(configDiagnostics(colored)).toEqual(configDiagnostics(MISSPELLED));
   });
 
   it("reports a diagnostic repeated across crates once", () => {
     expect(configDiagnostics(`${MISSPELLED}${MISSPELLED}`)).toHaveLength(1);
   });
 
-  it("counts any diagnostic whose primary location is a clippy.toml", () => {
+  it("counts any other diagnostic whose primary location is a clippy.toml as invalid", () => {
     const wrongKind = [
       "warning: expected a function, found a struct",
       `  --> ${ROOT}/.clippy.toml:4:3`,
     ].join("\n");
     expect(configDiagnostics(wrongKind)).toEqual([
-      { message: "expected a function, found a struct", location: `${ROOT}/.clippy.toml:4:3` },
+      {
+        kind: "invalid",
+        message: "expected a function, found a struct",
+        location: `${ROOT}/.clippy.toml:4:3`,
+      },
     ]);
   });
 
   it("counts an unresolved-path message that carries no location", () => {
     expect(
-      configDiagnostics("warning: `std::fs::nope` does not refer to an existing function\n"),
-    ).toEqual([{ message: "`std::fs::nope` does not refer to an existing function" }]);
+      configDiagnostics("warning: `std::fs::nope` does not refer to a reachable function\n"),
+    ).toEqual([
+      { kind: "unresolved", message: "`std::fs::nope` does not refer to a reachable function" },
+    ]);
   });
 
   it("ignores a lint in source code and cargo's summary lines", () => {
@@ -219,5 +262,19 @@ describe("the failure report", () => {
   it("lists every unresolved entry", () => {
     const second = MISSPELLED.replaceAll("park_timeoutz", "sleepz").replace(":32:3", ":31:3");
     expect(guard(LINT, { stderr: `${MISSPELLED}${second}` }).actual?.split("; ")).toHaveLength(2);
+  });
+});
+
+describe("childEnv", () => {
+  it("asks cargo for colour when the output reaches a terminal", () => {
+    expect(childEnv({ PATH: "/bin" }, true)).toEqual({ PATH: "/bin", CARGO_TERM_COLOR: "always" });
+  });
+
+  it("keeps the caller's choice", () => {
+    expect(childEnv({ CARGO_TERM_COLOR: "never" }, true)).toEqual({ CARGO_TERM_COLOR: "never" });
+  });
+
+  it("leaves the environment alone when the output is not a terminal", () => {
+    expect(childEnv({ PATH: "/bin" }, false)).toEqual({ PATH: "/bin" });
   });
 });
