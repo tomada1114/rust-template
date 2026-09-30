@@ -34,11 +34,11 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 
 1. Do the whole survey and review first, writing nothing remote.
 2. Present the plan: the exact PR numbers to merge, which go individually and which into
-   a combined branch, which are held and why, every major bump named, every
-   `@dependabot rebase` comment and `gh run rerun` the plan already needs
-   (`references/failure-modes.md` F7-F9), and any issue the plan would file (a Tauri
-   major, below). A Tauri side moved by hand under F11 is named with its package, from,
-   and to versions.
+   a combined branch (and the failure mode admitting each one not `CLEAN` and green,
+   Step 3), which are held and why, every major bump named, every `@dependabot rebase`
+   comment and `gh run rerun` the plan already needs (`references/failure-modes.md`
+   F7-F9), and any issue the plan would file (a Tauri major, below). A Tauri side moved
+   by hand under F11 is named with its package, from, and to versions.
 3. Get one explicit approval for that listed batch, then run it without asking per
    merge.
 
@@ -110,20 +110,26 @@ Dependabot opens the cargo and npm sides as separate PRs, so:
 
 ## Step 3: Choose the landing mode
 
-A PR is eligible only when every check passes, its merge state is `CLEAN`, and the review
-found nothing. One exception: a Tauri-family PR in a pair the survey prints as `split` or
-`MISMATCH` is eligible for the combined branch only, never landed alone, when every
-failing check on it is one F11 attributes to the version divergence, confirmed from the
-run log. For such a PR the merge state need only be not `DIRTY` (`UNSTABLE`, or
-`BLOCKED` only by those checks, is accepted); the review findings apply unchanged. The
-combined branch's own PR must be `CLEAN` with every check green before it lands.
+Every PR needs a review that found nothing, then meets one of two bars:
 
-- **Individually** when eligible PRs share no file: in practice the Actions PRs and a
-  lone mise or rust-toolchain PR.
-- **One combined branch** when two eligible PRs touch the same file (two cargo PRs both
-  rewrite `Cargo.lock`; npm PRs both rewrite `pnpm-lock.yaml`), when a Tauri pair needs
-  both sides, or when more than three are eligible and rebase-and-wait cycles would
-  dominate.
+- **The bar to land alone:** every check passes and the merge state is `CLEAN`. Nothing
+  else ever lands by itself; a PR that meets it may still join a combined branch.
+- **The combined-branch bar:** it misses that bar only where a failure mode blames its
+  merge or lockfile state, not its change. Every check passes or fails only where F2 (a
+  lockfile out of step with its manifest) or F11 (one side of a Tauri pair the survey
+  prints as `split` or `MISMATCH`) says, confirmed from the run log; and the merge state
+  is `CLEAN`, `BEHIND` or `DIRTY` (F7), or `UNSTABLE` or `BLOCKED` only by those checks.
+  A pending, missing, or held check still holds it (F8, F9). The combined branch's own
+  PR lands only when `CLEAN` with every check green.
+
+Then land them:
+
+- **Individually** when PRs that meet the bar to land alone share no file: in practice
+  the Actions PRs and a lone mise or rust-toolchain PR.
+- **One combined branch** for every PR that meets only the combined-branch bar, when two
+  eligible PRs touch the same file (two cargo PRs both rewrite `Cargo.lock`; npm PRs
+  both rewrite `pnpm-lock.yaml`), when a Tauri pair needs both sides, or when more than
+  three are eligible and rebase-and-wait cycles would dominate.
 
 Mixed outcomes are fine; the plan says which PR goes which way.
 

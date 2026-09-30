@@ -39,8 +39,10 @@ cargo step fails under `--locked` because `Cargo.lock` needs to change.
 **Cause:** a rebase or a hand-resolved conflict moved one file without the other. The
 bump itself is untested, not broken.
 
-**Fix:** take it through the combined branch (Step 4b), where the tool regenerates the
-lockfile. That branch's CI run is the first real signal for the new version.
+**Fix:** such a PR is eligible for the combined branch only, never landed alone, under
+the combined-branch bar in `SKILL.md` › "Step 3". Take it through the combined branch
+(Step 4b), where the tool regenerates the lockfile. That branch's CI run is the first
+real signal for the new version.
 
 ## F3: The cooldown refuses the version
 
@@ -98,7 +100,8 @@ to accommodate a version nobody has decided to accept, and never lower a floor.
 Not a CI failure. `BEHIND` means `main` moved; `DIRTY` means a real conflict. Comment
 `@dependabot rebase` once the approved plan lists it, or when an earlier approved
 merge moved `main` (`SKILL.md` › "Step 4a"); a PR that keeps conflicting, which is
-normal once two cargo or two npm PRs are open, goes into the combined branch.
+normal once two cargo or two npm PRs are open, goes into the combined branch under the
+combined-branch bar in `SKILL.md` › "Step 3", never landed alone.
 
 ## F8: A check that never reports
 
@@ -166,9 +169,9 @@ of a new Tauri minor, or of a plugin's new exact version. The harness refuses a 
 versions, and the build may too. This is not a regression: as in F2, the bump is
 untested until its other side joins it.
 
-**Fix:** such a PR is eligible for the combined branch only, never landed alone, with
-the relaxed merge state `SKILL.md` Step 3 gives; the combined branch's own PR lands only
-when `CLEAN` and all green.
+**Fix:** such a PR is eligible for the combined branch only, never landed alone, under
+the combined-branch bar in `SKILL.md` › "Step 3"; the combined branch's own PR lands
+only when `CLEAN` and all green.
 
 - If the survey prints `split across #<a> #<b>`, both PRs go into one combined branch
   (Step 4b). That branch's CI is the first real signal.
