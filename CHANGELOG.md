@@ -20,6 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Tuning`'s fields are private. Code that built `Tuning { min, max }` must
   now call `Tuning::new(min, max)?`, which returns `TuningError::MinAboveMax` when
   `min > max`, and read the bounds through `min()` and `max()`.
+- **Breaking:** `crates/myapp-core/clippy.toml` bans more of the I/O, time, environment,
+  and process calls core must reach through a port or an argument, so core code that
+  calls one now fails `just lint`: `std::fs::OpenOptions` and every `std::fs` free
+  function, `std::net::{TcpStream, TcpListener, UdpSocket}` and
+  `ToSocketAddrs::to_socket_addrs`, `SystemTime::elapsed` and `Instant::elapsed`,
+  `std::io::{stdin, stdout, stderr}`, `std::env`'s `args`, `args_os`, `vars`, `vars_os`,
+  `current_dir`, `set_current_dir`, `current_exe`, `home_dir`, `temp_dir`, `set_var`, and
+  `remove_var`, `std::fs::DirBuilder`, `std::os::unix::fs::symlink`, `std::path::Path`'s
+  file-system queries (`exists`, `try_exists`, `metadata`, `symlink_metadata`,
+  `read_dir`, `read_link`, `canonicalize`, `is_file`, `is_dir`, `is_symlink`, reached
+  through a `PathBuf` too), `std::thread::spawn` and `std::thread::Builder::spawn`, and
+  `std::process::exit` and `abort`. `std::thread::scope` stays allowed, since it joins
+  its threads before it returns and so cannot outlive the call. Move a banned call
+  behind a port, or into the shell or the CLI.
+- `vitest.config.ts` puts a coverage floor on a skill's bundled TypeScript scripts
+  (`.agents/skills/*/scripts/**`, lines 85, functions 90, the same as `scripts/**`), so
+  `just test-scripts` fails when one drops below it.
 
 ### Fixed
 

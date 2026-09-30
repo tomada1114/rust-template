@@ -194,24 +194,22 @@ fn a_failed_save_is_a_storage_error_and_the_old_value_stays() {
 #[test]
 fn concurrent_increments_lose_no_update() {
     let store = Arc::new(InMemoryCounterStore::default());
-    let service = Arc::new(CounterService::new(
+    let service = CounterService::new(
         store.clone(),
         Arc::new(FixedClock::default()),
         Tuning::new(0, 1_000).unwrap(),
-    ));
-    let threads: Vec<_> = (0..8)
-        .map(|_| {
-            let service = service.clone();
-            std::thread::spawn(move || {
+    );
+    // The scope joins all eight threads before it returns, and panics if any of them
+    // panicked, so the assertion below sees every increment.
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| {
                 for _ in 0..25 {
                     service.increment().unwrap();
                 }
-            })
-        })
-        .collect();
-    for thread in threads {
-        thread.join().unwrap();
-    }
+            });
+        }
+    });
     assert_eq!(store.saved().map(|s| s.value), Some(200));
 }
 

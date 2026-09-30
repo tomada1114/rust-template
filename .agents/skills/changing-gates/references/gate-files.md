@@ -130,7 +130,8 @@ file in that tree.
 ## `vitest.config.ts`
 
 - `thresholds` are per glob (`ui/src/**` 80/80, `scripts/**` 85/90,
-  `scripts/lib/guard/**` 90/100) so one tree cannot subsidise another.
+  `.agents/skills/*/scripts/**` 85/90, `scripts/lib/guard/**` 90/100) so one tree
+  cannot subsidise another.
 - `coverage.include` counts every source file, tested or not, so a new untested file
   shows as 0% rather than disappearing. Each `exclude` entry that takes source code out
   carries a reason; a new one is weakening unless the file holds nothing to decide
