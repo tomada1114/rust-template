@@ -212,10 +212,11 @@ and an expiry.
 
 A new app releases on day one without an Apple Developer Program membership. Tauri signs
 the bundle itself, ad hoc (`signingIdentity: "-"`) with the hardened runtime and the
-entitlements file; when the repository has the Apple certificate secrets, the release
-signs with Developer ID, and with the notarization secrets it notarizes and staples too
-— no workflow edit, and skipped steps are skipped by a condition, never by
-`continue-on-error`. Every release is verified before upload. See
+entitlements file; when the repository has all six Apple signing and notarization
+secrets, the release signs with Developer ID, notarizes, and staples — no workflow edit,
+and skipped steps are skipped by a condition, never by `continue-on-error`. A partial set
+fails the release before it builds rather than shipping ad hoc. Every release is
+verified before upload. See
 [docs/distribution.md](docs/distribution.md).
 
 <!-- template-only -->

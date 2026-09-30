@@ -10,7 +10,8 @@ description: >
   Gatekeeper and quarantine for an ad-hoc build, and verifying the built .app and .dmg
   (codesign, entitlements, spctl, SHA256SUMS, gh attestation verify). Use when
   preparing or tagging a release, an ERR_RELEASE_* code from scripts/release-prep.ts,
-  a tag that does not match the version, a failed signing or notarization step, a user
+  a tag that does not match the version, partly set APPLE_* secrets, a failed signing or
+  notarization step, a user
   who cannot open a downloaded build, or deciding whether a change needs a release.
 ---
 
@@ -126,9 +127,11 @@ release.
 ## 6. The tag (a human pushes it)
 
 On the merge commit on `main`, `git tag v<version>` and `git push origin v<version>`.
-The workflow then checks the tag against the three sites, re-runs the core and UI tests,
-builds `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked`
-without the Rust build cache, verifies, and publishes the `.dmg`, a `SHA256SUMS` file, and a
+The workflow's `preflight` job then checks the tag against the version before anything
+is installed, and that the three sites agree; the tests run again; the release job's
+first step checks the `APPLE_*` secrets are all set or all absent; and it builds
+`pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked` without
+the Rust build cache, verifies, and publishes the `.dmg`, a `SHA256SUMS` file, and a
 build-provenance attestation with notes from `.github/release.yml`'s categories. A tag
 that fails the version check is deleted and re-pushed by the human after the fix, never
 moved silently.
@@ -141,17 +144,20 @@ Two paths, chosen by which secrets exist, with no workflow edit
 - **Ad hoc**, the default: `signingIdentity: "-"`, the hardened runtime, and
   `Entitlements.plist`. No Apple Developer Program membership. A downloaded build is
   blocked by Gatekeeper until the user allows it.
-- **Developer ID**: when `APPLE_CERTIFICATE` exists, the job imports it into a
-  temporary keychain and signs with `APPLE_SIGNING_IDENTITY`; when `APPLE_ID`,
-  `APPLE_PASSWORD`, and `APPLE_TEAM_ID` exist too, Tauri notarizes and staples. The
-  secrets are `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
-  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID`, set by a
-  human under the repository's Actions secrets. The App Store Connect API key variables
-  are an alternative that needs a workflow change.
+- **Developer ID, notarized**: when all six secrets exist (`APPLE_CERTIFICATE`,
+  `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`,
+  and `APPLE_TEAM_ID`, set by a human under the repository's Actions secrets), the job
+  imports the certificate into a temporary keychain, checks `security find-identity`
+  lists the identity, signs with it, and Tauri notarizes and staples; the keychain is
+  deleted in an `if: always()` step. The App Store Connect API key variables are an
+  alternative that needs a workflow change.
 
-A step without its secrets is skipped by an `if:` on a step-level check, never by
-`continue-on-error`, so a missing secret yields a plainly ad-hoc release rather than a
-signing step that failed quietly. Local builds unset every `APPLE_*` variable, so they
+The six are all or nothing: a partial set, the signing three without the notarization
+three included, fails the release job's first step with the missing names, because a
+signed but un-notarized app fails `spctl` and is blocked on download like an ad-hoc
+one. The fix is to add the missing secrets or remove the set ones, never a workflow
+edit. A path's steps are skipped by an `if:`, never by `continue-on-error`. Local
+builds unset every `APPLE_*` variable, so they
 are always ad hoc and never contact Apple; a build made on the same Mac is never
 quarantined, which is why `just install-app` (a human's recipe) is enough for personal
 use.
@@ -159,9 +165,9 @@ use.
 ## Verifying what was built
 
 The workflow fails before upload unless the built app passes: `codesign --verify --deep
---strict`, its entitlements equal `src-tauri/Entitlements.plist`, the bundled helper is
-signed and runs, the launch smoke passes on it, and, for Developer ID only, `spctl
---assess` accepts it. An agent's local evidence for all but the last is `just smoke`,
+--strict`, its entitlements equal `src-tauri/Entitlements.plist` key for key and value
+for value, the bundled helper is signed and runs, the launch smoke passes on it, and,
+for Developer ID only, `spctl --assess` accepts it. An agent's local evidence for all but the last is `just smoke`,
 which runs them on a local release `.app` without a window.
 
 A downloaded release is checked with `shasum -a 256 -c SHA256SUMS` and
