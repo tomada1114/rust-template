@@ -46,22 +46,22 @@ impl Clock for FixedClock {
     }
 }
 
-/// The behaviour every [`Clock`] must have: a time after 2020, and never going backwards
-/// between two reads.
+/// The behaviour every [`Clock`] must have: every read is a time after 2020, in
+/// milliseconds since the Unix epoch.
+///
+/// It asserts no order between two reads: [`Clock`] is a wall clock, and the real one
+/// (`SystemClock`, over `SystemTime::now`) steps backwards when the system time is
+/// corrected, so core must not rely on time only moving forward.
 ///
 /// # Panics
 /// When the clock breaks the contract; that is how the calling test fails.
 pub fn clock_contract(mut make: impl FnMut() -> Box<dyn Clock>) {
     const JAN_1_2020: UnixMillis = UnixMillis(1_577_836_800_000);
     let clock = make();
-    let first = clock.now();
-    assert!(
-        first > JAN_1_2020,
-        "a clock reads milliseconds since the Unix epoch: {first:?}"
-    );
-    let second = clock.now();
-    assert!(
-        second >= first,
-        "a clock never runs backwards: {first:?} then {second:?}"
-    );
+    for read in [clock.now(), clock.now()] {
+        assert!(
+            read > JAN_1_2020,
+            "a clock reads milliseconds since the Unix epoch: {read:?}"
+        );
+    }
 }
