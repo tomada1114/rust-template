@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `std::process::exit` and `abort`. `std::thread::scope` stays allowed, since it joins
   its threads before it returns and so cannot outlive the call. Move a banned call
   behind a port, or into the shell or the CLI.
+- **Breaking:** `crates/myapp-core/clippy.toml` also bans `std::os::unix::fs::{chown,
+  fchown, lchown, chroot}`, `std::os::unix::net::{UnixStream, UnixListener,
+  UnixDatagram}`, `std::thread::park_timeout`, `std::process::id`,
+  `std::os::unix::process::parent_id`, and `std::thread::available_parallelism`, so core
+  code that calls one now fails `just lint`. Pass the fact in as an argument, or move the
+  call behind a port.
 - `vitest.config.ts` puts a coverage floor on a skill's bundled TypeScript scripts
   (`.agents/skills/*/scripts/**`, lines 85, functions 90, the same as `scripts/**`), so
   `just test-scripts` fails when one drops below it.

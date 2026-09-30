@@ -46,7 +46,7 @@ them, and platform does not know the shell exists.
 |---|---|
 | Compile time | `crates/myapp-core/Cargo.toml` names no Tauri, OS, or platform crate, so code in core cannot call one. |
 | Dependency closure | A harness check (`just check-harness`) reads `cargo metadata` and fails if core's normal dependency closure contains `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`, or if a non-dev edge points at `myapp-test-support`. `deny.toml`'s `[bans]` adds direct-edge rules: `tauri` may be a direct dependency of `myapp` only, and `myapp-platform` of `myapp` and `myapp-cli` only. |
-| clippy in core | `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`, `std::io::{stdin, stdout, stderr}`, `std::fs::{File, OpenOptions, DirBuilder}` and every `std::fs` free function, `std::os::unix::fs::symlink`, `std::path::Path`'s file-system queries (`exists`, `metadata`, `read_dir`, `is_file`, …), `std::net::{TcpStream, TcpListener, UdpSocket}` and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit, abort}`, `SystemTime::now`, `Instant::now`, both types' `elapsed`, `std::env`'s argument, variable, and directory functions (including `current_exe` and `home_dir`), and `std::thread::{spawn, sleep}` and `Builder::spawn`; `std::thread::scope` is allowed, since it joins its threads before it returns and so cannot outlive the call. `clippy::wildcard_enum_match_arm` is denied, so every `match` on a core enum names each variant. |
+| clippy in core | `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`, `std::io::{stdin, stdout, stderr}`, `std::fs::{File, OpenOptions, DirBuilder}` and every `std::fs` free function, `std::os::unix::fs::{symlink, chown, fchown, lchown, chroot}`, `std::path::Path`'s file-system queries (`exists`, `metadata`, `read_dir`, `is_file`, …), `std::net::{TcpStream, TcpListener, UdpSocket}`, `std::os::unix::net::{UnixStream, UnixListener, UnixDatagram}`, and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit, abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`, `Instant::now`, both types' `elapsed`, `std::env`'s argument, variable, and directory functions (including `current_exe` and `home_dir`), and `std::thread::{spawn, sleep, park_timeout, available_parallelism}` and `Builder::spawn`; `std::thread::scope` is allowed, since it joins its threads before it returns and so cannot outlive the call. `clippy::wildcard_enum_match_arm` is denied, so every `match` on a core enum names each variant. |
 | ESLint | `no-restricted-imports` and, for a dynamic `import()`, `no-restricted-syntax` forbid `@tauri-apps/*` outside `ui/src/ipc/`, `ui/src/ipc/generated/` outside `ui/src/ipc/`, and `ui/src/ipc/testing.ts` outside tests; `no-console` and `no-restricted-properties` forbid `console` outside `ui/src/ipc/log.ts` and `scripts/`. |
 
 The forbidden-crate lists in `AGENTS.md`, the closure check, and `deny.toml` are kept
@@ -119,7 +119,19 @@ behind a port whose callback the shell turns into the same event.
 ### Security settings
 
 - `app.security.csp` in `src-tauri/tauri.conf.json`: `default-src 'self'`, IPC only
-  through `ipc:` and `http://ipc.localhost`, no remote origin.
+  through `ipc:` and `http://ipc.localhost`, no remote origin. It is enforced only in a
+  built app: Tauri attaches the header when it serves the bundled assets over
+  `tauri://` (tauri 2.11.6,
+  <https://docs.rs/crate/tauri/2.11.6/source/src/protocol/tauri.rs>, checked
+  2026-09-30), and `just dev` loads `devUrl` (`http://localhost:1420`) from Vite with no
+  CSP, so a violation shows in a built app, never under `just dev`.
+  `app.security.devCsp` stays unset, because no setting makes `just dev` enforce a CSP
+  on the desktop: in dev the window loads `devUrl` directly, and Tauri applies `devCsp`
+  (or `csp`) only to the assets it serves itself (`get_app_url` and `csp` in
+  <https://docs.rs/crate/tauri/2.11.6/source/src/manager/mod.rs>, checked 2026-09-30).
+  Try a CSP-sensitive change (a new asset origin, an inline style or script) in a built
+  app before relying on it, and weigh any production CSP change when preparing a
+  distribution.
 - `withGlobalTauri: false`: the UI reaches Tauri only through the imports in
   `ui/src/ipc/`.
 - One capability, `src-tauri/capabilities/default.json`, granting `core:default` to the
@@ -141,13 +153,17 @@ lists it in `bundle.externalBin` and runs the build in `beforeDevCommand` and
 on `just sidecar`, because `tauri-build` fails when an `externalBin` file is missing.
 
 The GUI does not run the helper in the sample, so no shell plugin and no shell
-permission ship. An app whose GUI must run it adds `tauri-plugin-shell` (a new
+permission ship. An app whose GUI must run it spawns it from Rust with
+`std::process::Command`, in a `myapp-platform` adapter behind a port, at the path next
+to the app's own executable (`std::env::current_exe()`'s directory; `tauri-build`
+places every `externalBin` there with its target triple stripped), which needs no plugin
+and no capability entry. Only a UI that runs it itself adds `tauri-plugin-shell` (a new
 dependency: an ADR and a maintainer's sign-off), registers it with
-`.plugin(tauri_plugin_shell::init())`, and spawns it from Rust with
-`app.shell().sidecar("myapp-cli")` (`tauri_plugin_shell::ShellExt`). Run from Rust
-only, it needs no capability entry; run from the UI, it needs a `shell:allow-execute` or
-`shell:allow-spawn` permission scoped to that one sidecar. Source:
-<https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
+`.plugin(tauri_plugin_shell::init())`, and needs a `shell:allow-execute` or
+`shell:allow-spawn` permission scoped to that one sidecar. Where the helper lands:
+`copy_binaries` in tauri-build 2.6.3, the version `Cargo.lock` pins
+(<https://docs.rs/crate/tauri-build/2.6.3/source/src/lib.rs>, checked 2026-09-30). The
+plugin route: <https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
 
 ## Logging
 

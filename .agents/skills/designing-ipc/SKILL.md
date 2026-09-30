@@ -68,10 +68,13 @@ has the code for every step, taken from the sample.
    `commands.test.ts` asserts the name and the argument object through `mockCommands`.
 6. **The command test** in `src-tauri/tests/commands.rs`, through `tauri::test` against
    fakes: the JSON the UI receives (camelCase), each error as `{ code }`, and the event
-   it emits. Check: `just test-macos`.
+   it emits. Invoke it with the argument object the wrapper in `commands.ts` sends, key
+   for key: Tauri camel-cases each Rust parameter name, and no other check compares
+   argument keys. Check: `just test-macos`.
 7. **Before the pull request:** `just test-macos`, `just test-ui`, then
-   `just check-harness`, which fails when the names in `generate_handler!` and in
-   `commands.ts` differ; `just smoke` if startup or `AppState` changed.
+   `just check-harness`, which fails when the command names in `generate_handler!` and
+   in `commands.ts` differ (names only, never argument keys); `just smoke` if startup or
+   `AppState` changed.
 
 ## The command
 
@@ -148,15 +151,20 @@ adding a command never touches `src-tauri/capabilities/`. A Tauri plugin's comma
 need a permission there, and a plugin is a new dependency, an ADR, and a sign-off change
 (`AGENTS.md` › "Security and human approval"). `src-tauri/capabilities/default.json`
 grants `core:default` only; widen it by the narrowest permission the plugin documents.
+The CSP in `tauri.conf.json` applies only to a built app, never under `just dev`
+(`docs/architecture.md` › "Security settings").
 
 ## The helper executable
 
 The shell links core and platform itself, so a command calls core directly, never by
 running `myapp-cli`. Spawning the bundled helper from the GUI is for work that must be
-that separate executable (what a launchd job will run), and it costs `tauri-plugin-shell`
-(dependency, ADR, sign-off). Spawned from Rust it needs no capability; exposed to the UI
-it needs a shell permission scoped to that one sidecar. `docs/architecture.md` › "The
-helper executable" has the mechanics.
+that separate executable (what a launchd job will run). Spawned from Rust it needs no
+plugin and no capability: a `myapp-platform` adapter runs it with
+`std::process::Command` from the directory of the app's own executable
+(`std::env::current_exe()`), behind a port like any other system command
+(`integrating-system-apis`). Only a UI that spawns it itself costs `tauri-plugin-shell`
+(dependency, ADR, sign-off) and a shell permission scoped to that one sidecar.
+`docs/architecture.md` › "The helper executable" has the mechanics.
 
 ## What is contract
 

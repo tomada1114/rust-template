@@ -62,6 +62,34 @@ session created through `EnterWorktree`. It will not touch these, and neither
 will `Agent(isolation: "worktree")`'s auto-cleanup, which only fires when the
 agent changed nothing. Teardown here is `cleanup_run.sh` and nothing else.
 
+### What a worktree outside the checkout loses
+
+A session that starts in the main checkout and edits a worktree under `<runstate>`
+keeps the main checkout as its primary working directory, so some of Claude Code's
+conveniences do not follow the worktree:
+
+- a `/path` rule in the project's `.claude/settings.json` resolves against the session's
+  primary working directory (<https://code.claude.com/docs/en/permissions>, checked
+  2026-09-30), so the `Edit(/src-tauri/Entitlements.plist)` deny names the main
+  checkout's copy of that file, not the worktree's;
+- Claude has access to files in the directory it was launched in, and to directories
+  added to the session (same page, "Working directories"), so an edit under
+  `<runstate>` may stop for a permission prompt mid-run;
+- the `PostToolUse` formatter (`scripts/format-edited-file.ts`) runs from
+  `$CLAUDE_PROJECT_DIR`, the main checkout, and does nothing for a file outside it;
+- the path-scoped `.claude/rules/` are documented as loading for the project's own
+  files (<https://code.claude.com/docs/en/memory>, checked 2026-09-30), and nothing there
+  says they load for a file under `<runstate>`.
+
+None of these is a gate. In a worktree, `src-tauri/Entitlements.plist` stays
+sign-off-only by `AGENTS.md`'s rule alone. Read the `.claude/rules/` file matching what
+you change, and run `just fmt` before committing. Lefthook's pre-commit hook still runs:
+a linked worktree uses `$GIT_COMMON_DIR/hooks`, the main repository's hooks directory
+(<https://git-scm.com/docs/gitrepository-layout>, checked 2026-09-30), and the
+repository config that could set `core.hooksPath` is shared by default
+(<https://git-scm.com/docs/git-worktree>, checked 2026-09-30). CI judges the worktree's
+commits exactly as it judges the main checkout's.
+
 ## Viability gate
 
 `worktree_setup.sh` reconstructs what a fresh worktree lacks -- it copies the
