@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The bootstrap's printed next steps and README's setup steps now name the Renovate
+  GitHub App and adding `dependencies` to Dependabot pull requests opened before
+  `just labels`, and the docs, rules, and skills no longer claim what the repository does
+  not do (mise installing Rust, every crate logging, CI rerunning the staged guard).
 - A path in a `clippy.toml` that clippy cannot resolve (a typo, an item a Rust release
   renamed or moved, or a path missing on the build's target) now fails `just lint` and
   CI's clippy steps with `ERR_CLIPPY_BAN_UNRESOLVED`, instead of leaving a clippy warning

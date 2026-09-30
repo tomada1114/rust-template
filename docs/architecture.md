@@ -167,7 +167,8 @@ plugin route: <https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
 
 ## Logging
 
-Every crate logs through the `tracing` macros; only the shell and the CLI install a
+The shell, the CLI, and `myapp-platform` log through the `tracing` macros; `myapp-core`
+has no `tracing` dependency and logs nothing. Only the shell and the CLI install a
 subscriber (`myapp_platform::init_logging`). The app's files go to
 `~/Library/Logs/com.example.myapp/` and the helper's to its `cli/` subdirectory, one per
 day each, and the newest 14 of each are kept. Each writer has its own directory because

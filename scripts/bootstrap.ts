@@ -397,6 +397,16 @@ export const TEXT_EDITS: readonly TextEdit[] = [
     find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), or a skill;",
     replace: "`docs/` (apart from the roadmap and the ADRs), or a skill;",
   },
+  {
+    file: "AGENTS.md",
+    find: " `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there),",
+    replace: "",
+  },
+  {
+    file: "CONTRIBUTING.md",
+    find: "`Template Bootstrap Smoke`, `Workflow Security Lint`, `Dependency Review`, and\n`Validate PR title`.",
+    replace: "`Workflow Security Lint`, `Dependency Review`, and `Validate PR title`.",
+  },
   ...bothSkillTrees("starting-an-app/SKILL.md").flatMap((file): TextEdit[] => [
     {
       file,
@@ -410,6 +420,11 @@ export const TEXT_EDITS: readonly TextEdit[] = [
       replace: "",
     },
   ]),
+  ...bothSkillTrees("merging-dependency-prs/references/failure-modes.md").map((file): TextEdit => ({
+    file,
+    find: '- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at\n  `check-harness`, with the same `tauri-versions` failure.\n',
+    replace: "",
+  })),
   ...bothSkillTrees("authoring-skills/SKILL.md").flatMap((file): TextEdit[] => [
     {
       file,
@@ -1499,8 +1514,12 @@ export function runBootstrap(
     "  4. just check, then commit the Product section and roadmap and push both commits to",
     "     main (the ruleset is not on yet, so main takes a direct push).",
     "  5. just labels — create the label set from .github/labels.yml on the new repository.",
+    "     .github/dependabot.yml names its labels explicitly and Dependabot skips one the",
+    "     repository lacks, so add `dependencies` by hand to any Dependabot pull request",
+    "     opened before this step.",
     "  6. Turn on the GitHub security settings: secret scanning and push protection, private",
-    "     vulnerability reporting, Dependabot alerts and security updates.",
+    "     vulnerability reporting, Dependabot alerts and security updates. Install the Renovate",
+    "     GitHub App on the repository: without it nothing bumps mise.toml or rust-toolchain.toml.",
     "  7. Once the bootstrap commit is on main: just ruleset (a repository admin's step).",
   ]) {
     log(line);

@@ -61,10 +61,13 @@ so this skill is where an app still finds them.
    Pushing is a remote write: a human's step, or an agent's with the owner's sign-off.
 7. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
    repository. Run it before the first issue is filed from a form, so every label the
-   forms apply exists. It writes to GitHub: a human's step, or an agent's with the
+   forms apply exists. Dependabot skips a label `.github/dependabot.yml` names that the
+   repository lacks (`AGENTS.md` › "GitHub settings a new repository must enable" has
+   the source), so add `dependencies` by hand to any Dependabot pull request opened
+   before this step. It writes to GitHub: a human's step, or an agent's with the
    owner's sign-off.
-8. **Security settings**, turned on by the repository's admin: `AGENTS.md` › "GitHub
-   settings a new repository must enable".
+8. **Security settings and the Renovate App**, turned on by the repository's admin:
+   `AGENTS.md` › "GitHub settings a new repository must enable".
 9. **Replace the sample** with the app, in the order of the sections below: design
    system, app shape, sandbox posture, the first ADRs, then removing the sample.
 10. **Release secrets**, only for Developer ID signed and notarized releases
