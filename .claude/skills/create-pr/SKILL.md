@@ -46,15 +46,27 @@ just check
 ```
 
 `just check` runs everything a Mac can run without a human (verify-hooks, fmt, lint,
-test-scripts, check-harness, test, test-macos, build, smoke); the justfile's `check`
-recipe is the source of truth for the order. It opens no window (`AGENTS.md` › "Never
-taking over the developer's Mac"). A cold run takes longer than a foreground tool call
-may last, so under Claude Code start it with `run_in_background` and wait for the
-completion notice; under Codex CLI give the command a timeout that covers a full build.
+lint-repo, agents-check, test-scripts, check-harness, test, test-macos, build, smoke);
+the justfile's `check` recipe is the source of truth for the order. It opens no window
+(`AGENTS.md` › "Never taking over the developer's Mac"). A cold run takes longer than a
+foreground tool call may last, so under Claude Code start it with `run_in_background`
+and wait for the completion notice; under Codex CLI give the command a timeout that
+covers a full build.
 
 Any failure stops the pull request. Report the failing step and its first error, and fix
 the cause; a failing gate is never worked around (`AGENTS.md` › "Security and human
 approval" lists what counts as weakening one).
+
+A green run can still leave the branch behind: its `fmt` step rewrites files in place
+rather than failing on them. Check the tree afterwards:
+
+```bash
+git status --short
+```
+
+Any output means the pushed branch differs from what the gate judged, and CI's format
+check fails on it. **REQUIRED:** `smart-commit` for those files, then run `just check`
+again.
 
 ## Step 2: Read the diff for what the gate cannot judge
 
@@ -93,7 +105,8 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
 
 ## Step 3: The title
 
-`<type>(<optional scope>): <summary>`, under 70 characters. The types are the ones
+`<type>(<optional scope>): <summary>`, under 72 characters, the same limit `smart-commit`
+sets for a commit subject (no check enforces either). The types are the ones
 `.github/workflows/check-pr-title.yml` accepts: `feat`, `fix`, `docs`, `style`,
 `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, `deps`. With mixed commits,
 use the type of the most significant change. The title becomes the squashed commit on
@@ -106,10 +119,10 @@ Fill `.github/PULL_REQUEST_TEMPLATE.md` in order.
 
 - **Summary.** One to three lines on why the change exists, then `Closes #N` when an
   issue is known (a bare `#N` closes nothing). Name any breaking change.
-- **Release impact.** The template has no heading for it: end the Summary with one
-  line in one of the two forms in **REQUIRED:**
+- **Release impact.** Replace the comment after the template's `**Release impact:**`
+  label with one of the two forms in **REQUIRED:**
   [references/release-impact.md](references/release-impact.md), which also holds the
-  MAJOR/MINOR/PATCH table. A missing line is not a "no": it is an unfinished PR.
+  MAJOR/MINOR/PATCH table. A missing value is not `none`: it is an unfinished PR.
 - **Test Plan.** The commands that ran and what they printed: `just check` always, the
   narrower check from `AGENTS.md` › "Validating a change" that exercised the change, and
   any human-run output from Step 2.

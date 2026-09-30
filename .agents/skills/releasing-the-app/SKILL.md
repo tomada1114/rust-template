@@ -97,9 +97,11 @@ The script checks the same agreement while it is still cheap.
 ## 4. The release pull request
 
 Branch, commit the five files, open the pull request, and let a human merge it once CI
-is green:
-`docs/distribution.md` › "Preparing the version" has the exact commands. Nothing else
-rides in a release pull request, so its diff is the release.
+is green: `docs/distribution.md` › "Preparing the version" has the exact commands.
+Nothing else rides in a release pull request, so its diff is the release. Its body is
+the pull request template filled in like any other, with the level chosen in step 1 on
+its Release impact line, never a body filled from the commit message (`--fill`).
+**REQUIRED:** `create-pr`.
 
 ## 5. The dry run (a human starts it)
 

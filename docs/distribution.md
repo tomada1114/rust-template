@@ -74,12 +74,16 @@ just release-prep 0.2.0            # writes the three version sites, Cargo.lock,
 git switch -c release/0.2.0
 git add Cargo.toml Cargo.lock src-tauri/tauri.conf.json package.json CHANGELOG.md
 git commit -m 'chore: release v0.2.0'
-gh pr create --fill
+gh pr create --base main --title 'chore: release v0.2.0' --body-file <body.md>
 # once that pull request is merged into main:
 git switch main && git pull
 git tag v0.2.0
 git push origin v0.2.0             # pushing the tag starts the release
 ```
+
+`<body.md>` is `.github/PULL_REQUEST_TEMPLATE.md` filled in: the Summary, its
+`**Release impact:**` line naming the level of this release, the Test Plan, and the
+Checklist. Filling the body from the commit message instead (`--fill`) drops all four.
 
 ## The two signing paths
 

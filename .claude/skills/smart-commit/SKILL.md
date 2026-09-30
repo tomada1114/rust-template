@@ -91,7 +91,8 @@ tells matters more than the commit count: three related one-line edits are one c
 | Docs (`*.md`, `docs/`, a skill) | `docs` |
 | A dependency bump or addition | `deps` |
 | `justfile`, `scripts/`, `lefthook.yml` | `build` |
-| `.github/` | `ci` |
+| `.github/workflows/` | `ci` |
+| The rest of `.github/`: issue forms, the PR template, `labels.yml`, `rulesets/`, the Dependabot, Renovate, and release-notes config | `chore` |
 | Tool config (`mise.toml`, `typos.toml`, `.claude/`, an editor file) | `chore` |
 
 These always travel in one commit, whatever the grouping otherwise says:
@@ -124,9 +125,10 @@ git commit -m "<type>(<optional scope>): <summary>"
   `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`,
   `revert`, `deps`. A squash merge makes the PR title the commit on `main`, so the same
   list governs both.
-- Imperative mood, lowercase start, no final period, under 72 characters; say what
-  changed, not how. A scope, when one helps, is the area: `core`, `platform`, `shell`,
-  `cli`, `ui`, `scripts`.
+- Imperative mood, lowercase start, no final period, under 72 characters (no check
+  enforces it; `create-pr` sets the same limit for the title); say what changed, not
+  how. A scope, when one helps, is the area: `core`, `platform`, `shell`, `cli`, `ui`,
+  `scripts`.
 - A breaking change to a contract (a command or event name, a payload shape, an on-disk
   format) carries `!` after the type and says so in the body.
 
