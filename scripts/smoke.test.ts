@@ -4,8 +4,16 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { ScriptError } from "./lib/fail.ts";
 import type { RunOptions, RunResult, ScriptContext } from "./lib/script.ts";
-import { entitlementKeys, main, newestLog, parseSmokeArgs, startupLineFor } from "./smoke.ts";
+import {
+  canonicalJson,
+  entitlementsJson,
+  main,
+  newestLog,
+  parseSmokeArgs,
+  startupLineFor,
+} from "./smoke.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -20,6 +28,40 @@ function tempDir(): string {
 
 const LOG_DIR = "Library/Logs/com.example.myapp";
 const PID = 4242;
+
+const EMPTY_PLIST = "<plist><dict/></plist>";
+const SIGNED_EMPTY = '<?xml version="1.0"?><plist><dict/></plist>';
+const LIBRARY_VALIDATION = "com.apple.security.cs.disable-library-validation";
+const plistWith = (value: "true" | "false"): string =>
+  `<plist><dict><key>${LIBRARY_VALIDATION}</key><${value}/></dict></plist>`;
+
+/**
+ * What `plutil -convert json` prints for each plist these tests feed it; the real parser
+ * runs in `just smoke`. An input missing here is one plutil cannot read.
+ */
+const PLUTIL: Readonly<Record<string, string>> = {
+  [EMPTY_PLIST]: "{}",
+  [SIGNED_EMPTY]: "{}",
+  [plistWith("true")]: JSON.stringify({ [LIBRARY_VALIDATION]: true }),
+  [plistWith("false")]: JSON.stringify({ [LIBRARY_VALIDATION]: false }),
+};
+
+function caught(action: () => void): ScriptError {
+  try {
+    action();
+  } catch (error: unknown) {
+    if (error instanceof ScriptError) return error;
+    throw error;
+  }
+  throw new Error("expected a ScriptError");
+}
+
+function fakePlutil(input: string | undefined): RunResult {
+  const json = input === undefined ? undefined : PLUTIL[input];
+  return json === undefined
+    ? { status: 1, stdout: "", stderr: "<stdin>: Encountered unexpected character" }
+    : { status: 0, stdout: `${json}\n`, stderr: "" };
+}
 
 interface Call {
   readonly command: string;
@@ -38,7 +80,7 @@ function fakeMachine(
   root: string,
   overrides: Partial<
     Record<
-      "metadata" | "build" | "verify" | "entitlements" | "app" | "homeless" | "cli",
+      "metadata" | "build" | "verify" | "entitlements" | "plutil" | "app" | "homeless" | "cli",
       Partial<RunResult>
     >
   > & {
@@ -66,12 +108,9 @@ function fakeMachine(
       return { ...ok, ...overrides.build };
     }
     if (command === "codesign" && args.includes("--entitlements")) {
-      return {
-        ...ok,
-        stdout: '<?xml version="1.0"?><plist><dict/></plist>',
-        ...overrides.entitlements,
-      };
+      return { ...ok, stdout: SIGNED_EMPTY, ...overrides.entitlements };
     }
+    if (command === "plutil") return { ...fakePlutil(options?.input), ...overrides.plutil };
     if (command === "codesign") return { ...ok, ...overrides.verify };
     if (command.endsWith("/myapp-cli"))
       return { ...ok, stdout: "myapp-cli 0.1.0\n", ...overrides.cli };
@@ -108,11 +147,11 @@ function fakeMachine(
   };
 }
 
-function setup(): { home: string; root: string } {
+function setup(entitlements = EMPTY_PLIST): { home: string; root: string } {
   const root = tempDir();
   writeFileSync(join(root, "Entitlements.plist"), "");
   mkdirSync(join(root, "src-tauri"), { recursive: true });
-  writeFileSync(join(root, "src-tauri/Entitlements.plist"), "<plist><dict/></plist>");
+  writeFileSync(join(root, "src-tauri/Entitlements.plist"), entitlements);
   return { home: tempDir(), root };
 }
 
@@ -185,13 +224,56 @@ describe("startupLineFor", () => {
   });
 });
 
-describe("entitlementKeys", () => {
-  it("lists the keys of a plist, sorted", () => {
-    expect(entitlementKeys("<dict><key>b</key><true/><key>a</key><true/></dict>")).toEqual([
-      "a",
-      "b",
+describe("canonicalJson", () => {
+  it("prints equal dictionaries alike whatever their key order", () => {
+    expect(canonicalJson({ b: true, a: { d: 1, c: ["x", "y"] } })).toBe(
+      canonicalJson({ a: { c: ["x", "y"], d: 1 }, b: true }),
+    );
+  });
+
+  it("tells apart a flipped value and a reordered array", () => {
+    expect(canonicalJson({ a: true })).not.toBe(canonicalJson({ a: false }));
+    expect(canonicalJson(["x", "y"])).not.toBe(canonicalJson(["y", "x"]));
+  });
+});
+
+describe("entitlementsJson", () => {
+  const run = (_: string, __: readonly string[], options?: RunOptions): RunResult =>
+    fakePlutil(options?.input);
+
+  it("parses a plist through plutil on stdin", () => {
+    const calls: Call[] = [];
+    const recording = (command: string, args: readonly string[], options?: RunOptions) => {
+      calls.push({ command, args, options });
+      return run(command, args, options);
+    };
+    expect(entitlementsJson(recording, plistWith("false"))).toEqual({
+      json: canonicalJson({ [LIBRARY_VALIDATION]: false }),
+    });
+    expect(calls).toEqual([
+      {
+        command: "plutil",
+        args: ["-convert", "json", "-o", "-", "-"],
+        options: { input: plistWith("false") },
+      },
     ]);
-    expect(entitlementKeys("<dict/>")).toEqual([]);
+  });
+
+  it("reads codesign's empty output as no entitlements, without plutil", () => {
+    expect(entitlementsJson(run, " \n")).toEqual({ json: "{}" });
+  });
+
+  it("reports a plist plutil cannot read", () => {
+    expect(entitlementsJson(run, "<plist><dict>")).toEqual({
+      error: expect.stringContaining("plutil could not read it") as unknown,
+    });
+  });
+
+  it("reports output that is not JSON", () => {
+    const garbled = (): RunResult => ({ status: 0, stdout: "not json", stderr: "" });
+    expect(entitlementsJson(garbled, EMPTY_PLIST)).toEqual({
+      error: "plutil printed no JSON: not json",
+    });
   });
 });
 
@@ -217,6 +299,8 @@ describe("main", () => {
       "codesign",
       "codesign",
       "codesign",
+      "plutil",
+      "plutil",
       join(app, "Contents/MacOS/myapp-cli"),
       join(app, "Contents/MacOS/myapp"),
       join(app, "Contents/MacOS/myapp"),
@@ -287,8 +371,18 @@ describe("main", () => {
       /ERR_SMOKE_CODESIGN/,
     ],
     [
-      "the entitlements differ",
-      { entitlements: { stdout: "<dict><key>com.apple.security.app-sandbox</key><true/></dict>" } },
+      "the app grants an entitlement the file does not",
+      { entitlements: { stdout: plistWith("true") } },
+      /ERR_SMOKE_ENTITLEMENTS/,
+    ],
+    [
+      "the app's entitlements cannot be read",
+      { entitlements: { status: 1, stderr: "code object is not signed at all" } },
+      /ERR_SMOKE_ENTITLEMENTS/,
+    ],
+    [
+      "plutil cannot parse the entitlements",
+      { entitlements: { stdout: "<plist><dict>" } },
       /ERR_SMOKE_ENTITLEMENTS/,
     ],
     ["the bundled helper does not run", { cli: { status: 1 } }, /ERR_SMOKE_SIDECAR/],
@@ -317,6 +411,38 @@ describe("main", () => {
     expect(() => {
       main(context);
     }).toThrow(code);
+  });
+
+  it("passes when the app carries the file's entitlements, values included", () => {
+    const { home, root } = setup(plistWith("false"));
+    const { context, lines } = fakeMachine(home, root, {
+      entitlements: { stdout: plistWith("false") },
+    });
+    main(context);
+    expect(lines).toContainEqual(expect.stringContaining(`"${LIBRARY_VALIDATION}":false`));
+  });
+
+  it("fails when an entitlement's value is flipped though its key is the same", () => {
+    const { home, root } = setup(plistWith("false"));
+    const { context } = fakeMachine(home, root, { entitlements: { stdout: plistWith("true") } });
+    const error = caught(() => {
+      main(context);
+    });
+    expect(error.details.code).toBe("ERR_SMOKE_ENTITLEMENTS");
+    expect(error.details.expected).toBe(canonicalJson({ [LIBRARY_VALIDATION]: false }));
+    expect(error.details.actual).toBe(canonicalJson({ [LIBRARY_VALIDATION]: true }));
+  });
+
+  it("fails when src-tauri/Entitlements.plist cannot be parsed", () => {
+    const { home, root } = setup("<plist><dict>");
+    const { context } = fakeMachine(home, root);
+    const error = caught(() => {
+      main(context);
+    });
+    expect(error.details.code).toBe("ERR_SMOKE_ENTITLEMENTS");
+    expect(error.details.expected).toContain(
+      "src-tauri/Entitlements.plist: plutil could not read it",
+    );
   });
 
   it("fails when HOME is not set", () => {
