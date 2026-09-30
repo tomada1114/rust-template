@@ -65,8 +65,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A type that crosses IPC is marked `#[cfg_attr(feature = "export-bindings", ts(export))]`:
   a bare `#[ts(export)]` now fails its `export_bindings_*` test in `just test-core`,
   because `.cargo/config.toml` no longer sets an export directory core's tests can write.
+- **Breaking:** `CounterView` has a third public field, `revision` (`"revision"` in the
+  `get_counter`, `increment`, `decrement`, `reset` replies and the `counter-changed`
+  payload). Code that builds a `CounterView` literal or destructures one exhaustively
+  must name it.
 
 ### Fixed
+
+- Counter views no longer arrive out of order: the screen keeps the newest one, and
+  `counter-changed` events leave in the order the changes were saved.
+- A counter file this version cannot read can now be replaced with Reset from the error
+  screen, and a failed load can be retried.
 
 - `just check-harness`'s UI literals check no longer reports a hex-looking fragment given to `href`, `xlinkHref`, `id`, `htmlFor`, or an `aria-*` JSX attribute (`<a href="#add">`) as a raw color; the same string in a style, a `fill`, or a binding is still flagged.
 - `no-issue-references` no longer reports an upstream project's `owner/repo#N` (such as
