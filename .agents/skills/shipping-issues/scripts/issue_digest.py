@@ -60,7 +60,8 @@ what is ranked, never the set of open issues dependency edges are read from.
 
 Exit codes:
     0 = digest printed (may contain zero issues)
-    1 = gh invocation failed, or the open backlog is larger than --limit
+    1 = gh invocation failed, the open backlog is larger than --limit, or
+        there are more open PRs than PR_LIMIT
     2 = usage error
 """
 
@@ -321,6 +322,12 @@ URGENT_LEVERAGE = {"security", "breakage"}
 FOUNDATION_LEVERAGE = {"infra", "schema", "interface", "foundation", "test-harness"}
 
 
+# Open PRs read to mark issues HAS-PR. One more is fetched, so a list longer
+# than this is an error rather than a partial HAS-PR set that lets an issue
+# with an open PR be shipped a second time.
+PR_LIMIT = 1000
+
+
 def run_gh(args: list[str]) -> Any:
     try:
         out = subprocess.run(
@@ -414,7 +421,7 @@ def fetch_issues_and_prs(
     filtered = ([it["number"] for it in run_gh(filter_args)]
                 if filter_args is not None else None)
     prs = run_gh([
-        "pr", "list", "--state", "open", "--limit", "100",
+        "pr", "list", "--state", "open", "--limit", str(PR_LIMIT + 1),
         "--json", "number,title,body,headRefName,isDraft,url",
     ])
     status = "MISS"
@@ -682,6 +689,12 @@ def main() -> int:
               "first ones would read a dependency on any of the rest as "
               f"closed. Re-run with a larger --limit (more than {args.limit}).",
               file=sys.stderr)
+        return 1
+    if len(prs) > PR_LIMIT:
+        print(f"error: more than {PR_LIMIT} open pull requests; marking HAS-PR "
+              "from only the first ones would let an issue whose PR is past "
+              "the cap be shipped twice. Close or merge open PRs, or raise "
+              "PR_LIMIT in issue_digest.py.", file=sys.stderr)
         return 1
 
     # Map issue number -> open PR that claims to close it.

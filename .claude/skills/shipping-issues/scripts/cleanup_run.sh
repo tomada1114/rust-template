@@ -77,8 +77,24 @@ repo_root=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 default_branch=$(git -C "$repo_root" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
 default_branch=${default_branch:-main}
 
-merged_refs=$(gh pr list --state merged --limit 200 --json headRefName -q '.[].headRefName' | sort -u)
-open_refs=$(gh pr list --state open --limit 200 --json headRefName -q '.[].headRefName' | sort -u)
+# One more than the cap is fetched, so a list longer than it fails loudly
+# instead of reading a merged branch past the cap as unmerged (or an open PR's
+# ref as free to delete). CLEANUP_PR_LIMIT overrides the cap.
+pr_limit=${CLEANUP_PR_LIMIT:-5000}
+pr_refs() {  # pr_refs <state>: head refs of every PR in that state, or exit 1
+  # `|| exit 1` is explicit: errexit is not inherited inside $(...), and a
+  # failed gh must not read as an empty list.
+  local raw count
+  raw=$(gh pr list --state "$1" --limit "$((pr_limit + 1))" --json headRefName -q '.[].headRefName') || exit 1
+  count=$(printf '%s\n' "$raw" | grep -c . || true)
+  if [ "$count" -gt "$pr_limit" ]; then
+    echo "error: more than $pr_limit $1 pull requests; a partial list would misjudge which branches are merged. Re-run with CLEANUP_PR_LIMIT set above $pr_limit." >&2
+    exit 1
+  fi
+  printf '%s\n' "$raw" | sort -u
+}
+merged_refs=$(pr_refs merged)
+open_refs=$(pr_refs open)
 
 deletable() {  # ref is merged-PR-backed and not reused by an open PR
   printf '%s\n' "$merged_refs" | grep -qxF "$1" &&
