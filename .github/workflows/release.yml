@@ -197,8 +197,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Before the long build, so a tag whose version has no CHANGELOG.md section fails in
-      # seconds. The file rides in the dmg artifact to the publish job, and a dry run's
+      # Before the long build, so a tag whose version has no CHANGELOG.md section fails
+      # before the app is compiled. The file rides in the dmg artifact to the publish job, and a dry run's
       # artifact shows the notes a release would publish.
       - name: Write the release notes from CHANGELOG.md
         env:
