@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { CONTRAST_PAIRS, MINIMUM_RATIO } from "./contrast-pairs";
-import { contrastRatio, luminance, parseTokens } from "./tokens";
+import { CONTRAST_PAIRS, MINIMUM_RATIO, SURFACES } from "./contrast-pairs";
+import primitivesCss from "./primitives.css?raw";
+import { contrastRatio, luminance, missingPairs, parseTokens, requiredPairs } from "./tokens";
 import tokensCss from "./tokens.css?raw";
 
 const tokens = parseTokens(tokensCss);
@@ -81,5 +82,103 @@ describe("contrastRatio", () => {
 
   it("rejects a value that is not a hex color", () => {
     expect(() => luminance("AccentColor")).toThrow(/not a hex color/);
+  });
+});
+
+describe("primitives.css pairs", () => {
+  const required = requiredPairs(primitivesCss, SURFACES);
+
+  it("lists every pair primitives.css combines in CONTRAST_PAIRS", () => {
+    expect(missingPairs(required, CONTRAST_PAIRS)).toEqual([]);
+  });
+
+  it("finds the primary button's accent boundary on the panel", () => {
+    expect(required).toContainEqual({
+      selector: ".ui-button--primary",
+      foreground: "--color-accent",
+      background: "--color-bg-panel",
+    });
+  });
+});
+
+describe("requiredPairs", () => {
+  const surfaces = ["--color-s1", "--color-s2"];
+  const pairs = (css: string) =>
+    requiredPairs(css, surfaces).map(({ selector, foreground, background }) =>
+      [selector, foreground, background].join(" "),
+    );
+
+  it("pairs a color with the rule's own background only", () => {
+    expect(pairs(".x { color: var(--color-a); background: var(--color-b); }")).toEqual([
+      ".x --color-a --color-b",
+    ]);
+  });
+
+  it("pairs a color without a background with each surface", () => {
+    expect(pairs(".x { color: var(--color-a); }")).toEqual([
+      ".x --color-a --color-s1",
+      ".x --color-a --color-s2",
+    ]);
+  });
+
+  it("reads a border shorthand, replaced by a later border-color", () => {
+    expect(pairs(".x { border: var(--border-width) solid var(--color-c); }")).toEqual([
+      ".x --color-c --color-s1",
+      ".x --color-c --color-s2",
+    ]);
+    expect(
+      pairs(
+        ".x { border: var(--border-width) solid var(--color-c); border-color: var(--color-d); }",
+      ),
+    ).toEqual([".x --color-d --color-s1", ".x --color-d --color-s2"]);
+  });
+
+  it("lays a modifier rule over its base", () => {
+    const css = `
+      .x { color: var(--color-a); background: var(--color-b); border: 1px solid var(--color-c); }
+      .x--m { border-color: var(--color-d); }
+    `;
+    const modifier = pairs(css).filter((pair) => pair.startsWith(".x--m "));
+    expect(modifier).toEqual([
+      ".x--m --color-a --color-b",
+      ".x--m --color-d --color-s1",
+      ".x--m --color-d --color-s2",
+    ]);
+  });
+
+  it("skips the boundary of a rule whose background is a surface", () => {
+    expect(pairs(".p { background: var(--color-s1); border: 1px solid var(--color-c); }")).toEqual(
+      [],
+    );
+  });
+
+  it("gives nothing for a state rule without color declarations", () => {
+    expect(
+      pairs(".x { color: var(--color-a); background: var(--color-b); } .x:hover { filter: none; }"),
+    ).toEqual([".x --color-a --color-b"]);
+  });
+
+  it("reads each selector of a list, and rules inside an at-rule", () => {
+    expect(
+      pairs("@media (x) { .a, .b { color: var(--color-a); background: var(--color-b); } }"),
+    ).toEqual([".a --color-a --color-b", ".b --color-a --color-b"]);
+  });
+
+  it("ignores comments and values without a color token", () => {
+    expect(
+      pairs(
+        "/* .y { color: var(--color-z); } */ .x { color: currentColor; border: none; background: transparent; }",
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("missingPairs", () => {
+  it("returns a pair absent from the list and drops one present in it", () => {
+    const listed = { selector: ".x", foreground: "--color-a", background: "--color-b" };
+    const absent = { selector: ".y", foreground: "--color-c", background: "--color-b" };
+    expect(
+      missingPairs([listed, absent], [{ foreground: "--color-a", background: "--color-b" }]),
+    ).toEqual([absent]);
   });
 });

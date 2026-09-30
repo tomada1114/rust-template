@@ -79,7 +79,7 @@
 
 .ui-panel {
   padding: var(--space-5);
-  border: var(--border-width) solid var(--color-control-bg);
+  border: var(--border-width) solid var(--color-panel-border);
   border-radius: var(--radius-panel);
   background: var(--color-bg-panel);
 }

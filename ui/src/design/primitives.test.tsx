@@ -63,6 +63,20 @@ describe("Stack", () => {
   });
 });
 
+describe("Text", () => {
+  it("is named by the element labelledBy points at", () => {
+    render(
+      <>
+        <h2 id="t">Title</h2>
+        <Text as="output" role="status" labelledBy="t">
+          3
+        </Text>
+      </>,
+    );
+    expect(screen.getByRole("status", { name: "Title" })).toHaveTextContent("3");
+  });
+});
+
 describe("Panel", () => {
   it("becomes a named region when it is a labelled section", () => {
     render(

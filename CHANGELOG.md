@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The dark-mode primary button now meets 3:1 against the panel and the window: the dark
+  `--color-accent` moves from `#2f6fd0` to `#3173d8`. `tokens.test.ts` derives the token
+  pairs `primitives.css` combines and fails when `contrast-pairs.ts` lacks one. The
+  counter's value is named after its title, a repeated identical error is announced
+  again, and the panel border, focus-ring offset, and content width are tokens.
 - The release workflow fails early and explicitly instead of late or silently. The
   six `APPLE_*` secrets must be all set (Developer ID signed and notarized) or all absent
   (ad hoc): a partial set, including signing without notarizing, which Gatekeeper's
