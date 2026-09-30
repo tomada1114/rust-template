@@ -56,5 +56,6 @@ Say so in the pull request or an issue, with the finding and why the rule does n
 and let a human decide. A gate that is wrong for the whole codebase is changed in its
 config, in a pull request of its own, never suppressed at the one site that tripped it.
 The reverse also holds: when a human agrees that one site, and only that one, needs the
-exception, prefer an attribute on that item with its reason (`#[expect(…, reason = "…")]`)
-to relaxing the lint in `[workspace.lints]`, which widens the gate for every future file.
+exception, prefer an attribute on that item with its reason
+(`#[expect(…, reason = "…")]`) to relaxing the lint in `[workspace.lints]`, which
+widens the gate for every future file.
