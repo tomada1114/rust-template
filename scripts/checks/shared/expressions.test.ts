@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  conditionOn,
+  evaluateOn,
   evaluateOnPush,
   isWholeExpression,
+  templateOn,
   templateOnPush,
   truthy,
   type PushValue,
@@ -79,6 +82,53 @@ describe("evaluateOnPush", () => {
   });
 });
 
+describe("evaluateOn pull_request", () => {
+  it("knows the event name and the contexts a pull request sets", () => {
+    expect(evaluateOn("pull_request", "github.event_name")).toEqual(lit("pull_request"));
+    expect(evaluateOn("pull_request", "github.event_name == 'push'")).toEqual(lit(false));
+    expect(evaluateOn("pull_request", "github.head_ref")).toEqual(ctx("github.head_ref"));
+    expect(evaluateOn("pull_request", "!github.event.pull_request")).toEqual(lit(false));
+    expect(evaluateOn("pull_request", "github.head_ref || github.sha")).toEqual(
+      ctx("github.head_ref"),
+    );
+  });
+
+  it("leaves a pull request's other fields unknown", () => {
+    expect(evaluateOn("pull_request", "github.event.pull_request.head.repo.fork == false")).toEqual(
+      UNKNOWN,
+    );
+    expect(evaluateOn("pull_request", "!github.event.pull_request.draft")).toEqual(UNKNOWN);
+  });
+
+  it("reads a name template for a pull request", () => {
+    expect(
+      templateOn("pull_request", "${{ github.event_name == 'pull_request' && 'PR' || 'Push' }}"),
+    ).toEqual([lit("PR")]);
+  });
+});
+
+describe("conditionOn", () => {
+  it("is true only for a condition that holds on every run of the event", () => {
+    expect(conditionOn("pull_request", true)).toBe(true);
+    expect(conditionOn("pull_request", "github.event_name == 'pull_request'")).toBe(true);
+    expect(conditionOn("pull_request", "${{ github.event_name != 'push' }}")).toBe(true);
+    expect(conditionOn("pull_request", " ${{ github.head_ref }} ")).toBe(true);
+  });
+
+  it("is false for a condition that is false on the event", () => {
+    expect(conditionOn("pull_request", false)).toBe(false);
+    expect(conditionOn("pull_request", "github.event_name == 'push'")).toBe(false);
+    expect(conditionOn("push", "${{ github.event_name == 'pull_request' }}")).toBe(false);
+  });
+
+  it("is unknown for what depends on the run, cannot be read, or is not a condition", () => {
+    expect(conditionOn("pull_request", "github.ref == 'refs/heads/main'")).toBeUndefined();
+    expect(conditionOn("pull_request", "always()")).toBeUndefined();
+    expect(conditionOn("pull_request", "${{ true }} && false")).toBeUndefined();
+    expect(conditionOn("pull_request", 1)).toBeUndefined();
+  });
+});
+
 describe("truthy", () => {
   it("is known for literals and the contexts a push always sets", () => {
     expect(truthy(lit(""))).toBe(false);
@@ -87,6 +137,11 @@ describe("truthy", () => {
     expect(truthy({ kind: "context", path: "github.sha" })).toBe(true);
     expect(truthy({ kind: "context", path: "matrix.os" })).toBeUndefined();
     expect(truthy({ kind: "unknown" })).toBeUndefined();
+  });
+
+  it("knows what a pull request sets that a push leaves empty", () => {
+    expect(truthy(ctx("github.head_ref"), "pull_request")).toBe(true);
+    expect(truthy(ctx("github.head_ref"))).toBeUndefined();
   });
 });
 
