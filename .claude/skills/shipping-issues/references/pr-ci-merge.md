@@ -35,8 +35,32 @@ Summary, Test Plan, and its Checklist ticked only for what actually ran. Record
 ```
 
 `land_pr.sh` re-checks the link at step 7 too; this earlier call is not redundant,
-because it catches `WRONG_BASE` before CI spends its time on the wrong base. `--fix`
-appends a missing `Closes #N`; `WRONG_BASE` -> retarget before merging.
+because it catches `WRONG_BASE` before CI spends its time on the wrong base.
+`WRONG_BASE` -> retarget before merging. When GitHub lists no link to the issue,
+`--fix` reads the body first and never adds a second keyword:
+
+- **No closing keyword for `#N` in the body** -> it appends `Closes #N`.
+- **The keyword is there, or was just appended, and GitHub still lists no link** ->
+  it re-saves the body: a minimal body of only `Closes #N`, then the full body put
+  back, up to 3 times, a few seconds apart, stopping as soon as the link appears.
+  A re-save has made GitHub compute a link that a plain edit had not, and has also
+  left it missing (observed on this repository's pull requests, 2026-09-30). The full
+  body is restored after every minimal save, including on an interrupt; if it cannot
+  be, the verdict is `ERROR` and the detail names the file holding the full body and
+  the `gh pr edit` that puts it back -- run that before anything else. A body it could
+  not read is never rewritten (`ERROR`).
+
+`NOT_LINKED`'s `detail:` says which case is left. "has no Closes/Fixes/Resolves
+keyword", or "closes #M but not the target issue #N", means the body still lacks the
+keyword (with `--fix`, its `fix:` line says the edit failed): re-run `--fix`, or add
+`Closes #N` to the body by hand. "has
+a closing keyword for #N, but GitHub has not linked it" means the re-saves did not make
+GitHub link it: go on to step 6 anyway. At step 7, `land_pr.sh <pr> --issue <n>`
+refuses that merge with `result: NOT_LINKED`; for that detail only, run
+`land_pr.sh <pr> --issue <n> --no-link-check` instead. It skips only the pre-merge link
+check: after the merge it still reads the issue and, when GitHub's auto-close did not
+fire, closes it with a comment naming the PR (`issue: CLOSED_MANUALLY`). Never pass
+`--no-link-check` for the no-keyword detail or `WRONG_BASE`, and never by default.
 
 ## 6. CI to green
 

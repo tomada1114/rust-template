@@ -56,6 +56,55 @@ def run_script_with_broken_mktemp(args, responses, *, exits=None, stderrs=None):
     return proc, calls
 
 
+class Run:
+    """What one run_resave call observed: the process, every gh argv, every
+    `--body-file` edit with its exit code, every `sleep` argument, and the
+    files the script left in its TMPDIR (read before that dir is removed)."""
+
+    def __init__(self, proc, calls, body_edits, saved_bodies, sleeps, leftovers):
+        self.proc = proc
+        self.calls = calls
+        self.body_edits = body_edits
+        self.saved_bodies = saved_bodies
+        self.sleeps = sleeps
+        self.leftovers = leftovers
+
+
+def run_resave(args, responses, *, sequences=None, exits=None, sleep_body=None):
+    """Run the script with `sleep` stubbed on PATH -- it logs its argument and
+    returns at once, so a re-save's waits are counted without being waited --
+    and with TMPDIR pointed at a directory the test can inspect."""
+    with FakeGh(responses, exits=exits, sequences=sequences) as fake, \
+            tempfile.TemporaryDirectory() as stub_td, \
+            tempfile.TemporaryDirectory() as tmp_td:
+        stub_dir = Path(stub_td)
+        sleep_log = stub_dir / "sleeps.log"
+        stub = stub_dir / "sleep"
+        stub.write_text(
+            sleep_body or f'#!/usr/bin/env bash\necho "$1" >> "{sleep_log}"\n',
+            encoding="utf-8",
+        )
+        stub.chmod(stub.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        env = dict(fake.env)
+        env["PATH"] = f"{stub_dir}{os.pathsep}{env['PATH']}"
+        env["TMPDIR"] = tmp_td
+        env["SLEEP_LOG"] = str(sleep_log)
+        proc = subprocess.run(
+            ["bash", str(SCRIPT), *args],
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        sleeps = (
+            sleep_log.read_text(encoding="utf-8").split() if sleep_log.exists() else []
+        )
+        leftovers = {
+            f.name: f.read_text(encoding="utf-8") for f in Path(tmp_td).iterdir()
+        }
+        return Run(proc, list(fake.calls), fake.body_edits, fake.saved_bodies,
+                   sleeps, leftovers)
+
+
 def base_prefix(pr):
     return ("pr", "view", pr, "--json", "baseRefName")
 
@@ -180,6 +229,320 @@ class LinkCheckTest(unittest.TestCase):
         self.assertIn("fix: FAILED (could not edit PR body)\n", proc.stdout)
         self.assertIn("verdict: NOT_LINKED\n", proc.stdout)
         self.assertTrue(any(call[:2] == ["pr", "edit"] for call in calls))
+
+
+BODY_WITH_KEYWORD = "## Summary\n\nCloses #7\n\nA long body.\n\n## Test Plan\n\n- ran it\n"
+
+
+def resave_responses(pr, body, base="main"):
+    return {
+        base_prefix(pr): f"{base}\n",
+        ("repo", "view", "--json", "defaultBranchRef"): "main\n",
+        ("pr", "view", pr, "--json", "body"): body,
+    }
+
+
+class ResaveTest(unittest.TestCase):
+    """--fix when GitHub has not linked the issue: append only a missing
+    keyword, re-save a body that already has one, and never lose the body."""
+
+    def assert_body_intact(self, run, original):
+        # Every body the PR held is the original or the minimal one, it ends
+        # as the original, and no body ever carries the keyword twice.
+        self.assertEqual(run.saved_bodies[-1], original)
+        for body in run.saved_bodies:
+            self.assertIn(body, (original, "Closes #7\n"))
+            self.assertEqual(body.count("Closes #7"), 1)
+
+    def test_keyword_present_resaves_until_linked_without_appending(self):
+        pr = "40"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, BODY_WITH_KEYWORD),
+            # initial read, after re-save 1, after re-save 2
+            sequences={closing_prefix(pr): ["\n", "\n", "7\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 0, run.proc.stdout + run.proc.stderr)
+        self.assertNotIn("appended", run.proc.stdout)
+        self.assertIn("fix: re-save 1/3: not linked yet\n", run.proc.stdout)
+        self.assertIn("fix: re-save 2/3: linked\n", run.proc.stdout)
+        self.assertIn("verdict: LINKED\n", run.proc.stdout)
+        original = BODY_WITH_KEYWORD
+        self.assertEqual(
+            run.saved_bodies, ["Closes #7\n", original, "Closes #7\n", original]
+        )
+        self.assert_body_intact(run, original)
+        self.assertEqual(run.leftovers, {})
+
+    def test_keyword_present_but_never_linked_reports_keyword_present(self):
+        pr = "41"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, BODY_WITH_KEYWORD),
+            sequences={closing_prefix(pr): ["\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 1)
+        self.assertIn("fix: re-save 3/3: not linked yet\n", run.proc.stdout)
+        self.assertIn("verdict: NOT_LINKED\n", run.proc.stdout)
+        self.assertIn(
+            "detail: the PR body has a closing keyword for #7, but GitHub has not "
+            "linked it after 3 re-save(s) of the body\n",
+            run.proc.stdout,
+        )
+        self.assertNotIn("no Closes/Fixes/Resolves keyword", run.proc.stdout)
+        # Bounded: three minimal saves and three restores, two short waits each.
+        self.assertEqual(len(run.body_edits), 6)
+        self.assert_body_intact(run, BODY_WITH_KEYWORD)
+        self.assertEqual(len(run.sleeps), 6)
+        self.assertTrue(all(0 < int(s) <= 5 for s in run.sleeps), run.sleeps)
+        self.assertEqual(run.leftovers, {})
+
+    def test_keyword_absent_appends_once_and_does_not_resave_once_linked(self):
+        pr = "42"
+        body = "## Summary\n\nSee #7 for context.\n"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, body),
+            sequences={closing_prefix(pr): ["\n", "7\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 0, run.proc.stdout)
+        self.assertIn("fix: appended 'Closes #7' to the PR body\n", run.proc.stdout)
+        self.assertNotIn("re-save", run.proc.stdout)
+        self.assertEqual(run.saved_bodies, [body + "\n\nCloses #7\n"])
+        self.assertEqual(run.sleeps, ["3"])
+
+    def test_keyword_absent_append_not_linked_resaves_the_appended_body(self):
+        pr = "43"
+        body = "## Summary\n\nNo keyword here.\n"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, body),
+            sequences={closing_prefix(pr): ["\n"]},
+        )
+
+        appended = body + "\n\nCloses #7\n"
+        self.assertEqual(run.proc.returncode, 1)
+        self.assertEqual(run.saved_bodies[0], appended)
+        self.assert_body_intact(run, appended)
+        self.assertEqual(len(run.body_edits), 1 + 6)
+        self.assertIn(
+            "detail: the PR body has a closing keyword for #7, but GitHub has not linked it",
+            run.proc.stdout,
+        )
+
+    def test_no_keyword_and_edit_fails_reports_no_keyword(self):
+        pr = "44"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, "no keyword\n"),
+            sequences={closing_prefix(pr): ["\n"], ("pr", "edit", pr): [("", 1)]},
+        )
+
+        self.assertEqual(run.proc.returncode, 1)
+        self.assertIn("fix: FAILED (could not edit PR body)\n", run.proc.stdout)
+        self.assertIn(
+            "detail: the PR body has no Closes/Fixes/Resolves keyword\n", run.proc.stdout
+        )
+        self.assertEqual(run.saved_bodies, [])
+
+    def test_without_fix_detail_distinguishes_keyword_present_from_absent(self):
+        pr = "45"
+        cases = {
+            BODY_WITH_KEYWORD:
+                "detail: the PR body has a closing keyword for #7, but GitHub has "
+                "not linked it (--fix re-saves the body)\n",
+            "Fixes: #7\n":
+                "detail: the PR body has a closing keyword for #7, but GitHub has "
+                "not linked it (--fix re-saves the body)\n",
+            "resolved #7.\n":
+                "detail: the PR body has a closing keyword for #7, but GitHub has "
+                "not linked it (--fix re-saves the body)\n",
+            "Closes #70 and see #7\n":
+                "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
+            "prefixes #7\n":
+                "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
+        }
+        for body, detail in cases.items():
+            with self.subTest(body=body):
+                run = run_resave(
+                    [pr, "--issue", "7"],
+                    resave_responses(pr, body),
+                    sequences={closing_prefix(pr): ["\n"]},
+                )
+
+                self.assertEqual(run.proc.returncode, 1)
+                self.assertIn(detail, run.proc.stdout)
+                self.assertEqual(run.body_edits, [])
+
+    def test_without_issue_detail_reports_unlinked_keyword(self):
+        pr = "46"
+        run = run_resave(
+            [pr],
+            resave_responses(pr, "Closes #12\n"),
+            sequences={closing_prefix(pr): ["\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 1)
+        self.assertIn(
+            "detail: the PR body has a closing keyword for an issue, but GitHub has "
+            "not linked it\n",
+            run.proc.stdout,
+        )
+
+    def test_other_issue_linked_and_keyword_present_says_not_linked_yet(self):
+        pr = "47"
+        run = run_resave(
+            [pr, "--issue", "7"],
+            resave_responses(pr, BODY_WITH_KEYWORD),
+            sequences={closing_prefix(pr): ["5\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 1)
+        self.assertIn("detail: the PR body has a closing keyword for #7", run.proc.stdout)
+
+    def test_unreadable_body_without_fix_says_so(self):
+        pr = "48"
+        responses = resave_responses(pr, "")
+        run = run_resave(
+            [pr, "--issue", "7"],
+            responses,
+            sequences={closing_prefix(pr): ["\n"]},
+            exits={("pr", "view", pr, "--json", "body"): 1},
+        )
+
+        self.assertEqual(run.proc.returncode, 1)
+        self.assertIn(
+            "detail: GitHub has not linked #7, and the PR body could not be read to say why\n",
+            run.proc.stdout,
+        )
+
+    def test_unreadable_body_with_fix_refuses_to_rewrite(self):
+        pr = "49"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, ""),
+            sequences={closing_prefix(pr): ["\n"]},
+            exits={("pr", "view", pr, "--json", "body"): 1},
+        )
+
+        self.assertEqual(run.proc.returncode, 3)
+        self.assertIn("verdict: ERROR\n", run.proc.stdout)
+        self.assertIn("refusing to rewrite it", run.proc.stdout)
+        self.assertEqual([c for c in run.calls if c[:2] == ["pr", "edit"]], [])
+        self.assertEqual(run.leftovers, {})
+
+    def test_dry_run_with_keyword_present_previews_resave_without_editing(self):
+        pr = "50"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix", "--dry-run"],
+            resave_responses(pr, BODY_WITH_KEYWORD),
+            sequences={closing_prefix(pr): ["\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 0)
+        self.assertIn(
+            "fix: would re-save PR #50 body, which already has a closing keyword for #7, "
+            "up to 3 times (dry run -- no change made)\n",
+            run.proc.stdout,
+        )
+        self.assertEqual([c for c in run.calls if c[:2] == ["pr", "edit"]], [])
+        self.assertEqual(run.sleeps, [])
+        self.assertEqual(run.leftovers, {})
+
+    def test_dry_run_on_wrong_base_previews_no_resave(self):
+        pr = "51"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix", "--dry-run"],
+            resave_responses(pr, BODY_WITH_KEYWORD, base="release"),
+            sequences={closing_prefix(pr): ["\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 2)
+        self.assertIn("fix: would not re-save PR #51 body", run.proc.stdout)
+        self.assertEqual([c for c in run.calls if c[:2] == ["pr", "edit"]], [])
+
+    def test_wrong_base_skips_the_resave(self):
+        pr = "52"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, BODY_WITH_KEYWORD, base="release"),
+            sequences={closing_prefix(pr): ["\n"]},
+        )
+
+        self.assertEqual(run.proc.returncode, 2)
+        self.assertIn("fix: re-save skipped -- the base is not main\n", run.proc.stdout)
+        self.assertIn("verdict: WRONG_BASE\n", run.proc.stdout)
+        self.assertEqual(run.body_edits, [])
+
+    def test_minimal_save_failure_still_restores_and_stops(self):
+        pr = "53"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, BODY_WITH_KEYWORD),
+            sequences={
+                closing_prefix(pr): ["\n"],
+                ("pr", "edit", pr): [("", 1), ("", 0)],
+            },
+        )
+
+        self.assertEqual(run.proc.returncode, 1)
+        self.assertIn("fix: FAILED (could not edit PR body)\n", run.proc.stdout)
+        self.assertIn("(re-saving the body failed)\n", run.proc.stdout)
+        self.assertEqual(run.saved_bodies, [BODY_WITH_KEYWORD])
+        self.assertEqual(len(run.body_edits), 2)
+
+    def test_restore_failure_is_error_and_keeps_the_full_body_on_disk(self):
+        pr = "54"
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, BODY_WITH_KEYWORD),
+            sequences={
+                closing_prefix(pr): ["\n"],
+                ("pr", "edit", pr): [("", 0), ("", 1)],
+            },
+        )
+
+        self.assertEqual(run.proc.returncode, 3)
+        self.assertIn("verdict: ERROR\n", run.proc.stdout)
+        self.assertIn("could not restore PR #54 body", run.proc.stdout)
+        # One minimal save, then every restore try failed.
+        self.assertEqual(len(run.body_edits), 1 + 3)
+        kept = [name for name in run.leftovers if name.startswith("link_check_body.")]
+        self.assertEqual(len(kept), 1, run.leftovers)
+        self.assertIn(kept[0], run.proc.stdout)
+        self.assertEqual(run.leftovers[kept[0]], BODY_WITH_KEYWORD)
+
+    def test_interrupt_while_the_body_is_minimal_restores_it(self):
+        pr = "55"
+        # The first wait is the one right after the minimal save: the stub
+        # sends the script a TERM there, as a timeout or Ctrl-C would.
+        sleep_body = (
+            "#!/usr/bin/env bash\n"
+            'echo "$1" >> "$SLEEP_LOG"\n'
+            'if [[ $(wc -l < "$SLEEP_LOG") -eq 1 ]]; then kill -TERM "$PPID"; fi\n'
+        )
+        run = run_resave(
+            [pr, "--issue", "7", "--fix"],
+            resave_responses(pr, BODY_WITH_KEYWORD),
+            sequences={closing_prefix(pr): ["\n"]},
+            sleep_body=sleep_body,
+        )
+
+        self.assertEqual(run.proc.returncode, 3, run.proc.stdout)
+        self.assertIn("fix: interrupted during a re-save -- restoring the full body\n",
+                      run.proc.stdout)
+        self.assertEqual(run.saved_bodies, ["Closes #7\n", BODY_WITH_KEYWORD])
+        self.assertEqual(run.leftovers, {})
+
+    def test_non_numeric_issue_is_usage_error(self):
+        proc, calls = run_script(["60", "--issue", "7.*"], {})
+
+        self.assertEqual(proc.returncode, 3)
+        self.assertIn("--issue needs an issue number", proc.stderr)
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

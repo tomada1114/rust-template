@@ -143,13 +143,16 @@ class LandPrTest(unittest.TestCase):
                 default_branch: "main\n",
                 # closes never includes the issue: the fix is attempted but
                 # `gh pr edit` fails, so no sleep/retry and no eventual link.
+                # (The fake applies an exit code only to a registered prefix.)
                 closing: "5\n",
                 body: "original body\n",
+                edit: "",
             },
             exits={edit: 1},
         )
 
         self.assertEqual(proc.returncode, 1)
+        self.assertIn("link| fix: FAILED (could not edit PR body)\n", proc.stdout)
         self.assertIn("result: NOT_LINKED\n", proc.stdout)
         self.assertTrue(any(call[:2] == ["pr", "edit"] for call in calls))
 
