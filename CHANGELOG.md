@@ -97,6 +97,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`ERR_CHECK_LABEL_TYPE_UNMAPPED`). `core-boundary` walks build-dependency edges as
   well as normal ones.
 
+- `ipc-names` and `ui-literals` catch the common spellings of what they ban.
+  `ipc-names` compares the calls of Tauri's `invoke`, `listen`, and `once` (found by
+  their `@tauri-apps/*` import, aliases and namespace imports included) in every file
+  under `ui/src/ipc/` that ships, not only `commands.ts` and `events.ts`, reads a
+  path-call emit through the `Emitter` trait such as `tauri::Emitter::emit(app, "…", ())`,
+  and names the file to edit on each side. `ui-literals` flags a pixel size or family
+  carried by a custom property its own file declares
+  (`--size: 11px; font-size: var(--size)`) or written as a `var()` fallback, CSS system
+  colors (`CanvasText`, `AccentColor`, …) in color properties and WebKit's
+  (`-apple-system-label`, …), a value reached through a `const` in scope or a member of
+  a `const` object, a computed key, a template, a conditional, `el.style.color = …`, or
+  `style.setProperty(…)`, and a `--custom` property key in TypeScript; it now reads
+  `ui/index.html`, `.svg`, `.html`, `.scss`, and JavaScript files, and fails on a markup
+  tag it cannot read (`ERR_CHECK_UI_UNPARSED`).
+
 ### Security
 
 - The staged guard catches this template's own signing secrets it used to miss: an
