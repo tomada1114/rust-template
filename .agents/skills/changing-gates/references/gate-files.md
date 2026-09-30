@@ -84,6 +84,10 @@ over `cargo:`, which compiles from source. Renovate opens the bumps for the firs
 after its 7-day minimum release age; its `enabledManagers` in `.github/renovate.json`
 are `mise` and `rust-toolchain` only, so it never touches `packageManager`, and
 `package.json` is Dependabot's `npm` ecosystem (`.github/dependabot.yml`).
+`package.json`'s `@types/node` stays on the major of `mise.toml`'s `node`, so the
+scripts type-check against the Node that runs them: `scripts/checks/node-types-major.ts`
+(`just check-harness`) fails with `ERR_CHECK_NODE_MAJOR_DIVERGED` when the major
+`pnpm-lock.yaml` resolves differs, so a Node major moves both in one change.
 
 A bump of Rust, clippy, ESLint, typescript-eslint, or TypeScript can fire a finding
 the old version did not. The fix goes into the code on that pull request; skipping the

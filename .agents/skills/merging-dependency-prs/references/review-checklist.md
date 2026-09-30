@@ -82,6 +82,13 @@ almost always contains one.
 - A new `tauri-plugin-*` crate or `@tauri-apps/plugin-*` package appearing in a bump is
   a new dependency and a new capability, not a bump: stop and ask.
 
+## Node
+
+- A Node major moves `node` in `mise.toml` and `@types/node` together
+  (`merging-dependency-prs` "The Node rule"); the one side a bot PR leaves behind is
+  moved in the combined branch (`failure-modes.md` F12) and reviewed here like a
+  bot-proposed bump.
+
 ## Security updates
 
 Dependabot's cooldown applies only to version updates, never to security updates
