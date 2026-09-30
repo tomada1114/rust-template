@@ -26,6 +26,12 @@ pub enum LoggingError {
 /// appender writes synchronously — no background worker whose last lines a
 /// `process::exit` could drop.
 ///
+/// Retention counts every regular file in `dir` with a UTF-8 name that starts with
+/// `prefix` and ends with `log`, deleting the oldest by creation time (the date in the
+/// name where the file system has none), so `dir` must hold no other writer's files whose
+/// name begins with `prefix`: give each writer its own directory ([`crate::cli_log_dir`]
+/// for the helper). Subdirectories are never counted.
+///
 /// # Errors
 /// [`LoggingError`] when the directory cannot be used or a subscriber already exists.
 pub fn init_logging(dir: &Path, prefix: &str, also_stderr: bool) -> Result<(), LoggingError> {
