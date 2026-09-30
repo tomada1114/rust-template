@@ -1,9 +1,9 @@
 /**
  * Every GitHub Actions workflow is pinned, least-privileged, bounded in time, fails
- * closed, installs from the lockfile, and cannot cancel a run on `main`
- * (issue #129). Ported from macos-app-template's workflow-hygiene.sh and
- * workflow-pins-and-permissions.sh, with instant-composition's workflow rules, reading
- * each file with the `yaml` parser instead of by line.
+ * closed, installs from the lockfile, and cannot cancel a run on `main`. Ported from
+ * macos-app-template's workflow-hygiene.sh and workflow-pins-and-permissions.sh, with
+ * instant-composition's workflow rules, reading each file with the `yaml` parser instead
+ * of by line.
  *
  *   node scripts/checks/workflow-hygiene.ts [--root DIR]
  *

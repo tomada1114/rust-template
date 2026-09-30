@@ -3,7 +3,7 @@
 The detail behind `starting-an-app`'s "Choose the app shape". Decide before the first
 feature, and record the choice as an ADR.
 
-| | Windowed (what the template ships) | Menu-bar agent |
+| | Windowed (the starting shape) | Menu-bar agent |
 |---|---|---|
 | Dock icon, app switcher, ⌘Tab | yes | no |
 | App menu, ⌘Q | yes | no: the tray icon is the whole surface |

@@ -270,9 +270,9 @@ these owes an ADR, as `recording-architecture-decisions` sets out:
 
 An agent writes an ADR as Proposed; only a human accepts it. An ADR records reasoning and
 grants nothing: an entitlement, a signing change, or a new dependency still needs the
-sign-off "Security and human approval" asks for. The template repository ships the index
-empty — its own reasoning lives in `README.md`'s Design Philosophy, and ADRs belong to
-the apps cut from it.
+sign-off "Security and human approval" asks for. The index starts empty: the reasoning
+behind the layers every app starts with lives in `README.md`'s Design Philosophy, and an
+ADR records only what an app decides on top of them.
 
 ## Skills
 

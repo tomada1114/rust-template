@@ -94,7 +94,7 @@ replacement. **REQUIRED:** `designing-ui` for the lock's content and the token e
 
 ## Choose the app shape
 
-The template ships a windowed app: a Dock icon, an app menu, and a main window that
+Every app starts windowed: a Dock icon, an app menu, and a main window that
 startup shows. The other common shape is a menu-bar agent: no Dock icon and no app menu,
 a tray icon as its whole surface, and a window only when the tray opens one. Decide
 before the first feature: the shape touches startup, the window config, how the app is

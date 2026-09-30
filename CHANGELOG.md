@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Vitest coverage floors count every script and UI source extension (`.mts`, `.cts`,
+  `.js`, `.jsx`, `.mjs`, `.cjs` as well as `.ts`/`.tsx`), so an untested file in any of them
+  shows as 0%.
 - Dependency Review allows GHSA-wrw7-89jp-8q8g (`glib`, Linux-only), the advisory
   `osv-scanner.toml` already ignores, and a harness check
   (`scripts/checks/advisory-ignores-agree.ts`) fails when the two lists diverge.
@@ -64,6 +67,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in `scripts/checks/shared/documents.ts`. `just-recipes-exist` reads the code spans and
   fenced blocks in each string of a YAML issue form, and fails with
   `ERR_CHECK_INPUT_UNREADABLE` on a form that is not YAML.
+- An app cut from the template no longer inherits sentences about the template itself.
+  `AGENTS.md`, `docs/architecture.md`, `docs/architecture/README.md`, the roadmap, and
+  the `designing-core-logic`, `recording-architecture-decisions`, `steering-the-roadmap`,
+  and `starting-an-app` skills now say the ADR index and the roadmap start empty and
+  where the reasoning behind the starting layers lives, instead of what "the template
+  ships" or "the template's own reasoning", and `scripts/checks/workflow-hygiene.ts`'s
+  header no longer cites a template issue number. `scripts/verify-bootstrap.ts` now
+  fails with `ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` on either phrase left in the generated
+  app, and its closing line names every check it ran.
 - The dark-mode primary button now meets 3:1 against the panel and the window: the dark
   `--color-accent` moves from `#2f6fd0` to `#3173d8`. `tokens.test.ts` derives the token
   pairs `primitives.css` combines and fails when `contrast-pairs.ts` lacks one. The

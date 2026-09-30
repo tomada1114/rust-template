@@ -12,8 +12,8 @@ Three places hold the reasoning, and each has one job:
   they talk, and what is contract. It is the ground the ADRs build on, not a record of
   choices.
 - The repository README's [Design Philosophy](../../README.md#design-philosophy) holds
-  the template's own reasoning: why a workspace, why ts-rs, why no WebDriver tests. The
-  template ships no ADRs of its own.
+  the reasoning behind those starting layers: why a workspace, why ts-rs, why no
+  WebDriver tests. None of it is an ADR.
 - The ADRs below record what the app decided after that: its design system, where it
   keeps state, what it depends on, whether it needs the App Sandbox or a new
   entitlement, how it ships, and which permissions it asks for.
@@ -25,8 +25,7 @@ usually its design lock (`adr/NNNN-design-lock.md`), decided before its first sc
 Beside the ADRs, [`roadmap.md`](roadmap.md) records the app's direction — which outcomes
 come now, next, and later — and links the issues and ADRs each one needs. It is not an
 ADR: it takes no status and no number, has no row in the table below, and authorizes
-nothing. The template ships it as a skeleton; `steering-the-roadmap` is the skill that
-changes it.
+nothing. It starts as a skeleton; `steering-the-roadmap` is the skill that changes it.
 
 ## Status legend
 
@@ -58,8 +57,8 @@ changes it.
 
 ## Decisions
 
-The template ships this table empty: its own reasoning is in the repository README's
-Design Philosophy. The first row is the app's first ADR.
+This table starts empty: the reasoning behind the starting layers is in the repository
+README's Design Philosophy. The first row is the app's first ADR.
 
 | ADR | Decision | Status |
 |---|---|---|
