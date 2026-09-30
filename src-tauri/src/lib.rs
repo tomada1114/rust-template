@@ -17,7 +17,8 @@ use tauri::{App, AppHandle, Manager, RunEvent, Runtime};
 pub use commands::{AppState, COUNTER_CHANGED};
 pub use startup::{SMOKE_ENV, StartupActivation, StartupPlan, smoke_requested, startup_plan};
 
-/// The file prefix of the app's daily log files (the helper CLI uses `myapp-cli`).
+/// The file prefix of the app's daily log files in `log_dir` (the helper CLI logs as
+/// `myapp-cli` in its own directory, `myapp_platform::cli_log_dir`).
 pub const LOG_FILE_PREFIX: &str = "myapp";
 
 /// The label of the window `tauri.conf.json` declares. Startup fails without it, so a

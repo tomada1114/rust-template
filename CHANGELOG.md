@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The helper CLI now logs to `~/Library/Logs/<bundle id>/cli/`, so the app's log
+  retention no longer deletes the helper's files, each keeps its newest 14 (legacy
+  helper files in the log directory age out under the app's retention), and `just logs`
+  prints only the app's log.
 - A Tauri minor now arrives as two small Dependabot PRs (`cargo-tauri`, `npm-tauri`)
   that `merging-dependency-prs` combines, instead of turning the whole cargo and npm
   groups red; the dependency survey marks a split Tauri pair and each 0.x-minor bump.
