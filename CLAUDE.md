@@ -18,9 +18,10 @@ only records what Claude Code adds on top of them.
   `scripts/format-edited-file.ts` on the one file an `Edit`/`Write`/`MultiEdit` touched
   (rustfmt for `.rs`, fed on stdin so a `mod` child is not rewritten; Prettier for the
   TypeScript, JavaScript, JSON, CSS, HTML, and YAML the pre-commit hook checks) and
-  reports a formatter failure back to you; the git hook and CI remain the gate. Personal permissions belong in
-  `~/.claude/settings.json` or the gitignored `.claude/settings.local.json`, and editing
-  either needs a human's sign-off (`AGENTS.md` › Security and human approval).
+  reports a formatter failure back to you; the git hook and CI remain the gate.
+  Personal permissions belong in `~/.claude/settings.json` or the gitignored
+  `.claude/settings.local.json`, and editing either needs a human's sign-off
+  (`AGENTS.md` › Security and human approval).
 - **Sub-agent tiers.** `.claude/agents/` defines `executor` (`opus`, low effort),
   `architect` (`opus`, high effort), and `worker` (`sonnet`, medium effort); hand a
   step to one by `subagent_type`, never by a bare `model`. A same-named agent in
