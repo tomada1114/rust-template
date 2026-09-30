@@ -201,9 +201,10 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   `is_dir`, `is_symlink`, which a `PathBuf` reaches too), `std::net::{TcpStream,
   TcpListener, UdpSocket}`, `std::os::unix::net::{UnixStream, UnixListener,
   UnixDatagram}`, and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit,
-  abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`/`Instant::now` and both types' `elapsed`, `std::env`'s
-  `var`/`var_os`/`vars`/`vars_os`, `args`/`args_os`, `current_dir`/`set_current_dir`,
-  `current_exe`, `home_dir`, `temp_dir`, and `set_var`/`remove_var`, and
+  abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`/`Instant::now`
+  and both types' `elapsed`, `std::env`'s `var`/`var_os`/`vars`/`vars_os`,
+  `args`/`args_os`, `current_dir`/`set_current_dir`, `current_exe`, `home_dir`,
+  `temp_dir`, and `set_var`/`remove_var`, and
   `std::thread::{spawn, sleep, park_timeout, available_parallelism}` and
   `std::thread::Builder::spawn` there.
   `std::thread::scope` is allowed, in production core and tests alike: it joins every
