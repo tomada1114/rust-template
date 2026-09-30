@@ -42,8 +42,10 @@ current values.
   `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic located in a `clippy.toml` (a
   deprecated key, which clippy also only warns about, or an unknown one). Clippy's
   suggested `allow-invalid = true` hides the warning, which makes it weakening a gate;
-  fix the path instead. CI's Linux and macOS jobs both run the
-  guard, so a path must resolve on both.
+  fix the path instead. `scripts/checks/clippy-allow-invalid.ts` (`just check-harness`)
+  fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` on the key in any `clippy.toml`; an entry
+  that genuinely needs it goes in that check's `EXCEPTIONS` with a human's sign-off.
+  CI's Linux and macOS jobs both run the guard, so a path must resolve on both.
 
 ## `rustfmt.toml`
 
