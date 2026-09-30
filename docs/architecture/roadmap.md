@@ -1,9 +1,9 @@
 # Roadmap
 
 <!--
-The template ships this page as a skeleton, the way it ships AGENTS.md's `## Product`
-as one: an app cut from the template replaces every `TODO:` line below once its
-`## Product` section is written. Nothing checks this page for leftover markers; the
+This page starts as a skeleton, the way AGENTS.md's `## Product` section does: an app
+cut from the template replaces every `TODO:` line below once its `## Product` section
+is written. Nothing checks this page for leftover markers; the
 `steering-the-roadmap` skill says who changes it, when, and from what. Delete this
 comment when the page is first filled in.
 -->

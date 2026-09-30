@@ -4,7 +4,7 @@ This page describes the layers every app cut from this template starts with, how
 talk, and what is contract. What an app decides on top of them — its design system,
 where it keeps state, its dependencies, the App Sandbox, the permissions it asks for —
 is recorded as ADRs under [`docs/architecture/`](architecture/README.md), whose
-`README.md` is the index. The template's own reasoning is the README's
+`README.md` is the index. The reasoning behind the layers themselves is the README's
 [Design Philosophy](../README.md#design-philosophy).
 
 ## Layers

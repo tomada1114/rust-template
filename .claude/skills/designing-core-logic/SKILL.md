@@ -170,7 +170,7 @@ naming the problem the current shape cannot solve (**REQUIRED:**
 | An event bus or channels between core types | direct calls; the shell turns a change into a Tauri event |
 | A state-management library in the UI | one hook per Rust-owned model (`building-react-screens`) |
 
-The template's own reasoning is in `README.md` › "Design Philosophy" (the sections on
+The reasoning behind this shape is in `README.md` › "Design Philosophy" (the sections on
 ports, synchronous ports, and the coverage floor).
 
 ## Testing the shape

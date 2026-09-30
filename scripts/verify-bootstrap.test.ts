@@ -197,12 +197,32 @@ describe("assertGenerated", () => {
     ["a decision number", "Pinned once (design D9)."],
     ["README's template-only section", 'Follow "Using This Template".'],
     ["the first app", "The first app cut from this template manages launchd jobs."],
+    ["what the template ships", "The template ships this table empty."],
+    ["what the template repository ships", "The template repository ships the index empty."],
+    ["the template's own reasoning", "The template's own reasoning is the README's."],
+    ["the template's own reasoning, mid-sentence", "It holds the template’s own reasoning."],
   ])("fails on text about the template: %s", (_label, text) => {
     const root = generatedTree();
     write(root, "scripts/lib/notes.ts", `// ok\n// ${text}\n`);
     const violations = assertGenerated(root, VERIFY_ANSWERS);
     expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT"]);
     expect(violations[0]?.actual).toContain("scripts/lib/notes.ts:2");
+  });
+
+  it("accepts text that names the template but holds in an app too", () => {
+    const root = generatedTree();
+    write(
+      root,
+      "docs/notes.md",
+      [
+        "This page starts as a skeleton; an app cut from the template fills it in.",
+        "In the template itself there is no lock.",
+        "The copyright holder defaults to the template's owner.",
+        "The template shipped with a counter.",
+        "",
+      ].join("\n"),
+    );
+    expect(codes(root)).toEqual([]);
   });
 
   it("fails when the Product section passes unfilled", () => {
@@ -432,6 +452,16 @@ describe("main", () => {
     expect(clone).not.toBe(root);
     expect(existsSync(clone)).toBe(false);
     expect(run.lines.at(-1)).toMatch(/^verify-bootstrap: ok/);
+    for (const check of [
+      "placeholder",
+      "marker",
+      "template-only file or text",
+      "dangling reference",
+      "Product-section fault",
+      "name mismatch",
+    ]) {
+      expect(run.lines.at(-1)).toContain(check);
+    }
   });
 
   it("keeps the scratch copy with --keep", () => {
