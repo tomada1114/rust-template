@@ -14,9 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code of conduct, architecture, distribution and signing, and getting-started guides, an
   empty architecture-decision index with its template, a roadmap skeleton, issue forms,
   and a pull request template.
+- `just verify-bootstrap` runs `scripts/verify-bootstrap.ts` locally, so a placeholder
+  spelling or template-only text the bootstrap would leave behind fails before the push
+  rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
+  names it for a new file or placeholder spelling. The recipe and that row are
+  template-only: the bootstrap removes both.
 
 ### Changed
 
+- A harness check (`scripts/checks/clippy-allow-invalid.ts`, run by `just check-harness`)
+  fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` when any `clippy.toml` sets `allow-invalid`,
+  the key that hides an unresolvable ban path from `scripts/clippy-guard.ts` and so lets
+  the ban silently do nothing.
 - The Vitest coverage floors count every script and UI source extension (`.mts`, `.cts`,
   `.js`, `.jsx`, `.mjs`, `.cjs` as well as `.ts`/`.tsx`), so an untested file in any of them
   shows as 0%.

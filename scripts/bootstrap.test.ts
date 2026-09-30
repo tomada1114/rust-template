@@ -190,6 +190,10 @@ release-prep version *flags:
 [positional-arguments]
 bootstrap *args:
     node scripts/bootstrap.ts "$@"
+
+# Bootstrap a scratch clone in a temp directory and fail on any placeholder, template-only text, or dangling reference left behind (\`--keep\` keeps the clone)
+verify-bootstrap *args:
+    node scripts/verify-bootstrap.ts {{ args }}
 `;
 
 const README = `# MyApp
@@ -770,6 +774,7 @@ describe("runBootstrap", () => {
       [".github/workflows/ci.yml", "  bootstrap-smoke:"],
       [".github/rulesets/main.json", '"Template Bootstrap Smoke"'],
       ["justfile", "bootstrap *args:"],
+      ["justfile", "verify-bootstrap *args:"],
     ] as const) {
       const root = templateTree();
       writeFileSync(join(root, file), read(root, file).replace(from, "renamed"));
@@ -780,6 +785,34 @@ describe("runBootstrap", () => {
         }),
       ).toMatch(/^ERR_BOOTSTRAP_SITE_MISSING/);
       expect(calls).toEqual([]);
+    }
+  });
+
+  it("names the recipe the justfile lacks or repeats, and removes neither", () => {
+    for (const [edit, actual] of [
+      [
+        (text: string) => text.replace("verify-bootstrap *args:", "renamed"),
+        "0 copies of the verify-bootstrap recipe",
+      ],
+      [
+        (text: string) => `${text}${text.slice(text.indexOf("\n# Turn the template"))}`,
+        "2 copies of the bootstrap recipe",
+      ],
+    ] as const) {
+      const root = templateTree();
+      const before = edit(read(root, "justfile"));
+      writeFileSync(join(root, "justfile"), before);
+      const { context: ctx } = context(root);
+      let caught: unknown;
+      try {
+        runBootstrap(ctx, ANSWERS, { year: YEAR });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toMatchObject({
+        details: { code: "ERR_BOOTSTRAP_SITE_MISSING", actual },
+      });
+      expect(read(root, "justfile")).toBe(before);
     }
   });
 
