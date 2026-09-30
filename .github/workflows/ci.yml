@@ -42,7 +42,7 @@ jobs:
       # Rust itself comes from rust-toolchain.toml through the runner's rustup.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest github:EmbarkStudios/cargo-deny github:Boshen/cargo-shear
+          install_args: node just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest github:EmbarkStudios/cargo-deny github:Boshen/cargo-shear
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
@@ -50,9 +50,10 @@ jobs:
         run: cargo fmt --all --check
 
       # Only the crates that need no WebKitGTK: the Tauri crate is built and linted on
-      # the macOS job.
+      # the macOS job. The guard fails on a clippy.toml path clippy cannot resolve, which
+      # `-D warnings` lets pass; this job resolves core's unix-only bans on Linux.
       - name: Clippy (Linux-buildable crates)
-        run: cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings
+        run: node scripts/clippy-guard.ts cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings
 
       - name: Core tests with coverage floors, doctests, and the Linux-buildable crates' tests
         run: just test-core
@@ -192,7 +193,7 @@ jobs:
         run: just sidecar
 
       - name: Clippy (whole workspace)
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: macOS tests (tauri::test commands, real adapters)
         run: just test-macos
