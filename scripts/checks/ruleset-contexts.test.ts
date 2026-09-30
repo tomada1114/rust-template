@@ -361,30 +361,171 @@ jobs:
       ).toEqual([]);
     });
 
-    it.each([
-      ["no push trigger", ""],
-      ["a push trigger without branches", "  push:\n"],
-      ["a push trigger with branches-ignore", "  push:\n    branches-ignore: [dev]\n"],
-      ["two push branches", "  push:\n    branches: [main, trunk]\n"],
-      ["a push branch pattern", '  push:\n    branches: ["release/**"]\n'],
-      ["an empty push branch list", "  push:\n    branches: []\n"],
-      ["a push branch that is not a string", "  push:\n    branches: [1]\n"],
-    ])("fails, never assuming main, when ci.yml has %s", (_label, push) => {
-      const found = check.run(root({ ".github/workflows/ci.yml": ciOn(push) }));
-      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_BRANCH_UNKNOWN"]);
-      expect(found[0]?.next).toContain("on: push: branches:");
+    const withDocs = (trigger: string, extra: Files = {}, contexts = ["Docs Only"]): Files => ({
+      ".github/workflows/docs.yml": `on:
+  pull_request:
+${trigger}jobs:
+  docs:
+    name: Docs Only
+    runs-on: ubuntu-24.04
+`,
+      ".github/rulesets/main.json": ruleset(contexts),
+      ...extra,
     });
 
-    it("fails when ci.yml is missing, does not parse, or is not a mapping", () => {
+    it("takes the one literal push branch, leaving patterns aside", () => {
+      const ci = {
+        ".github/workflows/ci.yml": ciOn('  push:\n    branches: [main, "release/**"]\n'),
+      };
+      expect(codes(withDocs("    branches: [main]\n", ci))).toEqual([]);
+      const found = check.run(root(withDocs("    branches: [trunk]\n", ci)));
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+      expect(found[0]?.actual).toContain("do not match `main`");
+    });
+
+    const unknownShapes: [string, string | undefined][] = [
+      ["no push trigger", ciOn("")],
+      [
+        "on: [push, pull_request]",
+        CI.replace(/^on:\n(?: {2}.*\n)+/m, "on: [push, pull_request]\n"),
+      ],
+      ["a push trigger without branches", ciOn("  push:\n")],
+      ["a push trigger with branches-ignore", ciOn("  push:\n    branches-ignore: [dev]\n")],
+      ["two literal push branches", ciOn("  push:\n    branches: [main, trunk]\n")],
+      ["only a push branch pattern", ciOn('  push:\n    branches: ["release/**"]\n')],
+      ["an empty push branch list", ciOn("  push:\n    branches: []\n")],
+      ["a push branch that is not a string", ciOn("  push:\n    branches: [1]\n")],
+    ];
+
+    it.each(unknownShapes)("passes jobs with no branch filter when ci.yml has %s", (_label, ci) => {
+      expect(ci).not.toBe(CI);
+      expect(codes({ ".github/workflows/ci.yml": ci })).toEqual([]);
+      expect(codes(withDocs('    branches: ["**"]\n', { ".github/workflows/ci.yml": ci }))).toEqual(
+        [],
+      );
+    });
+
+    it.each(unknownShapes)(
+      "fails, never assuming main, on a branch-filtered job when ci.yml has %s",
+      (_label, ci) => {
+        const found = check.run(
+          root(withDocs("    branches: [main]\n", { ".github/workflows/ci.yml": ci })),
+        );
+        expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_BRANCH_UNKNOWN"]);
+        expect(found[0]?.summary).toContain('"Docs Only"');
+        expect(found[0]?.actual).toContain(".github/workflows/docs.yml");
+        expect(found[0]?.next).toContain("git remote set-head origin --auto");
+        expect(found[0]?.next).toContain("drop the `branches` filter");
+      },
+    );
+
+    it("never tells an unfiltered push trigger to name branches", () => {
+      const found = check.run(
+        root(withDocs("    branches: [main]\n", { ".github/workflows/ci.yml": ciOn("  push:\n") })),
+      );
+      expect(found[0]?.next).not.toContain("list the default branch by name");
+      const patterned = check.run(
+        root(
+          withDocs("    branches: [main]\n", {
+            ".github/workflows/ci.yml": ciOn('  push:\n    branches: ["release/**"]\n'),
+          }),
+        ),
+      );
+      expect(patterned[0]?.next).toContain("list the default branch by name");
+    });
+
+    it("needs the default branch for branches-ignore too", () => {
+      const ci = { ".github/workflows/ci.yml": ciOn("  push:\n") };
+      expect(codes(withDocs("    branches-ignore: [dependabot/**]\n", ci))).toEqual([
+        "ERR_CHECK_RULESET_BRANCH_UNKNOWN",
+      ]);
+    });
+
+    it("passes a context another, unfiltered job reports while the default branch is unknown", () => {
+      const ci = { ".github/workflows/ci.yml": ciOn("  push:\n") };
+      expect(codes(withDocs("    branches: [main]\n", ci, ["Build"]))).toEqual([]);
+    });
+
+    it("judges a filtered job that is skipped anyway as skipped", () => {
+      const ci = { ".github/workflows/ci.yml": ciOn("  push:\n") };
+      expect(codes(withDocs('    branches: [main]\n    paths: ["docs/**"]\n', ci))).toEqual([
+        "ERR_CHECK_RULESET_CONTEXT_SKIPPED",
+      ]);
+    });
+
+    it("treats a missing, broken, or non-mapping ci.yml as naming no branch", () => {
       for (const ci of [undefined, "on: [\n", "- a\n"]) {
-        expect(codes({ ".github/workflows/ci.yml": ci }), String(ci)).toEqual([
+        const extra = { ".github/workflows/ci.yml": ci };
+        expect(codes(withDocs("", extra)), String(ci)).toEqual([]);
+        expect(codes(withDocs("    branches: [main]\n", extra)), String(ci)).toEqual([
           "ERR_CHECK_RULESET_BRANCH_UNKNOWN",
         ]);
       }
     });
 
+    it("takes origin/HEAD when ci.yml names no single literal branch", () => {
+      const none = { ".github/workflows/ci.yml": ciOn("  push:\n") };
+      const trunkClone = makeCheck(() => "trunk");
+      expect(trunkClone.run(root(withDocs("    branches: [trunk]\n", none)))).toEqual([]);
+      expect(
+        trunkClone.run(root(withDocs("    branches: [main]\n", none))).map((v) => v.code),
+      ).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+      const several = {
+        ".github/workflows/ci.yml": ciOn("  push:\n    branches: [main, develop]\n"),
+      };
+      expect(
+        makeCheck(() => "develop").run(root(withDocs("    branches: [develop]\n", several))),
+      ).toEqual([]);
+      const found = trunkClone.run(root(withDocs("    branches: [develop]\n", several)));
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_BRANCH_UNKNOWN"]);
+      expect(found[0]?.actual).toContain("origin/HEAD (`trunk`) is none of them");
+    });
+
+    describe("~ALL", () => {
+      const all = (trigger: string): string[] =>
+        codes(
+          withDocs(trigger, {
+            ".github/rulesets/main.json": ruleset(["Docs Only", ...PASSING], ["~ALL"]),
+          }),
+        );
+
+      it.each([
+        ["no branch filter", ""],
+        ["branches: ['**']", '    branches: ["**"]\n'],
+      ])("passes a job whose trigger has %s", (_label, trigger) => {
+        expect(all(trigger)).toEqual([]);
+      });
+
+      it.each([
+        ["branches: [main]", "    branches: [main]\n"],
+        ["a negated branch", '    branches: ["**", "!main"]\n'],
+        ["branches-ignore", "    branches-ignore: [dependabot/**]\n"],
+      ])("rejects a job whose trigger has %s", (_label, trigger) => {
+        const found = check.run(
+          root(
+            withDocs(trigger, {
+              ".github/rulesets/main.json": ruleset(["Docs Only"], ["~ALL"]),
+            }),
+          ),
+        );
+        expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+        expect(found[0]?.actual).toContain("`~ALL`");
+      });
+    });
+
+    it("reads a branch name with + literally", () => {
+      const feat = (trigger: string): string[] =>
+        codes(
+          withDocs(trigger, {
+            ".github/rulesets/main.json": ruleset(["Docs Only"], ["refs/heads/feat+x"]),
+          }),
+        );
+      expect(feat("")).toEqual([]);
+      expect(feat('    branches: ["feat*"]\n')).toEqual([]);
+      expect(feat("    branches: [main]\n")).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+    });
+
     it.each([
-      ["~ALL", ["~ALL"]],
       ["a pattern", ["refs/heads/release/*"]],
       ["a bare refs/heads/", ["refs/heads/"]],
       ["a non-string", [5]],
