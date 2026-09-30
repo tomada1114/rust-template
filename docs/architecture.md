@@ -227,8 +227,15 @@ app and the helper:
 ```
 
 `lastChangedAt` is milliseconds since the Unix epoch, or `null` before the first change.
-A save writes `counter.json.tmp` in the same directory and renames it over the old file,
-so a crash leaves the old file or the new one, never half of each. A missing file is a
+A save writes a temporary file named for its process and that save
+(`counter.json.<pid>-<n>-<random>.tmp`) in the same directory, syncs it, renames it over
+the old file, and syncs the directory, so a crash or a concurrent save leaves the old
+file or the new one, never half of each. Every save holds an advisory lock
+(`std::fs::File::lock`) on `counter.json.lock` beside it, which is created once, stays
+empty, and is never removed; a change (`CounterStore::update`) holds it from the load
+to the save, so when the app and the helper change the counter at once, neither change
+is lost. A load takes no lock. A save removes temporary files a crashed save left,
+including the fixed `counter.json.tmp` of earlier builds. A missing file is a
 fresh counter; an unreadable file or an unknown `version` is a `corrupt` storage error,
 never silently replaced. A field is added with `#[serde(default)]`; renaming or removing
 one bumps `version`, and the reader keeps accepting the old version.

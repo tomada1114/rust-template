@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The app and the helper CLI can save the counter at the same moment: each save writes
+  its own temporary file and holds a lock on `counter.json.lock`, and each change holds
+  it from the load to the save, so no save fails, no load reads half a file, and
+  neither change is lost. A save also syncs the directory after the rename.
+
 - `just bootstrap` refuses, before it writes anything, the inputs that used to fail half
   way or produce a broken app: a slug Cargo reserves (`build`, `deps`, …) or one whose
   packages would share a dependency's name (`tauri`, `serde`, …), a work tree with
