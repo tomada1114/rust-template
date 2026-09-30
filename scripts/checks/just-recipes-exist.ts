@@ -5,8 +5,11 @@
  *
  *   node scripts/checks/just-recipes-exist.ts [--root DIR]
  *
- * Read: `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `docs/*.md` (not subdirectories), and
- * every `*.md` under `.agents/skills/`. Only code is read — inline code spans (which may
+ * Read: every document an agent or a contributor follows — `AGENTS.md`, `CLAUDE.md`,
+ * `README.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, every `*.md` under
+ * `docs/` (except `docs/template/`, the template's own design record, which the bootstrap
+ * deletes and which plans recipes before they exist), `.claude/rules/`, and
+ * `.agents/skills/`. Only code is read — inline code spans (which may
  * wrap across lines, but never across a blank line) and fenced blocks — so English prose
  * ("just to be safe") never counts. A token is `just` not preceded by a name character,
  * then a recipe name (a letter or `_`, then letters, digits, `_`, `-`), so `just --list`
@@ -15,9 +18,12 @@
  *
  * The recipes are parsed from the justfile's column-0 lines: each recipe header (with or
  * without parameters, `[private]` and `_`-prefixed ones included, since `just` still runs
- * them) and each `alias`. Every file but the justfile is optional. No git work tree needed.
+ * them) and each `alias`. The justfile and `AGENTS.md` are required, so a check run against
+ * the wrong root fails instead of passing on nothing; every other file is optional. No git
+ * work tree needed.
  *
- * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no justfile), ERR_CHECK_INPUT_UNREADABLE
+ * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no justfile or no `AGENTS.md`),
+ * ERR_CHECK_INPUT_UNREADABLE
  * (`.claude/settings.json` is not JSON), ERR_CHECK_RECIPE_MISSING (a document names an
  * undefined recipe), ERR_CHECK_PERMISSION_RECIPE_MISSING (a permission names one).
  */
@@ -138,21 +144,32 @@ function markdownTokens(text: string): Found[] {
   return found;
 }
 
+/** Documents under `docs/` that are not read: the template's design record. */
+const SKIPPED_DOCS = new Set(["docs/template"]);
+
 /** The Markdown files whose recipe references are checked, as root-relative paths. */
 function documents(root: string): string[] {
-  const paths = ["AGENTS.md", "README.md", "CONTRIBUTING.md"];
+  const paths = [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+  ];
   const list = (dir: string): string[] => {
     try {
-      return readdirSync(join(root, dir), { withFileTypes: true }).flatMap((entry) => {
-        const path = `${dir}/${entry.name}`;
-        if (entry.isDirectory()) return dir === "docs" ? [] : list(path);
-        return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
-      });
+      return readdirSync(join(root, dir), { withFileTypes: true })
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
+        .flatMap((entry) => {
+          const path = `${dir}/${entry.name}`;
+          if (entry.isDirectory()) return SKIPPED_DOCS.has(path) ? [] : list(path);
+          return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
+        });
     } catch {
       return [];
     }
   };
-  return [...paths, ...list("docs").sort(), ...list(".agents/skills").sort()];
+  return [...paths, ...list("docs"), ...list(".claude/rules"), ...list(".agents/skills")];
 }
 
 function settingsViolations(root: string, recipes: ReadonlySet<string>): FailureDetails[] {
@@ -211,6 +228,17 @@ function run(root: string): FailureDetails[] {
         expected: `a justfile at ${root}/justfile`,
         actual: "no such file",
         next: "run the check against the repository root (--root DIR)",
+      },
+    ];
+  }
+  if (readRepoFile(root, "AGENTS.md") === undefined) {
+    return [
+      {
+        code: "ERR_CHECK_INPUT_MISSING",
+        summary: "there is no AGENTS.md",
+        expected: `the project guide at ${root}/AGENTS.md, whose recipe references this check reads`,
+        actual: "no such file",
+        next: "restore AGENTS.md from version control, or run the check against the repository root (--root DIR)",
       },
     ];
   }

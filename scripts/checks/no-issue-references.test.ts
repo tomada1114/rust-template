@@ -19,6 +19,8 @@ See [Skills](#skills), [step 4](#4-review-the-branch), and
 [step 8c](../SKILL.md#8c-take-the-runs-own-output-back-into-the-queue).
 Colors: \`#0366d6\`, \`#000000\`, \`#11223344\`, \`color: #000;\`. An entity: &#123;.
 A body says \`Closes #N\` and \`Depends on #N\`.
+Words that are not references: an issue-number rule, issues and PRs in general, the
+\`gh issue view\` command, \`/issues/new\`, a GH-hosted runner, and the v2 release.
 `;
 
 function write(root: string, path: string, content: string): void {
@@ -35,7 +37,13 @@ function fixture(overrides: Record<string, string | undefined> = {}): string {
     ".agents/skills/demo/references/more.md": CLEAN,
     // Only Markdown is read: code may cite an issue.
     ".agents/skills/demo/scripts/plan.py": "# See issue #139.\n",
-    // Only AGENTS.md and the skills are read.
+    "CLAUDE.md": CLEAN,
+    ".claude/rules/docs.md": CLEAN,
+    "docs/guide.md": CLEAN,
+    "docs/design/system.md": CLEAN,
+    // The template's design record cites the upstream template's issues, and is not read.
+    "docs/template/design.md": "Decided in #140 (issue 166).\n",
+    // Only the agent-read documents are read.
     "README.md": "Fixed in #12.\n",
     ...overrides,
   };
@@ -61,10 +69,39 @@ describe("no-issue-references", () => {
     [".agents/skills/demo/SKILL.md", "The staged guard (#42) refuses it.", "#42"],
     [".agents/skills/demo/references/more.md", "Upstream tracks it in owner/repo#7.", "#7"],
     [".agents/skills/demo/references/deep/x.md", "Closes #12", "#12"],
+    ["CLAUDE.md", "The hook changed in #88.", "#88"],
+    [".claude/rules/x.md", "Banned since #5.", "#5"],
+    ["docs/x.md", "Decided in #31.", "#31"],
+    ["docs/architecture/adr/0001-x.md", "Tracked in #31.", "#31"],
   ])("reports a reference in %s with its line", (path, text, ref) => {
     const violations = check.run(fixture({ [path]: `# Title\n\n${text}\n` }));
     expect(violations.map((v) => v.code)).toEqual(["ERR_CHECK_ISSUE_REFERENCE"]);
     expect(violations[0]?.summary).toBe(`${path}:3 cites \`${ref}\``);
+  });
+
+  it.each([
+    ["an issue URL", "See https://github.com/owner/repo/issues/139.", "/issues/139"],
+    ["a pull-request URL", "Landed in https://github.com/owner/repo/pull/12/files.", "/pull/12"],
+    ["a merge-request URL", "See https://gitlab.com/g/p/-/merge_requests/3.", "/merge_requests/3"],
+    ["the word issue", "Brought under the cap (issue 166).", "issue 166"],
+    ["a capitalised Issue", "Issue 7 decided it.", "Issue 7"],
+    ["a PR number", "Reverted by PR-4.", "PR-4"],
+    ["a pull request number", "Per pull request 9.", "pull request 9"],
+    ["a GH- reference", "Fixed by GH-12.", "GH-12"],
+  ])("reports %s", (_label, text, ref) => {
+    const violations = check.run(fixture({ "docs/x.md": `# Title\n\n${text}\n` }));
+    expect(violations.map((v) => v.summary)).toEqual([`docs/x.md:3 cites \`${ref}\``]);
+  });
+
+  it("reports the references on a line in the order they appear", () => {
+    const violations = check.run(
+      fixture({ "CLAUDE.md": "GH-1, then https://github.com/o/r/issues/2, then #3.\n" }),
+    );
+    expect(violations.map((v) => v.summary)).toEqual([
+      "CLAUDE.md:1 cites `GH-1`",
+      "CLAUDE.md:1 cites `/issues/2`",
+      "CLAUDE.md:1 cites `#3`",
+    ]);
   });
 
   it("reports every reference on a line", () => {
