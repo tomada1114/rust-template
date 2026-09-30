@@ -1,10 +1,11 @@
 //! `CounterService` against the fakes: every use case, both bounds, and every storage
 //! failure. The expected values are written out, not computed with core's own code.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use myapp_core::{
-    CounterError, CounterService, CounterView, StorageErrorKind, StoredCounter, Tuning, UnixMillis,
+    CounterError, CounterService, CounterStore, CounterView, StorageError, StorageErrorKind,
+    StoredCounter, Tuning, UnixMillis,
 };
 use myapp_test_support::{FailingCounterStore, FixedClock, InMemoryCounterStore};
 
@@ -209,4 +210,70 @@ fn concurrent_increments_lose_no_update() {
         thread.join().unwrap();
     }
     assert_eq!(store.saved().map(|s| s.value), Some(200));
+}
+
+/// A store that records which of its methods the service called. Its `update` hands the
+/// change nothing and ignores the answer, or, when `skips_change` is set, returns `Ok`
+/// without calling the change at all (breaking the port's promise).
+#[derive(Default)]
+struct RecordingStore {
+    calls: Mutex<Vec<&'static str>>,
+    skips_change: bool,
+}
+
+impl RecordingStore {
+    fn record(&self, call: &'static str) {
+        self.calls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(call);
+    }
+}
+
+impl CounterStore for RecordingStore {
+    fn load(&self) -> Result<Option<StoredCounter>, StorageError> {
+        self.record("load");
+        Ok(None)
+    }
+
+    fn save(&self, _: &StoredCounter) -> Result<(), StorageError> {
+        self.record("save");
+        Ok(())
+    }
+
+    fn update(
+        &self,
+        change: &mut dyn FnMut(Option<StoredCounter>) -> Option<StoredCounter>,
+    ) -> Result<(), StorageError> {
+        self.record("update");
+        if !self.skips_change {
+            change(None);
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn every_change_is_one_store_update_so_another_process_cannot_interleave() {
+    let store = Arc::new(RecordingStore::default());
+    let service = CounterService::new(store.clone(), Arc::new(FixedClock::default()), TUNING);
+    assert_eq!(service.increment().map(|v| v.value), Ok(1));
+    assert_eq!(service.decrement(), Err(CounterError::AtMinimum));
+    assert_eq!(service.reset().map(|v| v.value), Ok(0));
+    assert_eq!(*store.calls.lock().unwrap(), ["update"; 3]);
+}
+
+#[test]
+fn a_store_that_never_runs_the_change_is_a_storage_error() {
+    let store = Arc::new(RecordingStore {
+        skips_change: true,
+        ..RecordingStore::default()
+    });
+    let service = CounterService::new(store, Arc::new(FixedClock::default()), TUNING);
+    assert_eq!(
+        service.increment(),
+        Err(CounterError::Storage {
+            kind: StorageErrorKind::Unavailable
+        })
+    );
 }

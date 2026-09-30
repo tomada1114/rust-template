@@ -132,8 +132,9 @@ impl From<StorageError> for CounterError {
 /// The counter's use cases: load, decide, save, and report a [`CounterView`].
 ///
 /// One `CounterService` is shared by every command. Its lock is held across
-/// load → decide → save, so two commands running at once cannot lose an update.
-/// Between the app and the helper CLI (separate processes) the last writer wins.
+/// load → decide → save, so two commands running at once cannot lose an update, and the
+/// step runs through [`CounterStore::update`], so a store shared with another process
+/// (the app and the helper CLI) keeps the other process's saves out of it too.
 pub struct CounterService {
     lock: Mutex<()>,
     store: Arc<dyn CounterStore>,
@@ -192,20 +193,31 @@ impl CounterService {
         self.change(|counter| Ok(counter.reset()))
     }
 
-    /// Load → decide → save under the lock. A rejected decision saves nothing.
+    /// Load → decide → save under the lock, as one [`CounterStore::update`]. A rejected
+    /// decision saves nothing.
     fn change(
         &self,
         decide: impl FnOnce(Counter) -> Result<Counter, CounterError>,
     ) -> Result<CounterView, CounterError> {
         // The guard protects no data (`()`), so a poisoned lock is still safe to take.
         let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
-        let (counter, _) = self.load()?;
-        let changed = decide(counter)?;
-        let stored = StoredCounter {
-            value: changed.value(),
-            last_changed_at: Some(self.clock.now()),
-        };
-        self.store.save(&stored)?;
+        let mut decide = Some(decide);
+        let mut decided = None;
+        self.store.update(&mut |stored| {
+            let decide = decide.take()?;
+            let decision = decide(self.counter_from(stored).0).map(|changed| StoredCounter {
+                value: changed.value(),
+                last_changed_at: Some(self.clock.now()),
+            });
+            let to_save = decision.as_ref().ok().cloned();
+            decided = Some(decision);
+            to_save
+        })?;
+        // A store that returns `Ok` without calling `change` broke the port's promise;
+        // nothing was decided, so nothing can be reported as changed.
+        let stored = decided.ok_or(CounterError::Storage {
+            kind: StorageErrorKind::Unavailable,
+        })??;
         Ok(CounterView {
             value: stored.value,
             last_changed_at: stored.last_changed_at,
@@ -214,13 +226,19 @@ impl CounterService {
 
     /// The saved counter (or a fresh one) and when it last changed.
     fn load(&self) -> Result<(Counter, Option<UnixMillis>), CounterError> {
-        Ok(match self.store.load()? {
+        Ok(self.counter_from(self.store.load()?))
+    }
+
+    /// What the store held as a counter in range (a fresh one when it held nothing),
+    /// and when it last changed.
+    fn counter_from(&self, stored: Option<StoredCounter>) -> (Counter, Option<UnixMillis>) {
+        match stored {
             Some(stored) => (
                 Counter::new(stored.value, self.tuning),
                 stored.last_changed_at,
             ),
             None => (Counter::new(self.tuning.min, self.tuning), None),
-        })
+        }
     }
 }
 

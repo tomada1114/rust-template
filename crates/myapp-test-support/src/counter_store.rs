@@ -136,4 +136,43 @@ pub fn counter_store_contract(mut make: impl FnMut() -> Box<dyn CounterStore>) {
         Ok(Some(never_changed)),
         "a missing timestamp and a negative value round-trip"
     );
+
+    let store = make();
+    let mut seen = Vec::new();
+    assert_eq!(
+        store.update(&mut |stored| {
+            seen.push(stored);
+            Some(saved.clone())
+        }),
+        Ok(())
+    );
+    assert_eq!(
+        seen,
+        vec![None],
+        "update on a new store is handed nothing, once"
+    );
+    assert_eq!(
+        store.load(),
+        Ok(Some(saved.clone())),
+        "update saves what the change returns"
+    );
+
+    let mut seen = Vec::new();
+    assert_eq!(
+        store.update(&mut |stored| {
+            seen.push(stored);
+            None
+        }),
+        Ok(())
+    );
+    assert_eq!(
+        seen,
+        vec![Some(saved.clone())],
+        "update is handed what was saved, once"
+    );
+    assert_eq!(
+        store.load(),
+        Ok(Some(saved)),
+        "a change that returns nothing saves nothing"
+    );
 }
