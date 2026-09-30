@@ -5,16 +5,21 @@
  *
  *   node scripts/checks/just-recipes-exist.ts [--root DIR]
  *
- * Read: every document an agent or a contributor follows — `AGENTS.md`, `CLAUDE.md`,
- * `README.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, and every `*.md`
- * under `docs/`, `.claude/rules/`, and `.agents/skills/` — except the planning and
- * decision records, which may name a recipe before it exists (`docs/template/`, the
- * roadmap, and the ADRs: UNCHECKED_DOCUMENTS in `shared/documents.ts`). Only code is read
- * — inline code spans (which may wrap across lines, but never across a blank line) and
- * fenced blocks — so English prose ("just to be safe") never counts. A token is `just` not preceded by a name character,
- * then a recipe name (a letter or `_`, then letters, digits, `_`, `-`), so `just --list`
- * and the placeholder `just <recipe>` name nothing. From `.claude/settings.json`, each
- * `permissions` rule of the form `Bash(just <recipe>…)`; a hook's command is not a rule.
+ * Read: every document an agent or a contributor follows — `shared/documents.ts`'s
+ * standingDocuments (`AGENTS.md`, `CLAUDE.md`, every `*.md` under `.claude/rules/`,
+ * `.claude/agents/`, `docs/`, and `.agents/skills/`, and the issue forms and templates
+ * directly in `.github/ISSUE_TEMPLATE/`), plus `README.md`, `CONTRIBUTING.md`, and
+ * `.github/PULL_REQUEST_TEMPLATE.md` — except the planning and decision records, which may
+ * name a recipe before it exists (`docs/template/`, the roadmap, and the ADRs:
+ * UNCHECKED_DOCUMENTS in `shared/documents.ts`). Only code is read — inline code spans
+ * (which may wrap across lines, but never across a blank line) and fenced blocks — so
+ * English prose ("just to be safe") never counts. An issue form is YAML whose strings
+ * GitHub renders as Markdown, so each string value is read that way on its own, from its
+ * source text (a `>` or `|` block included); a form that does not parse fails the check.
+ * A token is `just` not preceded by a name character, then a recipe name (a letter or
+ * `_`, then letters, digits, `_`, `-`), so `just --list` and the placeholder
+ * `just <recipe>` name nothing. From `.claude/settings.json`, each `permissions` rule of
+ * the form `Bash(just <recipe>…)`; a hook's command is not a rule.
  *
  * The recipes are parsed from the justfile's column-0 lines: each recipe header (with or
  * without parameters, `[private]` and `_`-prefixed ones included, since `just` still runs
@@ -23,14 +28,16 @@
  * work tree needed.
  *
  * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no justfile or no `AGENTS.md`),
- * ERR_CHECK_INPUT_UNREADABLE (`.claude/settings.json` is not JSON), ERR_CHECK_RECIPE_MISSING
- * (a document names an undefined recipe), ERR_CHECK_PERMISSION_RECIPE_MISSING (a
- * permission names one).
+ * ERR_CHECK_INPUT_UNREADABLE (`.claude/settings.json` is not JSON, or an issue form is not
+ * YAML), ERR_CHECK_RECIPE_MISSING (a document names an undefined recipe),
+ * ERR_CHECK_PERMISSION_RECIPE_MISSING (a permission names one).
  */
+import { parseDocument, visit } from "yaml";
+
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
-import { markdownFiles } from "./shared/documents.ts";
+import { standingDocuments } from "./shared/documents.ts";
 
 const NAME = "[A-Za-z_][A-Za-z0-9_-]*";
 const NOT_A_RECIPE = new Set(["set", "export", "unexport", "import", "mod", "alias"]);
@@ -142,17 +149,35 @@ function markdownTokens(text: string): Found[] {
   return found;
 }
 
-/** The Markdown files whose recipe references are checked, as root-relative paths. */
+/**
+ * Every `just <recipe>` token in the code of a YAML file's string values, each read as
+ * Markdown from its own source text, or the parse error when the file is not YAML.
+ */
+function yamlTokens(text: string): Found[] | Error {
+  const document = parseDocument(text);
+  const [error] = document.errors;
+  if (error !== undefined) return error;
+  const found: Found[] = [];
+  visit(document, {
+    Scalar(key, node) {
+      if (key === "key" || typeof node.value !== "string" || node.range == null) return;
+      const [start, end] = node.range;
+      const line = (text.slice(0, start).match(/\n/g)?.length ?? 0) + 1;
+      for (const token of markdownTokens(text.slice(start, end))) {
+        found.push({ line: line + token.line - 1, recipe: token.recipe });
+      }
+    },
+  });
+  return found;
+}
+
+/** The documents whose recipe references are checked, as root-relative paths. */
 function documents(root: string): string[] {
   return [
-    "AGENTS.md",
-    "CLAUDE.md",
+    ...standingDocuments(root),
     "README.md",
     "CONTRIBUTING.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
-    ...markdownFiles(root, "docs"),
-    ...markdownFiles(root, ".claude/rules"),
-    ...markdownFiles(root, ".agents/skills"),
   ];
 }
 
@@ -231,7 +256,18 @@ function run(root: string): FailureDetails[] {
   for (const path of documents(root)) {
     const text = readRepoFile(root, path);
     if (text === undefined) continue;
-    for (const { line, recipe } of markdownTokens(text)) {
+    const found = path.endsWith(".md") ? markdownTokens(text) : yamlTokens(text);
+    if (found instanceof Error) {
+      violations.push({
+        code: "ERR_CHECK_INPUT_UNREADABLE",
+        summary: `${path} is not YAML`,
+        expected: "an issue form GitHub can parse, whose string values this check reads",
+        actual: found.message,
+        next: `fix the YAML in ${path}`,
+      });
+      continue;
+    }
+    for (const { line, recipe } of found) {
       if (recipes.has(recipe)) continue;
       violations.push({
         code: "ERR_CHECK_RECIPE_MISSING",

@@ -1,8 +1,8 @@
 /**
- * The Markdown documents the document checks (`just-recipes-exist`,
- * `no-issue-references`) read, listed one way for both, and the owner/repo of this
- * repository, which tells one of its own issue URLs from an upstream project's. Lives
- * under `shared/`, which scripts/check-harness.ts never loads as a check.
+ * The documents the document checks (`just-recipes-exist`, `no-issue-references`) read,
+ * listed one way for both, and the owner/repo of this repository, which tells one of its
+ * own issue references from an upstream project's. Lives under `shared/`, which
+ * scripts/check-harness.ts never loads as a check.
  */
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -47,8 +47,47 @@ export function markdownFiles(root: string, dir: string): string[] {
     });
 }
 
+/** Where GitHub reads the issue forms and templates a filer, human or agent, follows. */
+export const ISSUE_TEMPLATES = ".github/ISSUE_TEMPLATE";
+
+/**
+ * The files directly in ISSUE_TEMPLATES (absent: none) that GitHub reads — the `*.yml` and
+ * `*.yaml` issue forms, `config.yml` among them, and `*.md` templates — as root-relative
+ * paths in code-unit order. GitHub reads no subdirectory there, so neither does this.
+ */
+export function issueTemplates(root: string): string[] {
+  let entries;
+  try {
+    entries = readdirSync(join(root, ISSUE_TEMPLATES), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isFile() && /\.(?:md|ya?ml)$/.test(entry.name))
+    .map((entry) => `${ISSUE_TEMPLATES}/${entry.name}`)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/**
+ * The documents an agent reads as standing instructions, which both document checks read:
+ * `AGENTS.md`, `CLAUDE.md`, every `*.md` under `.claude/rules/`, `.claude/agents/` (the
+ * sub-agent definitions), `docs/`, and `.agents/skills/` (UNCHECKED_DOCUMENTS aside), and
+ * the issue templates. Every one is optional here; a check that needs one says so itself.
+ */
+export function standingDocuments(root: string): string[] {
+  return [
+    "AGENTS.md",
+    "CLAUDE.md",
+    ...markdownFiles(root, ".claude/rules"),
+    ...markdownFiles(root, ".claude/agents"),
+    ...markdownFiles(root, "docs"),
+    ...markdownFiles(root, ".agents/skills"),
+    ...issueTemplates(root),
+  ];
+}
+
 /** Where the repository's own GitHub URL is read: a file the bootstrap rewrites. */
-export const REPOSITORY_SOURCE = ".github/ISSUE_TEMPLATE/config.yml";
+export const REPOSITORY_SOURCE = `${ISSUE_TEMPLATES}/config.yml`;
 
 /** This repository on GitHub, as `owner/repo`. */
 export interface Repository {
