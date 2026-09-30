@@ -189,7 +189,10 @@ Either way, the same four things happen in the same order:
 3. Record it in the run record (`--event design --field issue=<n> --field
    mode=<inline|background> --field verdict=<DECIDED|DEFERRED>`).
 4. Clear the block: `python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py
-   --clear-design <n>` -- after the comment posted, never before.
+   --clear-design <n>` -- after the comment posted, never before. It clears both
+   forms of the block: the `blocked: design` label (or its equivalent) and a
+   `design=open` in the ship contract, rewritten to `design=settled` with the
+   rest of the body untouched. Clearing only the label leaves the issue held.
 
 **Neither path invents a product or UX call** the repo and the issue thread do
 not already answer. Inline, ask the user and do not implement past it; in the

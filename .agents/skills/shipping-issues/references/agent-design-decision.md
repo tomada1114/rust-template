@@ -5,7 +5,7 @@ one **`architect`** per design-blocked issue, **in the background** -- this
 session spawns a round in one message and goes straight back to shipping.
 
 This is the only sub-agent in this skill that writes to GitHub, and only two
-writes: one comment on the issue and one label clear. It writes nothing in the
+writes: one comment on the issue and one block clear. It writes nothing in the
 checkout, so `{workdir}` is the repo's main checkout even while a parallel batch
 is running -- it reads there, it never touches the tree.
 
@@ -62,6 +62,10 @@ On DECIDED, write it back to GitHub yourself, in this order:
      gh issue comment {n} --repo {owner}/{repo} --body-file <file>
   2. only after that comment posted, clear the block:
      python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py --clear-design {n}
+     It clears both forms of the block in one edit: the `blocked: design` label
+     and a `design=open` in the body's ship contract, which it rewrites to
+     `design=settled` and leaves the rest of the body alone. Never edit the
+     body yourself.
 On DEFERRED do neither -- the issue must stay blocked.
 
 Return exactly:
@@ -77,6 +81,6 @@ LABEL: cleared | left-on
 `VERDICT: DEFERRED` is a result, not a failure -- it is the run declining to
 invent a product decision, and its `OPEN-QUESTION` is what the step 10 report
 puts in front of the user. `LABEL: left-on` with `VERDICT: DECIDED` means only
-the label write failed: clear it from this session before treating the issue as
-ready. `APPROACH` is the only part worth reading closely in this context -- the
+the `--clear-design` write failed: run it from this session before treating the
+issue as ready. `APPROACH` is the only part worth reading closely in this context -- the
 full design lives on the issue, where the implementer will read it.

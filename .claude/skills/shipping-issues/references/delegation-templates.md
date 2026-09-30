@@ -80,7 +80,7 @@ a spawned sub-agent cannot follow a cross-reference back to this file.
   (`closing-out.md`).
 
 The design agent is the one named exception to the first rule: it writes two
-specific things to GitHub (a design comment, a label clear) as its whole
+specific things to GitHub (a design comment, a block clear) as its whole
 purpose, spelled out in its own template.
 
 ## Priority research and labeling
@@ -155,7 +155,7 @@ one **`architect`** per design-blocked issue, **in the background** -- this
 session spawns a round in one message and goes straight back to shipping.
 
 This is the only sub-agent in this skill that writes to GitHub, and only two
-writes: one comment on the issue and one label clear. It writes nothing in the
+writes: one comment on the issue and one block clear. It writes nothing in the
 checkout, so `{workdir}` is the repo's main checkout even while a parallel batch
 is running -- it reads there, it never touches the tree.
 
