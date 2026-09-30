@@ -22,6 +22,10 @@ src-tauri/gen/
 *.swo
 *~
 
+# Python bytecode, written when a skill's bundled tests run outside `just test-scripts`
+__pycache__/
+*.pyc
+
 # Claude Code: personal overrides and agent worktrees stay local
 .claude/settings.local.json
 .claude/worktrees/

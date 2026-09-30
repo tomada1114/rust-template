@@ -12,8 +12,9 @@
  * real, committed copy, never a symlink: a link does not survive a fresh clone on every
  * platform, and Codex follows a linked directory into its subdirectories and registers a
  * nested `references/SKILL.md` as a skill of its own. Both modes ignore `.DS_Store`,
- * which Finder drops into any directory it has shown, and never write outside
- * `.claude/skills/`.
+ * which Finder drops into any directory it has shown, and Python bytecode (`__pycache__/`,
+ * `*.pyc`), which a skill's bundled tests write when run directly; both are gitignored.
+ * They never write outside `.claude/skills/`.
  *
  * `--staged` judges what the commit will contain rather than the working tree: it compares
  * the blob id and mode the index records under each tree, so staging an edited source
@@ -47,7 +48,9 @@ import { runScript, type ScriptContext } from "./lib/script.ts";
 const SOURCE = ".agents/skills";
 /** Generated copy: committed, never hand-edited. */
 const MIRROR = ".claude/skills";
-const IGNORED = new Set([".DS_Store"]);
+const IGNORED = new Set([".DS_Store", "__pycache__"]);
+/** Whether a file or directory name is local debris neither tree carries. */
+const ignored = (name: string): boolean => IGNORED.has(name) || name.endsWith(".pyc");
 const SYMLINK_MODE = "120000";
 
 interface Difference {
@@ -80,7 +83,7 @@ function listFiles(directory: string, label: string): string[] {
   const files: string[] = [];
   const visit = (current: string, prefix: string): void => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
-      if (IGNORED.has(entry.name)) continue;
+      if (ignored(entry.name)) continue;
       const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
       if (entry.isDirectory()) visit(join(current, entry.name), relative);
       else if (entry.isFile()) files.push(relative);
@@ -218,7 +221,7 @@ function readIndex(context: ScriptContext): { source: IndexTree; mirror: IndexTr
       }
       if (!path.startsWith(`${label}/`)) continue;
       const relative = path.slice(label.length + 1);
-      if (IGNORED.has(relative.split("/").at(-1) ?? "")) continue;
+      if (relative.split("/").some(ignored)) continue;
       if (mode === SYMLINK_MODE) throw symlinkError(path, path);
       tree.set(relative, { mode, blob });
     }
