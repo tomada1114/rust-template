@@ -34,13 +34,17 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 
 1. Do the whole survey and review first, writing nothing remote.
 2. Present the plan: the exact PR numbers to merge, which go individually and which into
-   a combined branch, which are held and why, every major bump named, and any issue the
-   plan would file (a Tauri major, below). A Tauri side moved by hand under F11 is
-   named with its package, from, and to versions.
+   a combined branch, which are held and why, every major bump named, every
+   `@dependabot rebase` comment and `gh run rerun` the plan already needs
+   (`references/failure-modes.md` F7-F9), and any issue the plan would file (a Tauri
+   major, below). A Tauri side moved by hand under F11 is named with its package, from,
+   and to versions.
 3. Get one explicit approval for that listed batch, then run it without asking per
    merge.
 
-The approval covers only the listed PRs, only for this invocation. A PR opened later, a
+The approval covers only the listed PRs, only for this invocation. It covers only the
+rebase comments and reruns it lists; one that becomes necessary after the approval needs
+a fresh one. A PR opened later, a
 PR whose diff changed beyond a bot rebase, or anything in "Stop and ask" needs a fresh
 approval.
 

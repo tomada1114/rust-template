@@ -131,8 +131,11 @@ the sample, the `log_from_ui` wiring and tests to keep, and the search that ends
 top of it:
 
 - delete the sentences in the skills under `.agents/skills/` that give the counter as an
-  example (each sits in its own sentence, so deleting it leaves the rule), then run
-  `just agents-sync`;
+  example (each is its own "In the sample" sentence or code block, so deleting it leaves
+  the rule; three places are the sample's worked example throughout and are rewritten
+  with the app's own first command, use case, and tests rather than deleted:
+  `designing-ipc/references/adding-a-command.md`, `writing-tests/references/patterns.md`,
+  and `tdd/SKILL.md` Steps 1-3), then run `just agents-sync`;
 - replace the core module and its tests in the same pull request that removes them, so
   the core coverage floor still measures real code.
 

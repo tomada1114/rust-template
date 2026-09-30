@@ -119,7 +119,14 @@ behind a port whose callback the shell turns into the same event.
 ### Security settings
 
 - `app.security.csp` in `src-tauri/tauri.conf.json`: `default-src 'self'`, IPC only
-  through `ipc:` and `http://ipc.localhost`, no remote origin.
+  through `ipc:` and `http://ipc.localhost`, no remote origin. It is enforced only in a
+  built app: Tauri attaches the header when it serves the bundled assets over
+  `tauri://` (tauri 2.11.6, `src/protocol/tauri.rs`), and `just dev` loads `devUrl`
+  (`http://localhost:1420`) from Vite with no CSP, so a violation shows in a built app,
+  never under `just dev`. `app.security.devCsp` is deliberately unset, because dev
+  builds are never distributed. Try a CSP-sensitive change (a new asset origin, an
+  inline style or script) in a built app before relying on it, and weigh any production
+  CSP change when preparing a distribution.
 - `withGlobalTauri: false`: the UI reaches Tauri only through the imports in
   `ui/src/ipc/`.
 - One capability, `src-tauri/capabilities/default.json`, granting `core:default` to the
@@ -141,11 +148,13 @@ lists it in `bundle.externalBin` and runs the build in `beforeDevCommand` and
 on `just sidecar`, because `tauri-build` fails when an `externalBin` file is missing.
 
 The GUI does not run the helper in the sample, so no shell plugin and no shell
-permission ship. An app whose GUI must run it adds `tauri-plugin-shell` (a new
+permission ship. An app whose GUI must run it spawns it from Rust with
+`std::process::Command`, in a `myapp-platform` adapter behind a port, at the path next
+to the app's own executable (`std::env::current_exe()`'s directory; `tauri-build`
+places every `externalBin` there with its target triple stripped), which needs no plugin
+and no capability entry. Only a UI that runs it itself adds `tauri-plugin-shell` (a new
 dependency: an ADR and a maintainer's sign-off), registers it with
-`.plugin(tauri_plugin_shell::init())`, and spawns it from Rust with
-`app.shell().sidecar("myapp-cli")` (`tauri_plugin_shell::ShellExt`). Run from Rust
-only, it needs no capability entry; run from the UI, it needs a `shell:allow-execute` or
+`.plugin(tauri_plugin_shell::init())`, and needs a `shell:allow-execute` or
 `shell:allow-spawn` permission scoped to that one sidecar. Source:
 <https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
 

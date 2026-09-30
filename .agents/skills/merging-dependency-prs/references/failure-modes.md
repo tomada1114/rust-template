@@ -90,8 +90,8 @@ to accommodate a version nobody has decided to accept, and never lower a floor.
 ## F7: `BEHIND` or `DIRTY`
 
 Not a CI failure. `BEHIND` means `main` moved; `DIRTY` means a real conflict. Comment
-`@dependabot rebase`; a PR that keeps conflicting, which is normal once two cargo or two
-npm PRs are open, goes into the combined branch.
+`@dependabot rebase` once the approved plan lists it; a PR that keeps conflicting, which
+is normal once two cargo or two npm PRs are open, goes into the combined branch.
 
 ## F8: A check that never reports
 
@@ -100,7 +100,8 @@ npm PRs are open, goes into the combined branch.
 **Cause:** a run cancelled by a newer one in the same `concurrency` group, or a workflow
 whose triggers do not fire for the bot.
 
-**Fix:** `gh run rerun <run-id>`. A missing check is not a passing one.
+**Fix:** `gh run rerun <run-id>`, once the approved plan lists it. A missing check is
+not a passing one.
 
 ## F9: Held for a conclusion that is not a failure
 
@@ -112,9 +113,9 @@ usually a run superseded by a newer event on the same PR (`pr-label.yml` and
 `UNKNOWN` means the rollup entry carried no conclusion.
 
 **Fix:** none of these is a test result, so do not read the diff for a cause. Open the
-run, find why it did not complete, and `gh run rerun <run-id>`. A state that should pass
-and does not is a bug to fix in `survey-prs.ts` with a test, never a reason to merge past
-the verdict.
+run, find why it did not complete, and `gh run rerun <run-id>` once the approved plan
+lists it. A state that should pass and does not is a bug to fix in `survey-prs.ts` with a
+test, never a reason to merge past the verdict.
 
 ## Not a failure mode here: the PR-title check
 

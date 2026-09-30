@@ -62,6 +62,24 @@ session created through `EnterWorktree`. It will not touch these, and neither
 will `Agent(isolation: "worktree")`'s auto-cleanup, which only fires when the
 agent changed nothing. Teardown here is `cleanup_run.sh` and nothing else.
 
+### What a worktree outside the checkout loses
+
+Claude Code anchors `.claude/settings.json` and `.claude/rules/` to the main checkout,
+so some of its conveniences do not follow a worktree under `<runstate>`:
+
+- a root-anchored rule such as the `Edit(/src-tauri/Entitlements.plist)` deny may not
+  match the worktree's copy of that file;
+- the `PostToolUse` formatter (`scripts/format-edited-file.ts`) does nothing for a file
+  outside the checkout;
+- the path-scoped `.claude/rules/` may not load for the worktree's files;
+- an edit there may stop for a permission prompt mid-run.
+
+None of these is a gate. In a worktree, `src-tauri/Entitlements.plist` stays
+sign-off-only by `AGENTS.md`'s rule alone. Read the `.claude/rules/` file matching what
+you change, and run `just fmt` before committing. Lefthook's pre-commit hook still runs,
+because git uses the shared hooks in every worktree of the repository, and CI judges the
+worktree's commits exactly as it judges the main checkout's.
+
 ## Viability gate
 
 `worktree_setup.sh` reconstructs what a fresh worktree lacks -- it copies the

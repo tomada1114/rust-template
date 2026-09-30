@@ -3,11 +3,11 @@ name: managing-dependencies
 description: >
   Covers whether a crate or an npm package may be added to this repository and how it
   is declared: the review record its pull request carries, [workspace.dependencies] as
-  the one place a crate version is written, default-features = false and only the
-  features used, which crate may depend on what (myapp-core stays platform-neutral),
-  cargo deny licences, bans, and sources, pnpm-workspace.yaml's minimumReleaseAge,
-  strictDepBuilds and allowBuilds, and trust settings, the typescript ceiling, and a
-  Tauri plugin counting as a dependency and a capability. Use when adding, bumping, or
+  the one place a crate version is written, default features off for a new crate
+  unless needed, and only the features used, which crate may depend on what
+  (myapp-core stays platform-neutral), cargo deny licences, bans, and sources,
+  pnpm-workspace.yaml's minimumReleaseAge, strictDepBuilds and allowBuilds, and trust
+  settings, the typescript ceiling, and a Tauri plugin counting as a dependency and a capability. Use when adding, bumping, or
   removing a dependency by hand, editing Cargo.toml's dependencies or package.json,
   enabling a crate feature such as tauri's tray-icon, an install or cargo deny fails on
   a licence, a peer range, a build script, or the cooldown, or someone proposes raising
@@ -48,9 +48,12 @@ yet, not that a detail is left for later.
   `.github/workflows/dependency-review.yml`'s `allow-licenses` enforce. A per-crate
   exception goes into both files, with its reason (`changing-gates`).
 - **Weight.** What it adds: `cargo tree -p <member> -e normal` before and after, or
-  `pnpm why <package>`. Declare a crate with `default-features = false` and list only
-  the features used: default features are how a small crate brings in a TLS stack or an
-  async runtime nobody asked for. `cargo tree -e features` shows what is on.
+  `pnpm why <package>`. Declare a new crate with `default-features = false` and list
+  only the features used, unless a default feature is needed. The review record says
+  which defaults stay on and why. Default features are how a small crate brings in a
+  TLS stack or an async runtime nobody asked for; `cargo tree -e features` shows what is
+  on. This judges a new declaration. It is not a retrofit: `tauri` and the existing
+  entries in `[workspace.dependencies]` keep their defaults.
 - **Build-time code.** A crate's `build.rs` or a proc-macro runs on the developer's Mac
   at every build, with their permissions; an npm lifecycle script runs at install. Read
   what it does. A new `allowBuilds` entry in `pnpm-workspace.yaml` needs the owner's
@@ -135,7 +138,13 @@ migration issue and an ADR, never a batch merge.
 A Tauri plugin is a dependency and a capability at once: its `tauri-plugin-*` crate in
 `myapp`, usually its `@tauri-apps/plugin-*` package imported only from `ui/src/ipc/`, a
 permission in `src-tauri/capabilities/` (a sign-off change), the `deny.toml` wrapper
-entry, and an ADR. A crate feature of `tauri` itself (such as `tray-icon` for a
+entry, and an ADR. Its crate and its npm package are locked to the same exact version:
+`tauri-plugin-<x>` in `Cargo.lock` equals `@tauri-apps/plugin-<x>` in
+`pnpm-lock.yaml`, and `just check-harness` fails with
+`ERR_CHECK_TAURI_PLUGIN_VERSIONS_DIVERGED` otherwise. The manifests keep caret
+requirements, so `cargo update -p tauri-plugin-<x> --precise <version>`, or a bump of
+the npm package, brings them together. A plugin with no JavaScript side has no npm
+package to match. A crate feature of `tauri` itself (such as `tray-icon` for a
 menu-bar agent) is declared in `src-tauri/Cargo.toml`'s `features` list, reviewed for
 the crates it adds.
 
