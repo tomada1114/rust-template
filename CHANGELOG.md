@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Tuning`'s fields are private. Code that built `Tuning { min, max }` must
   now call `Tuning::new(min, max)?`, which returns `TuningError::MinAboveMax` when
   `min > max`, and read the bounds through `min()` and `max()`.
+- `crates/myapp-core/clippy.toml` bans more of the I/O, environment, and process calls
+  core must reach through a port: `std::fs::OpenOptions` and every `std::fs` free
+  function, `std::net::{TcpStream, TcpListener, UdpSocket}`,
+  `std::io::{stdin, stdout, stderr}`, `std::env`'s `args`, `args_os`, `vars`, `vars_os`,
+  `current_dir`, `set_current_dir`, `temp_dir`, `set_var`, and `remove_var`,
+  `std::thread::spawn`, and `std::process::exit`. Core code that calls one now fails
+  `just lint`; move the call behind a port, or into the shell or the CLI.
+- `vitest.config.ts` puts a coverage floor on a skill's bundled TypeScript scripts
+  (`.agents/skills/*/scripts/**`, lines 85, functions 90, the same as `scripts/**`), so
+  `just test-scripts` fails when one drops below it.
 
 ### Fixed
 

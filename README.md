@@ -72,9 +72,10 @@ so core cannot compile a call into one. A harness check reads `cargo metadata` a
 if core's dependency closure ever gains `tauri*`, `wry`, `tao`, a macOS binding crate,
 or `myapp-platform`, and `cargo deny`'s `wrappers` rule allows `tauri` as a direct
 dependency of the shell only. clippy, configured in `crates/myapp-core/clippy.toml`,
-bans `println!`, `std::fs`, `SystemTime::now`, `std::env::var`, and `thread::sleep` in
-core, so I/O, time, and environment arrive only through ports. On the TypeScript side,
-ESLint's `no-restricted-imports` keeps `@tauri-apps/*` inside `ui/src/ipc/`.
+bans printing and the standard streams, `std::fs`'s files and functions, `std::net`'s
+sockets, `SystemTime::now`, `std::env`'s argument, variable, and directory functions,
+`std::process::Command` and `exit`, and `thread::spawn` and `thread::sleep` in core, so
+I/O, time, and environment arrive only through ports. On the TypeScript side, ESLint's `no-restricted-imports` keeps `@tauri-apps/*` inside `ui/src/ipc/`.
 
 ### Why ts-rs plus a thin hand-written IPC layer?
 

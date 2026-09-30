@@ -3,9 +3,10 @@ name: designing-core-logic
 description: >
   Covers how logic in crates/myapp-core is shaped so it stays deterministic and tested:
   time, randomness, the environment, files, and processes reached only through ports or
-  arguments (the Clock port and UnixMillis; the bans on SystemTime::now, Instant::now,
-  std::env::var, std::fs reads and writes, std::process::Command, thread::sleep, and
-  println in crates/myapp-core/clippy.toml), when a new port is justified, tunable
+  arguments (the Clock port and UnixMillis; the bans in crates/myapp-core/clippy.toml on
+  SystemTime::now, Instant::now, std::env, std::fs, std::net, stdin/stdout/stderr,
+  std::process::Command and exit, thread::spawn and sleep, and println), when a new
+  port is justified, tunable
   numbers in one Tuning struct, state transitions as methods that take self and return
   a new value or a typed error, a service running load, decide, save, a ...View struct
   as the only thing that crosses IPC, no async in core, and the patterns deliberately
@@ -45,13 +46,21 @@ and `disallowed-types` (run by `just lint`). The judgment is what to do instead:
 | Core needs | It gets it as | Never |
 |---|---|---|
 | The current time | the `Clock` port (`crates/myapp-core/src/time.rs`), read as `UnixMillis` | `SystemTime::now`, `Instant::now` |
-| To wait (a delay, a debounce, a periodic tick) | nothing: core decides "is it due at this instant?" from a `UnixMillis` it is handed, and the shell schedules the call | `std::thread::sleep`, a timer thread |
-| Configuration | an argument or a field of a struct the shell builds | `std::env::var` |
-| Stored data, a file, the network | a port with a real adapter in `myapp-platform` | `std::fs`, `std::fs::File` |
+| To wait (a delay, a debounce, a periodic tick) | nothing: core decides "is it due at this instant?" from a `UnixMillis` it is handed, and the shell schedules the call | `std::thread::sleep`, a timer thread (`std::thread::spawn`) |
+| Configuration | an argument or a field of a struct the shell builds | `std::env::var`, `var_os`, `vars`, `vars_os`, `args`, `args_os` |
+| A directory (the working, temporary, or data directory) | a path argument the shell resolves | `std::env::current_dir`, `std::env::temp_dir` |
+| To change the process's environment or working directory | nothing: that is the shell's or the CLI's decision | `std::env::set_var`, `remove_var`, `set_current_dir` |
+| Stored data, a file, standard input, the network | a port with a real adapter in `myapp-platform` | `std::fs::File`, `std::fs::OpenOptions`, every `std::fs` free function (`read`, `write`, `read_dir`, `metadata`, `copy`, …), `std::io::stdin`, `std::net::{TcpStream, TcpListener, UdpSocket}` |
 | Another process | a port whose adapter runs it | `std::process::Command` |
+| To stop the process | an `Err` the shell or the CLI turns into an exit | `std::process::exit` |
 | Randomness | a seed or an already-drawn value as an argument, like time | a random-number crate in core (a new dependency) |
 | "Today", a formatted date or number | nothing: core returns `UnixMillis` and numbers; the UI formats with the user's locale and time zone (`ui/src/copy/`) | a formatted string from Rust |
-| To log | the `tracing` macros, which emit and never install a subscriber (the shell and the CLI do); core has no `tracing` dependency yet, so until one is added (`managing-dependencies`) core returns what happened and the shell logs it | `println!`, `eprintln!`, `dbg!` |
+| To log | the `tracing` macros, which emit and never install a subscriber (the shell and the CLI do); core has no `tracing` dependency yet, so until one is added (`managing-dependencies`) core returns what happened and the shell logs it | `print!`, `println!`, `eprint!`, `eprintln!`, `dbg!`, `std::io::stdout`, `std::io::stderr` |
+
+clippy enforces the `std` paths and macros named in the last column, in every target
+of core, its tests included; the rest of that column (a random-number crate, a
+formatted string) is review's to catch. A core test that drives a service from several
+threads uses `std::thread::scope`, which the ban does not name.
 
 In the sample, `CounterService` is handed an `Arc<dyn Clock>` and stamps a change with
 `self.clock.now()`; a test hands it `FixedClock` and moves time with `advance`.

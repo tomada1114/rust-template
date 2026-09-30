@@ -172,11 +172,13 @@ Rust, three layers, each able to fail on its own:
    *not* put under `wrappers`: Tauri's own dependencies (`wry`, `tao`) depend on them
    directly, so a wrapper list could never pass; the closure check covers them.
 3. **clippy in core.** `crates/myapp-core/clippy.toml` sets `disallowed-macros`
-   (`std::println`, `std::eprintln`, `std::dbg`), `disallowed-types`
-   (`std::process::Command`, `std::fs::File`), and `disallowed-methods` (`std::fs::*` read
-   and write functions, `std::time::SystemTime::now`, `std::time::Instant::now`,
-   `std::env::var`, `std::thread::sleep`) — I/O, time, and environment reach core only
-   through ports. `clippy::wildcard_enum_match_arm` is denied in core (issue #134:
+   (`std::print`, `std::println`, `std::eprint`, `std::eprintln`, `std::dbg`),
+   `disallowed-types` (`std::process::Command`, `std::fs::File`, `std::fs::OpenOptions`,
+   `std::net::{TcpStream, TcpListener, UdpSocket}`), and `disallowed-methods` (every
+   `std::fs` free function, `std::io::{stdin, stdout, stderr}`,
+   `std::time::SystemTime::now`, `std::time::Instant::now`, `std::env`'s argument,
+   variable, and directory functions, `std::thread::{spawn, sleep}`,
+   `std::process::exit`) — I/O, time, and environment reach core only through ports. `clippy::wildcard_enum_match_arm` is denied in core (issue #134:
    exhaustive matches on core enums). The implementation run proves clippy reads the
    crate-local `clippy.toml` by adding a banned call and watching clippy fail; if it does
    not, a harness check that scans core's sources for the banned paths replaces it, and
@@ -361,7 +363,7 @@ A skill's bundled scripts may keep their language when ported with their tests
 | Rust coverage | `cargo llvm-cov nextest -p myapp-core --fail-under-lines 80 --fail-under-functions 80` (issue #133). Platform, shell, and CLI are outside the floor: they translate, and core decides. |
 | Rust tests | `cargo nextest run --locked`, plus `cargo test --doc --locked`. |
 | Supply chain (Rust) | `cargo deny check` (advisories, licenses allow-list, bans with `multiple-versions = "warn"`, sources: crates.io only), `cargo shear`; advisory scope per D17. |
-| TS | `tsc --noEmit`, ESLint `--max-warnings 0`, Prettier check, Vitest with per-glob floors: `ui/src/**` lines/functions 80 (excluding `main.tsx` and `ipc/generated/`), `scripts/**` 85/90, `scripts/lib/guard/**` 90/100. |
+| TS | `tsc --noEmit`, ESLint `--max-warnings 0`, Prettier check, Vitest with per-glob floors: `ui/src/**` lines/functions 80 (excluding `main.tsx` and `ipc/generated/`), `scripts/**` and `.agents/skills/*/scripts/**` 85/90, `scripts/lib/guard/**` 90/100. |
 | Repo | typos (excluding `.claude/skills/`, issue #139), actionlint, zizmor, the skills-mirror check, the harness checks (D14). |
 
 What weakening a gate means here is listed in `AGENTS.md` › Security and human approval,

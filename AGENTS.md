@@ -29,7 +29,8 @@ the screen lives in `ui/`, and repository automation is TypeScript under `script
 Quality gates are on from day one: rustfmt, clippy `all` + `pedantic` with warnings as
 errors, `unsafe_code = "forbid"` in every crate, an 80% line and 80% function coverage
 floor on `myapp-core`, TypeScript `strict` with ESLint's `strictTypeChecked`, and Vitest
-coverage floors on `ui/src/` (80/80) and `scripts/` (85/90, 90/100 on the staged guard).
+coverage floors on `ui/src/` (80/80), `scripts/` and skills' bundled scripts (85/90), and
+the staged guard (90/100).
 
 ## Product
 
@@ -189,10 +190,13 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`, `security-framework*`,
   or `myapp-platform`. Those lists change together, and `just check-harness` fails when
   they differ.
-- I/O, time, the environment, processes, and sleeping reach core only through ports:
-  `crates/myapp-core/clippy.toml` bans `println!`/`eprintln!`/`dbg!`,
-  `std::fs::File` and the `std::fs` read and write functions, `std::process::Command`,
-  `SystemTime::now`/`Instant::now`, `std::env::var`, and `std::thread::sleep` there.
+- I/O, time, the environment, processes, threads, and sleeping reach core only through
+  ports: `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/
+  `dbg!`, `std::io::{stdin, stdout, stderr}`, `std::fs::File`, `std::fs::OpenOptions`
+  and every `std::fs` free function, `std::net::{TcpStream, TcpListener, UdpSocket}`,
+  `std::process::{Command, exit}`, `SystemTime::now`/`Instant::now`, `std::env`'s
+  `var`/`var_os`/`vars`/`vars_os`, `args`/`args_os`, `current_dir`/`set_current_dir`,
+  `temp_dir`, and `set_var`/`remove_var`, and `std::thread::{spawn, sleep}` there.
   Core denies `clippy::wildcard_enum_match_arm`, so a `match` on a core enum names
   every variant.
 - Errors are one `thiserror` enum per port or core module carrying a typed code
@@ -488,12 +492,13 @@ behind them, with worked examples, are in the `writing-repo-scripts` skill:
   `scripts/lib/**/<name>.test.ts`), run by Vitest's `scripts` project
   (`just test-scripts`, part of `just check` and CI's `Repo Lint & Harness` job) with
   the coverage floors in `vitest.config.ts`: lines 85 and functions 90 across
-  `scripts/`, lines 90 and functions 100 on `scripts/lib/guard/`. A test works in a
+  `scripts/` and across a skill's bundled TypeScript under `.agents/skills/*/scripts/`,
+  lines 90 and functions 100 on `scripts/lib/guard/`. A test works in a
   temp directory or a throwaway repository, never the real checkout, and shares no
   state with any other test. A harness check under `scripts/checks/` takes `--root` so
   its test can point it at a fixture tree per failure mode. A skill's bundled scripts
   may keep their own language when ported with their tests; `just test-scripts` runs
-  those suites too.
+  those suites too, with no coverage floor.
 
 ## Enforcement layers
 
@@ -508,7 +513,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | `crates/myapp-core/clippy.toml` and core's `#![deny(clippy::wildcard_enum_match_arm)]` | `just lint`, `just check`, and CI's clippy steps | every author | no printing, direct I/O, clock reads, environment reads, processes, or sleeps in core; every `match` on a core enum is exhaustive |
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
 | ESLint's `no-restricted-imports`, `no-restricted-syntax`, `no-console`, `no-restricted-properties`, and `switch-exhaustiveness-check` (`eslint.config.mjs`) | the hook, `just lint`, and CI's `Frontend` job | every author | only `ui/src/ipc/` imports `@tauri-apps/*` or `ui/src/ipc/generated/`, and only tests import `ui/src/ipc/testing.ts`, statically or by `import()`; no `console` (nor `window.console` or `globalThis.console`) outside `ui/src/ipc/log.ts` and `scripts/`; a `switch` over a union names every member and has no `default`; an unused disable directive is an error |
-| Coverage floors | `just test-core`, `just test-ui`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `ui/src/` 80 / 80; `scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
+| Coverage floors | `just test-core`, `just test-ui`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `ui/src/` 80 / 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
 | The launch smoke (`scripts/smoke.ts`, `just smoke`) | `just check` and CI's `macOS Build & Smoke` job | every author | the release `.app` builds, is signed, carries `Entitlements.plist`'s entitlements, bundles a runnable `myapp-cli`, and starts windowless in smoke mode — store, clock, logging, and command registration wired — exiting 0 after logging `startup complete` |
 | The skills-mirror check (`just agents-check`; the hook runs `node scripts/sync-agents.ts --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
 | `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), and the skills name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); the Dependabot, Renovate, and pnpm cooldowns agree; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding `main`, default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; the IPC command and event lists agree; no raw color, `font-family`, or pixel font size outside `tokens.css`; no reference to this repository's issues or pull requests (`#` and digits, an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), or a skill; `.claude/settings.json` names only recipes the justfile defines, and its `allow` admits none of the recipes the next row keeps out of it; and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
