@@ -138,10 +138,13 @@ panic kills the whole app at once, with no error for the UI and no line in the l
 - Never `unwrap()` or `expect()` outside tests (`clippy::unwrap_used`/`expect_used` in
   `[workspace.lints]`). Return a `Result` and propagate with `?`.
 - A command returns `Result<T, E>` for anything that can fail, and the join error of
-  `spawn_blocking` becomes a core kind, never an unwrap. In a release build it never
-  carries a panic: `panic = "abort"` ends the app before a panicking worker could be
-  joined, so the mapping answers only in a debug or test build, where a panic unwinds.
-  In the sample, `on_blocking_thread` maps it to `Storage { kind: Unavailable }`.
+  `spawn_blocking` becomes a core kind, never an unwrap. The error means a panic or a
+  cancellation. `panic = "abort"` removes the panic case from a release build, but not
+  the cancellation: tokio may drop a blocking task that has not started when the
+  runtime shuts down, in any build (tokio 1.53.1, the version `Cargo.lock` pins,
+  <https://docs.rs/crate/tokio/1.53.1/source/src/runtime/blocking/pool.rs>, checked
+  2026-09-30). In the sample, `on_blocking_thread` maps it to
+  `Storage { kind: Unavailable }`.
 - A lock that protects no data is taken with `unwrap_or_else(PoisonError::into_inner)`
   (`CounterService`), because a panic on another thread left nothing inconsistent.
 - An error is handled or returned, never dropped. `let _ = fallible();` carries a

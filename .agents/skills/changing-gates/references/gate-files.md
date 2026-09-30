@@ -123,14 +123,14 @@ only what each job names.
 
 ## `tsconfig.json`, `ui/tsconfig.json`, `scripts/tsconfig.json`
 
-Three configs, one per tree: the root config files, the UI Vite bundles, and the
-scripts Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all
-three. `scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types
-without transforming code, so `enum`, `namespace`, and parameter properties would fail at
-run time, not at type-check time. `ui/tsconfig.json` and the root `tsconfig.json` set it
-too, so `ui/src/` and the root config files keep the same language. Removing a strict option (`strict`,
-`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking for every
-file in that tree.
+Three configs, one per tree: the root config files, the UI Vite bundles, and the scripts
+Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all three.
+`scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types without
+transforming code, so `enum`, `namespace`, and parameter properties would fail at run
+time, not at type-check time. `ui/tsconfig.json` and the root `tsconfig.json` set it too,
+so `ui/src/` and the root config files keep the same language. Removing a strict option
+(`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking
+for every file in that tree.
 
 ## `vitest.config.ts`
 

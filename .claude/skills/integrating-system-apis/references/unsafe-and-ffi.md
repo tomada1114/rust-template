@@ -88,9 +88,10 @@ of them the main thread. The decisions:
 - **Keep the main thread free.** A plain `fn` command already runs on the main thread
   (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29), and every window
   stalls for as long as it runs. Called from the main thread, `run_on_main_thread` does
-  not hop: it runs the closure inline before it returns (observed in the source of
-  tauri-runtime-wry 2.11.4, the version `Cargo.lock` pins, `send_user_message`,
-  2026-09-29). The hang to avoid is the main thread blocking on a result that another
+  not hop: it runs the closure inline before it returns (`send_user_message` in
+  tauri-runtime-wry 2.11.4, the version `Cargo.lock` pins,
+  <https://docs.rs/crate/tauri-runtime-wry/2.11.4/source/src/lib.rs>, checked
+  2026-09-30). The hang to avoid is the main thread blocking on a result that another
   thread can only produce by posting back to the main thread. A command that needs a
   main-thread call is `async`: it runs off the main thread, hops with
   `run_on_main_thread`, and awaits the channel rather than blocking on it.

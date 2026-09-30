@@ -144,7 +144,8 @@ Run the check the gate feeds, then the harness, then everything:
 ```bash
 just lint            # a lint, format, or tsconfig change
 just test            # core's floors, or vitest.config.ts's ui/src/ thresholds
-just test-scripts    # lefthook.yml, the guard, a gate's script, or the scripts/ floors
+just test-scripts    # lefthook.yml, the guard, a gate's script, or a floor on scripts/
+                     # or .agents/skills/*/scripts/ (both 85/90)
 just deny            # deny.toml
 just check-harness   # workflows, the ruleset, recipes, cooldowns, ignore lists
 just check

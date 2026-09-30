@@ -88,12 +88,16 @@ tells matters more than the commit count: three related one-line edits are one c
 |---|---|
 | Rust under `crates/*/src/` or `src-tauri/src/`, TypeScript under `ui/src/` | `feat`, `fix`, `refactor`, or `perf` by what it does |
 | Tests only (`crates/*/tests/`, `src-tauri/tests/`, `*.test.ts(x)`) | `test` |
-| Docs (`*.md`, `docs/`, a skill) | `docs` |
+| Docs (`*.md`, `.github/PULL_REQUEST_TEMPLATE.md` included, `docs/`, a skill) | `docs` |
 | A dependency bump or addition | `deps` |
 | `justfile`, `scripts/`, `lefthook.yml` | `build` |
-| `.github/workflows/` | `ci` |
-| The rest of `.github/`: issue forms, the PR template, `labels.yml`, `rulesets/`, the Dependabot, Renovate, and release-notes config | `chore` |
+| `.github/workflows/`, and `.github/zizmor.yml` (the workflow security linter's config) | `ci` |
+| The rest of `.github/` that is not Markdown: issue forms, `labels.yml`, `rulesets/`, the Dependabot, Renovate, and release-notes config | `chore` |
 | Tool config (`mise.toml`, `typos.toml`, `.claude/`, an editor file) | `chore` |
+
+Where two rows match one file, the more specific row wins: a Markdown file is `docs`
+wherever it lives (the PR template too), a test under `scripts/` is `test`, and a
+skill's mirror under `.claude/skills/` is `docs`.
 
 These always travel in one commit, whatever the grouping otherwise says:
 

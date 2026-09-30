@@ -101,12 +101,14 @@ formats. None of them opens a window.
   that must decide what it means, instead of falling silently into a default. Enforced
   by: `#![deny(clippy::wildcard_enum_match_arm)]` in `crates/myapp-core/src/lib.rs`
   (core only; follow the same rule in the other crates). In core the lint fires on an
-  enum a foreign crate owns too (observed on this Mac with `cargo clippy` on
-  `std::cmp::Ordering` and `std::io::ErrorKind`, 2026-09-29): name every variant of an
-  exhaustive one, and test a `#[non_exhaustive]` one, whose match rustc refuses without
-  `_` (E0004), with `==` or `matches!` instead. Outside core such a match ends with
-  `_ =>`. In the sample, `describe` in `crates/myapp-cli/src/main.rs` matches every
-  `CounterError` and every `StorageErrorKind` inside it.
+  enum a foreign crate owns too, whenever a `_` stands for a variant the match could
+  have named (observed on this Mac with `cargo clippy`, rustc 1.98.1, 2026-09-30). A
+  `#[non_exhaustive]` foreign enum needs a `_` arm (E0004), which the lint accepts once
+  every variant is named before it; `std::io::ErrorKind` has unstable variants no match
+  can name (E0658), so test it with `==` or `matches!` instead. Outside core a match on
+  a `#[non_exhaustive]` foreign enum ends with `_ =>`. In the sample, `describe` in
+  `crates/myapp-cli/src/main.rs` matches every `CounterError` and every
+  `StorageErrorKind` inside it.
 
 ## Modules and visibility
 

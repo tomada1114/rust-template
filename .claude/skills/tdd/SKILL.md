@@ -90,8 +90,10 @@ just test-fast increment_by              # core: cargo nextest, filtered by test
 pnpm exec vitest run --project ui ui/src/counter/useCounter.test.tsx   # one UI file (the sample's)
 ```
 
-Read the failure. For a function that does not exist yet, the compile error naming it
-(or, in Vitest, the failed import) counts as red. For a change to existing behavior,
+Read the failure. For a Rust function that does not exist yet, the compile error
+naming it counts as red. In Vitest a missing export arrives as `undefined`, so the run
+fails with a `TypeError` at the call: that counts only when the message names the
+missing function (`… is not a function`). For a change to existing behavior,
 the run must show the assertion itself failing — `assert_eq!` prints the `left` and
 `right` values, and `expect` its diff — because a test that fails for another reason (a
 typo, a missing import) proves nothing about the behavior. **Do not skip this run**: a
