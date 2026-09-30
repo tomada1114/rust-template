@@ -5,7 +5,9 @@
  * through `open`, which would activate it. In smoke mode the app shows no window, takes
  * no focus, logs `startup complete pid=<pid>`, and exits 0; this script requires both.
  * It first runs the executable in smoke mode with `HOME` unset, which must fail startup
- * cleanly: exit 1 (not a signal) and `HOME is not set` on stderr.
+ * cleanly: exit 1 (not a signal) and `HOME is not set` on stderr. The entitlements the
+ * app carries must equal src-tauri/Entitlements.plist as parsed dictionaries, values
+ * included, both read by `plutil` (the property-list parser macOS itself uses).
  *
  * Failure codes: ERR_SMOKE_ARGS, ERR_SMOKE_HOME, ERR_SMOKE_TARGET_DIR, ERR_SMOKE_BUILD,
  * ERR_SMOKE_APP_MISSING, ERR_SMOKE_CODESIGN, ERR_SMOKE_ENTITLEMENTS, ERR_SMOKE_SIDECAR,
@@ -21,7 +23,7 @@ import { join } from "node:path";
 
 import { cargoTargetDir } from "./lib/cargo.ts";
 import { ScriptError } from "./lib/fail.ts";
-import { runScript, type ScriptContext } from "./lib/script.ts";
+import { runScript, type Run, type ScriptContext } from "./lib/script.ts";
 
 const BUNDLE_IDENTIFIER = "com.example.myapp";
 const APP_NAME = "MyApp";
@@ -77,9 +79,43 @@ export function startupLineFor(text: string, pid: number): string | undefined {
   return text.split("\n").find((line) => pattern.test(line));
 }
 
-/** The keys an entitlements plist grants, sorted. */
-export function entitlementKeys(plist: string): string[] {
-  return [...plist.matchAll(/<key>([^<]+)<\/key>/g)].map((match) => match[1] ?? "").sort();
+/** `value` as JSON with every object's keys sorted, so two equal dictionaries print alike. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortedKeys(value));
+}
+
+function sortedKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortedKeys);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, item]) => [key, sortedKeys(item)]),
+    );
+  }
+  return value;
+}
+
+/**
+ * An entitlements plist as canonical JSON, or why it could not be read. `plutil` parses
+ * it, so a value is compared as well as its key: `<false/>` flipped to `<true/>` differs.
+ * codesign prints nothing for an app signed without entitlements, the empty dictionary.
+ */
+export function entitlementsJson(
+  run: Run,
+  plist: string,
+): { readonly json: string } | { readonly error: string } {
+  if (plist.trim() === "") return { json: canonicalJson({}) };
+  const converted = run("plutil", ["-convert", "json", "-o", "-", "-"], { input: plist });
+  if (converted.status !== 0) {
+    return { error: `plutil could not read it: ${converted.stderr.trim()}` };
+  }
+  try {
+    const parsed: unknown = JSON.parse(converted.stdout);
+    return { json: canonicalJson(parsed) };
+  } catch {
+    return { error: `plutil printed no JSON: ${converted.stdout.trim()}` };
+  }
 }
 
 function fail(
@@ -172,20 +208,30 @@ export function main(context: ScriptContext): void {
     );
   }
   const granted = run("codesign", ["-d", "--entitlements", "-", "--xml", app]);
-  const expected = entitlementKeys(
-    readFileSync(join(root, "src-tauri", "Entitlements.plist"), "utf8"),
-  );
-  const actual = entitlementKeys(granted.stdout);
-  if (granted.status !== 0 || actual.join(",") !== expected.join(",")) {
+  if (granted.status !== 0) {
     fail(
       "ERR_SMOKE_ENTITLEMENTS",
-      "the app's entitlements differ from src-tauri/Entitlements.plist",
-      `[${expected.join(", ")}]`,
-      `[${actual.join(", ")}]`,
+      "the app's entitlements could not be read",
+      "`codesign -d --entitlements - --xml` to exit 0",
+      granted.stderr.trim(),
       "rebuild; if it persists, check bundle.macOS.entitlements in tauri.conf.json",
     );
   }
-  log(`smoke: signature and entitlements [${actual.join(", ")}] verified`);
+  const expected = entitlementsJson(
+    run,
+    readFileSync(join(root, "src-tauri", "Entitlements.plist"), "utf8"),
+  );
+  const actual = entitlementsJson(run, granted.stdout);
+  if (!("json" in expected) || !("json" in actual) || actual.json !== expected.json) {
+    fail(
+      "ERR_SMOKE_ENTITLEMENTS",
+      "the app's entitlements differ from src-tauri/Entitlements.plist",
+      "json" in expected ? expected.json : `src-tauri/Entitlements.plist: ${expected.error}`,
+      "json" in actual ? actual.json : `the app's entitlements: ${actual.error}`,
+      "rebuild; if it persists, check bundle.macOS.entitlements in tauri.conf.json",
+    );
+  }
+  log(`smoke: signature and entitlements ${actual.json} verified`);
 
   const version = run(helper, ["--version"]);
   if (version.status !== 0) {
