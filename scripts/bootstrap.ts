@@ -1155,11 +1155,21 @@ function assertTemplate(root: string): void {
 
 /** Refuse a work tree with uncommitted or untracked changes; outside git there is nothing to check. */
 function assertClean(context: ScriptContext): void {
-  const status = context.run("git", ["status", "--porcelain"], {
-    cwd: context.root,
-    env: gitEnv(context.env),
-  });
-  if (status.status !== 0) return;
+  const git = (...args: string[]) =>
+    context.run("git", args, { cwd: context.root, env: gitEnv(context.env) });
+  const inside = git("rev-parse", "--is-inside-work-tree");
+  if (inside.status !== 0 || inside.stdout.trim() === "false") return;
+  const status = git("status", "--porcelain");
+  if (status.status !== 0) {
+    // Inside a work tree a failing status (a held index.lock, say) must not fail open.
+    throw new ScriptError({
+      code: "ERR_BOOTSTRAP_DIRTY",
+      summary: `\`git status\` failed in ${context.root}, so its cleanliness is unknown; nothing was written`,
+      expected: "`git status --porcelain` to exit 0 inside the work tree",
+      actual: `exit ${String(status.status)}: ${status.stderr.trim().split("\n")[0] ?? ""}`,
+      next: "run `git status` to see why it fails (a stale .git/index.lock, for example), fix it, then run the bootstrap again",
+    });
+  }
   const changes = status.stdout.split("\n").filter((line) => line.trim() !== "");
   if (changes.length === 0) return;
   throw new ScriptError({
@@ -1381,8 +1391,10 @@ export function processTerminal(
     ask: (question) => {
       const created = open();
       if (closed && lines.length === 0) return Promise.resolve(undefined);
-      created.setPrompt(question);
-      created.prompt();
+      if (!closed) {
+        created.setPrompt(question);
+        created.prompt();
+      }
       const queued = lines.shift();
       if (queued !== undefined) return Promise.resolve(queued);
       return new Promise((resolve) => waiting.push(resolve));

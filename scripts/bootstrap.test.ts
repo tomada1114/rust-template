@@ -662,6 +662,7 @@ describe("runBootstrap", () => {
 
     // cargo fetch before anything is written, then the offline lockfile update and fmt.
     expect(calls.map((call) => [call.command, ...call.args].join(" "))).toEqual([
+      "git rev-parse --is-inside-work-tree",
       "git status --porcelain",
       "cargo fetch --locked",
       "cargo update --workspace --offline",
@@ -669,8 +670,8 @@ describe("runBootstrap", () => {
       expect.stringMatching(/\/node_modules\/\.bin\/prettier --write --ignore-unknown /),
       "git ls-files -z --cached --others --exclude-standard",
     ]);
-    expect(calls[4]?.command).toBe(join(root, "node_modules", ".bin", "prettier"));
-    const prettier = calls[4]?.args ?? [];
+    expect(calls[5]?.command).toBe(join(root, "node_modules", ".bin", "prettier"));
+    const prettier = calls[5]?.args ?? [];
     expect(prettier.slice(0, 2)).toEqual(["--write", "--ignore-unknown"]);
     expect(prettier).toContain("src-tauri/tauri.conf.json");
     expect(prettier).not.toContain("README.md");
@@ -1023,7 +1024,25 @@ version = "4.0.0"
     );
     expect(result.error).toMatch(/^ERR_BOOTSTRAP_DIRTY: /);
     expect(result.error).toContain("nothing was written");
-    expect(result.commands).toEqual(["git status --porcelain"]);
+    expect(result.commands).toEqual([
+      "git rev-parse --is-inside-work-tree",
+      "git status --porcelain",
+    ]);
+    expect(result.unchanged).toBe(true);
+  });
+
+  it("refuses when git status fails inside a work tree, instead of failing open", () => {
+    const result = refused(ANSWERS, (call) =>
+      call.args[0] === "status"
+        ? { status: 128, stderr: "fatal: Unable to create '.git/index.lock': File exists.\n" }
+        : {},
+    );
+    expect(result.error).toMatch(/^ERR_BOOTSTRAP_DIRTY: /);
+    expect(result.error).toContain("cleanliness is unknown");
+    expect(result.commands).toEqual([
+      "git rev-parse --is-inside-work-tree",
+      "git status --porcelain",
+    ]);
     expect(result.unchanged).toBe(true);
   });
 
@@ -1080,6 +1099,18 @@ version = "4.0.0"
 });
 
 describe("processTerminal", () => {
+  it("returns answers still queued after the input closes, without prompting a closed interface", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const term = processTerminal(input, output);
+    input.write("Tide Pool\ntide-pool\n");
+    input.end();
+    expect(await term.ask("Name: ")).toBe("Tide Pool");
+    expect(await term.ask("Slug: ")).toBe("tide-pool");
+    expect(await term.ask("Bundle: ")).toBeUndefined();
+    term.close?.();
+  });
+
   it("consumes every answer when several arrive in one chunk, then reports the end of input", async () => {
     const input = new PassThrough();
     const output = new PassThrough();
