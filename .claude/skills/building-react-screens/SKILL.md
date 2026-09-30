@@ -10,7 +10,7 @@ description: >
   var(--...) tokens, strings from ui/src/copy/, and verifying with Testing Library and
   mockCommands. Use when adding or changing a component, a hook, a screen's CSS, or its
   wording under ui/src/, when a getByRole query cannot find a control, or when the
-  harness literal check flags a color, font, or pixel size in ui/src/.
+  harness literal check flags a color, font, or pixel size under ui/.
 ---
 
 # Building React Screens
@@ -127,9 +127,11 @@ Every screen renders each state, and a test reaches each one:
 - A screen's CSS is layout only and reaches every color, font, font size, and spacing
   value through `var(--…)`. Enforced by: the harness literal check
   (`just check-harness`), which fails on a raw color, a `font-family`, or a pixel font
-  size anywhere in `ui/src/` outside `tokens.css`, and on nothing else. A literal
-  spacing value or dimension passes it, so review is what holds the rest: in the
-  sample, `max-width: 360px` in `ui/src/counter/CounterScreen.css` is a literal no
+  size outside `tokens.css` anywhere in `ui/src/`, an entry page such as
+  `ui/index.html`, or a stylesheet in `ui/public/`, and on a file it cannot read (a
+  `.vue`, `.less`, or other kind it does not parse; an unreadable inline script). A
+  literal spacing value or dimension passes it, so review is what holds the rest: in
+  the sample, `max-width: 360px` in `ui/src/counter/CounterScreen.css` is a literal no
   check reads.
 - A screen that needs a value or a part the design system lacks gets it there first, as
   a token or a primitive with its row in `design-system.md` (`designing-ui`), never as a

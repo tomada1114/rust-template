@@ -136,9 +136,10 @@ than a copy here.
   `primitives.test.tsx`, and its recipe row in `design-system.md`. A glyph-only control
   takes its accessible name as a required prop, as `IconButton` does.
 - Enforced by: the harness literal check (`just check-harness`: no raw color,
-  `font-family`, or pixel font size in `ui/src/` outside `tokens.css`) and the contrast
-  test (`just test-ui`). Both hold for an app's replacement values exactly as for the
-  base.
+  `font-family`, or pixel font size outside `tokens.css` in `ui/src/`, an entry page
+  under `ui/`, or a stylesheet in `ui/public/`, and no file of a kind it cannot read,
+  such as `.less` or `.vue`) and the contrast test (`just test-ui`). Both hold for an
+  app's replacement values exactly as for the base.
 - In the template itself there is no lock; a change to the base's own defaults updates
   `design-system.md`, and README's Design Philosophy when a stated reason changes
   (`updating-docs`).

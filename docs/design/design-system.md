@@ -75,9 +75,15 @@ A screen uses these and the tokens, never a literal value (`building-react-scree
 - **The literal check** (a harness check, `just check-harness`) fails on a raw color
   (hex, `rgb()`, `hsl()`, a named color, a CSS system color such as `CanvasText`, or a
   WebKit one such as `-apple-system-label`), a `font-family`, or a pixel font size
-  anywhere in `ui/src/` or `ui/index.html` outside `tokens.css`, including one carried
-  by a local custom property or a `const`. `currentColor`, `transparent`, `inherit`,
-  `none`, `initial`, and `unset` are allowed.
+  outside `tokens.css` in anything the WebView styles with: everything under `ui/src/`,
+  each entry page directly under `ui/` such as `ui/index.html` (its `theme-color` meta
+  and inline scripts included), and the stylesheets in `ui/public/` (not its images or
+  vendored scripts). That includes a value carried by a local custom property, a
+  `const` (imported ones too), or a `let`. A file it cannot read fails it rather than
+  passing: a Less, indented Sass, Stylus, SugarSS, Vue, Svelte, MDX, or Astro file
+  (`ERR_CHECK_UI_UNSUPPORTED_FILE`), or an inline script of an unknown type, with a
+  syntax error, or with no `</script>` (`ERR_CHECK_UI_UNPARSED`). `currentColor`,
+  `transparent`, `inherit`, `none`, `initial`, and `unset` are allowed.
 - **The contrast test** (`ui/src/design/tokens.test.ts`, part of `just test-ui`) parses
   `tokens.css`, fails if a semantic color has no dark value of its own, and checks every
   pair in `contrast-pairs.ts` in both appearances: 4.5:1 for body text, 3:1 for large

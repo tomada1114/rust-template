@@ -3,8 +3,8 @@
  * through var(--…), holds raw values only in ui/src/design/tokens.css and a test file,
  * and carries the near misses the check must not flag (comments, selectors, token names,
  * copy strings, JSX text, a local custom property no font property reads, a const given
- * to a non-style attribute, markup comments and script bodies, a Sass line comment).
- * Each failing case copies it to a temp root and writes one offending file.
+ * to a non-style attribute, markup comments, a script that loads a file, a Sass line
+ * comment). Each failing case copies it to a temp root and writes the offending files.
  */
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,18 +20,21 @@ const RAW = "ERR_CHECK_UI_RAW_COLOR";
 const FAMILY = "ERR_CHECK_UI_FONT_FAMILY";
 const PIXEL = "ERR_CHECK_UI_PIXEL_FONT_SIZE";
 const UNPARSED = "ERR_CHECK_UI_UNPARSED";
+const UNSUPPORTED = "ERR_CHECK_UI_UNSUPPORTED_FILE";
 
 const dirs: string[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function rootWith(path: string, content: string): string {
+function rootWith(path: string, content: string, others: Record<string, string> = {}): string {
   const dir = mkdtempSync(join(tmpdir(), "ui-literals-"));
   dirs.push(dir);
   cpSync(PASS, dir, { recursive: true });
-  mkdirSync(dirname(join(dir, path)), { recursive: true });
-  writeFileSync(join(dir, path), content);
+  for (const [file, text] of Object.entries({ ...others, [path]: content })) {
+    mkdirSync(dirname(join(dir, file)), { recursive: true });
+    writeFileSync(join(dir, file), text);
+  }
   return dir;
 }
 
@@ -386,6 +389,160 @@ describe("ui-literals", () => {
       expect(violations[0]?.actual).toContain('color: WARN ("red")');
     });
 
+    describe("through an import", () => {
+      const palette = {
+        "ui/src/counter/palette.ts": [
+          'export const WARN = "red";',
+          'export const TONES = { calm: "navy" } as const;',
+          'export default "tomato";',
+          "",
+        ].join("\n"),
+        "ui/src/counter/index.ts":
+          'export { WARN as ALERT } from "./palette";\nexport * from "./palette";\n',
+      };
+      const use = (lines: string): string =>
+        rootWith("ui/src/counter/Use.tsx", `${lines}\nexport const s = { color: X };\n`, palette);
+
+      it.each([
+        ["a named import", 'import { WARN as X } from "./palette";', "red"],
+        ["an import with a .ts extension", 'import { WARN as X } from "./palette.ts";', "red"],
+        ["an import with a .js extension", 'import { WARN as X } from "./palette.js";', "red"],
+        ["a default import", 'import X from "./palette";', "tomato"],
+        ["a renamed re-export", 'import { ALERT as X } from "./index";', "red"],
+        ["an export * re-export", 'import { WARN as X } from ".";', "red"],
+        ["a namespace import", 'import * as P from "./palette";\nconst X = P.WARN;', "red"],
+        [
+          "a member of an imported const object",
+          'import { TONES } from "./palette";\nconst X = TONES.calm;',
+          "navy",
+        ],
+      ])("flags a named color reached through %s", (_label, lines, color) => {
+        const violations = check.run(use(lines));
+        expect(codes(violations)).toEqual([RAW]);
+        expect(violations[0]?.summary).toMatch(/^ui\/src\/counter\/Use\.tsx:\d+: raw color/);
+        expect(violations[0]?.summary).toContain(`\`${color}\``);
+      });
+
+      it("reports a raw value the other module flags once, where it is declared", () => {
+        const violations = check.run(
+          rootWith(
+            "ui/src/counter/Use.tsx",
+            'import { ACCENT } from "./accent";\nexport const s = { color: ACCENT };\n',
+            { "ui/src/counter/accent.ts": 'export const ACCENT = "#0062cc";\n' },
+          ),
+        );
+        expect(codes(violations)).toEqual([RAW]);
+        expect(violations[0]?.summary).toMatch(/^ui\/src\/counter\/accent\.ts:1: /);
+      });
+
+      it.each([
+        [
+          "an imported bare word used as copy",
+          'import { WARN } from "./palette";\nexport const t = `${WARN} alert`;',
+        ],
+        [
+          "a name from a package",
+          'import { color as X } from "some-package";\nexport const s = { color: X };',
+        ],
+        [
+          "a name from a module the check does not scan",
+          'import { X } from "./missing";\nexport const s = { color: X };',
+        ],
+      ])("does not flag %s", (_label, source) => {
+        expect(check.run(rootWith("ui/src/counter/Use.ts", `${source}\n`, palette))).toEqual([]);
+      });
+    });
+
+    it.each([
+      [
+        "every value a let is given",
+        'let D = "blue";\nD = "green";\nexport const s = { background: D };',
+        ["blue", "green"],
+      ],
+      [
+        "a value a var is given by a logical assignment",
+        'var D;\nD ??= "white";\nexport const s = { color: D };',
+        ["white"],
+      ],
+    ])("flags %s", (_label, source, colors) => {
+      const violations = check.run(rootWith("ui/src/counter/extra.ts", `${source}\n`));
+      expect(codes(violations)).toEqual(colors.map(() => RAW));
+      for (const [i, color] of colors.entries()) {
+        expect(violations[i]?.summary).toContain(`\`${color}\``);
+        expect(violations[i]?.summary).toMatch(/^ui\/src\/counter\/extra\.ts:3: /);
+      }
+    });
+
+    it("does not flag a let that only ever holds tokens", () => {
+      const source = 'let D = "var(--a)";\nD = "var(--b)";\nexport const s = { color: D };\n';
+      expect(check.run(rootWith("ui/src/counter/extra.ts", source))).toEqual([]);
+    });
+
+    describe("resolving each binding once", () => {
+      const timed = (root: string): { ms: number; found: readonly FailureDetails[] } => {
+        const start = performance.now();
+        const found = check.run(root);
+        return { ms: performance.now() - start, found };
+      };
+
+      it("reads a let assigned from itself many times without blowing up", () => {
+        const lines = ['let c = "red";', 'let shadow = "0 0 1px navy";', 'let x = "var(--a)";'];
+        for (let i = 0; i < 14; i += 1) {
+          lines.push(
+            `if (p${String(i)}) { c = p ? c : "var(--b)"; shadow = \`\${shadow}, 0 0 ${String(i)}px var(--s)\`; x = x ?? y; }`,
+          );
+        }
+        lines.push("export const s = { color: c, boxShadow: shadow, background: x };");
+        const { ms, found } = timed(rootWith("ui/src/counter/loop.ts", `${lines.join("\n")}\n`));
+        expect(codes(found)).toEqual([RAW, RAW]);
+        expect(found.map((v) => v.summary.split("`")[1])).toEqual(["red", "navy"]);
+        expect(ms).toBeLessThan(1000);
+      });
+
+      it("reads a diamond of consts across modules without re-walking it", () => {
+        const others: Record<string, string> = {
+          "ui/src/counter/d0.ts": 'export const A0 = "tomato";\nexport const B0 = "navy";\n',
+        };
+        for (let level = 1; level <= 14; level += 1) {
+          const [a, b, prev] = [`A${String(level)}`, `B${String(level)}`, String(level - 1)];
+          others[`ui/src/counter/d${String(level)}.ts`] = [
+            `import { A${prev}, B${prev} } from "./d${prev}";`,
+            `export const ${a} = p ? A${prev} : B${prev};`,
+            `export const ${b} = q ? B${prev} : A${prev};`,
+            "",
+          ].join("\n");
+        }
+        const root = rootWith(
+          "ui/src/counter/Use.ts",
+          'import { A14 } from "./d14";\nexport const s = { color: A14 };\n',
+          others,
+        );
+        const { ms, found } = timed(root);
+        expect(codes(found)).toEqual([RAW, RAW]);
+        expect(found.map((v) => v.summary.split("`")[1]).sort()).toEqual(["navy", "tomato"]);
+        expect(ms).toBeLessThan(1000);
+      });
+
+      it("gives every binding in a cycle everything the cycle reaches", () => {
+        const source = [
+          'let a = "red";',
+          'let b = "navy";',
+          "a = b;",
+          "b = a;",
+          "export const s = { color: a };",
+          "export const t = { background: b };",
+          "",
+        ].join("\n");
+        const found = check.run(rootWith("ui/src/counter/cycle.ts", source));
+        expect(found.map((v) => v.summary.split("`")[1]).sort()).toEqual([
+          "navy",
+          "navy",
+          "red",
+          "red",
+        ]);
+      });
+    });
+
     it("says where the value belongs", () => {
       const [violation] = check.run(rootWith("ui/src/x.ts", 'const s = { color: "#fff" };\n'));
       expect(violation?.next).toContain("ui/src/design/tokens.css");
@@ -437,6 +594,109 @@ describe("ui-literals", () => {
       expect(violations[0]?.summary).toMatch(/^ui\/src\/design\/icon\.svg:1: unreadable tag/);
     });
 
+    it.each([
+      ["a theme-color meta", '<meta name="theme-color" content="#ff0000">', [RAW]],
+      ["a theme-color meta, content first", "<meta content=red name='Theme-Color' />", [RAW]],
+      [
+        "a msapplication-TileColor meta",
+        '<meta name="msapplication-TileColor" content="#fff">',
+        [RAW],
+      ],
+    ])("flags %s", (_label, html, expected) => {
+      const violations = check.run(rootWith("ui/index.html", `${html}\n`));
+      expect(codes(violations)).toEqual(expected);
+      expect(violations[0]?.summary).toMatch(/^ui\/index\.html:1: /);
+      expect(violations[0]?.next).toContain("var() cannot appear in a meta's content");
+    });
+
+    it.each([
+      ["a description meta", '<meta name="description" content="A red app">'],
+      ["a color-scheme meta", '<meta name="color-scheme" content="light dark">'],
+      ["a script that loads a file", '<script type="module" src="/src/main.tsx"></script>'],
+      ["an empty inline script", "<script>\n</script>"],
+      [
+        "a JSON block, which is data",
+        '<script type="application/json">{ "a": "#ff0000" }</script>',
+      ],
+      [
+        "a JSON-LD block, which is data",
+        '<script type="application/ld+json">{ "color": "red" }</script>',
+      ],
+      [
+        "an import map, which is data",
+        '<script type=importmap>{ "imports": { "#fff": "./x.js" } }</script>',
+      ],
+    ])("does not flag %s", (_label, html) => {
+      expect(check.run(rootWith("ui/index.html", `${html}\n`))).toEqual([]);
+    });
+
+    it.each([
+      ["a classic script", "<script>", 'document.body.style.color = "red";', [RAW]],
+      [
+        "a module script",
+        '<script type="module">',
+        'document.documentElement.style.setProperty("font-size", "30px");',
+        [PIXEL],
+      ],
+      ["an SVG script", '<script type="text/ecmascript">', 'el.style.fill = "#123";', [RAW]],
+    ])("flags a style set in %s, on its line in the markup", (_label, open, body, expected) => {
+      const violations = check.run(
+        rootWith("ui/index.html", `<!doctype html>\n${open}\n  ${body}\n</script>\n`),
+      );
+      expect(codes(violations)).toEqual(expected);
+      expect(violations[0]?.summary).toMatch(/^ui\/index\.html:3: /);
+    });
+
+    it("reads an inline script with the scripts it imports", () => {
+      const violations = check.run(
+        rootWith(
+          "ui/index.html",
+          '<script type="module">\nimport { WARN } from "./src/tone.ts";\ndocument.body.style.color = WARN;\n</script>\n',
+          { "ui/src/tone.ts": 'export const WARN = "red";\n' },
+        ),
+      );
+      expect(codes(violations)).toEqual([RAW]);
+      expect(violations[0]?.summary).toMatch(/^ui\/index\.html:3: /);
+    });
+
+    it("fails on a script whose type it does not read instead of passing it unread", () => {
+      const violations = check.run(
+        rootWith(
+          "ui/index.html",
+          '<script type="text/x-template">\n<p style="color: red"></p>\n</script>\n',
+        ),
+      );
+      expect(codes(violations)).toEqual([UNPARSED]);
+      expect(violations[0]?.summary).toMatch(/^ui\/index\.html:1: unreadable script/);
+      expect(violations[0]?.expected).not.toContain("raw values");
+    });
+
+    it("fails on a script that never closes, and does not read what follows as markup", () => {
+      const violations = check.run(
+        rootWith("ui/index.html", '<p></p>\n<script>\n<p style="color: red"></p>\n'),
+      );
+      expect(codes(violations)).toEqual([UNPARSED]);
+      expect(violations[0]?.summary).toMatch(/^ui\/index\.html:2: unreadable script `<script>`$/);
+      expect(violations[0]?.next).toContain("</script>");
+    });
+
+    it("fails on an inline script with a syntax error, at its line", () => {
+      const violations = check.run(
+        rootWith(
+          "ui/index.html",
+          '<script>\nconst = ;\ndocument.body.style.color = "var(--x)";\n</script>\n',
+        ),
+      );
+      expect(codes(violations)).toEqual([UNPARSED]);
+      expect(violations[0]?.summary).toMatch(/^ui\/index\.html:2: unreadable script/);
+      expect(violations[0]?.next).toContain("syntax");
+    });
+
+    it("leaves a syntax error under ui/src/ to tsc and ESLint", () => {
+      const source = 'const = ;\nexport const s = { color: "var(--x)" };\n';
+      expect(check.run(rootWith("ui/src/counter/broken.ts", source))).toEqual([]);
+    });
+
     it("names the line of a <style> declaration", () => {
       const violations = check.run(
         rootWith(
@@ -445,6 +705,58 @@ describe("ui-literals", () => {
         ),
       );
       expect(violations[0]?.summary).toMatch(/^ui\/src\/page\.html:4: /);
+    });
+  });
+  describe("across ui/", () => {
+    it.each([
+      ["another entry page", "ui/other.html", '<p style="color: #ff0000"></p>\n'],
+      ["a stylesheet in ui/public/", "ui/public/x.css", ".a { color: #ff0000; }\n"],
+      ["a PostCSS file in ui/public/", "ui/public/x.postcss", ".a { color: #ff0000; }\n"],
+      ["an .htm entry page", "ui/page.htm", '<p style="color: #ff0000"></p>\n'],
+      ["an .xhtml entry page", "ui/page.xhtml", '<p style="color: #ff0000"></p>\n'],
+      ["a PostCSS file", "ui/src/counter/x.pcss", ".a { color: #ff0000; }\n"],
+    ])("flags a raw color in %s", (_label, path, content) => {
+      const violations = check.run(rootWith(path, content));
+      expect(codes(violations)).toEqual([RAW]);
+      expect(violations[0]?.summary.startsWith(`${path}:1: `)).toBe(true);
+    });
+
+    it.each([
+      ["a .less file", "ui/src/x.less", ".a { color: #ff0000; }\n"],
+      ["a .sass file", "ui/src/y.sass", ".a\n  color: #ff0000\n"],
+      ["a Stylus file in ui/public/", "ui/public/z.styl", ".a\n  color #ff0000\n"],
+      ["a .stylus file", "ui/src/z.stylus", ".a\n  color #ff0000\n"],
+      ["a SugarSS file", "ui/src/z.sss", ".a\n  color: #ff0000\n"],
+      ["an .htm file under ui/src/", "ui/src/page.htm", "<p></p>\n"],
+      ["an .xhtml file in ui/public/", "ui/public/page.xhtml", "<p></p>\n"],
+      ["a Vue component", "ui/src/X.vue", "<template><p /></template>\n"],
+      ["a Svelte component", "ui/src/X.svelte", "<p>x</p>\n"],
+      ["an MDX page", "ui/src/x.mdx", "# X\n"],
+      ["an Astro page", "ui/src/x.astro", "<p>x</p>\n"],
+    ])("refuses %s rather than passing it unread", (_label, path, content) => {
+      const violations = check.run(rootWith(path, content));
+      const ext = /\.[^.]+$/.exec(path)?.[0] ?? "";
+      expect(codes(violations)).toEqual([UNSUPPORTED]);
+      expect(violations[0]?.summary).toBe(`${path}:1: this check cannot read \`${ext}\``);
+      expect(violations[0]?.expected).not.toContain("raw values");
+      expect(violations[0]?.next).toContain(`this check cannot read ${ext} files`);
+      expect(violations[0]?.next).toContain("write the styles as CSS using the tokens");
+    });
+
+    it.each([
+      ["an SVG in ui/public/, loaded as an image", "ui/public/icon.svg", '<svg fill="#ff0000"/>\n'],
+      ["a vendored script in ui/public/", "ui/public/x.js", 'const c = "#ff0000";\n'],
+      ["a page in ui/public/", "ui/public/x.html", '<p style="color: #ff0000"></p>\n'],
+      ["a stylesheet outside ui/src/ and ui/public/", "ui/other/x.css", ".a { color: red; }\n"],
+    ])("does not judge %s", (_label, path, content) => {
+      expect(check.run(rootWith(path, content))).toEqual([]);
+    });
+
+    it("skips node_modules and ui/'s test files", () => {
+      const root = rootWith("ui/node_modules/pkg/a.css", ".a { color: red; }\n", {
+        "ui/public/x.test.js": 'const s = { color: "#fff" };\n',
+      });
+      expect(check.run(root)).toEqual([]);
     });
   });
 });
