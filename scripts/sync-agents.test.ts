@@ -141,6 +141,19 @@ describe("sync-agents (sync)", () => {
     expect(existsSync(join(root, `${MIRROR}/.DS_Store`))).toBe(false);
     expect(run(root, ["--check"]).error).toBeUndefined();
   });
+  it("ignores Python bytecode on both sides", () => {
+    const root = repo({
+      [`${SOURCE}/a/scripts/tests/__pycache__/t.cpython-311.pyc`]: "bytecode",
+      [`${SOURCE}/a/scripts/stray.pyc`]: "bytecode",
+      [`${SOURCE}/a/SKILL.md`]: "a",
+      [`${MIRROR}/a/SKILL.md`]: "a",
+      [`${MIRROR}/b/__pycache__/t.cpython-311.pyc`]: "bytecode",
+    });
+    expect(run(root).lines).toEqual([`agents:sync: ${MIRROR}/ was already in sync.`]);
+    expect(existsSync(join(root, `${MIRROR}/a/scripts/tests/__pycache__`))).toBe(false);
+    expect(existsSync(join(root, `${MIRROR}/a/scripts/stray.pyc`))).toBe(false);
+    expect(run(root, ["--check"]).error).toBeUndefined();
+  });
 });
 
 describe("sync-agents --check", () => {
@@ -292,7 +305,7 @@ describe("sync-agents --check --staged", () => {
     expect(result.lines).toEqual([`agents:check: the staged ${MIRROR}/ is in sync.`]);
   });
 
-  it("lists missing, differing, and extra staged paths, and ignores .DS_Store", () => {
+  it("lists missing, differing, and extra staged paths, and ignores .DS_Store and bytecode", () => {
     const root = gitRepo({
       [`${SOURCE}/missing.md`]: "m",
       [`${SOURCE}/same.md`]: "s",
@@ -302,6 +315,8 @@ describe("sync-agents --check --staged", () => {
       [`${MIRROR}/changed.md`]: "old",
       [`${MIRROR}/extra.md`]: "e",
       [`${MIRROR}/.DS_Store`]: "finder",
+      [`${SOURCE}/sub/__pycache__/t.cpython-311.pyc`]: "bytecode",
+      [`${MIRROR}/stray.pyc`]: "bytecode",
     });
     git(root, "add", "--force", SOURCE, MIRROR);
     const result = run(root, STAGED, hookEnv());
