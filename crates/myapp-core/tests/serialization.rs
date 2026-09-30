@@ -11,10 +11,11 @@ fn counter_view_is_camel_case_with_a_numeric_time() {
     let view = CounterView {
         value: 3,
         last_changed_at: Some(UnixMillis(1_700_000_000_000)),
+        revision: 4,
     };
     assert_eq!(
         serde_json::to_value(&view).unwrap(),
-        json!({ "value": 3, "lastChangedAt": 1_700_000_000_000_i64 })
+        json!({ "value": 3, "lastChangedAt": 1_700_000_000_000_i64, "revision": 4 })
     );
 }
 
@@ -23,10 +24,11 @@ fn a_counter_view_never_changed_has_a_null_time() {
     let view = CounterView {
         value: 0,
         last_changed_at: None,
+        revision: 0,
     };
     assert_eq!(
         serde_json::to_value(&view).unwrap(),
-        json!({ "value": 0, "lastChangedAt": null })
+        json!({ "value": 0, "lastChangedAt": null, "revision": 0 })
     );
 }
 

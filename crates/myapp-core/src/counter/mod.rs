@@ -6,7 +6,7 @@
 
 pub mod store;
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde::Serialize;
 use ts_rs::TS;
@@ -143,6 +143,10 @@ pub struct CounterView {
     pub value: i64,
     /// When the value last changed; `None` before the first change.
     pub last_changed_at: Option<UnixMillis>,
+    /// How many changes this service has saved since it was built (0 before the first).
+    /// Of two views from one app process, the higher revision is the newer; on a tie the
+    /// later one is at least as new. Not stored, and not raised by the helper CLI.
+    pub revision: u64,
 }
 
 /// A failed counter action. Serialized with a `code` tag (`{ "code": "atMaximum" }`);
@@ -173,12 +177,13 @@ impl From<StorageError> for CounterError {
 
 /// The counter's use cases: load, decide, save, and report a [`CounterView`].
 ///
-/// One `CounterService` is shared by every command. Its lock is held across
-/// load → decide → save, so two commands running at once cannot lose an update, and the
-/// step runs through [`CounterStore::update`], so a store shared with another process
-/// (the app and the helper CLI) keeps the other process's saves out of it too.
+/// One `CounterService` is shared by every command. Its lock is held across every use
+/// case and numbers the saves ([`CounterView::revision`]). An increment or decrement runs
+/// load → decide → save as one [`CounterStore::update`], so neither another command nor
+/// another process (the helper CLI) can slip a save in between. A reset is one
+/// [`CounterStore::save`], because its result does not depend on what was stored.
 pub struct CounterService {
-    lock: Mutex<()>,
+    revision: Mutex<u64>,
     store: Arc<dyn CounterStore>,
     clock: Arc<dyn Clock>,
     tuning: Tuning,
@@ -189,7 +194,7 @@ impl CounterService {
     #[must_use]
     pub fn new(store: Arc<dyn CounterStore>, clock: Arc<dyn Clock>, tuning: Tuning) -> Self {
         Self {
-            lock: Mutex::new(()),
+            revision: Mutex::new(0),
             store,
             clock,
             tuning,
@@ -201,11 +206,12 @@ impl CounterService {
     /// # Errors
     /// [`CounterError::Storage`] when the store cannot be read.
     pub fn view(&self) -> Result<CounterView, CounterError> {
-        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let revision = self.lock();
         let (counter, last_changed_at) = self.load()?;
         Ok(CounterView {
             value: counter.value(),
             last_changed_at,
+            revision: *revision,
         })
     }
 
@@ -227,12 +233,37 @@ impl CounterService {
         self.change(Counter::decrement)
     }
 
-    /// Return to the minimum and save.
+    /// Return to the minimum and save, whatever the store held — including data it
+    /// cannot read, which this replaces: the user's explicit request to start over.
+    /// `view`, `increment` and `decrement` never replace unreadable data. The save is one
+    /// [`CounterStore::save`], which a shared store serialises with other writers.
     ///
     /// # Errors
-    /// [`CounterError::Storage`].
+    /// [`CounterError::Storage`] when the save fails.
     pub fn reset(&self) -> Result<CounterView, CounterError> {
-        self.change(|counter| Ok(counter.reset()))
+        let mut revision = self.lock();
+        let stored = StoredCounter {
+            value: Counter::new(self.tuning.min, self.tuning).reset().value(),
+            last_changed_at: Some(self.clock.now()),
+        };
+        self.store.save(&stored)?;
+        Ok(Self::committed(&mut revision, &stored))
+    }
+
+    /// The service's lock, which numbers the saves. A poisoned lock is still safe to
+    /// take: the revision changes only after a save succeeded, in one `+= 1`.
+    fn lock(&self) -> MutexGuard<'_, u64> {
+        self.revision.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Count a saved change and report it.
+    fn committed(revision: &mut u64, stored: &StoredCounter) -> CounterView {
+        *revision += 1;
+        CounterView {
+            value: stored.value,
+            last_changed_at: stored.last_changed_at,
+            revision: *revision,
+        }
     }
 
     /// Load → decide → save under the lock, as one [`CounterStore::update`]. A rejected
@@ -241,8 +272,7 @@ impl CounterService {
         &self,
         decide: impl FnOnce(Counter) -> Result<Counter, CounterError>,
     ) -> Result<CounterView, CounterError> {
-        // The guard protects no data (`()`), so a poisoned lock is still safe to take.
-        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut revision = self.lock();
         let mut decide = Some(decide);
         let mut decided = None;
         self.store.update(&mut |stored| {
@@ -260,10 +290,7 @@ impl CounterService {
         let stored = decided.ok_or(CounterError::Storage {
             kind: StorageErrorKind::Unavailable,
         })??;
-        Ok(CounterView {
-            value: stored.value,
-            last_changed_at: stored.last_changed_at,
-        })
+        Ok(Self::committed(&mut revision, &stored))
     }
 
     /// The saved counter (or a fresh one) and when it last changed.

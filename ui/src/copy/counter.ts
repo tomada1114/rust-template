@@ -9,6 +9,7 @@ export const counterCopy = {
   increment: "Increment",
   decrement: "Decrement",
   reset: "Reset",
+  retry: "Retry",
   loading: "Loading…",
   neverChanged: "Not changed yet",
   lastChanged: (when: string): string => `Last changed ${when}`,

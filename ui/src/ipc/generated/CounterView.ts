@@ -12,4 +12,10 @@ value: number,
 /**
  * When the value last changed; `None` before the first change.
  */
-lastChangedAt: UnixMillis | null, };
+lastChangedAt: UnixMillis | null, 
+/**
+ * How many changes this service has saved since it was built (0 before the first).
+ * Of two views from one app process, the higher revision is the newer; on a tie the
+ * later one is at least as new. Not stored, and not raised by the helper CLI.
+ */
+revision: number, };

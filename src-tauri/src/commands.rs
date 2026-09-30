@@ -5,30 +5,44 @@
 //! names are contract: `ui/src/ipc/commands.ts` and `ui/src/ipc/events.ts` use the same
 //! strings, and a harness check compares them.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use myapp_core::{
     CounterError, CounterService, CounterView, StorageErrorKind, UiLogEntry, UiLogLevel,
 };
 use tauri::{AppHandle, Emitter, Runtime, State};
 
-/// Emitted with the new [`CounterView`] after every change.
+/// Emitted with the new [`CounterView`] after every change, in the order the changes
+/// were saved.
 pub const COUNTER_CHANGED: &str = "counter-changed";
 
 /// What the commands share. Managed by the app (`app.manage`).
 pub struct AppState {
-    /// The counter's use cases, over the real store and clock.
-    pub counter: Arc<CounterService>,
+    /// The counter's use cases.
+    counter: Arc<CounterService>,
+    /// Held across a change and its `counter-changed` emit, so events leave in the order
+    /// the changes were saved.
+    announcing: Arc<Mutex<()>>,
+}
+
+impl AppState {
+    /// The state the commands share, over `counter` (the real store and clock in the app,
+    /// fakes in a test).
+    #[must_use]
+    pub fn new(counter: Arc<CounterService>) -> Self {
+        Self {
+            counter,
+            announcing: Arc::new(Mutex::new(())),
+        }
+    }
 }
 
 /// Run a counter use case on a blocking thread. A worker that panicked or was cancelled
 /// is reported as unavailable storage, never as a panic across IPC.
 async fn on_blocking_thread(
-    state: &State<'_, AppState>,
-    action: fn(&CounterService) -> Result<CounterView, CounterError>,
+    work: impl FnOnce() -> Result<CounterView, CounterError> + Send + 'static,
 ) -> Result<CounterView, CounterError> {
-    let service = Arc::clone(&state.counter);
-    tauri::async_runtime::spawn_blocking(move || action(&service))
+    tauri::async_runtime::spawn_blocking(work)
         .await
         .map_err(|_| CounterError::Storage {
             kind: StorageErrorKind::Unavailable,
@@ -53,7 +67,8 @@ fn log_outcome(command: &'static str, result: &Result<CounterView, CounterError>
 /// The counter as it is now.
 #[tauri::command]
 pub async fn get_counter(state: State<'_, AppState>) -> Result<CounterView, CounterError> {
-    let result = on_blocking_thread(&state, CounterService::view).await;
+    let service = Arc::clone(&state.counter);
+    let result = on_blocking_thread(move || service.view()).await;
     log_outcome("get_counter", &result);
     result
 }
@@ -64,11 +79,21 @@ async fn change<R: Runtime>(
     app: &AppHandle<R>,
     action: fn(&CounterService) -> Result<CounterView, CounterError>,
 ) -> Result<CounterView, CounterError> {
-    let result = on_blocking_thread(state, action).await;
+    let service = Arc::clone(&state.counter);
+    let announcing = Arc::clone(&state.announcing);
+    let app = app.clone();
+    let result = on_blocking_thread(move || {
+        // The guard protects no data (`()`), so a poisoned lock is still safe to take.
+        let _order = announcing.lock().unwrap_or_else(PoisonError::into_inner);
+        let result = action(&service);
+        if let Ok(view) = &result {
+            announce(&app, view);
+        }
+        result
+    })
+    .await;
     log_outcome(command, &result);
-    let view = result?;
-    announce(app, &view);
-    Ok(view)
+    result
 }
 
 /// Add one.

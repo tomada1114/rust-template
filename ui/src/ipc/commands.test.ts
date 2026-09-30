@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { decrement, getCounter, increment, logFromUi, reset } from "./commands";
 import { mockCommands, rejectWith } from "./testing";
 
-const VIEW = { value: 3, lastChangedAt: null };
+const VIEW = { value: 3, lastChangedAt: null, revision: 0 };
 
 describe("commands", () => {
   it("invokes each counter command by its Rust name and returns the view", async () => {
