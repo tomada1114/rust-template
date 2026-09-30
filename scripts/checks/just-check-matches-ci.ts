@@ -82,9 +82,9 @@ export const EXCEPTIONS: Exceptions = {
       "dependency install: `just install` runs it once on a developer's Mac, not on every `just check`",
     "cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
       "the Linux job lints only the crates that build without WebKitGTK; the macOS job runs `just lint`'s whole-workspace clippy line verbatim",
-    "cargo deny check":
+    "cargo deny --locked check":
       "`just deny`: fetches the RustSec advisory database over the network, so it stays out of the offline local gate; AGENTS.md › Validating a change runs it when a manifest or lockfile changes",
-    "cargo shear":
+    "cargo shear --locked":
       "unused-dependency detection; AGENTS.md › Validating a change runs `mise exec -- cargo shear` when a manifest changes, and CI on every change",
     "cargo fetch --locked":
       "fills the Linux harness job's registry so `cargo metadata --offline` (the core-boundary check) can resolve; a developer's Mac already holds the crates after any build",
