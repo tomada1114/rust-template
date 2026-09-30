@@ -14,6 +14,11 @@ after this run has stopped watching, while the go-ahead this skill merges on is
 a `verdict: PASS` from `ci_watch.sh` and a `CLEAN` merge state. A PR that waits
 on a human review is held and reported, not armed.
 
+The script refuses `--auto` with `--no-link-check` (exit 2, before any GitHub
+call): after an armed auto-merge nothing confirms the issue closed, so only a PR
+GitHub has linked may be armed. Merge without `--auto` instead, so the script
+closes the issue itself, or wait until GitHub links the PR.
+
 These twelve are every `result:` the script prints (`grep -o 'result: [A-Z_]*'
 land_pr.sh`):
 
