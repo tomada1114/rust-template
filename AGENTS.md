@@ -129,7 +129,7 @@ developer's Mac").
 | A workflow under `.github/workflows/` | `mise exec -- actionlint` and `mise exec -- zizmor .`, then `just check-harness` |
 | Markdown | `mise exec -- typos <file>` (the pre-commit hook and CI's `Repo Lint & Harness` job run it) |
 | `Cargo.toml`, `Cargo.lock`, `deny.toml`, `package.json`, or `pnpm-lock.yaml` | `just deny`, `mise exec -- cargo shear`, `just lint`, then `just test` — a new dependency is a sign-off change (`.claude/rules/project.md`) |
-| `mise.toml` or `rust-toolchain.toml` | `mise install` for `mise.toml` (rustup installs a new `rust-toolchain.toml` channel on the next `cargo` call), then `just check` |
+| `mise.toml` or `rust-toolchain.toml` | `mise install` for `mise.toml` (rustup installs a new `rust-toolchain.toml` channel on the next `cargo` call: `.claude/rules/project.md` › Tool Pinning), then `just check` |
 | `.github/labels.yml`, or an issue form under `.github/ISSUE_TEMPLATE/` | `mise exec -- typos <file>`, then `just check-harness` (every applied label declared, once) |
 | `.github/rulesets/main.json`, or `scripts/apply-ruleset.ts` | `just test-scripts`; `just check-harness` for `main.json` (every required context names a job that runs on every pull request) |
 
@@ -461,9 +461,9 @@ Every local layer can be skipped, so these reach `main` only if CI or GitHub sto
 
 ### GitHub settings a new repository must enable
 
-"Use this template" copies files, not settings, so a repository's admin turns these on
-once — the security switches under Settings › Advanced Security (Code security on older
-UIs):
+"Use this template" copies files, not settings, so a repository's admin sets these up
+once: the security switches under Settings › Advanced Security (Code security on older
+UIs), the `main` ruleset, the Renovate App, and the label set:
 
 - **Secret scanning** and **Push protection** — the server-side layer for secrets that
   the staged guard misses or a bypass skips; push protection blocks a detected secret
@@ -480,11 +480,12 @@ UIs):
   installed on the repository: without it `.github/renovate.json` does nothing, so
   `mise.toml` and `rust-toolchain.toml` are never bumped — Dependabot covers only cargo,
   npm, and Actions.
-- The label set, created by `just labels` before Dependabot opens its first pull
-  requests: Dependabot ignores a label the repository does not define
+- The label set, created by `just labels` as soon as the repository exists.
+  `.github/dependabot.yml` names its `labels` explicitly, and Dependabot then ignores
+  one the repository does not define rather than creating it
   (<https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference>,
-  `labels`, checked 2026-09-30), so a bump opened earlier lacks `dependencies` until
-  someone adds it by hand.
+  `labels`, checked 2026-09-30), so add `dependencies` by hand to any Dependabot pull
+  request opened before that.
 
 ## Repository scripts
 

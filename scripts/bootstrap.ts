@@ -420,6 +420,11 @@ export const TEXT_EDITS: readonly TextEdit[] = [
       replace: "",
     },
   ]),
+  ...bothSkillTrees("merging-dependency-prs/references/failure-modes.md").map((file): TextEdit => ({
+    file,
+    find: '- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at\n  `check-harness`, with the same `tauri-versions` failure.\n',
+    replace: "",
+  })),
   ...bothSkillTrees("authoring-skills/SKILL.md").flatMap((file): TextEdit[] => [
     {
       file,
@@ -1509,8 +1514,9 @@ export function runBootstrap(
     "  4. just check, then commit the Product section and roadmap and push both commits to",
     "     main (the ruleset is not on yet, so main takes a direct push).",
     "  5. just labels — create the label set from .github/labels.yml on the new repository.",
-    "     Dependabot skips a label the repository lacks, so add `dependencies` by hand to any",
-    "     Dependabot pull request opened before this step.",
+    "     .github/dependabot.yml names its labels explicitly and Dependabot skips one the",
+    "     repository lacks, so add `dependencies` by hand to any Dependabot pull request",
+    "     opened before this step.",
     "  6. Turn on the GitHub security settings: secret scanning and push protection, private",
     "     vulnerability reporting, Dependabot alerts and security updates. Install the Renovate",
     "     GitHub App on the repository: without it nothing bumps mise.toml or rust-toolchain.toml.",

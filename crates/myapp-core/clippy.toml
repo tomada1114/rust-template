@@ -4,10 +4,10 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 disallowed-macros = [
-  { path = "std::println", reason = "core never prints; log with tracing" },
-  { path = "std::eprintln", reason = "core never prints; log with tracing" },
-  { path = "std::print", reason = "core never prints; log with tracing" },
-  { path = "std::eprint", reason = "core never prints; log with tracing" },
+  { path = "std::println", reason = "core never prints; it returns what happened and the shell logs it" },
+  { path = "std::eprintln", reason = "core never prints; it returns what happened and the shell logs it" },
+  { path = "std::print", reason = "core never prints; it returns what happened and the shell logs it" },
+  { path = "std::eprint", reason = "core never prints; it returns what happened and the shell logs it" },
   { path = "std::dbg", reason = "leftover debugging" },
 ]
 disallowed-methods = [
@@ -40,8 +40,8 @@ disallowed-methods = [
   { path = "std::process::exit", reason = "core returns an error; the shell or the CLI decides to exit" },
   { path = "std::process::abort", reason = "core returns an error; the shell or the CLI decides to exit" },
   { path = "std::io::stdin", reason = "I/O goes through a port" },
-  { path = "std::io::stdout", reason = "core never prints; log with tracing" },
-  { path = "std::io::stderr", reason = "core never prints; log with tracing" },
+  { path = "std::io::stdout", reason = "core never prints; it returns what happened and the shell logs it" },
+  { path = "std::io::stderr", reason = "core never prints; it returns what happened and the shell logs it" },
   { path = "std::net::ToSocketAddrs::to_socket_addrs", reason = "the network goes through a port" },
   { path = "std::fs::canonicalize", reason = "I/O goes through a port" },
   { path = "std::fs::copy", reason = "I/O goes through a port" },

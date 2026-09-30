@@ -160,7 +160,9 @@ a lockfile or by merging bot branches:
 - **mise:** edit the pin in `mise.toml`, then `mise install`, so the version exists for
   this platform.
 - **rust-toolchain:** edit `channel` in `rust-toolchain.toml`; rustup installs it on the
-  next `cargo` call (`mise.toml` lists no `rust` tool, so `mise install` does not).
+  next `cargo` call (`RUSTUP_AUTO_INSTALL`, on by default:
+  https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30). `mise.toml` lists
+  no `rust` tool, so `mise install` does not.
 - **Actions:** copy the new 40-character SHA and its `# vX.Y.Z` comment exactly.
 
 Commit each lockfile with its manifest (**REQUIRED:** `smart-commit`), then run

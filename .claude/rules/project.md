@@ -77,7 +77,9 @@ paths:
   code on that PR, never skipped. A Tauri major is a migration issue, never a batch
   merge
 - After changing `mise.toml`, run `mise install`; after changing `rust-toolchain.toml`,
-  the next `cargo` call installs the new toolchain through rustup. Then `just check`
+  the next `cargo` call installs the new toolchain through rustup (`RUSTUP_AUTO_INSTALL`,
+  on by default: https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).
+  Then `just check`
 
 ## Gates
 

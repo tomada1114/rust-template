@@ -82,7 +82,7 @@ cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under
 cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
 pnpm test:ui                                     # just test-ui
-pnpm test:scripts                                # just test-scripts (the justfile adds its Python tests and shellcheck)
+pnpm test:scripts                                # just test-scripts (plus Python tests, shellcheck)
 cargo nextest run --locked -p myapp-platform -p myapp   # just test-macos
 pnpm tauri build --debug --bundles app -- --locked  # just build (unset every APPLE_* variable first)
 node scripts/smoke.ts                            # just smoke

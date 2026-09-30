@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The bootstrap's printed next steps and README's setup steps now name the Renovate
+  GitHub App and adding `dependencies` to Dependabot pull requests opened before
+  `just labels`, and the docs, rules, and skills no longer claim what the repository does
+  not do (mise installing Rust, every crate logging, CI rerunning the staged guard).
+
 - An app cut from the template no longer keeps text about the template or references
   to files the bootstrap deletes. `just test-scripts` passes before the Product section
   is filled (the harness runner's tests use a fixture instead of the checkout), and

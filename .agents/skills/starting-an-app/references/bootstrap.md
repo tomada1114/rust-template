@@ -94,7 +94,9 @@ Every edit is computed and checked in memory first, so a drifted site list fails
 6. Scans for a placeholder left outside the site list and warns about it, then prints
    the next steps: `just install` and commit the rewrite, fill `AGENTS.md` › Product,
    fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
-   to `main`, `just labels`, the GitHub security settings, and `just ruleset`.
+   to `main`, `just labels` (and `dependencies` added by hand to any Dependabot pull
+   request opened earlier), the GitHub security settings and the Renovate GitHub App,
+   and `just ruleset`.
 
 A failure from step 3 on leaves a half-rewritten clone; see "Running it, and running it
 again" below.
