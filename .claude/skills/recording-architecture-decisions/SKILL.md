@@ -42,8 +42,9 @@ request.
 
 ## The template or an app
 
-The template ships the index empty on purpose: its own reasoning is README's Design
-Philosophy, and ADRs belong to the apps cut from it. So:
+The index starts empty on purpose: the reasoning behind the layers every app starts with
+is README's Design Philosophy, and an ADR records only what an app decides on top of
+them. So:
 
 - In the template itself, before the bootstrap has run (`README.md` still carries
   `<!-- template-only -->` blocks), a change that hits a trigger below updates README's
