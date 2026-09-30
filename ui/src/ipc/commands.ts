@@ -1,5 +1,5 @@
 /**
- * One typed wrapper per Rust command (design D4). Besides `events.ts`, this is the only
+ * One typed wrapper per Rust command. Besides `events.ts`, this is the only
  * module that imports `@tauri-apps/api`; the command names here must equal the ones in
  * `src-tauri/src/lib.rs`'s `generate_handler!` (a harness check compares them).
  */

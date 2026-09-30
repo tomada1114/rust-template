@@ -1,5 +1,5 @@
 /**
- * Components reach design values only through tokens (design D23): outside
+ * Components reach design values only through tokens: outside
  * `ui/src/design/tokens.css`, nothing the WebView styles with — everything under
  * `ui/src/`, each entry page directly under `ui/` (`ui/index.html`, `ui/*.html`, `.htm`,
  * `.xhtml`), and the stylesheets in `ui/public/` (`.css`, `.pcss`, `.postcss`) — holds a
@@ -1218,8 +1218,9 @@ function scanAll(root: string, paths: readonly string[]): (Scanned & { path: str
 
 /**
  * Each rule's code and wording. A raw-value rule (`raw`, `family`, `pixel`) and an
- * unreadable tag read "… outside tokens.css" and cite design D23; a script or a file the
- * check cannot read is not a raw value, so its wording stands alone (`standalone`).
+ * unreadable tag read "… outside tokens.css" and name it as the one home of raw values;
+ * a script or a file the check cannot read is not a raw value, so its wording stands
+ * alone (`standalone`).
  */
 const RULES: Readonly<
   Record<Rule, { code: string; summary: string; expected: string; next: string; standalone?: true }>
@@ -1272,7 +1273,7 @@ function run(root: string): FailureDetails[] {
       {
         code: "ERR_CHECK_INPUT_MISSING",
         summary: `${UI_SRC}/ does not exist`,
-        expected: `the UI sources under ${UI_SRC}/ (design D8)`,
+        expected: `the UI sources under ${UI_SRC}/`,
         actual: "no such directory",
         next: `restore ${UI_SRC}/ from version control, or run the check with --root at a checkout`,
       },
@@ -1315,7 +1316,7 @@ function run(root: string): FailureDetails[] {
       expected:
         rule.standalone === true
           ? rule.expected
-          : `${rule.expected} (design D23; ${TOKENS} is the one file that holds raw values)`,
+          : `${rule.expected} (${TOKENS} is the one file that holds raw values)`,
       actual: `\`${finding.declaration}\``,
       next: finding.next ?? rule.next,
     };

@@ -16,7 +16,7 @@ pub struct StoredCounter {
     pub last_changed_at: Option<UnixMillis>,
 }
 
-/// Where the counter lives between launches. Synchronous on purpose (design D2): the
+/// Where the counter lives between launches. Synchronous on purpose: the
 /// shell moves calls onto a blocking thread.
 pub trait CounterStore: Send + Sync {
     /// The saved counter, or `Ok(None)` when nothing was saved yet — not an error.

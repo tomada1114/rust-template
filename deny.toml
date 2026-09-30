@@ -1,20 +1,20 @@
-# cargo-deny: advisories, licences, bans, sources (design D3, D13, D17).
+# cargo-deny: advisories, licences, bans, sources.
 # https://embarkstudios.github.io/cargo-deny/ (checked 2026-09-28)
 
 [graph]
 # What ships. Cargo.lock lists every platform's dependencies, and Tauri's Linux stack
 # (the GTK bindings) carries advisories for code this macOS-only app never builds.
-# Setting the target defines what is shipped; it ignores nothing within it (D17).
+# Setting the target defines what is shipped; it ignores nothing within it.
 targets = ["aarch64-apple-darwin"]
 
 [advisories]
 version = 2
 # Unmaintained-crate advisories count for crates the workspace depends on directly;
-# a transitive one is Tauri's to replace (D17).
+# a transitive one is Tauri's to replace.
 unmaintained = "workspace"
 yanked = "deny"
 # An advisory may be ignored only when no fixed release exists, with its reason, a
-# 90-day review date in the comment, and a tracking issue (D17). None today.
+# 90-day review date in the comment, and a tracking issue. None today.
 ignore = []
 
 [licenses]
@@ -52,7 +52,7 @@ wildcards = "deny"
 # The workspace's own crates are path dependencies without a version.
 allow-wildcard-paths = true
 deny = [
-  # Only the Tauri shell may depend on tauri directly (D3). An app that adds a Tauri
+  # Only the Tauri shell may depend on tauri directly. An app that adds a Tauri
   # plugin crate lists it here with the same wrapper.
   { crate = "tauri", wrappers = ["myapp"] },
   # Only the shell and the helper wire the real adapters; core never does.

@@ -35,14 +35,15 @@ just dev       # opens the app with hot reload (a window: run it when you want t
 ```
 
 rustup installs the Rust toolchain `rust-toolchain.toml` names the first time `cargo`
-runs (<https://rust-lang.github.io/rustup/overrides.html>, checked 2026-09-28).
+runs (`RUSTUP_AUTO_INSTALL`, on by default:
+<https://rust-lang.github.io/rustup/environment-variables.html>, checked 2026-09-30).
 `just install` needs no `sudo` and opens no installer; a missing Command Line Tools
 install is reported with the command to run.
 
 ## Design Philosophy
 
-Every choice in this template has a reason. If you disagree with one, you know what to
-change and why it was there in the first place.
+Every choice below has a reason. If you disagree with one, you know what to change and
+why it was there in the first place.
 
 ### Why a Cargo workspace with the logic split into crates?
 
@@ -100,9 +101,9 @@ not spawn it, so no shell plugin or shell permission ships.
 
 ### Why is the sample app a counter?
 
-Because it is small enough to delete and still exercises every frame the template
+Because it is small enough to delete and still exercises every frame the architecture
 claims: a port with a real adapter, a fake, and a contract suite (`CounterStore`,
-writing `counter.json` atomically); injected time (`Clock`); four commands; an event
+writing `counter.json` atomically); injected time (`Clock`); five commands; an event
 (`counter-changed`); logging, including errors forwarded from the UI; the helper CLI;
 typed error codes; and accessible glyph-only buttons. Every part of it is an
 illustration to replace.
@@ -209,7 +210,7 @@ and an expiry.
 
 ### Why ad-hoc signing by default, with Developer ID when secrets exist?
 
-The template works on day one without an Apple Developer Program membership. Tauri signs
+A new app releases on day one without an Apple Developer Program membership. Tauri signs
 the bundle itself, ad hoc (`signingIdentity: "-"`) with the hardened runtime and the
 entitlements file; when the repository has the Apple certificate secrets, the release
 signs with Developer ID, and with the notarization secrets it notarizes and staples too
@@ -239,10 +240,10 @@ any other file. The app itself calls no LLM.
 
 ### Why an ADR tree that ships empty?
 
-The template's own decisions are the ones in this section. An app cut from it decides
-different things — its design system, where it keeps state, whether it needs the App
-Sandbox, which permissions it asks for — and records each as an Architecture Decision
-Record under [docs/architecture/](docs/architecture/README.md), whose index ships empty.
+The decisions in this section are the shared foundation's. Each app decides different
+things — its design system, where it keeps state, whether it needs the App Sandbox,
+which permissions it asks for — and records each as an Architecture Decision Record
+under [docs/architecture/](docs/architecture/README.md), whose index ships empty.
 A replaced decision gets a new ADR rather than a rewrite, so the reasoning that held at
 the time stays readable. [docs/architecture/roadmap.md](docs/architecture/roadmap.md)
 ships as a skeleton for the app's direction.
@@ -275,31 +276,45 @@ See [docs/design/design-system.md](docs/design/design-system.md).
 ## Using This Template
 
 1. Click **Use this template** on GitHub and clone your new repository.
-2. Run `just install`, then `just bootstrap`. It asks for the display name (`MyApp`),
-   the slug used for crate and binary names (`myapp`), the bundle identifier
+2. In the clone, run `mise trust` (mise asks before it uses an untrusted `mise.toml`),
+   `just install`, then `just bootstrap`. It asks for the display name (`MyApp`), the
+   slug used for crate and binary names (`myapp`), the bundle identifier
    (`com.example.myapp`), the GitHub `owner/repo`, the author, and the copyright
    holder, and rewrites exactly those placeholder sites. It then removes
    `docs/template/` and this section, resets `CHANGELOG.md` and the version to 0.1.0,
    deletes itself, and prints the steps below.
-3. Fill in `AGENTS.md`'s `## Product` section: what the app is and who it is for, the
+3. Run `just install` again (the rename changed `package.json`'s name, and pnpm runs
+   nothing until the next install), review the rewrite (`git status`, `git diff`), and
+   commit it as one commit before you edit anything, so the rename stays one reviewable
+   diff.
+4. Fill in `AGENTS.md`'s `## Product` section: what the app is and who it is for, the
    core interaction, and the non-goals it must not grow. Delete every `TODO:` marker as
    you go; `just check` fails while one is left.
-4. Fill in the [docs/architecture/roadmap.md](docs/architecture/roadmap.md) skeleton —
+5. Fill in the [docs/architecture/roadmap.md](docs/architecture/roadmap.md) skeleton —
    the Now, Next, and Later outcomes that follow from the Product section — with the
    `steering-the-roadmap` skill. Nothing checks that page, so its `TODO:` lines stay
    until you replace them.
-5. Verify the result: `just install && just check`.
-6. Create the label set on the new repository: `just labels` (the issue forms rely on
-   the labels in `.github/labels.yml`).
-7. Turn on the repository's security settings: secret scanning and push protection,
+6. Verify the result with `just check`, commit the Product section and roadmap, and
+   push both commits to `main`. The ruleset is not on yet (step 11), so `main` still
+   takes a direct push, and CI's first run checks the result.
+7. Create the label set on the new repository: `just labels` (the issue forms rely on
+   the labels in `.github/labels.yml`). `.github/dependabot.yml` names its labels
+   explicitly, and Dependabot skips one the repository lacks
+   (<https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference>,
+   `labels`, checked 2026-09-30), so add `dependencies` by hand to any Dependabot pull
+   request opened before this step.
+8. Turn on the repository's security settings: secret scanning and push protection,
    private vulnerability reporting (`SECURITY.md` points at it), and Dependabot alerts
-   and security updates.
-8. Replace the sample counter with your app, following the `starting-an-app` skill; it
+   and security updates. Install the Renovate GitHub App on the repository
+   (<https://github.com/apps/renovate>, checked 2026-09-30): `.github/renovate.json` is
+   only its configuration, so without it nothing bumps `mise.toml` or
+   `rust-toolchain.toml`.
+9. Replace the sample counter with your app, following the `starting-an-app` skill; it
    lists what to delete and has you decide the design system first.
-9. For Developer ID signed and notarized releases, add the secrets listed in
-   [docs/distribution.md](docs/distribution.md). Without them, releases are ad-hoc
-   signed.
-10. Repository admin only, once the bootstrap commit is on `main`: protect it with
+10. For Developer ID signed and notarized releases, add the secrets listed in
+    [docs/distribution.md](docs/distribution.md). Without them, releases are ad-hoc
+    signed.
+11. Repository admin only, once the bootstrap commit is on `main`: protect it with
     `just ruleset` (`.github/rulesets/main.json`). From then on every change needs a
     pull request with the required checks green.
 
@@ -321,8 +336,9 @@ check:
    code scanning). Keep any of them if your plan includes those features.
    `osv-scan.yml` needs neither and stays as the dependency-vulnerability check.
 2. In `.github/workflows/release.yml`, remove the build-provenance attestation step and
-   its `attestations: write` permission unless the repository is on GitHub Enterprise
-   Cloud, the plan artifact attestations need on a private repository
+   its `attestations: write` and `id-token: write` permissions (no other step uses
+   either) unless the repository is on GitHub Enterprise Cloud, the plan artifact
+   attestations need on a private repository
    (<https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>,
    checked 2026-09-29). The release itself still works, visible only to people with
    access to the repository.

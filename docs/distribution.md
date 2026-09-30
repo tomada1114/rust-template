@@ -188,11 +188,11 @@ gh attestation verify "MyApp_0.2.0_aarch64.dmg" --repo tomada1114/tauri-template
 ## The App Sandbox is off
 
 `Entitlements.plist` does not set `com.apple.security.app-sandbox`, which is Tauri's
-default. The first app cut from this template manages launchd jobs: it must write
-`~/Library/LaunchAgents` and run `launchctl`, which the sandbox forbids. What that
-costs:
+default. It starts off so that an app can reach what the sandbox forbids — managing
+launchd jobs for its bundled helper, for example, means writing `~/Library/LaunchAgents`
+and running `launchctl`. What that costs:
 
-- **The Mac App Store is out.** The sandbox is a store requirement; this template ships
+- **The Mac App Store is out.** The sandbox is a store requirement; releases here ship
   through direct download anyway.
 - **A bug reaches further.** An unsandboxed app can touch anything the user can, which
   is why the core bans direct I/O and every OS call sits in a reviewed adapter.

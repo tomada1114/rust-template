@@ -174,6 +174,8 @@ describe("labels-declared", () => {
       ["not YAML", "- name: [unclosed\n"],
       ["not a list", "bug: {}\n"],
       ["an item without a name", '- color: "ededed"\n'],
+      ["an item with an upper-case color", '- name: bug\n  color: "EDEDED"\n  description: "x"\n'],
+      ["an item without a description", '- name: bug\n  color: "ededed"\n'],
     ])("fails when labels.yml is %s", (_label, text) => {
       expect(codes(fixture({ ".github/labels.yml": text }))).toContain(
         "ERR_CHECK_INPUT_UNREADABLE",

@@ -225,6 +225,28 @@ class SettleContractDesignTest(unittest.TestCase):
         self.assertIsNone(apl.parse_ship_contract(body)["design"])
         self.assertIsNone(apl.settle_contract_design(body))
 
+    def test_examples_quoted_in_code_are_left_byte_identical(self):
+        body = ("Example:\n\n```\n<!-- ship: design=open -->\n```\n"
+                "~~~\n<!-- ship: design=open -->\n~~~\n"
+                "Inline `<!-- ship: design=open -->` too.\n\n"
+                "<!-- ship: tier=P1 design=open -->\n")
+        self.assertEqual(apl.settle_contract_design(body),
+                         body.replace("tier=P1 design=open", "tier=P1 design=settled"))
+
+    def test_rewrites_the_block_the_digest_locates(self):
+        # The invariant: the parser and the rewrite agree on the contract.
+        body = ("```\n<!-- ship: design=open -->\n```\n"
+                "<!-- ship: tier=P1 design=open -->")
+        (real,) = apl.find_ship_contracts(body)
+        settled = apl.settle_contract_design(body)
+        self.assertEqual(settled[:real.start()], body[:real.start()])
+        self.assertEqual(settled[real.start():],
+                         "<!-- ship: tier=P1 design=settled -->")
+
+    def test_none_when_only_a_quoted_example_is_open(self):
+        body = "```\n<!-- ship: design=open -->\n```\n<!-- ship: tier=P1 -->"
+        self.assertIsNone(apl.settle_contract_design(body))
+
     def test_none_when_there_is_nothing_to_settle(self):
         for body in ("", "no contract, design=open in prose only",
                      "<!-- ship: tier=P1 -->", SETTLED_BODY,
@@ -293,6 +315,13 @@ class ClearDesignBothFormsTest(unittest.TestCase):
         crlf = OPEN_BODY.replace("\n", "\r\n")
         _, _, body = self._clear([], crlf)
         self.assertEqual(body, SETTLED_BODY.replace("\n", "\r\n"))
+
+    def test_fenced_example_survives_clear_design(self):
+        issue_body = ("```\n<!-- ship: design=open -->\n```\n\n"
+                      "<!-- ship: tier=P1 design=open -->\n")
+        _, _, body = self._clear([], issue_body)
+        self.assertEqual(body, issue_body.replace("tier=P1 design=open",
+                                                  "tier=P1 design=settled"))
 
     def test_neither(self):
         for issue_body in ("no contract here", SETTLED_BODY):

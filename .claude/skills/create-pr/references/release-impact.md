@@ -33,10 +33,10 @@ never make a release breaking.
 
 | Change | Level |
 |---|---|
-| A new version cannot read a file an earlier version wrote, or an earlier version cannot read what the new one writes back | MAJOR |
+| A new version cannot read a file an earlier version wrote | MAJOR |
 | The helper's command line loses or renames a subcommand, flag, or exit code a launchd job may call | MAJOR |
 | `minimumSystemVersion` in `src-tauri/tauri.conf.json` goes up (a user on the older macOS loses the app) | MAJOR |
-| A user-visible feature, or a new helper subcommand | MINOR |
+| A user-visible feature, a new helper subcommand, or a new on-disk format version that still reads the old one | MINOR |
 | A new privacy (TCC) permission the user will be asked for | MINOR, and say so in the line |
 | A fix, a performance change, or a user-visible wording change | PATCH |
 | An internal refactor, or a runtime dependency bump, with no visible change | PATCH |

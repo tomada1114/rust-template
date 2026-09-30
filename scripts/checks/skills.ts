@@ -1,6 +1,6 @@
 /**
  * Every skill under `.agents/skills/` loads in both Claude Code and Codex CLI, and
- * `AGENTS.md`'s Skills table indexes exactly those skills (design D14). A skill with a
+ * `AGENTS.md`'s Skills table indexes exactly those skills. A skill with a
  * stray key, a mismatched name, or a value Codex CLI's strict YAML parser rejects mirrors
  * cleanly and then silently never loads; one with no row is never found by a reader.
  *

@@ -34,6 +34,16 @@ current values.
   is owed.
 - Core's ban list and `AGENTS.md`'s description of it change together. Adding a ban is
   the routine direction; removing one is weakening a gate.
+- A `path` clippy cannot resolve (a typo, an item a Rust release renamed or moved, a
+  `std::os::unix` path on another target) is only a configuration warning, which
+  `-D warnings` does not turn into an error, so the ban would silently do nothing.
+  `just lint` and CI's clippy steps therefore run clippy through `scripts/clippy-guard.ts`,
+  which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on such a path, and with
+  `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic located in a `clippy.toml` (a
+  deprecated key, which clippy also only warns about, or an unknown one). Clippy's
+  suggested `allow-invalid = true` hides the warning, which makes it weakening a gate;
+  fix the path instead. CI's Linux and macOS jobs both run the
+  guard, so a path must resolve on both.
 
 ## `rustfmt.toml`
 
@@ -65,13 +75,13 @@ does not pin. Changing an option reformats the whole tree: land the option and t
 
 ## `rust-toolchain.toml`, `mise.toml`, and `package.json`'s `packageManager`
 
-Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup and mise both
-read it), Node and every CLI tool in `mise.toml`, pnpm in `packageManager`. Never
-`latest`, never a range, and prefer the prebuilt-binary backends over `cargo:`, which
-compiles from source. Renovate opens the bumps for the first two after its 7-day minimum
-release age; its `enabledManagers` in `.github/renovate.json` are `mise` and
-`rust-toolchain` only, so it never touches `packageManager`, and `package.json` is
-Dependabot's `npm` ecosystem (`.github/dependabot.yml`).
+Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup reads it;
+`mise.toml` lists no `rust` tool), Node and every CLI tool in `mise.toml`, pnpm in
+`packageManager`. Never `latest`, never a range, and prefer the prebuilt-binary backends
+over `cargo:`, which compiles from source. Renovate opens the bumps for the first two
+after its 7-day minimum release age; its `enabledManagers` in `.github/renovate.json`
+are `mise` and `rust-toolchain` only, so it never touches `packageManager`, and
+`package.json` is Dependabot's `npm` ecosystem (`.github/dependabot.yml`).
 
 A bump of Rust, clippy, ESLint, typescript-eslint, or TypeScript can fire a finding
 the old version did not. The fix goes into the code on that pull request; skipping the
@@ -81,7 +91,13 @@ only what each job names.
 
 ## `lefthook.yml`
 
-- `skip: [merge, rebase]`: a merge or rebase replays commits that already passed.
+- `skip: [merge, rebase]` sits on the four style jobs only, never on the hook: the
+  commit that concludes a conflicted merge carries a resolution no hook has seen, so the
+  staged guard and the skills mirror run for it, while the style jobs, which CI reruns
+  over the whole tree, skip re-linting everything the other side changed. A `reword` or
+  a `git commit --amend` at an `edit` stop runs the guard and the mirror too, over what
+  is staged against HEAD at that stop. `scripts/lefthook.test.ts` drives a real
+  conflicted merge and a conflicted rebase stop through the real lefthook.
 - `parallel: true`: every job is check-only, so none depends on another's output. A
   job that wrote files would break that and would need ordering; that is one more
   reason jobs never write.

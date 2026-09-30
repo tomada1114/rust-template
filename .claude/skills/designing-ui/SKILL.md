@@ -85,9 +85,9 @@ decides on top of them and links the HIG for the rest.
 
 ## Menus and keyboard shortcuts
 
-- Every command the app offers is also in the menu bar, where people look for it and
-  learn its shortcut, even when a button does the same; an item that cannot act now is
-  disabled, not hidden; a multi-word menu title is in title case
+- Once the app builds its own menu, every command it offers is also there, where people
+  look for it and learn its shortcut, even when a button does the same; an item that
+  cannot act now is disabled, not hidden; a multi-word menu title is in title case
   (<https://developer.apple.com/design/human-interface-guidelines/the-menu-bar>, checked
   2026-09-29).
 - Standard shortcuts keep their meaning; a custom shortcut is only for the most frequent
@@ -95,14 +95,19 @@ decides on top of them and links the HIG for the rest.
   (<https://developer.apple.com/design/human-interface-guidelines/keyboards>, checked
   2026-09-29). Settings, when the app has any, open in their own window from the app
   menu's Settings item with Command-Comma, the standard shortcut on the same page.
-- **The menu is built in Rust**, in the shell's setup in `src-tauri/src/lib.rs`, with
-  Tauri's `MenuBuilder`, `SubmenuBuilder`, and `PredefinedMenuItem` for the standard
-  Edit items; on macOS every item must sit in a submenu, and the first submenu becomes
-  the app menu (<https://v2.tauri.app/learn/window-menu/>, checked 2026-09-29). A menu
-  event calls the same core function the matching command calls, then emits the same
-  event, so the screen updates through the path it already has. Tauri also offers a menu
-  API in JavaScript; this repository does not use it, because the menu is app-wide
-  wiring and belongs with the composition root, not in a screen.
+- **A menu is built in Rust** when the app adds one, in the shell's setup in
+  `src-tauri/src/lib.rs`, with Tauri's `MenuBuilder`, `SubmenuBuilder`, and
+  `PredefinedMenuItem` for the standard Edit items; on macOS every item must sit in a
+  submenu, and the first submenu becomes the app menu
+  (<https://v2.tauri.app/learn/window-menu/>, checked 2026-09-29). A menu event calls the
+  same core function the matching command calls, then emits the same event, so the
+  screen updates through the path it already has. Tauri also offers a menu API in
+  JavaScript; this repository does not use it, because the menu is app-wide wiring and
+  belongs with the composition root, not in a screen. The sample adds none, so it shows
+  the default macOS menu Tauri installs when an app sets none
+  (`tauri::Builder::enable_macos_default_menu`, enabled by default,
+  <https://docs.rs/tauri/2.11.6/tauri/struct.Builder.html#method.enable_macos_default_menu>,
+  the version `Cargo.lock` pins, checked 2026-09-30).
 
 ## Copy style
 

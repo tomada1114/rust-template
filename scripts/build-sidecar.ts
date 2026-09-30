@@ -1,7 +1,7 @@
 /**
  * Builds the `myapp-cli` helper and copies it to
  * `src-tauri/binaries/myapp-cli-<target-triple>`, where Tauri's `bundle.externalBin`
- * expects it (design D5). Tauri documents no way to build a workspace binary into
+ * expects it. Tauri documents no way to build a workspace binary into
  * place, so this script is that step. `tauri.conf.json` runs it as
  * `beforeDevCommand`/`beforeBuildCommand`, and `just sidecar` runs it for every recipe
  * that compiles the Tauri crate, because `tauri-build` fails when the file is missing.

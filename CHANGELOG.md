@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `std::process::exit` and `abort`. `std::thread::scope` stays allowed, since it joins
   its threads before it returns and so cannot outlive the call. Move a banned call
   behind a port, or into the shell or the CLI.
+- **Breaking:** `crates/myapp-core/clippy.toml` also bans `std::os::unix::fs::{chown,
+  fchown, lchown, chroot}`, `std::os::unix::net::{UnixStream, UnixListener,
+  UnixDatagram}`, `std::thread::park_timeout`, `std::process::id`,
+  `std::os::unix::process::parent_id`, and `std::thread::available_parallelism`, so core
+  code that calls one now fails `just lint`. Pass the fact in as an argument, or move the
+  call behind a port.
 - `vitest.config.ts` puts a coverage floor on a skill's bundled TypeScript scripts
   (`.agents/skills/*/scripts/**`, lines 85, functions 90, the same as `scripts/**`), so
   `just test-scripts` fails when one drops below it.
@@ -46,6 +52,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The bootstrap's printed next steps and README's setup steps now name the Renovate
+  GitHub App and adding `dependencies` to Dependabot pull requests opened before
+  `just labels`, and the docs, rules, and skills no longer claim what the repository does
+  not do (mise installing Rust, every crate logging, CI rerunning the staged guard).
+- A path in a `clippy.toml` that clippy cannot resolve (a typo, an item a Rust release
+  renamed or moved, or a path missing on the build's target) now fails `just lint` and
+  CI's clippy steps with `ERR_CLIPPY_BAN_UNRESOLVED`, instead of leaving a clippy warning
+  that `-D warnings` let pass while the ban in core's `clippy.toml` silently did nothing.
+  Any other problem clippy reports in a `clippy.toml`, such as a deprecated key it only
+  warns about, fails with `ERR_CLIPPY_CONFIG_INVALID`. Clippy now runs through
+  `scripts/clippy-guard.ts`; its output keeps its colour in a terminal but is printed
+  once clippy finishes rather than as it runs.
+- An app cut from the template no longer keeps text about the template or references
+  to files the bootstrap deletes. `just test-scripts` passes before the Product section
+  is filled (the harness runner's tests use a fixture instead of the checkout), and
+  filling in the Product section's four bullets is all `just check-harness` asks: the
+  bootstrap rewrites the section's introduction without a `TODO:` of its own, and the
+  check's `Next:` line names the `starting-an-app` skill instead of README's removed
+  "Using This Template". Comments no longer cite the template's design record by
+  decision number, the sandbox rationale no longer describes the template's first app,
+  and the bootstrap rewrites the README's first sentence, the `starting-an-app` and
+  `updating-docs` skills' template passages, the checks' exclusion of the template's
+  design record, and the dead `Template Bootstrap Smoke` exception.
+  `scripts/verify-bootstrap.ts` fails on any such text left in the generated app and on
+  a Product section that filling its bullets would not satisfy. The sample-removal
+  checklist in `docs/getting-started.md` keeps `log_from_ui`'s registration and tests,
+  lists every file that holds the sample, and ends with a scoped `git grep`; README's
+  setup steps add `mise trust` and committing and pushing the bootstrap result.
 - The helper CLI now logs to `~/Library/Logs/<bundle id>/cli/`, so the app's log
   retention no longer deletes the helper's files, each keeps its newest 14 (legacy
   helper files in the log directory age out under the app's retention), and `just logs`
@@ -226,6 +260,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scripts no longer type-check against APIs their runtime lacks.
 
 ### Security
+
+- The pre-commit hook no longer skips the commit that concludes a conflicted merge, or
+  one made at a rebase stop: the staged guard and the skills-mirror check now judge the
+  conflict resolution, so a credential-shaped line or a drifted `.claude/skills/` staged
+  while resolving is refused. Only the style checks, which CI reruns, still skip those
+  commits. A `reword` or a `git commit --amend` at an `edit` stop in an interactive
+  rebase now runs the guard and the mirror too, over what is staged at that stop. During
+  a merge the guard's advice is to remove the secret and re-stage the file, since
+  `git restore --staged` would also drop the other side's change.
+  `git rebase --continue`, `git am`, and a merge git concludes itself commit without the
+  hook, and `AGENTS.md` lists them among the gaps.
 
 - The staged guard catches this template's own signing secrets it used to miss: an
   `APPLE_PASSWORD`, `APPLE_CERTIFICATE_PASSWORD`, or other `*_password` assignment, a

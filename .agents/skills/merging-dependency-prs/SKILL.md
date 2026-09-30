@@ -34,15 +34,19 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 
 1. Do the whole survey and review first, writing nothing remote.
 2. Present the plan: the exact PR numbers to merge, which go individually and which into
-   a combined branch, which are held and why, every major bump named, and any issue the
-   plan would file (a Tauri major, below). A Tauri side moved by hand under F11 is
-   named with its package, from, and to versions.
+   a combined branch, which are held and why, every major bump named, every
+   `@dependabot rebase` comment and `gh run rerun` the plan already needs
+   (`references/failure-modes.md` F7-F9), and any issue the plan would file (a Tauri
+   major, below). A Tauri side moved by hand under F11 is named with its package, from,
+   and to versions.
 3. Get one explicit approval for that listed batch, then run it without asking per
    merge.
 
-The approval covers only the listed PRs, only for this invocation. A PR opened later, a
-PR whose diff changed beyond a bot rebase, or anything in "Stop and ask" needs a fresh
-approval.
+The approval covers only the listed PRs, only for this invocation. Of the rebase
+comments and reruns, it covers the ones it lists, and the rebase a PR in the batch needs
+because an earlier approved merge moved `main` (Step 4a); any other rebase or rerun that
+becomes necessary after the approval needs a fresh one. A PR opened later, a PR whose
+diff changed beyond a bot rebase, or anything in "Stop and ask" needs a fresh approval.
 
 ## Step 1: Survey (read-only)
 
@@ -127,7 +131,10 @@ Mixed outcomes are fine; the plan says which PR goes which way.
 
 In ascending PR number, one at a time. After each merge the rest go `BEHIND`: comment
 `@dependabot rebase` (or tick the rebase box Renovate puts in its PR body), then
-re-check after the rebase. Never merge on a check result older than the PR's last push.
+re-check after the rebase. The approval covers that rebase, because an approved merge
+caused it ("The approval gate"); a rebase or rerun for any other reason that the plan
+did not list needs a fresh approval. Never merge on a check result older than the PR's
+last push.
 
 ```bash
 gh pr checks <number>
@@ -152,7 +159,10 @@ a lockfile or by merging bot branches:
   range style `package.json` uses (a tilde range for the Tauri packages).
 - **mise:** edit the pin in `mise.toml`, then `mise install`, so the version exists for
   this platform.
-- **rust-toolchain:** edit `channel` in `rust-toolchain.toml`, then `mise install`.
+- **rust-toolchain:** edit `channel` in `rust-toolchain.toml`; rustup installs it on the
+  next `cargo` call (`RUSTUP_AUTO_INSTALL`, on by default:
+  https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30). `mise.toml` lists
+  no `rust` tool, so `mise install` does not.
 - **Actions:** copy the new 40-character SHA and its `# vX.Y.Z` comment exactly.
 
 Commit each lockfile with its manifest (**REQUIRED:** `smart-commit`), then run

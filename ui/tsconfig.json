@@ -1,5 +1,5 @@
 {
-  // The web UI, bundled by Vite (design D8). Settings follow typescript-template.
+  // The web UI, bundled by Vite. Settings follow typescript-template.
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],

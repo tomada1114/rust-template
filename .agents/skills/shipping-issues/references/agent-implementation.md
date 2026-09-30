@@ -80,7 +80,11 @@ Do:
 5. If the change is user-facing, add an entry to CHANGELOG.md under
    [Unreleased], in the section (Added / Changed / Fixed / ...) that fits.
 6. Commit in coherent increments, and push as soon as the first coherent
-   commit exists -- a run stopped mid-way keeps only what was pushed.
+   commit exists -- a run stopped mid-way keeps only what was pushed. Stage
+   paths explicitly, never a generated artefact (`__pycache__`, `coverage/`,
+   `target/`). After the gate, run `git status --short`: any leftover change
+   (such as a `just fmt` rewrite) is committed and the gate re-run before you
+   push, so the branch is what the gate judged.
 7. The only GitHub command you may run is
    `gh issue view {n} --repo {owner}/{repo} --json title,body,labels,comments` -- every other GitHub
    call, including `gh pr`, `gh issue edit/comment/close`, any label change,

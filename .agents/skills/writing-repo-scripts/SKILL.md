@@ -180,6 +180,9 @@ A new script usually lands with more than its own file:
 
 A script bundled inside a skill follows the same rules, or keeps its own language when
 it was ported with its tests; `just test-scripts` runs those suites too. Keep it a thin
-dispatcher: branching logic belongs under `scripts/`, where the floors apply.
+dispatcher: it parses its arguments, calls into `scripts/lib/`, and prints, with no
+decision of its own beyond choosing the output format. Branching logic belongs in
+`scripts/lib/`, under the `scripts/**` coverage floor, where another script or skill
+can reuse it.
 
 Check the work with `just test-scripts`, then `just lint` (tsc over `scripts/`, ESLint).

@@ -42,28 +42,37 @@ so this skill is where an app still finds them.
    It needs step 1's `just install`. **REQUIRED:**
    [references/bootstrap.md](references/bootstrap.md), for its flags, defaults, and
    validation, before running it, changing it, or chasing a leftover placeholder.
-3. **Write `AGENTS.md`'s `## Product` section**: what the app is and who it is for, the
+3. **Commit the rewrite**: `just install` again (the rename changed `package.json`'s
+   name, and pnpm runs nothing until the next install), review the rewrite
+   (`git status`, `git diff`), and commit it as one commit before editing anything, so
+   the rename stays one reviewable diff.
+4. **Write `AGENTS.md`'s `## Product` section**: what the app is and who it is for, the
    core interaction, the non-goals, and where those decisions are recorded. The owner
    decides every line; an agent drafts only from what the owner has said. Delete each
    `TODO:` as it is replaced: once the bootstrap has run, `just check-harness` (and so
    `just check`) fails while one is left. Write it before any feature: without it, an
    agent picking up an issue has no in-repo answer to "is this in scope?", and a
    non-goal nobody wrote down is one an eager implementer reads as a feature.
-4. **Fill `docs/architecture/roadmap.md`**: the Now, Next, and Later outcomes that follow
+5. **Fill `docs/architecture/roadmap.md`**: the Now, Next, and Later outcomes that follow
    from the Product section, with `steering-the-roadmap`. Nothing checks that page, so
    its `TODO:` lines stay until someone replaces them.
-5. **Verify**: `just install && just check`.
-6. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
+6. **Verify and push**: `just check`, then commit the Product section and roadmap and
+   push both commits to `main`, which takes a direct push until step 11's ruleset.
+   Pushing is a remote write: a human's step, or an agent's with the owner's sign-off.
+7. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
    repository. Run it before the first issue is filed from a form, so every label the
-   forms apply exists. It writes to GitHub: a human's step, or an agent's with the
+   forms apply exists. Dependabot skips a label `.github/dependabot.yml` names that the
+   repository lacks (`AGENTS.md` › "GitHub settings a new repository must enable" has
+   the source), so add `dependencies` by hand to any Dependabot pull request opened
+   before this step. It writes to GitHub: a human's step, or an agent's with the
    owner's sign-off.
-7. **Security settings**, turned on by the repository's admin: `AGENTS.md` › "GitHub
-   settings a new repository must enable".
-8. **Replace the sample** with the app, in the order of the sections below: design
+8. **Security settings and the Renovate App**, turned on by the repository's admin:
+   `AGENTS.md` › "GitHub settings a new repository must enable".
+9. **Replace the sample** with the app, in the order of the sections below: design
    system, app shape, sandbox posture, the first ADRs, then removing the sample.
-9. **Release secrets**, only for Developer ID signed and notarized releases
-   (`releasing-the-app`); without them releases are ad hoc.
-10. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
+10. **Release secrets**, only for Developer ID signed and notarized releases
+    (`releasing-the-app`); without them releases are ad hoc.
+11. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
     `just ruleset`. From then on every change needs a pull request with the required
     checks green, so the ruleset must name only jobs the app still runs. On a **private
     repository**, first **REQUIRED:**
@@ -96,16 +105,17 @@ the changes an agent shape needs, including keeping the smoke run invisible.
 ## Decide the sandbox posture
 
 The App Sandbox is off, Tauri's default (`docs/distribution.md` › "The App Sandbox is
-off"): the first app cut from this template writes `~/Library/LaunchAgents` and runs
-`launchctl`, which the sandbox forbids. The sandbox limits an app to the resources its
-entitlements request, and the Mac App Store requires it
-(https://developer.apple.com/documentation/security/app-sandbox, checked 2026-09-29), so
-judge by what the new app must reach: another app, global input, or files and system
+off"), so that an app can reach what the sandbox forbids, such as writing
+`~/Library/LaunchAgents` and running `launchctl` to manage launchd jobs. The sandbox
+limits an app to the resources its entitlements request, and the Mac App Store requires
+it (https://developer.apple.com/documentation/security/app-sandbox, checked 2026-09-29),
+so judge by what the new app must reach: another app, global input, or files and system
 tools the user never chose each have to be found on that entitlement list before the app
-can be sandboxed. It stays off unless the new app can live inside it; turning it on, or adding any entitlement, is an edit to `src-tauri/Entitlements.plist`,
-which only a human makes (`AGENTS.md` › "Security and human approval"). Propose it with
-the reason and let the owner decide. A privacy (TCC) permission the app will need is
-decided here too, each its own ADR (`integrating-system-apis`).
+can be sandboxed. It stays off unless the new app can live inside it; turning it on, or
+adding any entitlement, is an edit to `src-tauri/Entitlements.plist`, which only a human
+makes (`AGENTS.md` › "Security and human approval"). Propose it with the reason and let
+the owner decide. A privacy (TCC) permission the app will need is decided here too, each
+its own ADR (`integrating-system-apis`).
 
 ## Record the first ADRs
 
@@ -119,22 +129,24 @@ URL and the date it was checked.
 ## Remove the sample
 
 The counter is a deletable illustration, not the app. The checklist is
-`docs/getting-started.md` › "Removing the example code"; work through it, then:
+`docs/getting-started.md` › "Removing the example code": it lists every file that holds
+the sample, the `log_from_ui` wiring and tests to keep, and the search that ends it. On
+top of it:
 
-- remove the sample's mentions outside that list: the sentences in
-  `.claude/rules/*.md` and in the skills under `.agents/skills/` that give the counter as
-  an example (each sits in its own sentence, so deleting it leaves the rule; run
-  `just agents-sync` afterwards), the example title in
-  `.github/PULL_REQUEST_TEMPLATE.md`, and README's introduction and "Why is the sample
-  app a counter?";
+- delete or rewrite what the skills under `.agents/skills/` give the counter as an
+  example: the sample appears as its own "In the sample" sentences, parentheticals, code
+  blocks, or a table column (`integrating-system-apis`), each of which can be deleted or
+  rewritten with the app's own names while the rule around it stands. Three files are
+  the sample's worked examples throughout and are rewritten with the app's own first
+  command, use case, and tests rather than deleted:
+  `designing-ipc/references/adding-a-command.md`, `writing-tests/references/patterns.md`,
+  and `tdd/SKILL.md` Steps 1-3. Then run `just agents-sync`;
 - replace the core module and its tests in the same pull request that removes them, so
-  the core coverage floor still measures real code;
-- run `just bindings` (it rebuilds `ui/src/ipc/generated/` from scratch, so the
-  counter's generated types disappear), then `rg -i 'counter'` for anything left, then
-  `just check`.
+  the core coverage floor still measures real code.
 
 Keep what is general: the `Clock` port and `SystemClock`, `UiLogEntry` and the
-`log_from_ui` command, logging, smoke mode, and the design primitives.
+`log_from_ui` command with its registration and tests, logging, smoke mode, and the
+design primitives.
 
 ## What the new app keeps
 

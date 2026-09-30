@@ -563,6 +563,38 @@ class CiWatchFallbackTest(unittest.TestCase):
         self.assertEqual([c for c in calls if c[:2] == ["run", "view"]],
                          [["run", "view", "2", "--log-failed"]])
 
+    def test_a_cancelled_run_superseded_by_a_newer_run_is_ignored(self):
+        # cancel-in-progress leaves the older run of a workflow cancelled
+        # whenever a PR edit starts a newer one; only the newest run counts.
+        pr = "37"
+        self.args = [pr]
+        proc, calls = self.forbidden(pr, {
+            RUNS(SHA): (
+                "12\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/12\n"
+                "11\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/11\n"
+                "5\tCI\tcompleted\tsuccess\thttps://x/actions/runs/5\n"
+            ),
+        })
+
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("verdict: PASS\n", proc.stdout)
+        self.assertEqual([c for c in calls if c[:2] == ["run", "view"]], [])
+
+    def test_a_cancelled_run_that_is_the_newest_of_its_workflow_fails(self):
+        pr = "38"
+        self.args = [pr]
+        proc, _ = self.forbidden(pr, {
+            RUNS(SHA): (
+                "11\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/11\n"
+                "12\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/12\n"
+            ),
+            ("run", "view", "12", "--log-failed"): "cancelled\n",
+        })
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("verdict: FAIL\n", proc.stdout)
+        self.assertIn("  - PR Title [completed/cancelled] ", proc.stdout)
+
     def test_failing_commit_status_fails_without_an_actions_run(self):
         # Commit statuses are the other half of what a fine-grained PAT can
         # read, and the CI systems that post them have no Actions run to fetch

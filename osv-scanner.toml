@@ -1,4 +1,4 @@
-# OSV-Scanner ignores, under design D17's advisory scope:
+# OSV-Scanner ignores, under the same advisory scope as deny.toml's [graph] targets:
 # - an advisory for a crate absent from `cargo tree --target aarch64-apple-darwin` (it
 #   never ships in this macOS-only app) may be ignored, with its reason;
 # - an advisory for a shipped crate is fixed by updating; only when no fixed release

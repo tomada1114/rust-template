@@ -1,4 +1,4 @@
-//! Fakes for every `myapp-core` port, and one contract function per port (design D2).
+//! Fakes for every `myapp-core` port, and one contract function per port.
 //!
 //! A contract function holds the behaviour every implementation of a port must have.
 //! `myapp-core`'s integration tests run it against the fake here; `myapp-platform`'s

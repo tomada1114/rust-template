@@ -1,11 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 import { ScriptError } from "./fail.ts";
 import { parseLabelManifest } from "./labels.ts";
-import { REPO_ROOT } from "./script.ts";
 
 function codeOf(action: () => unknown): string {
   try {
@@ -33,12 +29,11 @@ describe("parseLabelManifest", () => {
     ]);
   });
 
-  it("accepts the committed manifest: 16 labels, names unique", () => {
-    const labels = parseLabelManifest(readFileSync(join(REPO_ROOT, ".github/labels.yml"), "utf8"));
-    expect(labels).toHaveLength(16);
-    expect(labels.map((label) => label.name)).toEqual(
-      expect.arrayContaining(["blocked: external", "tracking", "dependencies", "ci"]),
-    );
+  it("returns every entry in order when the names are unique", () => {
+    const text = ["bug", "ci", "tracking"]
+      .map((name) => `- name: ${name}\n  color: ededed\n  description: x`)
+      .join("\n");
+    expect(parseLabelManifest(text).map((label) => label.name)).toEqual(["bug", "ci", "tracking"]);
   });
 
   it.each([

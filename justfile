@@ -1,7 +1,7 @@
-# Task runner (design D10). Every recipe is a thin call into cargo, pnpm, or scripts/.
+# Task runner. Every recipe is a thin call into cargo, pnpm, or scripts/.
 # `just --list` shows them all.
 #
-# Never taking over the developer's Mac (design D22): recipes that open the app (dev, run,
+# Never taking over the developer's Mac: recipes that open the app (dev, run,
 # install-app) and recipes a human starts on purpose (test-local, reset-permissions,
 # logs-follow) are never part of `just check`, and an agent runs them only when the human
 # asks. Local builds make the app bundle only (`--bundles app`): building a disk image
@@ -21,7 +21,7 @@ no_signing := "env -u APPLE_CERTIFICATE -u APPLE_CERTIFICATE_PASSWORD -u APPLE_S
 default:
     @just --list
 
-# Everything a Mac runs without a human, in CI's order (opens no window; see D22 above)
+# Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
 check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-macos build smoke
 
 # Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
@@ -72,7 +72,7 @@ fix:
 # Check formatting, lints, and types in both languages
 lint: sidecar
     cargo fmt --all --check
-    cargo clippy --workspace --all-targets --locked -- -D warnings
+    node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
     pnpm typecheck
     pnpm lint
     pnpm format:check

@@ -1,5 +1,5 @@
 /**
- * The three supply-chain cooldowns wait the same number of days (design D8, D14):
+ * The three supply-chain cooldowns wait the same number of days:
  * Dependabot's `cooldown`, Renovate's `minimumReleaseAge`, and pnpm's
  * `minimumReleaseAge`. A bot that waits less than pnpm opens a PR whose install pnpm
  * refuses; one that waits more holds back a release the other bot already pulled.

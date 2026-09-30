@@ -1,5 +1,5 @@
 /**
- * The staged guard (design D11): refuse a commit that would put a secret into history,
+ * The staged guard: refuse a commit that would put a secret into history,
  * judged from the git index alone. The pre-commit hook runs it (lefthook.yml).
  *
  * Two phases per staged path: the path (scripts/lib/guard/paths.ts), then — only if the
@@ -117,13 +117,18 @@ export function main(context: ScriptContext): void {
 
   const [first] = findings;
   if (first !== undefined) {
+    // `git restore --staged` resets a path to HEAD, which during a merge also throws away
+    // the other side's change to it.
+    const merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").status === 0;
     throw new ScriptError({
       code: first.code,
       summary: `${String(findings.length)} staged path(s) refused (the matched text is never printed)`,
       expected:
         "no staged path matching scripts/lib/guard/paths.ts and no staged content matching scripts/lib/guard/credentials.ts",
       actual: findings.map((finding) => `${finding.code}: ${finding.line}`).join("\n"),
-      next: "unstage each file with `git restore --staged <path>`; keep the value in the keychain or a CI secret and reference it; if the file must be committed, remove the secret first",
+      next: merging
+        ? "a merge is in progress, so never `git restore --staged` (it would drop the other side's change): remove the secret from each file and `git add` it again, or `git rm --cached <path>` a secret-shaped path; keep the value in the keychain or a CI secret and reference it"
+        : "unstage each file with `git restore --staged <path>`; keep the value in the keychain or a CI secret and reference it; if the file must be committed, remove the secret first",
     });
   }
 }

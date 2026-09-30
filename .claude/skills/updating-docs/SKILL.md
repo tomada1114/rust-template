@@ -121,12 +121,16 @@ and the template's own design notes, so an app never inherits text about the tem
 Text only a template reader needs (why the bootstrap exists, how to use the template)
 goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
 distribution flow) goes outside. A standing document outside a block never links into
-the template's design notes: that link dangles in every app.
+the template's design notes: that link dangles in every app. A sentence outside a block
+that holds only in the template is rewritten for the app by an entry in `TEXT_EDITS`
+in `scripts/bootstrap.ts`, in the same change.
 
 Only the files `MARKER_FILES` in `scripts/bootstrap.ts` lists have their blocks removed.
 A block in any other file adds that file to the list in the same change, or its marker
 lines survive into the app and `node scripts/verify-bootstrap.ts` (CI's Template
-Bootstrap Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`.
+Bootstrap Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`. It fails with
+`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` when the app still names the template's design
+record or README's template-only section, or a decision by its number in that record.
 
 ## What checks a document, and what does not
 

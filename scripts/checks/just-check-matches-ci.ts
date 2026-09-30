@@ -1,7 +1,7 @@
 /**
  * The gates `just check` runs and the steps CI runs stay the same set, apart from a
  * reasoned exception list (EXCEPTIONS below), so a gate added to one side cannot pass
- * locally and fail in CI, or the reverse (design D10, D14). Ported from
+ * locally and fail in CI, or the reverse. Ported from
  * macos-app-template's just-check-matches-ci.sh; ci.yml is read with `yaml`, the
  * justfile (not YAML or TOML) line by line.
  *
@@ -94,7 +94,7 @@ export const EXCEPTIONS: Exceptions = {
       "hands the pnpm store path to actions/cache: CI plumbing with no local meaning",
     "pnpm install --frozen-lockfile":
       "dependency install: `just install` runs it once on a developer's Mac, not on every `just check`",
-    "cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
+    "node scripts/clippy-guard.ts cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
       "the Linux job lints only the crates that build without WebKitGTK; the macOS job runs `just lint`'s whole-workspace clippy line verbatim",
     "cargo deny --locked check":
       "`just deny`: fetches the RustSec advisory database over the network, so it stays out of the offline local gate; AGENTS.md › Validating a change runs it when a manifest or lockfile changes",
@@ -107,7 +107,7 @@ export const EXCEPTIONS: Exceptions = {
   },
   ciOnlyJobs: {
     "Template Bootstrap Smoke":
-      "template-only (design D19): bootstraps a throwaway copy and runs `just check` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
+      "template-only: bootstraps a throwaway copy and runs `just check` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
   },
 };
 

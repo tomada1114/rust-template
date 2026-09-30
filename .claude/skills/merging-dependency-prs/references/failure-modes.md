@@ -65,6 +65,12 @@ then hand edits. A new lint that asks for a real design change is held and repor
 what it wants. Never an `#[allow]`, an `#[expect]`, an `eslint-disable`, or a config
 change to get past it (`AGENTS.md` › "Security and human approval").
 
+A toolchain bump can also fail clippy through `scripts/clippy-guard.ts` with no lint in
+the code: `ERR_CLIPPY_BAN_UNRESOLVED` when a ban's path in a `clippy.toml` was renamed
+or moved in that Rust release (point it at the new path), or `ERR_CLIPPY_CONFIG_INVALID`
+when clippy deprecated or dropped a key (rename it as the message says). Either fix
+keeps every ban; never `allow-invalid = true`.
+
 ## F5: `cargo deny` or `cargo shear`
 
 **Symptom:** the `Rust Core` job fails at `cargo deny` (a new advisory, a licence outside
@@ -90,8 +96,9 @@ to accommodate a version nobody has decided to accept, and never lower a floor.
 ## F7: `BEHIND` or `DIRTY`
 
 Not a CI failure. `BEHIND` means `main` moved; `DIRTY` means a real conflict. Comment
-`@dependabot rebase`; a PR that keeps conflicting, which is normal once two cargo or two
-npm PRs are open, goes into the combined branch.
+`@dependabot rebase` once the approved plan lists it, or when an earlier approved
+merge moved `main` (`SKILL.md` › "Step 4a"); a PR that keeps conflicting, which is
+normal once two cargo or two npm PRs are open, goes into the combined branch.
 
 ## F8: A check that never reports
 
@@ -100,7 +107,8 @@ npm PRs are open, goes into the combined branch.
 **Cause:** a run cancelled by a newer one in the same `concurrency` group, or a workflow
 whose triggers do not fire for the bot.
 
-**Fix:** `gh run rerun <run-id>`. A missing check is not a passing one.
+**Fix:** `gh run rerun <run-id>`, once the approved plan lists it. A missing check is
+not a passing one.
 
 ## F9: Held for a conclusion that is not a failure
 
@@ -112,9 +120,10 @@ usually a run superseded by a newer event on the same PR (`pr-label.yml` and
 `UNKNOWN` means the rollup entry carried no conclusion.
 
 **Fix:** none of these is a test result, so do not read the diff for a cause. Open the
-run, find why it did not complete, and `gh run rerun <run-id>`. A state that should pass
-and does not is a bug to fix in `survey-prs.ts` with a test, never a reason to merge past
-the verdict.
+run, find why it did not complete, and `gh run rerun <run-id>` once the approved plan
+lists it. A state that should pass and does not is a bug to fix in
+`scripts/lib/dependency-prs.ts` (the survey's logic) with a test, never a reason to merge
+past the verdict.
 
 ## Not a failure mode here: the PR-title check
 
@@ -125,7 +134,12 @@ commit on `main`, so the prefixes (`commit-message` in `.github/dependabot.yml`,
 harness check that keeps them agreeing is `just check-harness`'s, and changing either
 side is a gate change (`changing-gates`).
 
-## F10: A mise or rust-toolchain PR is green but `mise install` fails here
+## F10: A mise or rust-toolchain PR is green but the new pin will not install here
+
+**Symptom:** `mise install` fails for a `mise.toml` pin, or the next `cargo` call fails
+as rustup installs a `rust-toolchain.toml` channel (rustup installs a missing active
+toolchain by default, `RUSTUP_AUTO_INSTALL`:
+https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).
 
 **Cause:** the pinned version has no build for this Mac yet, though CI's Linux runner
 found one.

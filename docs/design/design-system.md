@@ -1,6 +1,6 @@
 # Design system
 
-The base design system every screen is built from (design D23). It is deliberately
+The base design system every screen is built from. It is deliberately
 neutral and macOS-native, after Apple's
 [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)
 (checked 2026-09-28), so an app that never runs design research still looks like a Mac

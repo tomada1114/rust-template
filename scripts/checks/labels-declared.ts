@@ -1,7 +1,7 @@
 /**
  * Every label something in the repository applies is declared exactly once in
  * `.github/labels.yml`, and every label `scripts/label-pr.ts` applies has a release-notes
- * category (design D14) — so `just labels` creates every label the repository expects,
+ * category — so `just labels` creates every label the repository expects,
  * never two conflicting ones, and no merged pull request falls out of the release notes.
  *
  *   node scripts/checks/labels-declared.ts [--root DIR]
@@ -32,7 +32,8 @@
  * Matching is exact, case included. No git work tree needed.
  *
  * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no labels.yml), ERR_CHECK_INPUT_UNREADABLE
- * (a file above does not parse, labels.yml is not a list of named items, or label-pr's
+ * (a file above does not parse, labels.yml is not a list of named items or fails
+ * `parseLabelManifest` — the parser `just labels` uses, or label-pr's
  * map is not a literal it can read), ERR_CHECK_LABEL_DUPLICATE, ERR_CHECK_LABEL_UNDECLARED,
  * ERR_CHECK_LABEL_NO_CATEGORY, ERR_CHECK_LABEL_TYPE_UNMAPPED.
  */
@@ -52,7 +53,8 @@ import {
   type Node,
 } from "yaml";
 
-import type { FailureDetails } from "../lib/fail.ts";
+import { ScriptError, type FailureDetails } from "../lib/fail.ts";
+import { parseLabelManifest } from "../lib/labels.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
 import { readRenovate, readWorkflows, titleChecks } from "./shared/workflows.ts";
@@ -403,6 +405,16 @@ export function findLabelViolations(root: string): FailureDetails[] {
       actual: `a second item for \`${name}\``,
       next: "merge the two items into one, keeping the color and description you mean",
     });
+  }
+
+  // `just labels` parses through parseLabelManifest; a duplicate is already reported above.
+  if (names !== undefined && violations.length === 0) {
+    try {
+      parseLabelManifest(readRepoFile(root, LABELS) ?? "");
+    } catch (error: unknown) {
+      if (!(error instanceof ScriptError)) throw error;
+      problems.push(unreadable(LABELS, error.details.actual));
+    }
   }
 
   const release = releaseLabels(root, problems);

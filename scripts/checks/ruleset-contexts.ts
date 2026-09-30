@@ -1,6 +1,6 @@
 /**
  * Every required status check in the main-branch ruleset names a job that reports on
- * every pull request (design D14), so renaming a CI job, filtering its workflow, or
+ * every pull request, so renaming a CI job, filtering its workflow, or
  * guarding it with an `if:` cannot leave a required check that never reports and blocks
  * every PR, or one that is skipped and passes without running. Ported from
  * macos-app-template's ruleset-contexts.sh, reading the ruleset with JSON.parse and
