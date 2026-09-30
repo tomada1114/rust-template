@@ -65,6 +65,12 @@ then hand edits. A new lint that asks for a real design change is held and repor
 what it wants. Never an `#[allow]`, an `#[expect]`, an `eslint-disable`, or a config
 change to get past it (`AGENTS.md` › "Security and human approval").
 
+A toolchain bump can also fail clippy through `scripts/clippy-guard.ts` with no lint in
+the code: `ERR_CLIPPY_BAN_UNRESOLVED` when a ban's path in a `clippy.toml` was renamed
+or moved in that Rust release (point it at the new path), or `ERR_CLIPPY_CONFIG_INVALID`
+when clippy deprecated or dropped a key (rename it as the message says). Either fix
+keeps every ban; never `allow-invalid = true`.
+
 ## F5: `cargo deny` or `cargo shear`
 
 **Symptom:** the `Rust Core` job fails at `cargo deny` (a new advisory, a licence outside
