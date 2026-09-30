@@ -173,17 +173,20 @@ Rust, three layers, each able to fail on its own:
    directly, so a wrapper list could never pass; the closure check covers them.
 3. **clippy in core.** `crates/myapp-core/clippy.toml` sets `disallowed-macros`
    (`std::print`, `std::println`, `std::eprint`, `std::eprintln`, `std::dbg`),
-   `disallowed-types` (`std::process::Command`, `std::fs::{File, OpenOptions, DirBuilder}`,
+   `disallowed-types` (`std::process::Command`,
+   `std::fs::{File, OpenOptions, DirBuilder}`,
    `std::net::{TcpStream, TcpListener, UdpSocket}`), and `disallowed-methods` (every
-   `std::fs` free function, `std::os::unix::fs::symlink`, `std::path::Path`'s file-system
-   queries, `std::io::{stdin, stdout, stderr}`, `std::time::SystemTime::now`,
-   `std::time::Instant::now`, `std::env`'s argument, variable, and directory functions,
-   `std::thread::{spawn, sleep}`, `std::thread::Builder::spawn`,
-   `std::process::{exit, abort}`) — I/O, time, and environment reach core only through ports. `clippy::wildcard_enum_match_arm` is denied in core (issue #134:
-   exhaustive matches on core enums). The implementation run proves clippy reads the
-   crate-local `clippy.toml` by adding a banned call and watching clippy fail; if it does
-   not, a harness check that scans core's sources for the banned paths replaces it, and
-   the switch is recorded as a deviation.
+   `std::fs` free function, `std::os::unix::fs::symlink`, `std::path::Path`'s
+   file-system queries, `std::net::ToSocketAddrs::to_socket_addrs`,
+   `std::io::{stdin, stdout, stderr}`, `std::time::SystemTime::{now, elapsed}`,
+   `std::time::Instant::{now, elapsed}`, `std::env`'s argument, variable, and directory
+   functions, `std::thread::{spawn, sleep}`, `std::thread::Builder::spawn`,
+   `std::process::{exit, abort}`) — I/O, time, and environment reach core only through
+   ports. `clippy::wildcard_enum_match_arm` is denied in core (issue #134: exhaustive
+   matches on core enums). The implementation run proves clippy reads the crate-local
+   `clippy.toml` by adding a banned call and watching clippy fail; if it does not, a
+   harness check that scans core's sources for the banned paths replaces it, and the
+   switch is recorded as a deviation.
 
 A harness check keeps the lists honest the way macos-app-template's
 `core-ban-lists-agree.sh` does: the forbidden crates the boundary section of `AGENTS.md`

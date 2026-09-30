@@ -40,6 +40,7 @@ fewest machines while still able to fail for the behavior:
 | A hook, a component, an IPC wrapper, copy | `ui/src/**/<name>.test.ts(x)`, beside the source | `just test-ui` | `ui/src/**` floor |
 | A repository script | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor, and `scripts/lib/guard/**` for the staged guard |
 | A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | `.agents/skills/*/scripts/**` floor |
+| A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/shipping-issues/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
 | What only the assembled app shows | no test file: `just smoke`, then the manual check | `just smoke`; `just run` + `just logs` by a human | none |
 
 A domain decision tested only in a row that no floor measures is in the wrong place:

@@ -13,6 +13,8 @@ disallowed-macros = [
 disallowed-methods = [
   { path = "std::time::SystemTime::now", reason = "inject time through the Clock port" },
   { path = "std::time::Instant::now", reason = "inject time through the Clock port" },
+  { path = "std::time::SystemTime::elapsed", reason = "inject time through the Clock port" },
+  { path = "std::time::Instant::elapsed", reason = "inject time through the Clock port" },
   { path = "std::env::var", reason = "configuration reaches core as arguments" },
   { path = "std::env::var_os", reason = "configuration reaches core as arguments" },
   { path = "std::env::vars", reason = "configuration reaches core as arguments" },
@@ -36,6 +38,7 @@ disallowed-methods = [
   { path = "std::io::stdin", reason = "I/O goes through a port" },
   { path = "std::io::stdout", reason = "core never prints; log with tracing" },
   { path = "std::io::stderr", reason = "core never prints; log with tracing" },
+  { path = "std::net::ToSocketAddrs::to_socket_addrs", reason = "the network goes through a port" },
   { path = "std::fs::canonicalize", reason = "I/O goes through a port" },
   { path = "std::fs::copy", reason = "I/O goes through a port" },
   { path = "std::fs::create_dir", reason = "I/O goes through a port" },

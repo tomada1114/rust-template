@@ -73,10 +73,12 @@ if core's dependency closure ever gains `tauri*`, `wry`, `tao`, a macOS binding 
 or `myapp-platform`, and `cargo deny`'s `wrappers` rule allows `tauri` as a direct
 dependency of the shell only. clippy, configured in `crates/myapp-core/clippy.toml`,
 bans printing and the standard streams, `std::fs`'s files and functions, `Path`'s
-file-system queries, `std::net`'s sockets, `SystemTime::now`, `std::env`'s argument,
-variable, and directory functions, `std::process::Command`, `exit`, and `abort`, and
-unscoped threads and `thread::sleep` in core, so
-I/O, time, and environment arrive only through ports. On the TypeScript side, ESLint's `no-restricted-imports` keeps `@tauri-apps/*` inside `ui/src/ipc/`.
+file-system queries, `std::net`'s sockets and address lookups, clock reads
+(`SystemTime::now`, `Instant::now`, `elapsed`), `std::env`'s argument, variable, and
+directory functions, `std::process::Command`, `exit`, and `abort`, and unscoped threads
+and `thread::sleep` in core, so I/O, time, and environment arrive only through ports. On
+the TypeScript side, ESLint's `no-restricted-imports` keeps `@tauri-apps/*` inside
+`ui/src/ipc/`.
 
 ### Why ts-rs plus a thin hand-written IPC layer?
 

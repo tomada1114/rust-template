@@ -199,20 +199,15 @@ fn concurrent_increments_lose_no_update() {
         Arc::new(FixedClock::default()),
         Tuning::new(0, 1_000).unwrap(),
     );
-    // Scoped threads: core's clippy.toml bans `std::thread::spawn`, which production
-    // core must never call; a scope also joins every thread before the assertion.
+    // The scope joins all eight threads before it returns, and panics if any of them
+    // panicked, so the assertion below sees every increment.
     std::thread::scope(|scope| {
-        let threads: Vec<_> = (0..8)
-            .map(|_| {
-                scope.spawn(|| {
-                    for _ in 0..25 {
-                        service.increment().unwrap();
-                    }
-                })
-            })
-            .collect();
-        for thread in threads {
-            thread.join().unwrap();
+        for _ in 0..8 {
+            scope.spawn(|| {
+                for _ in 0..25 {
+                    service.increment().unwrap();
+                }
+            });
         }
     });
     assert_eq!(store.saved().map(|s| s.value), Some(200));
