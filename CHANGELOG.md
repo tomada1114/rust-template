@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dependency Review allows GHSA-wrw7-89jp-8q8g (`glib`, Linux-only), the advisory
+  `osv-scanner.toml` already ignores, and a harness check
+  (`scripts/checks/advisory-ignores-agree.ts`) fails when the two lists diverge.
+  `osv-scanner.toml` drops its unused RUSTSEC-2024-0429 entry, the same advisory's alias.
 - **Breaking:** `Tuning`'s fields are private. Code that built `Tuning { min, max }` must
   now call `Tuning::new(min, max)?`, which returns `TuningError::MinAboveMax` when
   `min > max`, and read the bounds through `min()` and `max()`.

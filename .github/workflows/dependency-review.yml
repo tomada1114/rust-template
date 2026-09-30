@@ -29,7 +29,12 @@ jobs:
         # - fail-on-severity is unset: its default, `low`, is the strictest.
         # - MPL-2.0 is allowed per package only, for the crates Tauri itself brings in
         #   (the same list as deny.toml's exceptions).
+        # - allow-ghsas lists exactly osv-scanner.toml's GHSA ignores
+        #   (scripts/checks/advisory-ignores-agree.ts). GHSA-wrw7-89jp-8q8g: glib is
+        #   Linux-only (Tauri's GTK stack); absent from cargo tree --target
+        #   aarch64-apple-darwin. Expires 2026-12-27, with osv-scanner.toml's entry.
         with:
+          allow-ghsas: GHSA-wrw7-89jp-8q8g
           allow-licenses: 0BSD, Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, Unicode-3.0, Unlicense, Zlib
           allow-dependencies-licenses: >-
             pkg:cargo/cssparser, pkg:cargo/cssparser-macros, pkg:cargo/dtoa-short,

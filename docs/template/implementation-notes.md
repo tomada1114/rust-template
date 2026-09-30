@@ -76,9 +76,12 @@ what was built; each entry says what the design said, what was done, and why.
 - **No cargo-deny advisory is ignored.** With `[graph] targets = ["aarch64-apple-darwin"]`
   and `unmaintained = "workspace"`, `cargo deny check` passes with an empty `ignore` list.
 - **OSV-Scanner ignores (`osv-scanner.toml`, all expiring 2026-12-27):**
-  - RUSTSEC-2024-0429 / GHSA-wrw7-89jp-8q8g (`glib`) and RUSTSEC-2024-0370
-    (`proc-macro-error`): Linux-only crates of Tauri's GTK stack, absent from
-    `cargo tree --target aarch64-apple-darwin`.
+  - GHSA-wrw7-89jp-8q8g (`glib`, alias RUSTSEC-2024-0429, ignored under its GHSA id
+    only, since OSV matches that first and reports the RUSTSEC entry as unused) and
+    RUSTSEC-2024-0370 (`proc-macro-error`): Linux-only crates of Tauri's GTK stack,
+    absent from `cargo tree --target aarch64-apple-darwin`. `dependency-review.yml`'s
+    `allow-ghsas` lists the same GHSA ids, and `scripts/checks/advisory-ignores-agree.ts`
+    fails when the two diverge.
   - RUSTSEC-2025-0075, -0080, -0081, -0098, -0100 (`unic-*`): shipped through
     `tauri-utils` → `urlpattern`, unmaintained, no fixed release; tracked in
     https://github.com/tomada1114/tauri-template/issues/3.
