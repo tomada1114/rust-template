@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retention no longer deletes the helper's files, each keeps its newest 14 (legacy
   helper files in the log directory age out under the app's retention), and `just logs`
   prints only the app's log.
+- A Tauri minor now arrives as two small Dependabot PRs (`cargo-tauri`, `npm-tauri`)
+  that `merging-dependency-prs` combines, instead of turning the whole cargo and npm
+  groups red; the dependency survey marks a split Tauri pair and each 0.x-minor bump.
 - The skills, `.claude/rules/rust.md`, and `docs/distribution.md` no longer give
   instructions the repository's config and code contradict. `create-pr` writes the
   pull request template's `**Release impact:** none | PATCH | MINOR | MAJOR` line,
