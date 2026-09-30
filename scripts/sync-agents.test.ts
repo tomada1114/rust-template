@@ -1,6 +1,8 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
+  statSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -13,7 +15,8 @@ import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runCommand, type ScriptContext } from "./lib/script.ts";
+import { gitEnv } from "./lib/git-env.ts";
+import { runCommand, type Run, type ScriptContext } from "./lib/script.ts";
 import { main } from "./sync-agents.ts";
 
 const dirs: string[] = [];
@@ -40,13 +43,15 @@ function repo(files: Record<string, string> = {}): string {
 function run(
   root: string,
   argv: string[] = [],
+  env: Readonly<Record<string, string | undefined>> = {},
+  runner: Run = runCommand,
 ): { error: string | undefined; actual: string | undefined; lines: string[] } {
   const lines: string[] = [];
   const context: ScriptContext = {
     argv,
-    env: {},
+    env,
     root,
-    run: runCommand,
+    run: runner,
     log: (line) => lines.push(line),
   };
   try {
@@ -107,6 +112,15 @@ describe("sync-agents (sync)", () => {
     expect(run(root).error).toBeUndefined();
     expect(read(root, `${MIRROR}/a/SKILL.md`)).toBe("dir now");
     expect(read(root, `${MIRROR}/b`)).toBe("file now");
+  });
+
+  it("copies a changed executable bit, even when the bytes match", () => {
+    const root = repo({ [`${SOURCE}/run.sh`]: "echo\n", [`${MIRROR}/run.sh`]: "echo\n" });
+    chmodSync(join(root, `${SOURCE}/run.sh`), 0o755);
+    expect(run(root, ["--check"]).actual).toBe(`differs: ${MIRROR}/run.sh`);
+    expect(run(root).error).toBeUndefined();
+    expect(statSync(join(root, `${MIRROR}/run.sh`)).mode & 0o111).toBe(0o111);
+    expect(run(root, ["--check"]).error).toBeUndefined();
   });
 
   it("reports an already-synced mirror and leaves it alone", () => {
@@ -235,5 +249,187 @@ describe("sync-agents refusals", () => {
     const root = repo({ [`${SOURCE}/a.md`]: "a" });
     // A NUL byte makes every fs call throw ERR_INVALID_ARG_VALUE, not ENOENT.
     expect(run(`${root}\0`).error).not.toMatch(/^ERR_AGENTS_/);
+  });
+});
+
+/** A throwaway git repository holding `files`; nothing is staged yet. */
+function gitRepo(files: Record<string, string> = {}): string {
+  const root = repo(files);
+  git(root, "init", "--quiet");
+  return root;
+}
+
+function git(root: string, ...args: string[]): string {
+  const result = runCommand("git", args, { cwd: root, env: gitEnv(process.env) });
+  if (result.status !== 0) throw new Error(`git ${args.join(" ")}: ${result.stderr}`);
+  return result.stdout;
+}
+
+const STAGED = ["--check", "--staged"];
+const hookEnv = (): Record<string, string | undefined> => gitEnv(process.env);
+
+describe("sync-agents --check --staged", () => {
+  it("fails when only the source is staged, although the working trees match", () => {
+    const root = gitRepo({ [`${SOURCE}/a/SKILL.md`]: "old", [`${MIRROR}/a/SKILL.md`]: "old" });
+    git(root, "add", SOURCE, MIRROR);
+    write(root, `${SOURCE}/a/SKILL.md`, "new");
+    expect(run(root).error).toBeUndefined();
+    git(root, "add", SOURCE);
+
+    expect(run(root, ["--check"]).error).toBeUndefined();
+    const result = run(root, STAGED, hookEnv());
+    expect(result.error).toMatch(/^ERR_AGENTS_DRIFT: .* in the index/);
+    expect(result.actual).toBe(`differs: ${MIRROR}/a/SKILL.md`);
+  });
+
+  it("passes once both trees are staged, and reads only the index", () => {
+    const root = gitRepo({ [`${SOURCE}/a/SKILL.md`]: "a", [`${MIRROR}/a/SKILL.md`]: "a" });
+    git(root, "add", SOURCE, MIRROR);
+    // An unstaged working-tree edit is not part of the commit.
+    write(root, `${MIRROR}/a/SKILL.md`, "edited, unstaged");
+    const result = run(root, STAGED, hookEnv());
+    expect(result.error).toBeUndefined();
+    expect(result.lines).toEqual([`agents:check: the staged ${MIRROR}/ is in sync.`]);
+  });
+
+  it("lists missing, differing, and extra staged paths, and ignores .DS_Store", () => {
+    const root = gitRepo({
+      [`${SOURCE}/missing.md`]: "m",
+      [`${SOURCE}/same.md`]: "s",
+      [`${SOURCE}/changed.md`]: "new",
+      [`${SOURCE}/sub/.DS_Store`]: "finder",
+      [`${MIRROR}/same.md`]: "s",
+      [`${MIRROR}/changed.md`]: "old",
+      [`${MIRROR}/extra.md`]: "e",
+      [`${MIRROR}/.DS_Store`]: "finder",
+    });
+    git(root, "add", "--force", SOURCE, MIRROR);
+    const result = run(root, STAGED, hookEnv());
+    expect(result.error).toMatch(/^ERR_AGENTS_DRIFT/);
+    expect(result.actual).toBe(
+      [
+        `differs: ${MIRROR}/changed.md`,
+        `missing: ${MIRROR}/missing.md`,
+        `extra: ${MIRROR}/extra.md`,
+      ].join("; "),
+    );
+  });
+
+  it("judges the index GIT_INDEX_FILE names, and ignores an inherited GIT_DIR", () => {
+    const root = gitRepo({ [`${SOURCE}/a.md`]: "old", [`${MIRROR}/a.md`]: "old" });
+    git(root, "add", SOURCE, MIRROR);
+    const alternate = join(root, ".git", "alternate-index");
+    writeFileSync(alternate, readFileSync(join(root, ".git", "index")));
+    write(root, `${SOURCE}/a.md`, "new");
+    runCommand("git", ["add", SOURCE], {
+      cwd: root,
+      env: { ...gitEnv(process.env), GIT_INDEX_FILE: alternate },
+    });
+    const env = { ...hookEnv(), GIT_DIR: join(root, "nowhere") };
+    expect(run(root, STAGED, env).error).toBeUndefined();
+    expect(run(root, STAGED, { ...env, GIT_INDEX_FILE: alternate }).error).toMatch(
+      /^ERR_AGENTS_DRIFT/,
+    );
+  });
+
+  it("fails when an executable bit is staged on one side only", () => {
+    const root = gitRepo({ [`${SOURCE}/run.sh`]: "echo\n", [`${MIRROR}/run.sh`]: "echo\n" });
+    git(root, "add", SOURCE, MIRROR);
+    expect(run(root, STAGED, hookEnv()).error).toBeUndefined();
+    git(root, "update-index", "--chmod=+x", `${SOURCE}/run.sh`);
+    const result = run(root, STAGED, hookEnv());
+    expect(result.error).toMatch(/^ERR_AGENTS_DRIFT/);
+    expect(result.actual).toBe(`differs: ${MIRROR}/run.sh`);
+  });
+
+  it("skips an intent-to-add entry, which the commit will not contain", () => {
+    const root = gitRepo({
+      [`${SOURCE}/a.md`]: "a",
+      [`${MIRROR}/a.md`]: "a",
+      [`${SOURCE}/draft.md`]: "not yet",
+    });
+    git(root, "add", `${SOURCE}/a.md`, MIRROR);
+    git(root, "add", "--intent-to-add", `${SOURCE}/draft.md`);
+    expect(git(root, "ls-files", "--", `${SOURCE}/draft.md`)).toBe(`${SOURCE}/draft.md\n`);
+    expect(run(root, STAGED, hookEnv()).error).toBeUndefined();
+    // Once really staged, the missing copy is drift again.
+    git(root, "add", `${SOURCE}/draft.md`);
+    expect(run(root, STAGED, hookEnv()).actual).toBe(`missing: ${MIRROR}/draft.md`);
+  });
+
+  it("refuses a staged symlink in either tree", () => {
+    const root = gitRepo({ [`${SOURCE}/a.md`]: "a", [`${MIRROR}/a.md`]: "a" });
+    symlinkSync("a.md", join(root, `${SOURCE}/link.md`));
+    git(root, "add", SOURCE, MIRROR);
+    expect(run(root, STAGED, hookEnv()).error).toMatch(
+      /^ERR_AGENTS_SYMLINK: \.agents\/skills\/link\.md is a symlink/,
+    );
+  });
+
+  it("refuses a mirror staged as a symlink or a file", () => {
+    const linked = gitRepo({ [`${SOURCE}/a.md`]: "a" });
+    mkdirSync(join(linked, ".claude"));
+    symlinkSync("../.agents/skills", join(linked, MIRROR));
+    git(linked, "add", SOURCE, MIRROR);
+    expect(run(linked, STAGED, hookEnv()).error).toMatch(
+      /^ERR_AGENTS_SYMLINK: \.claude\/skills is a symlink/,
+    );
+
+    const file = gitRepo({ [`${SOURCE}/a.md`]: "a", [MIRROR]: "file" });
+    git(file, "add", SOURCE, MIRROR);
+    expect(run(file, STAGED, hookEnv()).error).toMatch(/^ERR_AGENTS_MIRROR_NOT_DIRECTORY/);
+  });
+
+  it("refuses a source staged as a file, or nothing staged under it", () => {
+    const file = gitRepo();
+    rmSync(join(file, SOURCE), { recursive: true });
+    write(file, SOURCE, "file");
+    git(file, "add", SOURCE);
+    expect(run(file, STAGED, hookEnv()).error).toMatch(/^ERR_AGENTS_SOURCE_MISSING/);
+
+    const empty = gitRepo({ [`${MIRROR}/a.md`]: "a" });
+    git(empty, "add", MIRROR);
+    const result = run(empty, STAGED, hookEnv());
+    expect(result.error).toMatch(/^ERR_AGENTS_SOURCE_NOT_STAGED/);
+    expect(result.actual).toContain(`nothing staged under ${SOURCE}/`);
+  });
+
+  it("refuses to run outside a git work tree", () => {
+    const root = repo({ [`${SOURCE}/a.md`]: "a" });
+    const notARepo: Run = () => ({ status: 128, stdout: "", stderr: "not a git repository" });
+    expect(run(root, STAGED, {}, notARepo).error).toMatch(/^ERR_AGENTS_NOT_A_REPO/);
+  });
+
+  it("fails when the index cannot be listed", () => {
+    const failing: Run = (_command, args) =>
+      args[0] === "rev-parse"
+        ? { status: 0, stdout: "true\n", stderr: "" }
+        : { status: 128, stdout: "", stderr: "fatal: index file corrupt" };
+    const result = run(repo(), STAGED, {}, failing);
+    expect(result.error).toMatch(/^ERR_AGENTS_INDEX_UNREADABLE/);
+    expect(result.actual).toBe("fatal: index file corrupt");
+  });
+
+  it("skips the unmerged stages of a conflicted path", () => {
+    const blob = "0123456789abcdef0123456789abcdef01234567";
+    const listing = [
+      `100644 ${blob} 0\t${SOURCE}/a.md`,
+      `100644 ${blob} 0\t${MIRROR}/a.md`,
+      `100644 ${blob} 1\t${SOURCE}/b.md`,
+      `100644 ${blob} 2\t${SOURCE}/b.md`,
+      "",
+    ].join("\0");
+    const answers: Record<string, string> = { "rev-parse": "true\n", "ls-files": listing };
+    const fake: Run = (_command, args) => ({
+      status: 0,
+      stdout: answers[args[0] ?? ""] ?? "",
+      stderr: "",
+    });
+    expect(run(repo(), STAGED, {}, fake).error).toBeUndefined();
+  });
+
+  it("refuses --staged without --check", () => {
+    const result = run(repo(), ["--staged"]);
+    expect(result.error).toMatch(/^ERR_AGENTS_USAGE: --staged only works with --check/);
   });
 });

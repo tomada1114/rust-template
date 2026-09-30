@@ -28,7 +28,7 @@ Never `git commit --no-verify` or `-n`: `.claude/settings.json` denies both, and
 | prettier | a staged TypeScript, JSON, CSS, or YAML file is not formatted | `just fmt`, then re-stage |
 | eslint | a lint error in a staged TypeScript file | `just fix` for what is auto-fixable, then fix the rest by hand. Never an `eslint-disable` comment, which `AGENTS.md` counts as weakening a gate. |
 | typos | a misspelling in a staged file | Correct the word. A real identifier the tool does not know (a crate name, a macOS term) is a `typos.toml` change, which is a gate change for a human to approve (`changing-gates`), not something to add on the way past. |
-| skills mirror | `.agents/skills/` and `.claude/skills/` differ | `just agents-sync`, then stage both trees |
+| skills mirror | the staged `.agents/skills/` and `.claude/skills/` differ (it compares the index, so a synced but unstaged mirror still fails) | `just agents-sync`, then stage both trees |
 
 `just fmt` formats every file in the repository, not only the staged ones. Re-stage
 only what you meant to commit; leave any other file it touched for the user to see in

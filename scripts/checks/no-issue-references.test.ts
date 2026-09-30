@@ -12,13 +12,29 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-// Everything here is allowed: link anchors, hex colors, an HTML entity, and `#N`.
+// Everything here is allowed: link anchors, hex colors, an HTML entity, placeholders, and
+// an upstream project's issue URL cited as a source.
 const CLEAN = `# Guide
 
 See [Skills](#skills), [step 4](#4-review-the-branch), and
 [step 8c](../SKILL.md#8c-take-the-runs-own-output-back-into-the-queue).
 Colors: \`#0366d6\`, \`#000000\`, \`#11223344\`, \`color: #000;\`. An entity: &#123;.
 A body says \`Closes #N\` and \`Depends on #N\`.
+Words that are not references: an issue-number rule, issues and PRs in general, the
+\`gh issue view\` command, \`gh issue view <n>\`, \`gh pr view {n}\`, \`issue <n>\`,
+\`/issues/new\`, a GH-hosted runner, and the v2 release.
+Sources: https://github.com/tauri-apps/tauri/issues/139 and
+[an upstream fix](https://github.com/Other/widgets/pull/12), and
+<https://gitlab.com/group/project/-/merge_requests/3>.
+`;
+
+// This repository, as the issue-template config names it.
+const CONFIG = `blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://example.com/forum
+  - name: Report a security vulnerability
+    url: https://github.com/acme/widgets/security/advisories/new
 `;
 
 function write(root: string, path: string, content: string): void {
@@ -30,12 +46,24 @@ function fixture(overrides: Record<string, string | undefined> = {}): string {
   const root = mkdtempSync(join(tmpdir(), "no-issue-references-"));
   dirs.push(root);
   const files: Record<string, string | undefined> = {
+    ".github/ISSUE_TEMPLATE/config.yml": CONFIG,
     "AGENTS.md": CLEAN,
     ".agents/skills/demo/SKILL.md": CLEAN,
     ".agents/skills/demo/references/more.md": CLEAN,
     // Only Markdown is read: code may cite an issue.
     ".agents/skills/demo/scripts/plan.py": "# See issue #139.\n",
-    // Only AGENTS.md and the skills are read.
+    "CLAUDE.md": CLEAN,
+    ".claude/rules/docs.md": CLEAN,
+    "docs/guide.md": CLEAN,
+    "docs/design/system.md": CLEAN,
+    "docs/architecture/README.md": CLEAN,
+    // Planning and decision records link their issues, and are not read.
+    "docs/template/design.md": "Decided in #140 (issue 166).\n",
+    "docs/architecture/roadmap.md":
+      "- **Sync** — Issues: [#12](https://github.com/acme/widgets/issues/12), #13.\n",
+    "docs/architecture/adr/0001-design-lock.md":
+      "## Follow-ups\n\n- Tokens: tracked in https://github.com/acme/widgets/issues/14.\n",
+    // Only the agent-read documents are read.
     "README.md": "Fixed in #12.\n",
     ...overrides,
   };
@@ -50,10 +78,34 @@ describe("no-issue-references", () => {
     expect(check.run(fixture())).toEqual([]);
   });
 
-  it("passes when there is neither an AGENTS.md nor a skills tree", () => {
+  it("passes when there is no document at all", () => {
     const root = mkdtempSync(join(tmpdir(), "no-issue-references-"));
     dirs.push(root);
+    write(root, ".github/ISSUE_TEMPLATE/config.yml", CONFIG);
     expect(check.run(root)).toEqual([]);
+  });
+
+  it.each([
+    ["is missing", undefined, "ERR_CHECK_INPUT_MISSING"],
+    ["is not YAML", "contact_links: [\n", "ERR_CHECK_INPUT_UNREADABLE"],
+    [
+      "names no github.com URL",
+      "contact_links:\n  - url: https://example.com/x\n",
+      "ERR_CHECK_INPUT_UNREADABLE",
+    ],
+    ["has no contact links", "blank_issues_enabled: false\n", "ERR_CHECK_INPUT_UNREADABLE"],
+  ])("fails closed when the issue-template config %s", (_label, config, code) => {
+    const violations = check.run(fixture({ ".github/ISSUE_TEMPLATE/config.yml": config }));
+    expect(violations.map((v) => v.code)).toEqual([code]);
+    expect(violations[0]?.summary).toContain("owner/repo");
+  });
+
+  it("still reads a normal docs/ page beside the roadmap and the ADRs", () => {
+    const text = "Tracked in https://github.com/acme/widgets/issues/14.\n";
+    const violations = check.run(fixture({ "docs/architecture/overview.md": text }));
+    expect(violations.map((v) => v.summary)).toEqual([
+      "docs/architecture/overview.md:1 cites `https://github.com/acme/widgets/issues/14`",
+    ]);
   });
 
   it.each([
@@ -61,10 +113,51 @@ describe("no-issue-references", () => {
     [".agents/skills/demo/SKILL.md", "The staged guard (#42) refuses it.", "#42"],
     [".agents/skills/demo/references/more.md", "Upstream tracks it in owner/repo#7.", "#7"],
     [".agents/skills/demo/references/deep/x.md", "Closes #12", "#12"],
+    ["CLAUDE.md", "The hook changed in #88.", "#88"],
+    [".claude/rules/x.md", "Banned since #5.", "#5"],
+    ["docs/x.md", "Decided in #31.", "#31"],
+    ["docs/architecture/README.md", "Indexed in #31.", "#31"],
   ])("reports a reference in %s with its line", (path, text, ref) => {
     const violations = check.run(fixture({ [path]: `# Title\n\n${text}\n` }));
     expect(violations.map((v) => v.code)).toEqual(["ERR_CHECK_ISSUE_REFERENCE"]);
     expect(violations[0]?.summary).toBe(`${path}:3 cites \`${ref}\``);
+  });
+
+  it.each([
+    [
+      "an issue URL on this repository",
+      "See https://github.com/acme/widgets/issues/139.",
+      "https://github.com/acme/widgets/issues/139",
+    ],
+    [
+      "a pull-request URL on this repository, in another case",
+      "Landed in [it](https://www.github.com/Acme/Widgets/pull/12/files).",
+      "https://www.github.com/Acme/Widgets/pull/12",
+    ],
+    ["a relative issue link", "See [it](../../issues/3).", "../../issues/3"],
+    ["the word issue", "Brought under the cap (issue 166).", "issue 166"],
+    ["issue number N", "Settled by issue number 12.", "issue number 12"],
+    ["issue no. N", "Settled by issue no. 12.", "issue no. 12"],
+    ["a gh issue command", "Read it with `gh issue view 19`.", "gh issue view 19"],
+    ["a gh pr command", "Watch `gh pr checks 12 --watch`.", "gh pr checks 12"],
+    ["a capitalised Issue", "Issue 7 decided it.", "Issue 7"],
+    ["a PR number", "Reverted by PR-4.", "PR-4"],
+    ["a pull request number", "Per pull request 9.", "pull request 9"],
+    ["a GH- reference", "Fixed by GH-12.", "GH-12"],
+  ])("reports %s", (_label, text, ref) => {
+    const violations = check.run(fixture({ "docs/x.md": `# Title\n\n${text}\n` }));
+    expect(violations.map((v) => v.summary)).toEqual([`docs/x.md:3 cites \`${ref}\``]);
+  });
+
+  it("reports the references on a line in the order they appear", () => {
+    const violations = check.run(
+      fixture({ "CLAUDE.md": "GH-1, then https://github.com/acme/widgets/issues/2, then #3.\n" }),
+    );
+    expect(violations.map((v) => v.summary)).toEqual([
+      "CLAUDE.md:1 cites `GH-1`",
+      "CLAUDE.md:1 cites `https://github.com/acme/widgets/issues/2`",
+      "CLAUDE.md:1 cites `#3`",
+    ]);
   });
 
   it("reports every reference on a line", () => {

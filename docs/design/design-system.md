@@ -63,7 +63,7 @@ durations become `0ms` under `prefers-reduced-motion: reduce`.
 | Primitive | Recipe |
 |---|---|
 | `Button` | A text push button. `variant="primary"` (accent fill) for the one main action in a view, `secondary` otherwise. Always `type="button"` unless it submits a form. |
-| `IconButton` | A glyph-only button. `label` is required and becomes the accessible name (`aria-label`, and the tooltip); the glyph is `aria-hidden`. Tests find it by that name (issue-triage #169). |
+| `IconButton` | A glyph-only button. `label` is required and becomes the accessible name (`aria-label`, and the tooltip); the glyph is `aria-hidden`. Tests find it by that name. |
 | `Stack` | A flex row or column: `direction`, `gap` (`s`/`m`/`l`), `align`. The only way screens space things. |
 | `Panel` | A raised surface. `as="section"` with `labelledBy` makes it a named landmark region. |
 | `Text` | Text in a style: `largeTitle`, `title`, `body`, `secondary`, `danger`; `as` picks the element, `role` makes it a live `status` or `alert`. |
