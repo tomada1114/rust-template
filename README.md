@@ -35,7 +35,8 @@ just dev       # opens the app with hot reload (a window: run it when you want t
 ```
 
 rustup installs the Rust toolchain `rust-toolchain.toml` names the first time `cargo`
-runs (<https://rust-lang.github.io/rustup/overrides.html>, checked 2026-09-28).
+runs (`RUSTUP_AUTO_INSTALL`, on by default:
+<https://rust-lang.github.io/rustup/environment-variables.html>, checked 2026-09-30).
 `just install` needs no `sudo` and opens no installer; a missing Command Line Tools
 install is reported with the command to run.
 
