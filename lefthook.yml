@@ -34,6 +34,8 @@ pre-commit:
       run: typos --force-exclude {staged_files}
 
     # .claude/skills/ must stay a byte-for-byte copy of .agents/skills/ (`just agents-sync`).
+    # --staged compares the index, not the working tree: staging an edited skill without
+    # its synced mirror is drift even when both working copies match.
     - name: skills mirror
       glob: "{.agents/skills/**,.claude/skills/**}"
-      run: node scripts/sync-agents.ts --check
+      run: node scripts/sync-agents.ts --check --staged

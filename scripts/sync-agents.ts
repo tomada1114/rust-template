@@ -3,6 +3,8 @@
  *
  *   node scripts/sync-agents.ts           make the mirror equal the source (`just agents-sync`)
  *   node scripts/sync-agents.ts --check   report drift, write nothing (`just agents-check`)
+ *   node scripts/sync-agents.ts --check --staged
+ *                                         report drift in the git index (the pre-commit hook)
  *
  * Skills are authored once, under `.agents/skills/` — the path Codex CLI reads. Claude
  * Code reads only `.claude/skills/`, so the same tree has to exist there too. It is a
@@ -12,8 +14,16 @@
  * which Finder drops into any directory it has shown, and never write outside
  * `.claude/skills/`.
  *
+ * `--staged` judges what the commit will contain rather than the working tree: it compares
+ * the blob ids the index records under each tree, so staging an edited source without its
+ * synced mirror (or the reverse) is drift even when both working copies match. It keeps
+ * GIT_INDEX_FILE, which `git commit -- <path>` points at a temporary index, and drops every
+ * other GIT_* variable. Outside a git work tree it refuses (ERR_AGENTS_NOT_A_REPO); the
+ * working-tree modes need no git.
+ *
  * Errors: ERR_AGENTS_USAGE, ERR_AGENTS_SOURCE_MISSING, ERR_AGENTS_SYMLINK,
- * ERR_AGENTS_MIRROR_NOT_DIRECTORY, ERR_AGENTS_DRIFT.
+ * ERR_AGENTS_MIRROR_NOT_DIRECTORY, ERR_AGENTS_NOT_A_REPO, ERR_AGENTS_INDEX_UNREADABLE,
+ * ERR_AGENTS_DRIFT.
  */
 import {
   copyFileSync,
@@ -27,6 +37,7 @@ import {
 import { dirname, join } from "node:path";
 
 import { ScriptError } from "./lib/fail.ts";
+import { stagedGuardEnv } from "./lib/git-env.ts";
 import { runScript, type ScriptContext } from "./lib/script.ts";
 
 /** Authoring copy: what a human or an agent edits. */
@@ -34,6 +45,7 @@ const SOURCE = ".agents/skills";
 /** Generated copy: committed, never hand-edited. */
 const MIRROR = ".claude/skills";
 const IGNORED = new Set([".DS_Store"]);
+const SYMLINK_MODE = "120000";
 
 interface Difference {
   readonly kind: "missing" | "extra" | "differs";
@@ -115,58 +127,149 @@ function syncTrees(source: string, mirror: string, differences: readonly Differe
   }
 }
 
+function sourceNotDirectory(actual: string): ScriptError {
+  return new ScriptError({
+    code: "ERR_AGENTS_SOURCE_MISSING",
+    summary: `${SOURCE}/ does not exist`,
+    expected: `skills authored under ${SOURCE}/`,
+    actual,
+    next: `restore ${SOURCE}/ from version control, then run \`just agents-sync\``,
+  });
+}
+
+function mirrorNotDirectory(): ScriptError {
+  return new ScriptError({
+    code: "ERR_AGENTS_MIRROR_NOT_DIRECTORY",
+    summary: `${MIRROR} is not a directory`,
+    expected: `${MIRROR}/ to be a real directory holding a copy of ${SOURCE}/`,
+    actual: `${MIRROR} is a file`,
+    next: `remove ${MIRROR} (\`git rm ${MIRROR}\`), then run \`just agents-sync\``,
+  });
+}
+
+function driftError(differences: readonly Difference[], where: string): ScriptError {
+  return new ScriptError({
+    code: "ERR_AGENTS_DRIFT",
+    summary: `${MIRROR}/ is not a copy of ${SOURCE}/${where}`,
+    expected: `${MIRROR}/ byte-identical to ${SOURCE}/ (ignoring .DS_Store)`,
+    actual: differences.map(({ kind, relative }) => `${kind}: ${MIRROR}/${relative}`).join("; "),
+    next: "run `just agents-sync` and stage both trees (`git add .agents/skills .claude/skills`)",
+  });
+}
+
+/** One stage-0 index entry under a skills tree: its mode and blob id, by relative path. */
+type IndexTree = Map<string, { readonly mode: string; readonly blob: string }>;
+
+/** The index entries under SOURCE and MIRROR, read with `git ls-files --stage -z`. */
+function readIndex(context: ScriptContext): { source: IndexTree; mirror: IndexTree } {
+  const env = stagedGuardEnv(context.env);
+  const git = (...args: string[]) => context.run("git", args, { cwd: context.root, env });
+  if (git("rev-parse", "--is-inside-work-tree").stdout.trim() !== "true") {
+    throw new ScriptError({
+      code: "ERR_AGENTS_NOT_A_REPO",
+      summary: "--staged needs a git work tree",
+      expected: "to run from inside the repository whose index is being committed",
+      actual: `\`git rev-parse --is-inside-work-tree\` did not print true in ${context.root}`,
+      next: "run `just agents-check` to compare the working trees instead",
+    });
+  }
+  const listed = git("ls-files", "--stage", "-z", "--", SOURCE, MIRROR);
+  if (listed.status !== 0) {
+    throw new ScriptError({
+      code: "ERR_AGENTS_INDEX_UNREADABLE",
+      summary: "could not list the staged skills",
+      expected: `\`git ls-files --stage -- ${SOURCE} ${MIRROR}\` to exit 0`,
+      actual: listed.stderr.trim() || `exit ${String(listed.status)}`,
+      next: "check `git status` and the index, then retry the commit",
+    });
+  }
+  const trees: { source: IndexTree; mirror: IndexTree } = { source: new Map(), mirror: new Map() };
+  for (const record of listed.stdout.split("\0")) {
+    const tab = record.indexOf("\t");
+    if (tab === -1) continue;
+    const [mode = "", blob = "", stage = ""] = record.slice(0, tab).split(" ");
+    const path = record.slice(tab + 1);
+    // A conflicted path has stages 1-3 and no commit can be made until it is resolved.
+    if (stage !== "0") continue;
+    for (const [label, tree] of [
+      [SOURCE, trees.source],
+      [MIRROR, trees.mirror],
+    ] as const) {
+      if (path === label) {
+        if (mode === SYMLINK_MODE) throw symlinkError(label, label);
+        if (label === SOURCE) throw sourceNotDirectory(`${SOURCE} is staged as a file`);
+        throw mirrorNotDirectory();
+      }
+      if (!path.startsWith(`${label}/`)) continue;
+      const relative = path.slice(label.length + 1);
+      if (IGNORED.has(relative.split("/").at(-1) ?? "")) continue;
+      if (mode === SYMLINK_MODE) throw symlinkError(path, path);
+      tree.set(relative, { mode, blob });
+    }
+  }
+  return trees;
+}
+
+/** Drift between the staged trees, compared by blob id (equal ids are equal bytes). */
+function diffIndex(source: IndexTree, mirror: IndexTree): Difference[] {
+  const differences: Difference[] = [];
+  for (const [relative, { blob }] of [...source].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const copy = mirror.get(relative);
+    if (copy === undefined) differences.push({ kind: "missing", relative });
+    else if (copy.blob !== blob) differences.push({ kind: "differs", relative });
+  }
+  for (const relative of [...mirror.keys()].sort()) {
+    if (!source.has(relative)) differences.push({ kind: "extra", relative });
+  }
+  return differences;
+}
+
+function checkStaged(context: ScriptContext): void {
+  const { source, mirror } = readIndex(context);
+  if (source.size === 0) throw sourceNotDirectory(`nothing staged under ${SOURCE}/`);
+  const differences = diffIndex(source, mirror);
+  if (differences.length > 0) throw driftError(differences, " in the index");
+  context.log(`agents:check: the staged ${MIRROR}/ is in sync.`);
+}
+
 export function main(context: ScriptContext): void {
   const { argv, root, log } = context;
-  const unknown = argv.filter((argument) => argument !== "--check");
-  if (unknown.length > 0) {
+  const unknown = argv.filter((argument) => argument !== "--check" && argument !== "--staged");
+  const check = argv.includes("--check");
+  const staged = argv.includes("--staged");
+  if (unknown.length > 0 || (staged && !check)) {
     throw new ScriptError({
       code: "ERR_AGENTS_USAGE",
-      summary: `unknown argument(s): ${unknown.join(" ")}`,
-      expected: "no arguments, or --check",
+      summary:
+        unknown.length > 0
+          ? `unknown argument(s): ${unknown.join(" ")}`
+          : "--staged only works with --check",
+      expected: "no arguments, --check, or --check --staged",
       actual: `arguments: ${argv.join(" ")}`,
       next: "run `just agents-sync` or `just agents-check`",
     });
   }
-  const check = argv.includes("--check");
+  if (staged) {
+    checkStaged(context);
+    return;
+  }
   const source = join(root, SOURCE);
   const mirror = join(root, MIRROR);
 
   const sourceStat = stat(source);
   if (sourceStat?.isSymbolicLink() === true) throw symlinkError(SOURCE, SOURCE);
   if (sourceStat?.isDirectory() !== true) {
-    throw new ScriptError({
-      code: "ERR_AGENTS_SOURCE_MISSING",
-      summary: `${SOURCE}/ does not exist`,
-      expected: `skills authored under ${SOURCE}/`,
-      actual: sourceStat === undefined ? `no such path: ${SOURCE}` : `${SOURCE} is not a directory`,
-      next: `restore ${SOURCE}/ from version control, then run \`just agents-sync\``,
-    });
+    throw sourceNotDirectory(
+      sourceStat === undefined ? `no such path: ${SOURCE}` : `${SOURCE} is not a directory`,
+    );
   }
   const mirrorStat = stat(mirror);
   if (mirrorStat?.isSymbolicLink() === true) throw symlinkError(MIRROR, MIRROR);
-  if (mirrorStat !== undefined && !mirrorStat.isDirectory()) {
-    throw new ScriptError({
-      code: "ERR_AGENTS_MIRROR_NOT_DIRECTORY",
-      summary: `${MIRROR} is not a directory`,
-      expected: `${MIRROR}/ to be a real directory holding a copy of ${SOURCE}/`,
-      actual: `${MIRROR} is a file`,
-      next: `remove ${MIRROR} (\`git rm ${MIRROR}\`), then run \`just agents-sync\``,
-    });
-  }
+  if (mirrorStat !== undefined && !mirrorStat.isDirectory()) throw mirrorNotDirectory();
 
   const differences = diffTrees(source, mirror);
   if (check) {
-    if (differences.length > 0) {
-      throw new ScriptError({
-        code: "ERR_AGENTS_DRIFT",
-        summary: `${MIRROR}/ is not a copy of ${SOURCE}/`,
-        expected: `${MIRROR}/ byte-identical to ${SOURCE}/ (ignoring .DS_Store)`,
-        actual: differences
-          .map(({ kind, relative }) => `${kind}: ${MIRROR}/${relative}`)
-          .join("; "),
-        next: "run `just agents-sync` and commit both trees",
-      });
-    }
+    if (differences.length > 0) throw driftError(differences, "");
     log(`agents:check: ${MIRROR}/ is in sync.`);
     return;
   }

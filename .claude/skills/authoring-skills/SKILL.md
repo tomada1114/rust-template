@@ -29,8 +29,9 @@ skill says about its own subject.
   Code reads them (https://code.claude.com/docs/en/skills, checked 2026-09-29).
 - Loop: edit the `.agents/` copy, run `just agents-sync`, commit both trees together.
   Never hand-edit `.claude/skills/`: the next sync overwrites the edit without a word.
-  `just agents-check` fails when the trees differ; the pre-commit hook runs it when a
-  commit stages a skill path, and CI's `Repo Lint & Harness` job runs it on every PR.
+  `just agents-check` fails when the trees differ; the pre-commit hook runs the same
+  check on the staged trees when a commit stages a skill path, so stage both, and CI's
+  `Repo Lint & Harness` job runs it on every PR.
 - The mirror is real files, not a symlink: a symlink is only a link where git checks it
   out as one (`core.symlinks`, https://git-scm.com/docs/git-config, checked 2026-09-29),
   and real files let `just agents-check` compare bytes. The sync refuses a symlink.
@@ -170,8 +171,8 @@ where the floors do.
 A matching mirror proves nothing about the source: a `SKILL.md` whose frontmatter does
 not parse, whose `name` differs from its directory, or that carries a third key mirrors
 cleanly and never loads in either host. `just check-harness` covers the mechanical part,
-including no issue-number reference (`#` and digits): a skill states the rule and its
-reason itself.
+including no issue or pull-request reference (`#` and digits, an issue or pull-request
+URL, or the word issue before a number): a skill states the rule and its reason itself.
 
 ```bash
 just agents-sync
