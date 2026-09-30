@@ -1,7 +1,7 @@
 /**
  * The gates `just check` runs and the steps CI runs stay the same set, apart from a
  * reasoned exception list (EXCEPTIONS below), so a gate added to one side cannot pass
- * locally and fail in CI, or the reverse (design D10, D14). Ported from
+ * locally and fail in CI, or the reverse. Ported from
  * macos-app-template's just-check-matches-ci.sh; ci.yml is read with `yaml`, the
  * justfile (not YAML or TOML) line by line.
  *
@@ -107,7 +107,7 @@ export const EXCEPTIONS: Exceptions = {
   },
   ciOnlyJobs: {
     "Template Bootstrap Smoke":
-      "template-only (design D19): bootstraps a throwaway copy and runs `just check` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
+      "template-only: bootstraps a throwaway copy and runs `just check` there; it tests the bootstrap, not this tree, and the bootstrap removes the job",
   },
 };
 

@@ -1,5 +1,5 @@
 /**
- * The sample screen (design D6): a thin renderer over `useCounter`. A deletable
+ * The sample screen: a thin renderer over `useCounter`. A deletable
  * illustration — `starting-an-app` lists what to remove when replacing it.
  */
 import "./CounterScreen.css";

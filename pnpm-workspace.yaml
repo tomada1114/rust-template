@@ -1,6 +1,6 @@
 # Single-package repository: no `packages:` globs on purpose. This file exists so
 # pnpm's supply-chain policy is declared in one reviewable place and applies to every
-# install — local, CI, and release (design D8; policy from typescript-template).
+# install — local, CI, and release (policy from typescript-template).
 # Setting names checked against https://pnpm.io/settings (pnpm 12) on 2026-09-28.
 
 # Refuse to run a script against a node_modules that no longer matches the lockfile.

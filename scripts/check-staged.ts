@@ -1,5 +1,5 @@
 /**
- * The staged guard (design D11): refuse a commit that would put a secret into history,
+ * The staged guard: refuse a commit that would put a secret into history,
  * judged from the git index alone. The pre-commit hook runs it (lefthook.yml).
  *
  * Two phases per staged path: the path (scripts/lib/guard/paths.ts), then — only if the

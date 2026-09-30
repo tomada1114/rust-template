@@ -1,5 +1,5 @@
 /**
- * Formats the one file a Claude Code Edit/Write/MultiEdit just touched (design D20):
+ * Formats the one file a Claude Code Edit/Write/MultiEdit just touched:
  * `.claude/settings.json`'s PostToolUse hook pipes its JSON payload in.
  *
  *   <hook JSON on stdin> | node scripts/format-edited-file.ts [--root DIR]

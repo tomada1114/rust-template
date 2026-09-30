@@ -92,6 +92,11 @@ describe("product-section", () => {
       "AGENTS.md:11 still holds a `TODO:` marker after the bootstrap",
       "AGENTS.md:12 still holds a `TODO:` marker after the bootstrap",
     ]);
+    // README's template-only section is gone in an app; the skill that walks through the
+    // section is not.
+    for (const violation of violations) {
+      expect(violation.next).toContain("the `starting-an-app` skill");
+    }
   });
 
   it("fails on a filled section while the template's placeholder remains", () => {

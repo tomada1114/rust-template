@@ -102,7 +102,7 @@ Without Just: run the underlying commands listed in each `justfile` recipe
 ## Validating a change
 
 Run the narrowest check that can fail, then `just check` before you open a PR. None of
-the checks below opens a window or takes focus (design D22 — see "Never taking over the
+the checks below opens a window or takes focus (see "Never taking over the
 developer's Mac").
 
 | What you changed | The narrowest check that can fail |
@@ -420,7 +420,7 @@ The owner develops on the same Mac the checks run on, often while an agent itera
 unattended. Nothing a routine check runs — `just check` and every recipe in it, the
 pre-commit hook, the agent's PostToolUse hook, and any step an agent runs to verify its
 own work — may show a window, take keyboard focus, move the pointer, add a Dock icon,
-or raise a permission, Keychain, or Gatekeeper prompt (design D22).
+or raise a permission, Keychain, or Gatekeeper prompt.
 
 - For evidence that the app starts and is wired, use `just smoke` (it runs the built
   executable directly with `MYAPP_SMOKE=1`: no window, no Dock icon, no focus change)

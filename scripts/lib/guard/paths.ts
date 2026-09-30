@@ -1,5 +1,5 @@
 /**
- * Path-shaped commit rules: staged paths refused on their name alone (design D11).
+ * Path-shaped commit rules: staged paths refused on their name alone.
  * The union of macos-app-template's scripts/guard/paths.sh and typescript-template's
  * scripts/lib/guard/paths.mjs, minus the Xcode-only `Local.xcconfig` rule.
  *

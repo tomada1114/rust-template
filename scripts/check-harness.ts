@@ -1,5 +1,5 @@
 /**
- * Runs every harness check under `scripts/checks/` (design D14; `just check-harness`,
+ * Runs every harness check under `scripts/checks/` (`just check-harness`,
  * part of `just check` and CI's `Repo Lint & Harness` job). A check is any
  * `scripts/checks/*.ts` other than `lib.ts` and the tests, exporting `check` (see
  * scripts/checks/lib.ts), so adding a check is adding a file. Every check runs, and each

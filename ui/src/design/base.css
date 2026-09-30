@@ -1,4 +1,4 @@
-/* Element defaults, from tokens only (design D23). */
+/* Element defaults, from tokens only. */
 
 :root {
   /* Native controls (checkboxes, ranges, …) follow the user's macOS accent color. The

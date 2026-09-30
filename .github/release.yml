@@ -1,4 +1,4 @@
-# Release-notes categories for `gh release create --generate-notes` (design D18). Every
+# Release-notes categories for `gh release create --generate-notes`. Every
 # label scripts/label-pr.ts applies has a category here (a harness check keeps them
 # agreeing).
 changelog:

@@ -1,5 +1,5 @@
 /**
- * The Tauri crate and its npm packages move together (design D8, § 2; the
+ * The Tauri crate and its npm packages move together (the
  * `merging-dependency-prs` skill keeps each tauri crate and its @tauri-apps/* package in
  * step):
  *

@@ -1,4 +1,4 @@
-//! The sample counter (design D6): a bounded value whose rules live here, persisted
+//! The sample counter: a bounded value whose rules live here, persisted
 //! through the [`CounterStore`] port and time-stamped through the [`Clock`] port.
 //!
 //! Every part of it is a deletable illustration: `starting-an-app` lists what to remove

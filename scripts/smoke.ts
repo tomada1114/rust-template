@@ -1,5 +1,5 @@
 /**
- * `just smoke`: the launch smoke (design D15, D22). Builds the release `.app` (app bundle
+ * `just smoke`: the launch smoke. Builds the release `.app` (app bundle
  * only — never a disk image locally), checks its signature, its entitlements, and the
  * bundled helper, then runs the app's executable directly with `MYAPP_SMOKE=1` — never
  * through `open`, which would activate it. In smoke mode the app shows no window, takes

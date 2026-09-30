@@ -1,4 +1,4 @@
-# Core's extra bans (design D3): I/O, time, environment, and processes reach core only
+# Core's extra bans: I/O, time, environment, and processes reach core only
 # through ports. This file replaces the root clippy.toml for this crate, so it repeats
 # the root's two settings.
 allow-unwrap-in-tests = true

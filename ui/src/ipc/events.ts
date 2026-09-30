@@ -1,5 +1,5 @@
 /**
- * One typed `listen` per Rust event (design D4). The event names here must equal the
+ * One typed `listen` per Rust event. The event names here must equal the
  * `pub const`s the shell emits (a harness check compares them).
  */
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
