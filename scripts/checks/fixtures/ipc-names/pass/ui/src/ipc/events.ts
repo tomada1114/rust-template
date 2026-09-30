@@ -1,5 +1,6 @@
 // ipc-names fixture: the passing root's event listeners.
 import { listen, once } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export const COUNTER_CHANGED = "counter-changed";
 

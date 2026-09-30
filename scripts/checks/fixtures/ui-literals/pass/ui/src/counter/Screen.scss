@@ -1,0 +1,7 @@
+// ui-literals fixture: a Sass line comment may say color: red or font-size: 13px.
+$gap: 12px;
+
+.screen {
+  gap: $gap;
+  background-image: url(//example.com/a.png);
+}
