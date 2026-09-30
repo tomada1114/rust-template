@@ -28,26 +28,39 @@ interface Call {
 }
 
 /**
- * A fake machine: `pnpm tauri build` creates the bundle, `codesign` answers, running the
- * app without HOME exits 1 with its reason, and running it with HOME writes a startup
- * line for its pid into today's log — unless told otherwise.
+ * A fake machine: `cargo metadata` names the target directory (`<root>/target` unless
+ * told otherwise), `pnpm tauri build` creates the bundle there, `codesign` answers,
+ * running the app without HOME exits 1 with its reason, and running it with HOME writes a
+ * startup line for its pid into today's log — unless told otherwise.
  */
 function fakeMachine(
   home: string,
   root: string,
   overrides: Partial<
-    Record<"build" | "verify" | "entitlements" | "app" | "homeless" | "cli", Partial<RunResult>>
+    Record<
+      "metadata" | "build" | "verify" | "entitlements" | "app" | "homeless" | "cli",
+      Partial<RunResult>
+    >
   > & {
     readonly logLine?: string;
+    readonly targetDir?: string;
   } = {},
 ): { context: ScriptContext; calls: Call[]; lines: string[] } {
   const calls: Call[] = [];
   const lines: string[] = [];
   const ok: RunResult = { status: 0, stdout: "", stderr: "" };
+  const targetDir = overrides.targetDir ?? join(root, "target");
   const run = (command: string, args: readonly string[], options?: RunOptions): RunResult => {
     calls.push({ command, args, options });
+    if (command === "cargo" && args[0] === "metadata") {
+      return {
+        ...ok,
+        stdout: JSON.stringify({ target_directory: targetDir }),
+        ...overrides.metadata,
+      };
+    }
     if (command === "pnpm") {
-      mkdirSync(join(root, "target/release/bundle/macos/MyApp.app/Contents/MacOS"), {
+      mkdirSync(join(targetDir, "release/bundle/macos/MyApp.app/Contents/MacOS"), {
         recursive: true,
       });
       return { ...ok, ...overrides.build };
@@ -188,13 +201,18 @@ describe("main", () => {
     const { context, calls, lines } = fakeMachine(home, root);
     main(context);
 
-    const build = calls[0];
+    expect(calls[0]?.command).toBe("cargo");
+    expect(calls[0]?.args[0]).toBe("metadata");
+    // Where the Tauri CLI runs cargo, so a relative CARGO_TARGET_DIR resolves the same way.
+    expect(calls[0]?.options?.cwd).toBe(join(root, "src-tauri"));
+    const build = calls[1];
     expect(build?.command).toBe("pnpm");
     expect(build?.args).toEqual(["tauri", "build", "--bundles", "app", "--", "--locked"]);
     expect(build?.options?.env?.["APPLE_SIGNING_IDENTITY"]).toBeUndefined();
 
     const app = join(root, "target/release/bundle/macos/MyApp.app");
     expect(calls.map((c) => c.command)).toEqual([
+      "cargo",
       "pnpm",
       "codesign",
       "codesign",
@@ -216,17 +234,52 @@ describe("main", () => {
     expect(lines.at(-1)).toContain(`startup complete pid=${String(PID)}`);
   });
 
-  it("uses a prebuilt app without building", () => {
+  it("finds the bundle under the target directory cargo metadata reports (CARGO_TARGET_DIR)", () => {
+    const { home, root } = setup();
+    const targetDir = tempDir();
+    const { context, calls, lines } = fakeMachine(home, root, { targetDir });
+    main(context);
+    const app = join(targetDir, "release/bundle/macos/MyApp.app");
+    expect(calls.find((c) => c.command === "codesign")?.args.at(-1)).toBe(app);
+    expect(calls.at(-1)?.command).toBe(join(app, "Contents/MacOS/myapp"));
+    expect(lines.at(-1)).toContain(`startup complete pid=${String(PID)}`);
+  });
+
+  it("does not fall back to ./target when the bundle is elsewhere", () => {
+    const { home, root } = setup();
+    mkdirSync(join(root, "target/release/bundle/macos/MyApp.app/Contents/MacOS"), {
+      recursive: true,
+    });
+    const { context } = fakeMachine(home, root, { targetDir: tempDir() });
+    const { run } = context;
+    const noBundle: typeof run = (command, args, options) =>
+      command === "pnpm" ? { status: 0, stdout: "", stderr: "" } : run(command, args, options);
+    expect(() => {
+      main({ ...context, run: noBundle });
+    }).toThrow(/ERR_SMOKE_APP_MISSING/);
+  });
+
+  it("uses a prebuilt app without building or asking cargo", () => {
     const { home, root } = setup();
     const app = join(root, "elsewhere/MyApp.app");
     mkdirSync(join(app, "Contents/MacOS"), { recursive: true });
     const { context, calls } = fakeMachine(home, root);
     main({ ...context, argv: ["--app", app] });
-    expect(calls.some((c) => c.command === "pnpm")).toBe(false);
+    expect(calls.some((c) => c.command === "pnpm" || c.command === "cargo")).toBe(false);
     expect(calls.at(-1)?.command).toBe(join(app, "Contents/MacOS/myapp"));
   });
 
   const failures: [string, Parameters<typeof fakeMachine>[2], RegExp][] = [
+    [
+      "cargo metadata fails",
+      { metadata: { status: 101, stderr: "error: no Cargo.toml" } },
+      /ERR_SMOKE_TARGET_DIR/,
+    ],
+    [
+      "cargo metadata names no target directory",
+      { metadata: { stdout: "{}" } },
+      /ERR_SMOKE_TARGET_DIR/,
+    ],
     ["the build fails", { build: { status: 1 } }, /ERR_SMOKE_BUILD/],
     [
       "the signature does not verify",
