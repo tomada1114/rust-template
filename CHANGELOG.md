@@ -46,6 +46,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An app cut from the template no longer keeps text about the template or references
+  to files the bootstrap deletes. `just test-scripts` passes before the Product section
+  is filled (the harness runner's tests use a fixture instead of the checkout), and
+  filling in the Product section's four bullets is all `just check-harness` asks: the
+  bootstrap rewrites the section's introduction without a `TODO:` of its own, and the
+  check's `Next:` line names the `starting-an-app` skill instead of README's removed
+  "Using This Template". Comments no longer cite the template's design record by
+  decision number, the sandbox rationale no longer describes the template's first app,
+  and the bootstrap rewrites the README's first sentence, the `starting-an-app` and
+  `updating-docs` skills' template passages, the checks' exclusion of the template's
+  design record, and the dead `Template Bootstrap Smoke` exception.
+  `scripts/verify-bootstrap.ts` fails on any such text left in the generated app and on
+  a Product section that filling its bullets would not satisfy. The sample-removal
+  checklist in `docs/getting-started.md` keeps `log_from_ui`'s registration and tests,
+  lists every file that holds the sample, and ends with a scoped `git grep`; README's
+  setup steps add `mise trust` and committing and pushing the bootstrap result.
 - A Tauri minor now arrives as two small Dependabot PRs (`cargo-tauri`, `npm-tauri`)
   that `merging-dependency-prs` combines, instead of turning the whole cargo and npm
   groups red; the dependency survey marks a split Tauri pair and each 0.x-minor bump.

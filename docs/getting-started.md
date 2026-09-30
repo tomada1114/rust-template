@@ -82,51 +82,95 @@ signing identity for its grants signs its local builds is a decision for that ap
 
 The counter is an illustration to replace, not something an app must keep. The
 `starting-an-app` skill walks through this with the design-system decision first; the
-checklist below is what it removes. Work through it after the bootstrap has run (the
-paths then carry your app's name), then run `just bindings` and `just check`.
+checklist below is every file that holds the sample. Work through it after the
+bootstrap has run (the paths then carry your app's name), in the pull request that adds
+your first real core module, so the coverage floor always has code to measure.
+
+`log_from_ui` is not part of the sample: it forwards the UI's warnings and errors to the
+log, and its registration and tests are the model a new command copies. Every item below
+that touches it says what to keep.
 
 **Core** (`crates/myapp-core`):
 
-- [ ] `src/counter/` (`Counter`, `CounterService`, `CounterView`, `CounterError`, the
-      `CounterStore` port) and its re-exports in `src/lib.rs` — replace with your
-      domain model and ports
+- [ ] `src/counter/` (`Counter`, `CounterService`, `CounterView`, `CounterError`,
+      `StoredCounter`, `StorageError`, `Tuning`, the `CounterStore` port) and its
+      `pub mod` and re-exports in `src/lib.rs` — replace with your domain model and ports
 - [ ] `tests/counter_service.rs`, the counter-store test in `tests/contracts.rs`, and the
-      counter shapes in `tests/serialization.rs` — replace with tests for your core, so
-      the coverage floor still has something to measure
-- [ ] Keep `src/time.rs` (`Clock`) and `src/log.rs` (`UiLogEntry`) unless your app has
-      no use for them: they are general, not counter-specific
+      counter shapes in `tests/serialization.rs` — replace with tests for your core
+- [ ] `src/log.rs`: the `get_counter failed` sample message in its tests (keep the
+      module: `UiLogEntry` is what `log_from_ui` receives)
+- [ ] Keep `src/time.rs` (`Clock`) unless your app has no use for it: it is general, not
+      counter-specific
 
 **Adapters and fakes**:
 
-- [ ] `crates/myapp-platform/src/counter_store.rs` (`JsonFileCounterStore`),
-      `COUNTER_FILE_NAME` and `counter_file` in `src/paths.rs`, and
-      `tests/json_file_counter_store.rs` plus the counter-store test in `tests/contracts.rs`
+- [ ] `crates/myapp-platform/src/counter_store.rs` (`JsonFileCounterStore`), its `mod`
+      and re-export in `src/lib.rs`, `COUNTER_FILE_NAME` and `counter_file` in
+      `src/paths.rs` and their test, `tests/json_file_counter_store.rs`, and the
+      counter-store test in `tests/contracts.rs`
 - [ ] `crates/myapp-test-support/src/counter_store.rs` (`InMemoryCounterStore`,
-      `FailingCounterStore`, `counter_store_contract`)
+      `FailingCounterStore`, `counter_store_contract`) and its `mod` and re-export in
+      `src/lib.rs`
 
-**Shell and helper**:
+**Shell and helper** (keep every `log_from_ui` line):
 
-- [ ] `src-tauri/src/commands.rs` — the four counter commands and `COUNTER_CHANGED`
-      (keep `log_from_ui`); `build_state` and `with_commands` in `src-tauri/src/lib.rs`;
-      `src-tauri/tests/commands.rs`
+- [ ] `src-tauri/src/commands.rs` — the four counter commands, their helpers, the
+      `counter` field of `AppState`, and `COUNTER_CHANGED`; keep `log_from_ui` and
+      `AppState` itself for your state
+- [ ] `src-tauri/src/lib.rs` — the four counter entries in `with_commands`' handler list
+      (keep `with_commands`, which `run()` and the command tests share, and its
+      `commands::log_from_ui` entry), the counter wiring in `build_state`, and
+      `COUNTER_CHANGED` in the `pub use`
+- [ ] `src-tauri/tests/commands.rs` — the counter tests and the counter state in
+      `app_holding` and `app_over`; keep the `log_from_ui_*` tests and
+      `an_unregistered_command_is_rejected`, building the app from your state
+- [ ] `src-tauri/tests/startup.rs` — the counter-file test and the counter commands in
+      `setup_then_every_command`; keep its `log_from_ui` call and the startup-plan tests
 - [ ] `crates/myapp-cli/src/main.rs` — the `counter` subcommand (keep `--help`,
-      `--version`, and the exit-code convention) and `tests/cli.rs`
+      `--version`, and the exit-code convention) and its tests in `tests/cli.rs`
 
 **UI**:
 
-- [ ] `ui/src/counter/` and `ui/src/copy/counter.ts`; the `CounterScreen` in
-      `ui/src/main.tsx`
-- [ ] `ui/src/ipc/commands.ts`, `events.ts`, `errors.ts`, and `types.ts` — the counter
-      wrappers, the event, and the error codes (keep `logFromUi`)
+- [ ] `ui/src/counter/` and `ui/src/copy/counter.ts` with its test; the `CounterScreen`
+      in `ui/src/main.tsx`
+- [ ] `ui/src/ipc/commands.ts`, `events.ts`, `errors.ts`, and `types.ts`, and their
+      tests — the counter wrappers, the event, and the error codes (keep `logFromUi`)
+- [ ] `ui/src/ipc/generated/` — `just bindings` rebuilds it from scratch, so the
+      counter's generated types disappear once core no longer exports them
 
-**Documents**:
+**Documents and agent guidance**:
 
-- [ ] `docs/architecture.md` — the counter rows under "Ports and adapters", the command
-      and event names, and the `counter.json` format under "What is contract"
-- [ ] `AGENTS.md`, `CONTRIBUTING.md`, and this page — the `just test-fast increment`
-      examples and the counter mentions
+- [ ] `docs/architecture.md` — the counter column under "Ports and adapters", the
+      command and event names, the helper's command line, and the `counter.json` format
+      under "What is contract"
+- [ ] `README.md` — the introduction's counter sentence, "Why is the sample app a
+      counter?", and the `just test-fast increment` example
+- [ ] `AGENTS.md` — the `just test-fast increment` example, the counter examples in
+      Architecture (`JsonFileCounterStore`, `counter/`, `CounterStore`,
+      `COUNTER_CHANGED`, `counter.json`)
+- [ ] `CONTRIBUTING.md`, the `justfile`'s `test-fast` comment, and this page — the
+      `just test-fast increment` examples, "Seeing the app"'s `counter.json` and helper
+      commands, and this checklist
+- [ ] `.claude/rules/rust.md`, `.claude/rules/testing.md`, and
+      `.claude/rules/typescript.md` — the sentences that give a counter type as the
+      example (each sits in its own sentence; replace it with your own type or delete it)
+- [ ] `.github/PULL_REQUEST_TEMPLATE.md` — the counter in the example title
+- [ ] The skills under `.agents/skills/` that give the counter as an example, then
+      `just agents-sync` (the `starting-an-app` skill)
 
-`rg -i 'counter'` then lists anything left.
+Then run `just bindings` and `just check`, and this search, which should print nothing:
+
+```bash
+git grep -nIiE 'counter|test-fast increment' -- . ':(exclude)scripts/' \
+  ':(exclude).claude/skills/' ':(exclude,glob).agents/skills/*/scripts/**' ':(exclude)*.css'
+```
+
+It uses `git grep`, which needs nothing beyond the prerequisites. The exclusions are
+words that are not the sample: the harness's own tests and fixtures under `scripts/`
+(and the `yaml` library's `LineCounter` there), a skill's bundled scripts,
+`.claude/skills/` (the mirror `just agents-sync` regenerates), and CSS, whose
+`counter-reset` and `counter()` are properties, not the sample (its stylesheet goes with
+`ui/src/counter/`).
 
 ## App icon
 
