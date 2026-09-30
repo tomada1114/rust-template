@@ -191,3 +191,7 @@ release-prep version *flags:
 [positional-arguments]
 bootstrap *args:
     node scripts/bootstrap.ts "$@"
+
+# Bootstrap a scratch clone in a temp directory and fail on any placeholder, template-only text, or dangling reference left behind (`--keep` keeps the clone)
+verify-bootstrap *args:
+    node scripts/verify-bootstrap.ts {{ args }}

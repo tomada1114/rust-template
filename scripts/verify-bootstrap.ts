@@ -26,10 +26,11 @@
  *   directories, their package names, the workspace members and dependencies, and
  *   Cargo.lock; every Rust crate and library name a valid identifier.
  *
- *   node scripts/verify-bootstrap.ts [--keep]
+ *   node scripts/verify-bootstrap.ts [--keep]     (or `just verify-bootstrap [--keep]`)
  *
  * CI's Template Bootstrap Smoke job runs it, so a leftover fails the pull request that
- * introduced it rather than an app's first release.
+ * introduced it rather than an app's first release; `just verify-bootstrap` runs it
+ * locally, before the push.
  *
  * --keep leaves the scratch copy in place and prints its path. The run needs
  * `just install` first (the bootstrap and Prettier come from node_modules) and cargo's
