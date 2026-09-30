@@ -1,5 +1,6 @@
 /**
- * Mirrors `.agents/skills/` into `.claude/skills/`, byte for byte.
+ * Mirrors `.agents/skills/` into `.claude/skills/`, byte for byte and executable bit for
+ * executable bit (the two things git records about a file).
  *
  *   node scripts/sync-agents.ts           make the mirror equal the source (`just agents-sync`)
  *   node scripts/sync-agents.ts --check   report drift, write nothing (`just agents-check`)
@@ -15,15 +16,16 @@
  * `.claude/skills/`.
  *
  * `--staged` judges what the commit will contain rather than the working tree: it compares
- * the blob ids the index records under each tree, so staging an edited source without its
- * synced mirror (or the reverse) is drift even when both working copies match. It keeps
- * GIT_INDEX_FILE, which `git commit -- <path>` points at a temporary index, and drops every
- * other GIT_* variable. Outside a git work tree it refuses (ERR_AGENTS_NOT_A_REPO); the
- * working-tree modes need no git.
+ * the blob id and mode the index records under each tree, so staging an edited source
+ * without its synced mirror (or the reverse) is drift even when both working copies match.
+ * An intent-to-add entry (`git add -N`) is skipped: the commit will not contain it. It
+ * keeps GIT_INDEX_FILE, which `git commit -- <path>` points at a temporary index, and drops
+ * every other GIT_* variable. Outside a git work tree it refuses (ERR_AGENTS_NOT_A_REPO);
+ * the working-tree modes need no git.
  *
  * Errors: ERR_AGENTS_USAGE, ERR_AGENTS_SOURCE_MISSING, ERR_AGENTS_SYMLINK,
  * ERR_AGENTS_MIRROR_NOT_DIRECTORY, ERR_AGENTS_NOT_A_REPO, ERR_AGENTS_INDEX_UNREADABLE,
- * ERR_AGENTS_DRIFT.
+ * ERR_AGENTS_SOURCE_NOT_STAGED, ERR_AGENTS_DRIFT.
  */
 import {
   copyFileSync,
@@ -32,6 +34,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   type Stats,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -88,12 +91,19 @@ function listFiles(directory: string, label: string): string[] {
   return files.sort();
 }
 
+/** Whether git would record the file as executable (100755): the owner's execute bit. */
+const executable = (path: string): boolean => (statSync(path).mode & 0o100) !== 0;
+
+function sameFile(a: string, b: string): boolean {
+  return executable(a) === executable(b) && readFileSync(a).equals(readFileSync(b));
+}
+
 function diffTrees(source: string, mirror: string): Difference[] {
   const mirrorFiles = new Set(listFiles(mirror, MIRROR));
   const differences: Difference[] = [];
   for (const relative of listFiles(source, SOURCE)) {
     if (!mirrorFiles.delete(relative)) differences.push({ kind: "missing", relative });
-    else if (!readFileSync(join(source, relative)).equals(readFileSync(join(mirror, relative))))
+    else if (!sameFile(join(source, relative), join(mirror, relative)))
       differences.push({ kind: "differs", relative });
   }
   for (const relative of mirrorFiles) differences.push({ kind: "extra", relative });
@@ -173,24 +183,30 @@ function readIndex(context: ScriptContext): { source: IndexTree; mirror: IndexTr
       next: "run `just agents-check` to compare the working trees instead",
     });
   }
-  const listed = git("ls-files", "--stage", "-z", "--", SOURCE, MIRROR);
-  if (listed.status !== 0) {
+  const read = (...args: string[]): string => {
+    const result = git(...args, "-z", "--", SOURCE, MIRROR);
+    if (result.status === 0) return result.stdout;
     throw new ScriptError({
       code: "ERR_AGENTS_INDEX_UNREADABLE",
       summary: "could not list the staged skills",
-      expected: `\`git ls-files --stage -- ${SOURCE} ${MIRROR}\` to exit 0`,
-      actual: listed.stderr.trim() || `exit ${String(listed.status)}`,
+      expected: `\`git ${args.join(" ")} -- ${SOURCE} ${MIRROR}\` to exit 0`,
+      actual: result.stderr.trim() || `exit ${String(result.status)}`,
       next: "check `git status` and the index, then retry the commit",
     });
-  }
+  };
+  const listed = read("ls-files", "--stage");
+  // Comparing the work tree with the index, only an intent-to-add entry can be "added":
+  // a file the index lacks is not listed at all. Its placeholder blob is not committed.
+  // diff-files is plumbing: unlike `git diff`, it never rewrites the index it reads.
+  const intentToAdd = new Set(read("diff-files", "--name-only", "--diff-filter=A").split("\0"));
   const trees: { source: IndexTree; mirror: IndexTree } = { source: new Map(), mirror: new Map() };
-  for (const record of listed.stdout.split("\0")) {
+  for (const record of listed.split("\0")) {
     const tab = record.indexOf("\t");
     if (tab === -1) continue;
     const [mode = "", blob = "", stage = ""] = record.slice(0, tab).split(" ");
     const path = record.slice(tab + 1);
     // A conflicted path has stages 1-3 and no commit can be made until it is resolved.
-    if (stage !== "0") continue;
+    if (stage !== "0" || intentToAdd.has(path)) continue;
     for (const [label, tree] of [
       [SOURCE, trees.source],
       [MIRROR, trees.mirror],
@@ -210,13 +226,17 @@ function readIndex(context: ScriptContext): { source: IndexTree; mirror: IndexTr
   return trees;
 }
 
-/** Drift between the staged trees, compared by blob id (equal ids are equal bytes). */
+/**
+ * Drift between the staged trees, compared by mode and blob id (equal ids are equal
+ * bytes), so an executable bit staged on one side only is drift too.
+ */
 function diffIndex(source: IndexTree, mirror: IndexTree): Difference[] {
   const differences: Difference[] = [];
-  for (const [relative, { blob }] of [...source].sort(([a], [b]) => (a < b ? -1 : 1))) {
+  for (const [relative, { mode, blob }] of [...source].sort(([a], [b]) => (a < b ? -1 : 1))) {
     const copy = mirror.get(relative);
     if (copy === undefined) differences.push({ kind: "missing", relative });
-    else if (copy.blob !== blob) differences.push({ kind: "differs", relative });
+    else if (copy.blob !== blob || copy.mode !== mode)
+      differences.push({ kind: "differs", relative });
   }
   for (const relative of [...mirror.keys()].sort()) {
     if (!source.has(relative)) differences.push({ kind: "extra", relative });
@@ -226,7 +246,15 @@ function diffIndex(source: IndexTree, mirror: IndexTree): Difference[] {
 
 function checkStaged(context: ScriptContext): void {
   const { source, mirror } = readIndex(context);
-  if (source.size === 0) throw sourceNotDirectory(`nothing staged under ${SOURCE}/`);
+  if (source.size === 0) {
+    throw new ScriptError({
+      code: "ERR_AGENTS_SOURCE_NOT_STAGED",
+      summary: `the index holds no skill under ${SOURCE}/`,
+      expected: `the skills tracked under ${SOURCE}/ to stay in the commit`,
+      actual: `nothing staged under ${SOURCE}/ (the commit would drop the authored skills)`,
+      next: `stage the skills (\`git add ${SOURCE} ${MIRROR}\`), or \`git restore --staged ${SOURCE}\` if the removal was unintended`,
+    });
+  }
   const differences = diffIndex(source, mirror);
   if (differences.length > 0) throw driftError(differences, " in the index");
   context.log(`agents:check: the staged ${MIRROR}/ is in sync.`);

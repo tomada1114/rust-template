@@ -1,6 +1,8 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
+  statSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -110,6 +112,15 @@ describe("sync-agents (sync)", () => {
     expect(run(root).error).toBeUndefined();
     expect(read(root, `${MIRROR}/a/SKILL.md`)).toBe("dir now");
     expect(read(root, `${MIRROR}/b`)).toBe("file now");
+  });
+
+  it("copies a changed executable bit, even when the bytes match", () => {
+    const root = repo({ [`${SOURCE}/run.sh`]: "echo\n", [`${MIRROR}/run.sh`]: "echo\n" });
+    chmodSync(join(root, `${SOURCE}/run.sh`), 0o755);
+    expect(run(root, ["--check"]).actual).toBe(`differs: ${MIRROR}/run.sh`);
+    expect(run(root).error).toBeUndefined();
+    expect(statSync(join(root, `${MIRROR}/run.sh`)).mode & 0o111).toBe(0o111);
+    expect(run(root, ["--check"]).error).toBeUndefined();
   });
 
   it("reports an already-synced mirror and leaves it alone", () => {
@@ -321,6 +332,31 @@ describe("sync-agents --check --staged", () => {
     );
   });
 
+  it("fails when an executable bit is staged on one side only", () => {
+    const root = gitRepo({ [`${SOURCE}/run.sh`]: "echo\n", [`${MIRROR}/run.sh`]: "echo\n" });
+    git(root, "add", SOURCE, MIRROR);
+    expect(run(root, STAGED, hookEnv()).error).toBeUndefined();
+    git(root, "update-index", "--chmod=+x", `${SOURCE}/run.sh`);
+    const result = run(root, STAGED, hookEnv());
+    expect(result.error).toMatch(/^ERR_AGENTS_DRIFT/);
+    expect(result.actual).toBe(`differs: ${MIRROR}/run.sh`);
+  });
+
+  it("skips an intent-to-add entry, which the commit will not contain", () => {
+    const root = gitRepo({
+      [`${SOURCE}/a.md`]: "a",
+      [`${MIRROR}/a.md`]: "a",
+      [`${SOURCE}/draft.md`]: "not yet",
+    });
+    git(root, "add", `${SOURCE}/a.md`, MIRROR);
+    git(root, "add", "--intent-to-add", `${SOURCE}/draft.md`);
+    expect(git(root, "ls-files", "--", `${SOURCE}/draft.md`)).toBe(`${SOURCE}/draft.md\n`);
+    expect(run(root, STAGED, hookEnv()).error).toBeUndefined();
+    // Once really staged, the missing copy is drift again.
+    git(root, "add", `${SOURCE}/draft.md`);
+    expect(run(root, STAGED, hookEnv()).actual).toBe(`missing: ${MIRROR}/draft.md`);
+  });
+
   it("refuses a staged symlink in either tree", () => {
     const root = gitRepo({ [`${SOURCE}/a.md`]: "a", [`${MIRROR}/a.md`]: "a" });
     symlinkSync("a.md", join(root, `${SOURCE}/link.md`));
@@ -354,8 +390,8 @@ describe("sync-agents --check --staged", () => {
     const empty = gitRepo({ [`${MIRROR}/a.md`]: "a" });
     git(empty, "add", MIRROR);
     const result = run(empty, STAGED, hookEnv());
-    expect(result.error).toMatch(/^ERR_AGENTS_SOURCE_MISSING/);
-    expect(result.actual).toBe(`nothing staged under ${SOURCE}/`);
+    expect(result.error).toMatch(/^ERR_AGENTS_SOURCE_NOT_STAGED/);
+    expect(result.actual).toContain(`nothing staged under ${SOURCE}/`);
   });
 
   it("refuses to run outside a git work tree", () => {
@@ -383,9 +419,10 @@ describe("sync-agents --check --staged", () => {
       `100644 ${blob} 2\t${SOURCE}/b.md`,
       "",
     ].join("\0");
+    const answers: Record<string, string> = { "rev-parse": "true\n", "ls-files": listing };
     const fake: Run = (_command, args) => ({
       status: 0,
-      stdout: args[0] === "rev-parse" ? "true\n" : listing,
+      stdout: answers[args[0] ?? ""] ?? "",
       stderr: "",
     });
     expect(run(repo(), STAGED, {}, fake).error).toBeUndefined();
