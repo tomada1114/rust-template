@@ -1,5 +1,5 @@
 /**
- * Proves the bootstrap on a scratch copy (design D19): clones this checkout into its own
+ * Proves the bootstrap on a scratch copy: clones this checkout into its own
  * temporary directory, lays the work tree's uncommitted changes over the clone (so an
  * edit is verified before it is committed), links the installed node_modules, runs
  * `scripts/bootstrap.ts` non-interactively with a hyphenated multi-word name, and checks
@@ -10,6 +10,12 @@
  *   the upstream references the bootstrap keeps on purpose;
  * - no template-only marker line, and none of the template-only material (the paths the
  *   bootstrap removes, the Template Bootstrap Smoke job and its required context);
+ * - no text that only holds in the template, in any file: a mention of its design record,
+ *   of a decision by its number there, of README's template-only section, or a sentence
+ *   about the first app cut from it (TEMPLATE_TEXT);
+ * - AGENTS.md's Product section fails the product-section check while its bullets are
+ *   unfilled, with a `Next:` line naming a skill the app has, and passes once only its
+ *   four bullets are filled in;
  * - no dangling reference in a Markdown file (a skill included): a relative link to a
  *   missing file, a path the bootstrap removed, or `just <recipe>` for a recipe the
  *   justfile does not define;
@@ -32,7 +38,8 @@
  * Errors: ERR_VERIFY_BOOTSTRAP_USAGE, ERR_VERIFY_BOOTSTRAP_NO_DEPS,
  * ERR_VERIFY_BOOTSTRAP_CLONE, ERR_VERIFY_BOOTSTRAP_RUN, and a generated-tree violation:
  * ERR_VERIFY_BOOTSTRAP_LEFTOVER, ERR_VERIFY_BOOTSTRAP_MARKER,
- * ERR_VERIFY_BOOTSTRAP_TEMPLATE_FILE, ERR_VERIFY_BOOTSTRAP_DANGLING_REFERENCE,
+ * ERR_VERIFY_BOOTSTRAP_TEMPLATE_FILE, ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT,
+ * ERR_VERIFY_BOOTSTRAP_DANGLING_REFERENCE, ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION,
  * ERR_VERIFY_BOOTSTRAP_NAME_MISMATCH.
  */
 import {
@@ -46,6 +53,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, normalize, relative } from "node:path";
@@ -53,6 +61,7 @@ import { dirname, join, normalize, relative } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 
+import { check as productSection } from "./checks/product-section.ts";
 import {
   CRATE_DIRS,
   deriveNames,
@@ -179,6 +188,124 @@ function templateMaterial(root: string): FailureDetails[] {
           FIX_BOOTSTRAP,
         ),
       ];
+}
+
+/**
+ * Text that holds only in the template: its design record (which the bootstrap deletes),
+ * a decision cited by its number in that record, README's template-only section, and the
+ * app the template was first written for. An app keeps none of it.
+ */
+export const TEMPLATE_TEXT: readonly RegExp[] = [
+  /docs\/template/,
+  /design D[0-9]/,
+  /first app cut from this template/,
+  /Using This Template/,
+];
+
+function templateText(root: string, files: readonly string[]): FailureDetails[] {
+  const found: string[] = [];
+  for (const file of files) {
+    const text = readText(root, file);
+    if (text === undefined) continue;
+    text.split("\n").forEach((line, index) => {
+      if (TEMPLATE_TEXT.some((pattern) => pattern.test(line))) {
+        found.push(`${file}:${String(index + 1)}: ${line.trim()}`);
+      }
+    });
+  }
+  return found.length === 0
+    ? []
+    : [
+        violation(
+          "TEMPLATE_TEXT",
+          `${String(found.length)} line(s) in the generated app describe the template`,
+          "no mention of the template's design record, a decision number in it, README's template-only section, or the template's first app",
+          found.slice(0, 5).join(" | ") +
+            (found.length > 5 ? ` (and ${String(found.length - 5)} more)` : ""),
+          "rewrite the passage in the template so it holds in an app too, or add a TEXT_EDITS entry for it in scripts/bootstrap.ts, then run `node scripts/verify-bootstrap.ts` again",
+        ),
+      ];
+}
+
+/**
+ * AGENTS.md with only the Product section's bullets filled in: each `- **Label** — …`
+ * line keeps its label and takes a stand-in answer, and its indented continuation lines
+ * go. Every other line, the section's introduction included, is left as it is.
+ */
+export function fillProductBullets(agents: string): string {
+  const kept: string[] = [];
+  let inside = false;
+  let bullet = false;
+  for (const line of agents.split("\n")) {
+    if (line.startsWith("## ")) {
+      inside = line === "## Product";
+      bullet = false;
+    } else if (inside && line.startsWith("- **")) {
+      const end = line.indexOf("** — ");
+      kept.push(end === -1 ? line : `${line.slice(0, end + "** — ".length)}a stand-in answer.`);
+      bullet = true;
+      continue;
+    } else if (inside && bullet && line.startsWith("  ")) {
+      continue;
+    } else {
+      bullet = false;
+    }
+    kept.push(line);
+  }
+  return kept.join("\n");
+}
+
+function productViolation(actual: string): FailureDetails {
+  return violation(
+    "PRODUCT_SECTION",
+    "AGENTS.md's Product section does not behave as an app's should after the bootstrap",
+    "the product-section check to fail on the unfilled bullets, name a skill the app has, and pass once only the four bullets are filled in",
+    actual,
+    "fix the Product section's TEXT_EDITS entry in scripts/bootstrap.ts, or scripts/checks/product-section.ts's Next line, then run `node scripts/verify-bootstrap.ts` again",
+  );
+}
+
+function productSectionBehaviour(root: string): FailureDetails[] {
+  const agents = readText(root, "AGENTS.md");
+  const conf = readText(root, "src-tauri/tauri.conf.json");
+  if (agents === undefined || conf === undefined) {
+    return [productViolation("no AGENTS.md or src-tauri/tauri.conf.json in the generated app")];
+  }
+  const unfilled = productSection.run(root);
+  if (unfilled.length === 0) {
+    return [productViolation("the check passes on the unfilled section")];
+  }
+  const skills = new Set(
+    unfilled.flatMap((found) =>
+      [...found.next.matchAll(/the `([a-z0-9-]+)` skill/g)].map((match) => match[1] ?? ""),
+    ),
+  );
+  const missing = [...skills].filter(
+    (name) => !existsSync(join(root, ".agents", "skills", name, "SKILL.md")),
+  );
+  if (skills.size === 0 || missing.length > 0) {
+    return [
+      productViolation(
+        `its Next line names ${skills.size === 0 ? "no skill" : `a skill the app lacks: ${missing.join(", ")}`} (${unfilled[0]?.next ?? ""})`,
+      ),
+    ];
+  }
+  const filledRoot = mkdtempSync(join(tmpdir(), "verify-bootstrap-product-"));
+  try {
+    mkdirSync(join(filledRoot, "src-tauri"));
+    writeFileSync(join(filledRoot, "AGENTS.md"), fillProductBullets(agents));
+    writeFileSync(join(filledRoot, "src-tauri", "tauri.conf.json"), conf);
+    const filled = productSection.run(filledRoot);
+    return filled.length === 0
+      ? []
+      : [
+          productViolation(
+            `with only the bullets filled in, the check still fails: ${filled.map((found) => `${found.summary} (${found.actual})`).join(" | ")}`,
+          ),
+        ];
+  } finally {
+    rmSync(filledRoot, { recursive: true, force: true });
+  }
 }
 
 /** The recipe names the justfile defines. */
@@ -422,7 +549,9 @@ export function assertGenerated(root: string, answers: Answers): FailureDetails[
     ...leftovers(root, files),
     ...markers(root, files),
     ...templateMaterial(root),
+    ...templateText(root, files),
     ...danglingReferences(root, files),
+    ...productSectionBehaviour(root),
     ...nameMismatches(root, answers),
   ];
 }

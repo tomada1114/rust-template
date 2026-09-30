@@ -1,6 +1,6 @@
 /**
- * `just bindings`: regenerates `ui/src/ipc/generated/` from core's ts-rs types (design
- * D4). ts-rs writes one `.ts` file per exported type from a test that only core's
+ * `just bindings`: regenerates `ui/src/ipc/generated/` from core's ts-rs types. ts-rs
+ * writes one `.ts` file per exported type from a test that only core's
  * `export-bindings` feature compiles, into `TS_RS_EXPORT_DIR`. This script points that at
  * a fresh directory beside the tracked one and swaps it in only when the export exits 0
  * and wrote at least one `.ts` file, so a failed build keeps the old bindings and a type

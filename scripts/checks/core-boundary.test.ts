@@ -124,7 +124,7 @@ describe("core-boundary", () => {
     expect(check.name).toBe("core-boundary");
   });
 
-  it("forbids the crates design D3 names", () => {
+  it("forbids the crates the core boundary names", () => {
     expect([...FORBIDDEN_IN_CORE].sort()).toEqual(
       [
         "core-foundation*",

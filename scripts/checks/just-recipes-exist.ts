@@ -1,6 +1,6 @@
 /**
  * Every `just <recipe>` the documents name exists, and every recipe `.claude/settings.json`
- * permits exists (design D14), so a renamed or removed recipe cannot leave a document
+ * permits exists, so a renamed or removed recipe cannot leave a document
  * pointing at nothing or a permission rule that can never match.
  *
  *   node scripts/checks/just-recipes-exist.ts [--root DIR]

@@ -1,7 +1,7 @@
-# Task runner (design D10). Every recipe is a thin call into cargo, pnpm, or scripts/.
+# Task runner. Every recipe is a thin call into cargo, pnpm, or scripts/.
 # `just --list` shows them all.
 #
-# Never taking over the developer's Mac (design D22): recipes that open the app (dev, run,
+# Never taking over the developer's Mac: recipes that open the app (dev, run,
 # install-app) and recipes a human starts on purpose (test-local, reset-permissions,
 # logs-follow) are never part of `just check`, and an agent runs them only when the human
 # asks. Local builds make the app bundle only (`--bundles app`): building a disk image
@@ -14,13 +14,14 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 bundle_id := "com.example.myapp"
 app_name := "MyApp"
 log_dir := env("HOME", "") / "Library/Logs" / bundle_id
+log_prefix := "myapp"
 no_signing := "env -u APPLE_CERTIFICATE -u APPLE_CERTIFICATE_PASSWORD -u APPLE_SIGNING_IDENTITY -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_ISSUER -u APPLE_API_KEY -u APPLE_API_KEY_PATH"
 
 # List the recipes
 default:
     @just --list
 
-# Everything a Mac runs without a human, in CI's order (opens no window; see D22 above)
+# Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
 check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-macos build smoke
 
 # Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
@@ -126,14 +127,18 @@ smoke:
 logs:
     #!/usr/bin/env bash
     set -euo pipefail
-    newest="$(ls -t "{{ log_dir }}"/*.log 2>/dev/null | head -n 1 || true)"
-    if [[ -z "$newest" ]]; then echo "no log files in {{ log_dir }}"; exit 0; fi
+    newest="$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$newest" ]]; then echo "no {{ log_prefix }}.*.log files in {{ log_dir }}"; exit 0; fi
     echo "==> $newest"
     tail -n 50 "$newest"
 
 # Follow the newest app log (never ends: a human's recipe)
 logs-follow:
-    tail -F "$(ls -t "{{ log_dir }}"/*.log | head -n 1)"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    newest="$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$newest" ]]; then echo "no {{ log_prefix }}.*.log files in {{ log_dir }}"; exit 0; fi
+    tail -F "$newest"
 
 # Reset the app's privacy (TCC) permissions so macOS asks again (a human's recipe)
 reset-permissions:

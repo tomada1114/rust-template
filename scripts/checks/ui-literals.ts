@@ -1,5 +1,5 @@
 /**
- * Components reach design values only through tokens (design D23): outside
+ * Components reach design values only through tokens: outside
  * `ui/src/design/tokens.css`, nothing under `ui/src/` — nor `ui/index.html` — holds a
  * raw color, a font family, or a pixel font size. The keywords `currentColor`,
  * `transparent`, `inherit`, `none`, `initial`, `unset` (and `revert`) are not colors,
@@ -946,7 +946,7 @@ function run(root: string): FailureDetails[] {
       {
         code: "ERR_CHECK_INPUT_MISSING",
         summary: `${UI_SRC}/ does not exist`,
-        expected: `the UI sources under ${UI_SRC}/ (design D8)`,
+        expected: `the UI sources under ${UI_SRC}/`,
         actual: "no such directory",
         next: `restore ${UI_SRC}/ from version control, or run the check with --root at a checkout`,
       },
@@ -984,7 +984,7 @@ function run(root: string): FailureDetails[] {
     return {
       code: rule.code,
       summary: `${finding.path}:${String(finding.line)}: ${rule.summary} \`${finding.what}\` outside ${TOKENS}`,
-      expected: `${rule.expected} (design D23; ${TOKENS} is the one file that holds raw values)`,
+      expected: `${rule.expected} (${TOKENS} is the one file that holds raw values)`,
       actual: `\`${finding.declaration}\``,
       next: rule.next,
     };

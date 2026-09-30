@@ -10,14 +10,14 @@ import tseslint from "typescript-eslint";
 // dynamic `import()`. An `import("…")` type is already refused everywhere by
 // consistent-type-imports.
 
-/** Only ui/src/ipc/ talks to Tauri (design D3). */
+/** Only ui/src/ipc/ talks to Tauri. */
 const TAURI_ONLY_IN_IPC = {
   group: ["@tauri-apps/*", "@tauri-apps/**"],
   specifier: /^@tauri-apps\//,
   message: "Only ui/src/ipc/ may import @tauri-apps/*. Add a typed wrapper there and import it.",
 };
 
-/** Generated bindings are reached through ui/src/ipc/types.ts (design D4). */
+/** Generated bindings are reached through ui/src/ipc/types.ts. */
 const GENERATED_ONLY_IN_IPC = {
   group: ["**/ipc/generated", "**/ipc/generated/**", "./generated/**", "../generated/**"],
   specifier: /(^|\/)ipc\/generated(\/|$)|^\.\.?\/generated\//,

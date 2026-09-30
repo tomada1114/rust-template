@@ -13,5 +13,6 @@ pub use clock::SystemClock;
 pub use counter_store::JsonFileCounterStore;
 pub use logging::{LOG_FILES_KEPT, LoggingError, init_logging};
 pub use paths::{
-    BUNDLE_IDENTIFIER, COUNTER_FILE_NAME, app_data_dir, counter_file, home_dir, log_dir,
+    BUNDLE_IDENTIFIER, CLI_LOG_DIR_NAME, COUNTER_FILE_NAME, app_data_dir, cli_log_dir,
+    counter_file, home_dir, log_dir,
 };

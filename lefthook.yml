@@ -1,4 +1,4 @@
-# Local Git hooks (design D11). Check-only and fast: nothing here rewrites a file, and
+# Local Git hooks. Check-only and fast: nothing here rewrites a file, and
 # there is no clippy, compile, or test step — `just check` and CI run those. Each job runs
 # the same executable and flags as the matching `just`/pnpm recipe, narrowed to the staged
 # files, so a change cannot pass here and fail there. The one addition is the skills-mirror

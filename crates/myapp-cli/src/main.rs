@@ -1,4 +1,4 @@
-//! `myapp-cli`: the helper executable bundled inside the app as a sidecar (design D5).
+//! `myapp-cli`: the helper executable bundled inside the app as a sidecar.
 //!
 //! It reads and writes the same store as the app, through the same core and platform
 //! code, without starting the GUI — the shape a launchd job needs.
@@ -12,7 +12,7 @@ use std::sync::Arc;
 use clap::{Parser, Subcommand};
 use myapp_core::{CounterError, CounterService, CounterView, StorageErrorKind, Tuning};
 use myapp_platform::{
-    JsonFileCounterStore, SystemClock, counter_file, home_dir, init_logging, log_dir,
+    JsonFileCounterStore, SystemClock, cli_log_dir, counter_file, home_dir, init_logging,
 };
 
 /// The app's helper: reads and changes the same counter the app shows.
@@ -66,7 +66,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
     // Logging is best effort for a helper: a read-only log directory must not stop it.
-    if init_logging(&log_dir(&home), "myapp-cli", cfg!(debug_assertions)).is_err() {
+    if init_logging(&cli_log_dir(&home), "myapp-cli", cfg!(debug_assertions)).is_err() {
         eprintln!("warning: logging is unavailable for this run");
     }
 

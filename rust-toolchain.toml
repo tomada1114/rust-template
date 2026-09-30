@@ -1,4 +1,4 @@
-# The one Rust pin (design D9). rustup reads this file, and so does mise's `rust` tool,
+# The one Rust pin. rustup reads this file, and so does mise's `rust` tool,
 # which delegates to rustup — so mise.toml does not pin Rust a second time.
 # Renovate's `rust-toolchain` manager opens the bump PRs.
 [toolchain]

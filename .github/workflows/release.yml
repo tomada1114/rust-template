@@ -1,6 +1,6 @@
 name: Release
 
-# Builds, verifies, and publishes the app's .dmg (design D18; docs/distribution.md).
+# Builds, verifies, and publishes the app's .dmg (docs/distribution.md).
 #
 # - A `v*` tag push (a human act) publishes a GitHub Release.
 # - `workflow_dispatch` with `dry_run: true` (the default) runs every step up to the

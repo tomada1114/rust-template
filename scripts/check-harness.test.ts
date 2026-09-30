@@ -61,10 +61,17 @@ describe("runChecks", () => {
 });
 
 describe("main", () => {
-  it("passes when every discovered check passes (the repository's own checks)", async () => {
-    const { context, lines } = ctx(process.cwd());
-    await main(context);
-    expect(lines.at(-1)).toMatch(/^check-harness: \d+ checks passed$/);
+  it("runs each discovered check against the context's root and passes when all pass", async () => {
+    const dir = tempDir();
+    writeFileSync(
+      join(dir, "needs-marker.ts"),
+      `import { existsSync } from "node:fs";\nimport { join } from "node:path";\nexport const check = { name: "needs-marker", run: (root) => existsSync(join(root, "marker")) ? [] : [{ code: "ERR_CHECK_X", summary: "s", expected: "e", actual: "a", next: "n" }] };\n`,
+    );
+    const root = tempDir();
+    writeFileSync(join(root, "marker"), "");
+    const { context, lines } = ctx(root);
+    await main(context, dir);
+    expect(lines).toEqual(["ok    needs-marker", "check-harness: 1 checks passed"]);
   });
 
   it("fails with ERR_HARNESS_FAILED naming the count", async () => {
@@ -73,7 +80,7 @@ describe("main", () => {
       join(dir, "always-fails.ts"),
       `export const check = { name: "always-fails", run: () => [{ code: "ERR_CHECK_X", summary: "s", expected: "e", actual: "a", next: "n" }] };\n`,
     );
-    const { context } = ctx(process.cwd());
+    const { context } = ctx(tempDir());
     let error: unknown;
     try {
       await main(context, dir);
@@ -90,7 +97,7 @@ describe("main", () => {
     writeFileSync(join(dir, "empty-check.ts"), "export const nothing = 1;\n");
     let error: unknown;
     try {
-      await main(ctx(process.cwd()).context, dir);
+      await main(ctx(tempDir()).context, dir);
     } catch (thrown: unknown) {
       error = thrown;
     }

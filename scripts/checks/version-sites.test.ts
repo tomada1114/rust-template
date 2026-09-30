@@ -1,5 +1,5 @@
 /**
- * version-sites against temp roots holding the three version sites below (design D18),
+ * version-sites against temp roots holding the three version sites below,
  * which agree on 1.2.3. The files are written at run time rather than committed under
  * fixtures/, so no tool that discovers a `Cargo.toml`, a `package.json`, or a
  * `tauri.conf.json` in the tree ever finds a fixture's.

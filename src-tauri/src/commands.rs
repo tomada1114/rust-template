@@ -1,4 +1,4 @@
-//! The commands the UI invokes and the event it listens to (design D4, D6).
+//! The commands the UI invokes and the event it listens to.
 //!
 //! A command decides nothing: it moves the work to a blocking thread (file I/O stays off
 //! the IPC thread), calls core, emits the change, and logs one line. Command and event

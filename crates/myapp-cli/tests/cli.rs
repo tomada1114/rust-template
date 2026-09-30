@@ -7,6 +7,7 @@ use std::process::{Command, Output};
 
 const COUNTER_FILE: &str = "Library/Application Support/com.example.myapp/counter.json";
 const LOG_DIR: &str = "Library/Logs/com.example.myapp";
+const CLI_LOG_DIR: &str = "Library/Logs/com.example.myapp/cli";
 
 fn run(home: &Path, args: &[&str]) -> Output {
     match Command::new(env!("CARGO_BIN_EXE_myapp-cli"))
@@ -97,10 +98,16 @@ fn an_unreadable_file_fails_with_exit_code_1() {
 }
 
 #[test]
-fn each_run_logs_to_its_own_file_prefix() {
+fn each_run_logs_to_the_helpers_own_directory() {
     let home = tempfile::tempdir().unwrap();
     assert!(run(home.path(), &["counter", "increment"]).status.success());
-    let names: Vec<String> = fs::read_dir(home.path().join(LOG_DIR))
+    let root: Vec<String> = fs::read_dir(home.path().join(LOG_DIR))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(root, vec!["cli".to_owned()], "no .log file in the root");
+    assert!(home.path().join(LOG_DIR).join("cli").is_dir());
+    let names: Vec<String> = fs::read_dir(home.path().join(CLI_LOG_DIR))
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();

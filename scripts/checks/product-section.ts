@@ -1,5 +1,5 @@
 /**
- * `AGENTS.md`'s `## Product` section matches which repository this is (design D14, D19).
+ * `AGENTS.md`'s `## Product` section matches which repository this is.
  * It is the one part of that file about the app rather than the harness — what it is, for
  * whom, and what it deliberately is not. In the template it is a `TODO:` skeleton; in an
  * app the bootstrap has produced, a surviving marker means an agent has no in-repo
@@ -31,7 +31,7 @@ const CONF = "src-tauri/tauri.conf.json";
 const PLACEHOLDER_IDENTIFIER = ["com", "example", "my" + "app"].join(".");
 const MARKER = "TODO:";
 const FILL_IT =
-  "write AGENTS.md's `## Product` section for this app (what it is and for whom, the core interaction, its non-goals, where those decisions are recorded) and delete every `TODO:` (README.md's \"Using This Template\")";
+  "write AGENTS.md's `## Product` section for this app (what it is and for whom, the core interaction, its non-goals, where those decisions are recorded) and delete every `TODO:` (the `starting-an-app` skill walks through it)";
 
 function productViolation(
   summary: string,
