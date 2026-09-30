@@ -155,7 +155,7 @@ fn two_services_on_one_file_lose_no_increment() {
         let service = CounterService::new(
             Arc::new(JsonFileCounterStore::new(path.clone())),
             Arc::new(FixedClock::default()),
-            Tuning { min: 0, max: 1_000 },
+            Tuning::new(0, 1_000).unwrap(),
         );
         let start = start.clone();
         thread::spawn(move || {

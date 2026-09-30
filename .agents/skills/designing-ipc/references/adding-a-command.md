@@ -99,7 +99,7 @@ A command that takes an argument names it as the UI will (camelCase on the wire)
 
 ```rust
 #[tauri::command]
-pub fn log_from_ui(entry: UiLogEntry) { … }
+pub async fn log_from_ui(entry: UiLogEntry) { … }
 ```
 
 A new service goes into `AppState` as another `Arc` field, constructed in `build_state`

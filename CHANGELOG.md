@@ -15,7 +15,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   empty architecture-decision index with its template, a roadmap skeleton, issue forms,
   and a pull request template.
 
+### Changed
+
+- **Breaking:** `Tuning`'s fields are private. Code that built `Tuning { min, max }` must
+  now call `Tuning::new(min, max)?`, which returns `TuningError::MinAboveMax` when
+  `min > max`, and read the bounds through `min()` and `max()`.
+
 ### Fixed
+
+- `log_from_ui` writes each UI log entry as one line: the message's control characters
+  and Unicode line separators are escaped and it is cut to 1,000 characters, so a
+  message holding a newline can no longer forge a log line such as the
+  `startup complete pid=…` that `just smoke` looks for. The command is now async and
+  writes on a blocking thread instead of the main thread.
+
+- A `Tuning` whose `min` is above its `max` is refused, which used to leave the counter
+  below its minimum. `clock_contract` no longer asserts that two reads are in order, a property
+  the wall-clock `SystemClock` lacks. The command tests now assert the
+  `counter-changed` events from `decrement` and `reset`, that `get_counter` emits
+  nothing, and the `{ code: "storage", kind }` rejection, and core's docs carry
+  doctests, so `just test-core`'s doctest step checks something.
 
 - The app and the helper CLI can save the counter at the same moment: each save writes
   its own temporary file and holds a lock on `counter.json.lock`, and each change holds

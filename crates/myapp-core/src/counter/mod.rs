@@ -14,19 +14,61 @@ use ts_rs::TS;
 use crate::time::{Clock, UnixMillis};
 pub use store::{CounterStore, StorageError, StorageErrorKind, StoredCounter};
 
-/// Tunables in one place (designing-core-logic).
+/// Tunables in one place (designing-core-logic). Built only by [`Tuning::new`] (or
+/// [`Default`]), so every `Tuning` holds a range with at least one value in it.
+///
+/// ```
+/// use myapp_core::{Counter, Tuning, TuningError};
+///
+/// let tuning = Tuning::new(0, 3)?;
+/// assert_eq!(Counter::new(7, tuning).value(), 3);
+/// assert_eq!(Tuning::new(5, 1), Err(TuningError::MinAboveMax));
+/// # Ok::<(), TuningError>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tuning {
+    min: i64,
+    max: i64,
+}
+
+impl Tuning {
+    /// A range from `min` to `max`, both included.
+    ///
+    /// # Errors
+    /// [`TuningError::MinAboveMax`] when `min > max`: no value lies in that range, so a
+    /// counter could not stay inside it.
+    pub const fn new(min: i64, max: i64) -> Result<Self, TuningError> {
+        if min > max {
+            return Err(TuningError::MinAboveMax);
+        }
+        Ok(Self { min, max })
+    }
+
     /// The lowest value; also the value a fresh or reset counter holds.
-    pub min: i64,
+    #[must_use]
+    pub const fn min(&self) -> i64 {
+        self.min
+    }
+
     /// The highest value.
-    pub max: i64,
+    #[must_use]
+    pub const fn max(&self) -> i64 {
+        self.max
+    }
 }
 
 impl Default for Tuning {
     fn default() -> Self {
         Self { min: 0, max: 99 }
     }
+}
+
+/// A [`Tuning`] that no counter could stay inside.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum TuningError {
+    /// `min` is above `max`, so the range holds no value.
+    #[error("the tuning's minimum is above its maximum")]
+    MinAboveMax,
 }
 
 /// A counter value that never leaves its range. Pure: no I/O, no time.
@@ -41,9 +83,9 @@ impl Counter {
     /// (a stored value from a build with a wider range, say).
     #[must_use]
     pub fn new(value: i64, tuning: Tuning) -> Self {
-        // `max(min).min(max)` rather than `clamp`: `clamp` panics when min > max.
+        // `clamp` panics when min > max; `Tuning::new` refuses that range.
         Self {
-            value: value.max(tuning.min).min(tuning.max),
+            value: value.clamp(tuning.min, tuning.max),
             tuning,
         }
     }
@@ -246,11 +288,36 @@ impl CounterService {
 mod tests {
     use super::*;
 
-    const TUNING: Tuning = Tuning { min: 0, max: 3 };
+    const TUNING: Tuning = match Tuning::new(0, 3) {
+        Ok(tuning) => tuning,
+        Err(TuningError::MinAboveMax) => panic!("0 to 3 is a valid range"),
+    };
 
     #[test]
     fn default_tuning_is_zero_to_ninety_nine() {
-        assert_eq!(Tuning::default(), Tuning { min: 0, max: 99 });
+        assert_eq!(Tuning::default(), Tuning::new(0, 99).unwrap());
+    }
+
+    #[test]
+    fn tuning_keeps_its_bounds() {
+        let tuning = Tuning::new(-4, 6).unwrap();
+        assert_eq!((tuning.min(), tuning.max()), (-4, 6));
+    }
+
+    #[test]
+    fn tuning_with_the_minimum_above_the_maximum_is_an_error() {
+        assert_eq!(Tuning::new(3, 2), Err(TuningError::MinAboveMax));
+        assert_eq!(
+            Tuning::new(i64::MAX, i64::MIN),
+            Err(TuningError::MinAboveMax)
+        );
+    }
+
+    #[test]
+    fn tuning_with_one_value_holds_a_counter_at_that_value() {
+        let tuning = Tuning::new(5, 5).unwrap();
+        assert_eq!(Counter::new(-1, tuning).value(), 5);
+        assert_eq!(Counter::new(9, tuning).value(), 5);
     }
 
     #[test]
@@ -298,7 +365,7 @@ mod tests {
 
     #[test]
     fn reset_returns_to_the_minimum() {
-        let tuning = Tuning { min: 5, max: 10 };
+        let tuning = Tuning::new(5, 10).unwrap();
         assert_eq!(Counter::new(8, tuning).reset().value(), 5);
     }
 

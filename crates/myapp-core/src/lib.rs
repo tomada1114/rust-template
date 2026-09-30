@@ -18,7 +18,7 @@ pub mod time;
 
 pub use counter::{
     Counter, CounterError, CounterService, CounterView, StorageError, StorageErrorKind,
-    StoredCounter, Tuning, store::CounterStore,
+    StoredCounter, Tuning, TuningError, store::CounterStore,
 };
 pub use log::{UiLogEntry, UiLogLevel};
 pub use time::{Clock, UnixMillis};

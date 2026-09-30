@@ -78,8 +78,9 @@ has the code for every step, taken from the sample.
   borrowed, as `State<'_, …>` is, has to return a `Result`: the page's other remedy,
   an owned argument, does not exist for state
   (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29). So anything that touches I/O is `async` and returns `Result`;
-  only a command that does no slow work and cannot fail may be a plain `fn`
-  (`log_from_ui` only emits a `tracing` event).
+  only a command that does no slow work and cannot fail may be a plain `fn`. Writing a
+  log line is I/O too: `log_from_ui` takes an owned argument, so it is `async` without
+  a `Result` and writes on a blocking thread.
 - **A slow port runs on a blocking thread.** Core is synchronous by design (no async to
   learn), so the command moves the call with `tauri::async_runtime::spawn_blocking`.
   The closure must own what it uses (`'static`: it may outlive the borrow of `State`),
