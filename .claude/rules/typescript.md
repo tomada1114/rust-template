@@ -23,7 +23,8 @@ these are the ones they cannot, or the ones worth knowing before the gate fails.
 - A command rejects with Rust's `{ code }` object; narrow it with a guard such as
   `isCounterError` (`ui/src/ipc/errors.ts`) before reading it
 - Tests mock the Rust side through `ui/src/ipc/testing.ts` (`mockCommands`,
-  `rejectWith`), which production code never imports (ESLint, static or dynamic)
+  `rejectWith`), which production code never imports (ESLint, static or dynamic); inside
+  `ui/src/ipc/`, only `testing.ts` and tests import `@tauri-apps/api/mocks`
 
 ## Screens (`ui/`)
 
@@ -56,8 +57,8 @@ these are the ones they cannot, or the ones worth knowing before the gate fails.
 - A `switch` over a union lists every member and has no `default` (ESLint's
   `switch-exhaustiveness-check`); adding a member then fails at every switch that must
   decide about it
-- No `enum`, `namespace`, or parameter property in `ui/` either (`erasableSyntaxOnly` in
-  `ui/tsconfig.json`)
+- No `enum`, `namespace`, or parameter property in `ui/` or the root config files either
+  (`erasableSyntaxOnly` in `ui/tsconfig.json` and `tsconfig.json`)
 - `import type` for type-only imports (`verbatimModuleSyntax`)
 - No `any`, no non-null `!`, no `@ts-ignore`; a `@ts-expect-error` needs a description
   and, like an `// eslint-disable`, is weakening a gate when it only silences a check

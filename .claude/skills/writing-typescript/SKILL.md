@@ -129,10 +129,10 @@ open. The language itself is the TypeScript handbook
   Declare an omissible option `readonly x?: T`. When a caller really forwards
   `undefined` (a prop threaded through a wrapper), widen that one property to
   `x?: T | undefined`; never turn the flag off.
-- No `enum`, no `namespace`, and no parameter property. Both `scripts/tsconfig.json`
-  and `ui/tsconfig.json` reject them at `tsc` (`erasableSyntaxOnly`): Node strips
-  `scripts/` types without compiling, and a string-literal union is what ts-rs
-  generates from a Rust enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
+- No `enum`, no `namespace`, and no parameter property. `scripts/tsconfig.json`,
+  `ui/tsconfig.json`, and the root `tsconfig.json` reject them at `tsc`
+  (`erasableSyntaxOnly`): Node strips `scripts/` types without compiling, and a
+  string-literal union is what ts-rs generates from a Rust enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
 
 ## Function boundaries
 
