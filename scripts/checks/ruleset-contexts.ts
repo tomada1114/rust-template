@@ -26,10 +26,27 @@
  *     pull request, a computed matrix or one past 256 jobs, a matrix name whose
  *     expressions never read `matrix`, a workflow in another repository — matches nothing
  *     (fail closed), and the failure names it with the edit that would make it known.
+ *     A job's `name:` that is a number or a boolean reports as GitHub's workflow parser
+ *     converts a scalar where it expects a string (`123`, `true`); a null or fractional
+ *     one is not known, and none is ever compared under the job's id.
+ *   - the gated branches: each `conditions.ref_name.include` entry of the ruleset:
+ *     `refs/heads/<branch>` (no pattern; a pattern include fails closed), `~ALL` (every
+ *     branch), or `~DEFAULT_BRANCH`. GitHub keeps the default branch as a repository
+ *     setting, not in a file, and this check stays offline, so it takes the one branch
+ *     ci.yml's `on: push: branches:` names literally (patterns aside). When --root is the
+ *     top of a git work tree whose `refs/remotes/origin/HEAD` exists (a developer's clone,
+ *     or the Template Bootstrap Smoke job's scratch clone on a push to main; never an
+ *     actions/checkout checkout, which has none), that branch must agree with it; with no
+ *     single literal branch, origin/HEAD names the default branch itself (one of the
+ *     literals, when ci.yml lists several). Not knowing the name fails nothing on its own:
+ *     a trigger with no branch filter, or only `branches: ['**']`, fires into every branch.
+ *     Only a required job whose trigger filters branches needs it, and then the check
+ *     fails rather than guessing `main`.
  *   - runs on every pull request: a matching job counts only when its workflow's
  *     `pull_request` trigger has no `paths` or `paths-ignore` filter, its `branches`
- *     (when set) match the ruleset's branch and no `!` pattern there matches it, its
- *     `branches-ignore` (when set) do not match it, and its `types`, when set, include `opened`,
+ *     (when set) match every gated branch and no `!` pattern there matches one, its
+ *     `branches-ignore` (when set) match none of them (under `~ALL`, neither filter but
+ *     `branches: ['**']`), and its `types`, when set, include `opened`,
  *     `synchronize`, and `reopened`; its `if:`, when set, is true on every pull request
  *     (evaluated as above; one the evaluator cannot read is unproven, never true); and
  *     every job it `needs` runs on every pull request too. A called job counts only when
@@ -37,17 +54,24 @@
  *   A workflow that does not parse is workflow-hygiene's to report; its jobs match nothing
  *   here.
  *
- * Git work tree: not required; the check reads files under --root.
+ * Git work tree: not required; the check reads files under --root, and reads
+ * `refs/remotes/origin/HEAD` only when --root is the top of a work tree that has one.
  *
  * Errors (FailureDetails; the runner prints them all):
  *   ERR_CHECK_USAGE                    bad arguments (scripts/checks/lib.ts)
  *   ERR_CHECK_RULESET_MISSING          .github/rulesets/main.json does not exist
  *   ERR_CHECK_RULESET_UNREADABLE       .github/rulesets/main.json is not JSON
+ *   ERR_CHECK_RULESET_BRANCH_UNKNOWN   a ruleset include is not one this check reads, or a required
+ *                                      job filters branches and the default branch is not known
+ *   ERR_CHECK_RULESET_BRANCH_MISMATCH  ci.yml's one literal push branch is not this clone's origin/HEAD
  *   ERR_CHECK_RULESET_CONTEXT          a required context matches no job in a pull_request workflow
  *   ERR_CHECK_RULESET_CONTEXT_SKIPPED  a required context matches only jobs that may not run on every pull request
  */
+import { realpathSync } from "node:fs";
+
 import type { FailureDetails } from "../lib/fail.ts";
-import { runScript } from "../lib/script.ts";
+import { gitEnv } from "../lib/git-env.ts";
+import { runCommand, runScript, type Run } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
 import {
   conditionOn,
@@ -59,11 +83,22 @@ import {
   isRecord,
   jobsOf,
   readWorkflows,
+  readYaml,
   triggerNames,
   type Workflow,
 } from "./shared/workflows.ts";
 
 const RULESET = ".github/rulesets/main.json";
+/** The workflow whose `on: push: branches:` declares the default branch. */
+const CI = ".github/workflows/ci.yml";
+const DEFAULT_BRANCH = "~DEFAULT_BRANCH";
+const HEADS = "refs/heads/";
+const ORIGIN = "refs/remotes/origin/";
+/**
+ * The characters that make a branch filter entry or a ruleset include a pattern (or a
+ * negation). `+` is left out: it is literal in a git branch name and a ruleset include.
+ */
+const PATTERN = /[*?[\]!]/;
 const EVENT = "pull_request";
 const FILTERS = ["paths", "paths-ignore"];
 /** The activity types a `pull_request` trigger runs on when it names none. */
@@ -317,7 +352,18 @@ interface ReportingJob {
   readonly names: JobNames;
   /** Why the job may not run on every pull request; empty when it always does. */
   readonly skips: readonly string[];
+  /** Its workflow's branch filters that only the default branch's name could judge. */
+  readonly needsDefault: readonly string[];
 }
+
+/**
+ * A branch the ruleset gates: one by name, every branch (`~ALL`), or the default branch
+ * when neither ci.yml nor this clone gives its name.
+ */
+export type Gated =
+  | { readonly kind: "name"; readonly name: string }
+  | { readonly kind: "all" }
+  | ({ readonly kind: "unknown" } & Unresolved);
 
 /**
  * Whether a GitHub branch filter pattern matches `branch`: `**` matches any text, `*`
@@ -337,59 +383,230 @@ export function branchMatches(pattern: string, branch: string): boolean {
   return new RegExp(`^${source}$`).test(branch);
 }
 
-/** The branch the ruleset gates: a `refs/heads/<name>` include, else `main`. */
-export function rulesetBranch(ruleset: unknown): string {
+/**
+ * The branch `refs/remotes/origin/HEAD` names when `root` is the top of a git work tree
+ * that has one, else undefined: a CI checkout has none, and a fixture is no work tree.
+ */
+export function originHead(root: string, run: Run = runCommand): string | undefined {
+  const git = (args: readonly string[]): string | undefined => {
+    const result = run("git", args, { cwd: root, env: gitEnv(process.env) });
+    return result.status === 0 ? result.stdout.trim() : undefined;
+  };
+  const top = git(["rev-parse", "--show-toplevel"]);
+  if (top === undefined || top === "") return undefined;
+  try {
+    if (realpathSync(top) !== realpathSync(root)) return undefined;
+  } catch {
+    return undefined;
+  }
+  const ref = git(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]);
+  return ref?.startsWith(ORIGIN) === true ? ref.slice(ORIGIN.length) : undefined;
+}
+
+const branchUnknown = (actual: string, next: string): FailureDetails => ({
+  code: "ERR_CHECK_RULESET_BRANCH_UNKNOWN",
+  summary: `${RULESET}: the branches the ruleset gates cannot be read from it`,
+  expected: `each \`conditions.ref_name.include\` entry to be \`${DEFAULT_BRANCH}\`, \`~ALL\`, or \`refs/heads/<branch>\` with no pattern`,
+  actual,
+  next,
+});
+
+/**
+ * The default branch's name, or why it is not known: the one literal branch among
+ * ci.yml's `on: push: branches:` (patterns and negations aside), checked against
+ * `readOrigin` (this clone's origin/HEAD); else origin/HEAD itself, when ci.yml names no
+ * literal branch or names it among several. Not knowing it fails nothing on its own: only
+ * a required job whose trigger filters branches needs the name.
+ */
+export function defaultBranch(
+  root: string,
+  readOrigin: () => string | undefined,
+): { readonly name: string } | Unresolved | FailureDetails {
+  const file = readYaml(root, CI);
+  const data = file === undefined || typeof file === "string" ? undefined : file.data;
+  const on = isRecord(data) ? data["on"] : undefined;
+  const push = isRecord(on) ? on["push"] : undefined;
+  const branches = isRecord(push) ? push["branches"] : undefined;
+  const entries: unknown[] =
+    typeof branches === "string" ? [branches] : Array.isArray(branches) ? branches : [];
+  const literals = [
+    ...new Set(
+      entries.filter(
+        (entry): entry is string =>
+          typeof entry === "string" && entry !== "" && !PATTERN.test(entry),
+      ),
+    ),
+  ];
+  const origin = readOrigin();
+  const [only] = literals;
+  if (literals.length === 1 && only !== undefined) {
+    if (origin === undefined || origin === only) return { name: only };
+    return {
+      code: "ERR_CHECK_RULESET_BRANCH_MISMATCH",
+      summary: `${CI} names \`${only}\` as the branch its push trigger runs on, but this clone's origin/HEAD is \`${origin}\``,
+      expected: `the one branch \`on: push: branches:\` in ${CI} names literally to be the repository's default branch, the one \`${DEFAULT_BRANCH}\` in ${RULESET} gates`,
+      actual: `${CI}: ${only}; refs/remotes/origin/HEAD: ${ORIGIN}${origin}`,
+      next: `if the default branch was renamed, rename it in \`on: push: branches:\` in ${CI} too; if origin/HEAD is stale, run \`git remote set-head origin --auto\` and rerun the check`,
+    };
+  }
+  if (origin !== undefined && (literals.length === 0 || literals.includes(origin))) {
+    return { name: origin };
+  }
+  const named =
+    literals.length === 0
+      ? `${CI}'s \`on: push: branches:\` names no branch literally`
+      : `${CI}'s \`on: push: branches:\` names several branches (${literals.join(", ")})`;
+  return {
+    reason: `${named}, and ${origin === undefined ? "this checkout has no origin/HEAD" : `origin/HEAD (\`${origin}\`) is none of them`}`,
+    next: [
+      "drop the `branches` filter from that job's pull_request trigger",
+      ...(literals.length === 0 && branches !== undefined
+        ? [
+            `list the default branch by name in \`on: push: branches:\` in ${CI} (its patterns can stay)`,
+          ]
+        : []),
+      "in a clone, run `git remote set-head origin --auto` so origin/HEAD names it (a CI checkout has none)",
+      `or include the branch by name in ${RULESET} as \`refs/heads/<branch>\` (then \`just ruleset\` after merging, a human's step)`,
+    ].join("; "),
+  };
+}
+
+/**
+ * The branches the ruleset gates, or why its includes cannot be read. `readOrigin` is
+ * called only for `~DEFAULT_BRANCH`.
+ */
+export function gatedBranches(
+  ruleset: unknown,
+  root: string,
+  readOrigin: () => string | undefined,
+): Gated[] | FailureDetails {
   const conditions = isRecord(ruleset) ? ruleset["conditions"] : undefined;
   const refName = isRecord(conditions) ? conditions["ref_name"] : undefined;
   const include = isRecord(refName) ? refName["include"] : undefined;
-  const first: unknown = Array.isArray(include) ? include[0] : undefined;
-  return typeof first === "string" && first.startsWith("refs/heads/")
-    ? first.slice("refs/heads/".length)
-    : "main";
+  if (!Array.isArray(include) || include.length === 0) {
+    return branchUnknown(
+      `${RULESET} has no \`conditions.ref_name.include\` list`,
+      `add \`"conditions": { "ref_name": { "include": ["${DEFAULT_BRANCH}"], "exclude": [] } }\` to ${RULESET}`,
+    );
+  }
+  const gated: Gated[] = [];
+  for (const entry of include) {
+    if (entry === "~ALL") {
+      gated.push({ kind: "all" });
+      continue;
+    }
+    if (entry === DEFAULT_BRANCH) {
+      const resolved = defaultBranch(root, readOrigin);
+      if ("code" in resolved) return resolved;
+      gated.push(
+        "name" in resolved ? { kind: "name", ...resolved } : { kind: "unknown", ...resolved },
+      );
+      continue;
+    }
+    const name =
+      typeof entry === "string" && entry.startsWith(HEADS) ? entry.slice(HEADS.length) : "";
+    if (name === "" || PATTERN.test(name)) {
+      return branchUnknown(
+        `${RULESET} includes ${JSON.stringify(entry)}, which is not one branch this check can judge (a pattern, or another form)`,
+        `write each include in ${RULESET} as \`${DEFAULT_BRANCH}\`, \`~ALL\`, or \`refs/heads/<branch>\``,
+      );
+    }
+    gated.push({ kind: "name", name });
+  }
+  const seen = new Set<string>();
+  return gated.filter((target) => {
+    const key = JSON.stringify(target);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
-function branchSkips(trigger: Record<string, unknown>, branch: string, path: string): string[] {
+interface BranchJudgement {
+  readonly skips: string[];
+  readonly needsDefault: string[];
+}
+
+/**
+ * Why a `pull_request` trigger may not fire on a pull request into `target`, and which
+ * of its filters only the unknown default branch's name could judge. A trigger with no
+ * branch filter, or only `branches: ['**']`, fires into every branch.
+ */
+function branchJudgement(
+  trigger: Record<string, unknown>,
+  target: Gated,
+  path: string,
+): BranchJudgement {
   const list = (key: string): string[] | undefined => {
     const value = trigger[key];
     if (value === undefined) return undefined;
     return (Array.isArray(value) ? value : [value]).map(String);
   };
-  const skips: string[] = [];
+  const judgement: BranchJudgement = { skips: [], needsDefault: [] };
   const branches = list("branches");
-  if (
-    branches !== undefined &&
-    (!branches.some((p) => !p.startsWith("!") && branchMatches(p, branch)) ||
-      branches.some((p) => p.startsWith("!") && branchMatches(p.slice(1), branch)))
-  ) {
-    skips.push(`${path}: its pull_request trigger's \`branches\` do not match \`${branch}\``);
-  }
   const ignored = list("branches-ignore");
-  if (ignored?.some((p) => branchMatches(p, branch)) === true) {
-    skips.push(`${path}: its pull_request trigger's \`branches-ignore\` match \`${branch}\``);
+  const everything =
+    ignored === undefined &&
+    (branches === undefined ||
+      (branches.includes("**") && !branches.some((p) => p.startsWith("!"))));
+  if (everything) return judgement;
+  switch (target.kind) {
+    case "all":
+      judgement.skips.push(
+        `${path}: its pull_request trigger filters branches, and the ruleset gates every branch (\`~ALL\`)`,
+      );
+      return judgement;
+    case "unknown":
+      judgement.needsDefault.push(`${path}: its pull_request trigger filters branches`);
+      return judgement;
+    case "name": {
+      const branch = target.name;
+      if (
+        branches !== undefined &&
+        (!branches.some((p) => !p.startsWith("!") && branchMatches(p, branch)) ||
+          branches.some((p) => p.startsWith("!") && branchMatches(p.slice(1), branch)))
+      ) {
+        judgement.skips.push(
+          `${path}: its pull_request trigger's \`branches\` do not match \`${branch}\``,
+        );
+      }
+      if (ignored?.some((p) => branchMatches(p, branch)) === true) {
+        judgement.skips.push(
+          `${path}: its pull_request trigger's \`branches-ignore\` match \`${branch}\``,
+        );
+      }
+      return judgement;
+    }
   }
-  return skips;
 }
 
-/** Why a workflow's `pull_request` trigger may not fire on every pull request into `branch`. */
-function triggerSkips(workflow: Workflow, branch: string): string[] {
+/** Why a workflow's `pull_request` trigger may not fire on every pull request into `gated`. */
+function triggerJudgement(workflow: Workflow, gated: readonly Gated[]): BranchJudgement {
   const on = workflow.data["on"];
   const trigger = isRecord(on) ? on[EVENT] : undefined;
-  if (!isRecord(trigger)) return [];
-  const skips = FILTERS.filter((key) => trigger[key] !== undefined).map(
-    (key) => `${workflow.path}: its pull_request trigger filters \`${key}\``,
+  const judgement: BranchJudgement = { skips: [], needsDefault: [] };
+  if (!isRecord(trigger)) return judgement;
+  judgement.skips.push(
+    ...FILTERS.filter((key) => trigger[key] !== undefined).map(
+      (key) => `${workflow.path}: its pull_request trigger filters \`${key}\``,
+    ),
   );
-  skips.push(...branchSkips(trigger, branch, workflow.path));
+  for (const target of gated) {
+    const branch = branchJudgement(trigger, target, workflow.path);
+    judgement.skips.push(...branch.skips);
+    judgement.needsDefault.push(...branch.needsDefault);
+  }
   const types = trigger["types"];
   if (types !== undefined) {
     const listed = Array.isArray(types) ? types : [types];
     const missing = DEFAULT_TYPES.filter((type) => !listed.includes(type));
     if (missing.length > 0) {
-      skips.push(
+      judgement.skips.push(
         `${workflow.path}: its pull_request trigger's \`types\` leave out ${missing.join(", ")}`,
       );
     }
   }
-  return skips;
+  return judgement;
 }
 
 /** Why a job may not run on every pull request, following its `needs`. */
@@ -473,6 +690,31 @@ function calledWorkflow(
   return workflow;
 }
 
+/**
+ * The text a job's `name:` reports as, before its expressions are evaluated: its id
+ * without one, a string as written, and a boolean or an integer as GitHub's workflow
+ * parser converts a scalar where it expects a string (its `toString`: `true`, `123`;
+ * https://github.com/actions/languageservices/blob/main/workflow-parser/src/templates/template-reader.ts,
+ * checked 2026-09-30). A null (converted to `''`), a fraction or an integer past 2^53
+ * (whose text depends on the parser's number formatting), or a mapping is not known.
+ */
+export function jobNameText(id: string, name: unknown): string | Unresolved {
+  if (name === undefined) return id;
+  if (typeof name === "string") return name;
+  if (typeof name === "boolean") return name ? "true" : "false";
+  if (typeof name === "number" && Number.isSafeInteger(name)) return String(name);
+  const shape =
+    name === null
+      ? "null"
+      : typeof name === "number"
+        ? `the number ${String(name)}`
+        : "not a scalar";
+  return {
+    reason: `its \`name:\` is ${shape}, whose reported text this check does not know`,
+    next: 'quote the job\'s `name:` as a string, such as `name: "Build"`',
+  };
+}
+
 const joinNames = (caller: JobNames, called: JobNames): JobNames => {
   if ("unresolved" in caller) return caller;
   if ("unresolved" in called) return called;
@@ -492,34 +734,44 @@ function reportingJobs(
 ): ReportingJob[] {
   const jobs = new Map(jobsOf(workflow));
   return [...jobs].flatMap(([id, job]): ReportingJob[] => {
-    const label = typeof job["name"] === "string" ? job["name"] : id;
+    const name = jobNameText(id, job["name"]);
+    const label = typeof name === "string" ? name : id;
     const strategy = job["strategy"];
     const names =
-      strategy === undefined || isRecord(strategy)
-        ? jobNames(label, strategy?.["matrix"])
-        : unresolved("its `strategy` is not a mapping", "write the job's `strategy:` as a mapping");
+      typeof name !== "string"
+        ? { unresolved: name }
+        : strategy === undefined || isRecord(strategy)
+          ? jobNames(name, strategy?.["matrix"])
+          : unresolved(
+              "its `strategy` is not a mapping",
+              "write the job's `strategy:` as a mapping",
+            );
     const skips = jobSkips(workflow, jobs, id, new Set());
-    if (job["uses"] === undefined) return [{ label, names, skips }];
+    if (job["uses"] === undefined) return [{ label, names, skips, needsDefault: [] }];
     const called = calledWorkflow(job["uses"], byPath, stack);
-    if (!("data" in called)) return [{ label, names: { unresolved: called }, skips }];
+    if (!("data" in called)) {
+      return [{ label, names: { unresolved: called }, skips, needsDefault: [] }];
+    }
     return reportingJobs(called, byPath, [...stack, called.path]).map((inner) => ({
       label: `${label} / ${inner.label}`,
       names: joinNames(names, inner.names),
       skips: [...skips, ...inner.skips],
+      needsDefault: [],
     }));
   });
 }
 
-function pullRequestJobs(root: string, branch: string): ReportingJob[] {
+function pullRequestJobs(root: string, gated: readonly Gated[]): ReportingJob[] {
   const { workflows } = readWorkflows(root);
   const byPath = new Map(workflows.map((workflow) => [workflow.path, workflow]));
   return workflows
     .filter((workflow) => triggerNames(workflow.data).includes(EVENT))
     .flatMap((workflow) => {
-      const trigger = triggerSkips(workflow, branch);
+      const trigger = triggerJudgement(workflow, gated);
       return reportingJobs(workflow, byPath, [workflow.path]).map((job) => ({
         ...job,
-        skips: [...trigger, ...job.skips],
+        skips: [...trigger.skips, ...job.skips],
+        needsDefault: trigger.needsDefault,
       }));
     });
 }
@@ -537,7 +789,11 @@ function requiredContexts(ruleset: unknown): string[] {
   });
 }
 
-function contextViolation(context: string, jobs: readonly ReportingJob[]): FailureDetails[] {
+function contextViolation(
+  context: string,
+  jobs: readonly ReportingJob[],
+  gated: readonly Gated[],
+): FailureDetails[] {
   const matching = jobs.filter((job) => "names" in job.names && job.names.names.includes(context));
   if (matching.length === 0) {
     const reported = jobs.flatMap((job) => ("names" in job.names ? job.names.names : []));
@@ -563,7 +819,20 @@ function contextViolation(context: string, jobs: readonly ReportingJob[]): Failu
       },
     ];
   }
-  if (matching.some((job) => job.skips.length === 0)) return [];
+  const running = matching.filter((job) => job.skips.length === 0);
+  if (running.some((job) => job.needsDefault.length === 0)) return [];
+  const unknown = gated.find((target) => target.kind === "unknown");
+  if (running.length > 0 && unknown?.kind === "unknown") {
+    return [
+      {
+        code: "ERR_CHECK_RULESET_BRANCH_UNKNOWN",
+        summary: `${RULESET}: required context "${context}" is reported by a job whose pull_request trigger filters branches, and the default branch the ruleset gates (\`${DEFAULT_BRANCH}\`) cannot be known offline`,
+        expected: `the default branch's name, to judge the filter: the one branch \`on: push: branches:\` in ${CI} names literally, or this clone's origin/HEAD`,
+        actual: `${[...new Set(running.flatMap((job) => job.needsDefault))].join("; ")}; ${unknown.reason}`,
+        next: unknown.next,
+      },
+    ];
+  }
   return [
     {
       code: "ERR_CHECK_RULESET_CONTEXT_SKIPPED",
@@ -576,39 +845,48 @@ function contextViolation(context: string, jobs: readonly ReportingJob[]): Failu
   ];
 }
 
-export const check: Check = {
-  name: "ruleset-contexts",
-  run: (root) => {
-    const text = readRepoFile(root, RULESET);
-    if (text === undefined) {
-      return [
-        {
-          code: "ERR_CHECK_RULESET_MISSING",
-          summary: `${RULESET} does not exist`,
-          expected: `the main-branch ruleset at ${RULESET} (applied by \`just ruleset\`)`,
-          actual: "no file",
-          next: `restore ${RULESET} from version control`,
-        },
-      ];
-    }
-    let ruleset: unknown;
-    try {
-      ruleset = JSON.parse(text);
-    } catch (error: unknown) {
-      return [
-        {
-          code: "ERR_CHECK_RULESET_UNREADABLE",
-          summary: `${RULESET} is not JSON`,
-          expected: "a JSON ruleset in the shape GitHub's rulesets API takes",
-          actual: error instanceof Error ? error.message : String(error),
-          next: `fix the syntax of ${RULESET}`,
-        },
-      ];
-    }
-    const jobs = pullRequestJobs(root, rulesetBranch(ruleset));
-    return requiredContexts(ruleset).flatMap((context) => contextViolation(context, jobs));
-  },
-};
+/** The check, with origin/HEAD's reader injected so a test can stand in for a clone. */
+export function makeCheck(readOrigin: (root: string) => string | undefined): Check {
+  return {
+    name: "ruleset-contexts",
+    run: (root) => {
+      const text = readRepoFile(root, RULESET);
+      if (text === undefined) {
+        return [
+          {
+            code: "ERR_CHECK_RULESET_MISSING",
+            summary: `${RULESET} does not exist`,
+            expected: `the main-branch ruleset at ${RULESET} (applied by \`just ruleset\`)`,
+            actual: "no file",
+            next: `restore ${RULESET} from version control`,
+          },
+        ];
+      }
+      let ruleset: unknown;
+      try {
+        ruleset = JSON.parse(text);
+      } catch (error: unknown) {
+        return [
+          {
+            code: "ERR_CHECK_RULESET_UNREADABLE",
+            summary: `${RULESET} is not JSON`,
+            expected: "a JSON ruleset in the shape GitHub's rulesets API takes",
+            actual: error instanceof Error ? error.message : String(error),
+            next: `fix the syntax of ${RULESET}`,
+          },
+        ];
+      }
+      const contexts = requiredContexts(ruleset);
+      if (contexts.length === 0) return [];
+      const gated = gatedBranches(ruleset, root, () => readOrigin(root));
+      if (!Array.isArray(gated)) return [gated];
+      const jobs = pullRequestJobs(root, gated);
+      return contexts.flatMap((context) => contextViolation(context, jobs, gated));
+    },
+  };
+}
+
+export const check: Check = makeCheck(originHead);
 
 export const main = checkMain(check);
 

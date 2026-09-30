@@ -225,3 +225,9 @@ ruleset` then applies it to the live repository, which is a human's step. A new 
 required until the owner decides it is: adding one never adds its context here on its own.
 `bypass_actors` stays empty: a bypass lets an admin token merge without the checks the
 ruleset exists to require.
+
+The check needs the default branch's name only when a required job's `pull_request`
+trigger filters branches. It reads it offline from the one literal branch in `ci.yml`'s
+`on: push: branches:` (patterns aside), checked against the clone's `origin/HEAD`, or
+from `origin/HEAD` alone when `ci.yml` names no single literal branch, so those push
+branches are a gate input: renaming the default branch renames it there too.

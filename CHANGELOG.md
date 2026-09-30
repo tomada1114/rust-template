@@ -52,6 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `ruleset-contexts` judges workflows' `pull_request` branch filters against the branches
+  the ruleset really gates instead of always against `main`. `~DEFAULT_BRANCH` is the one
+  branch `.github/workflows/ci.yml`'s `on: push: branches:` names literally (patterns
+  aside), which must agree with a clone's `origin/HEAD` (`ERR_CHECK_RULESET_BRANCH_MISMATCH`),
+  or else `origin/HEAD` itself. The name is needed only when a required job's trigger
+  filters branches; if it is unknown then, the check fails with
+  `ERR_CHECK_RULESET_BRANCH_UNKNOWN` rather than guessing. `~ALL` is judged against every
+  branch, and a pattern include fails with the same code. A job whose `name:` is a number
+  or a boolean is matched under the text GitHub reports (`123`, `true`) rather than its
+  job id, and a null or fractional one matches nothing.
 - The bootstrap's printed next steps and README's setup steps now name the Renovate
   GitHub App and adding `dependencies` to Dependabot pull requests opened before
   `just labels`, and the docs, rules, and skills no longer claim what the repository does

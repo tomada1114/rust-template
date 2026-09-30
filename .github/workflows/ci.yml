@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    # The one literal branch here is the default branch the ruleset's ~DEFAULT_BRANCH
+    # gates, as scripts/checks/ruleset-contexts.ts reads it: rename it with the branch.
     branches: [main]
   pull_request:
 
