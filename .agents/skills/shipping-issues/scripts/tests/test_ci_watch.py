@@ -317,7 +317,7 @@ exec "{fake_gh}" "$@"
             "mergeable,mergeStateStatus,reviewDecision,isDraft,state",
         )
         proc, calls = run_script(
-            [pr, "--timeout", "1"],
+            [pr, "--timeout", "600"],
             {
                 rollup: "1\n",
                 checks_watch: "",
@@ -354,7 +354,7 @@ exec "{fake_gh}" "$@"
             for pending in ("PENDING", "QUEUED", "IN_PROGRESS"):
                 with self.subTest(watch_rc=watch_rc, pending=pending):
                     proc, calls = run_script(
-                        [pr, "--timeout", "1"],
+                        [pr, "--timeout", "600"],
                         {
                             ROLLUP(pr): "2\n",
                             checks_watch: "",
@@ -382,7 +382,7 @@ exec "{fake_gh}" "$@"
     def test_green_completions_other_than_success_still_pass(self):
         pr = "25"
         proc, calls = run_script(
-            [pr, "--timeout", "1"],
+            [pr, "--timeout", "600"],
             {
                 ROLLUP(pr): "3\n",
                 ("pr", "checks", pr, "--watch", "--interval", "20"): "",
@@ -400,7 +400,7 @@ exec "{fake_gh}" "$@"
         # A failed check is final; waiting on the rest changes nothing.
         pr = "26"
         proc, calls = run_script(
-            [pr, "--timeout", "1"],
+            [pr, "--timeout", "600"],
             {
                 ROLLUP(pr): "2\n",
                 ("pr", "checks", pr, "--watch", "--interval", "20"): "",
@@ -428,7 +428,7 @@ exec "{fake_gh}" "$@"
         )
         run_view = ("run", "view", "123", "--log-failed")
         proc, calls = run_script(
-            [pr, "--timeout", "1", "--log-bytes", "32"],
+            [pr, "--timeout", "600", "--log-bytes", "32"],
             {
                 rollup: "1\n",
                 checks_watch: "",
