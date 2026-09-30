@@ -8,5 +8,5 @@
 
 .counter-screen__panel {
   width: 100%;
-  max-width: 360px;
+  max-width: var(--width-content);
 }

@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dependency Review allows GHSA-wrw7-89jp-8q8g (`glib`, Linux-only), the advisory
+  `osv-scanner.toml` already ignores, and a harness check
+  (`scripts/checks/advisory-ignores-agree.ts`) fails when the two lists diverge.
+  `osv-scanner.toml` drops its unused RUSTSEC-2024-0429 entry, the same advisory's alias.
 - **Breaking:** `Tuning`'s fields are private. Code that built `Tuning { min, max }` must
   now call `Tuning::new(min, max)?`, which returns `TuningError::MinAboveMax` when
   `min > max`, and read the bounds through `min()` and `max()`.
@@ -61,6 +65,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   header no longer cites a template issue number. `scripts/verify-bootstrap.ts` now
   fails with `ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` on either phrase left in the generated
   app, and its closing line names every check it ran.
+- The dark-mode primary button now meets 3:1 against the panel and the window: the dark
+  `--color-accent` moves from `#2f6fd0` to `#3173d8`. `tokens.test.ts` derives the token
+  pairs `primitives.css` combines and fails when `contrast-pairs.ts` lacks one. The
+  counter's value is named after its title, a repeated identical error is announced
+  again, and the panel border, focus-ring offset, and content width are tokens.
 - The release workflow fails early and explicitly instead of late or silently. The
   six `APPLE_*` secrets must be all set (Developer ID signed and notarized) or all absent
   (ad hoc): a partial set, including signing without notarizing, which Gatekeeper's

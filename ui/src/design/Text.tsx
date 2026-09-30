@@ -15,13 +15,22 @@ export interface TextProps {
   readonly as?: "p" | "span" | "h1" | "h2" | "output";
   readonly id?: string;
   readonly role?: "alert" | "status";
+  /** The id of the element that names this one, such as the heading a status reports for. */
+  readonly labelledBy?: string;
   readonly children: ReactNode;
 }
 
 /** Text in one of the design system's styles. */
-export function Text({ variant = "body", as: Element = "p", id, role, children }: TextProps) {
+export function Text({
+  variant = "body",
+  as: Element = "p",
+  id,
+  role,
+  labelledBy,
+  children,
+}: TextProps) {
   return (
-    <Element id={id} role={role} className={CLASS[variant]}>
+    <Element id={id} role={role} aria-labelledby={labelledBy} className={CLASS[variant]}>
       {children}
     </Element>
   );
