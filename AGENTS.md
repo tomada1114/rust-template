@@ -410,9 +410,10 @@ writes that skill exists to make, for that invocation only.
   it created.
 
 One request is a standing exception too: the human explicitly asking for an issue
-("file an issue for this") is the sign-off for that one `gh issue create`, with the
-labels `triaging-issues` gives it, and for comments on that issue in the same request.
-An issue the agent would file from a friction it noticed on its own is drafted in the
+("file an issue for this") is the sign-off for the `gh issue create` of each issue that
+request asks for, with the labels `triaging-issues` gives it, and for comments on those
+issues in the same request. An issue the agent would file from a friction it noticed on
+its own, or from one the human raised without asking for an issue, is drafted in the
 reply and waits for a yes.
 
 None of them covers anything else in the list above: a force push or other history

@@ -42,11 +42,11 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 3. Get one explicit approval for that listed batch, then run it without asking per
    merge.
 
-The approval covers only the listed PRs, only for this invocation. It covers only the
-rebase comments and reruns it lists; one that becomes necessary after the approval needs
-a fresh one. A PR opened later, a
-PR whose diff changed beyond a bot rebase, or anything in "Stop and ask" needs a fresh
-approval.
+The approval covers only the listed PRs, only for this invocation. Of the rebase
+comments and reruns, it covers the ones it lists, and the rebase a PR in the batch needs
+because an earlier approved merge moved `main` (Step 4a); any other rebase or rerun that
+becomes necessary after the approval needs a fresh one. A PR opened later, a PR whose
+diff changed beyond a bot rebase, or anything in "Stop and ask" needs a fresh approval.
 
 ## Step 1: Survey (read-only)
 
@@ -131,7 +131,10 @@ Mixed outcomes are fine; the plan says which PR goes which way.
 
 In ascending PR number, one at a time. After each merge the rest go `BEHIND`: comment
 `@dependabot rebase` (or tick the rebase box Renovate puts in its PR body), then
-re-check after the rebase. Never merge on a check result older than the PR's last push.
+re-check after the rebase. The approval covers that rebase, because an approved merge
+caused it ("The approval gate"); a rebase or rerun for any other reason that the plan
+did not list needs a fresh approval. Never merge on a check result older than the PR's
+last push.
 
 ```bash
 gh pr checks <number>

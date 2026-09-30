@@ -121,12 +121,17 @@ behind a port whose callback the shell turns into the same event.
 - `app.security.csp` in `src-tauri/tauri.conf.json`: `default-src 'self'`, IPC only
   through `ipc:` and `http://ipc.localhost`, no remote origin. It is enforced only in a
   built app: Tauri attaches the header when it serves the bundled assets over
-  `tauri://` (tauri 2.11.6, `src/protocol/tauri.rs`), and `just dev` loads `devUrl`
-  (`http://localhost:1420`) from Vite with no CSP, so a violation shows in a built app,
-  never under `just dev`. `app.security.devCsp` is deliberately unset, because dev
-  builds are never distributed. Try a CSP-sensitive change (a new asset origin, an
-  inline style or script) in a built app before relying on it, and weigh any production
-  CSP change when preparing a distribution.
+  `tauri://` (tauri 2.11.6,
+  <https://docs.rs/crate/tauri/2.11.6/source/src/protocol/tauri.rs>, checked
+  2026-09-30), and `just dev` loads `devUrl` (`http://localhost:1420`) from Vite with no
+  CSP, so a violation shows in a built app, never under `just dev`.
+  `app.security.devCsp` stays unset, because no setting makes `just dev` enforce a CSP
+  on the desktop: in dev the window loads `devUrl` directly, and Tauri applies `devCsp`
+  (or `csp`) only to the assets it serves itself (`get_app_url` and `csp` in
+  <https://docs.rs/crate/tauri/2.11.6/source/src/manager/mod.rs>, checked 2026-09-30).
+  Try a CSP-sensitive change (a new asset origin, an inline style or script) in a built
+  app before relying on it, and weigh any production CSP change when preparing a
+  distribution.
 - `withGlobalTauri: false`: the UI reaches Tauri only through the imports in
   `ui/src/ipc/`.
 - One capability, `src-tauri/capabilities/default.json`, granting `core:default` to the
@@ -155,8 +160,10 @@ places every `externalBin` there with its target triple stripped), which needs n
 and no capability entry. Only a UI that runs it itself adds `tauri-plugin-shell` (a new
 dependency: an ADR and a maintainer's sign-off), registers it with
 `.plugin(tauri_plugin_shell::init())`, and needs a `shell:allow-execute` or
-`shell:allow-spawn` permission scoped to that one sidecar. Source:
-<https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
+`shell:allow-spawn` permission scoped to that one sidecar. Where the helper lands:
+`copy_binaries` in tauri-build 2.6.3, the version `Cargo.lock` pins
+(<https://docs.rs/crate/tauri-build/2.6.3/source/src/lib.rs>, checked 2026-09-30). The
+plugin route: <https://v2.tauri.app/develop/sidecar/> (checked 2026-09-28).
 
 ## Logging
 

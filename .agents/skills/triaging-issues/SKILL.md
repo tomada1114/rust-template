@@ -127,10 +127,11 @@ it in the pull request description instead. Never widen the pull request to fix 
 A friction or an idea that comes up while using the app is routed the moment it is
 raised, so it is neither lost in a chat log nor shipped unreviewed. Filing is a remote
 write. When the human explicitly asked for an issue, that request is the sign-off for
-creating it and for comments on it in the same request (`AGENTS.md` › "Security and
-human approval", standing exceptions). When the friction is one you noticed or
-inferred, draft the title, labels, and body in the reply and wait for a yes. Pick one
-outcome:
+creating each issue it asks for and for comments on those issues in the same request
+(`AGENTS.md` › "Security and human approval", standing exceptions). A friction the
+human raises without asking for an issue was not explicitly asked for, any more than
+one you noticed or inferred: draft the title, labels, and body in the reply and wait
+for a yes. Pick one outcome:
 
 1. **File it** when it stays inside the existing design (a default, a keyboard
    shortcut, copy, a small change to how an existing screen behaves) and is in scope

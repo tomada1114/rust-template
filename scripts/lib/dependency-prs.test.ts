@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   checkSummary,
+  collect,
   contestedFiles,
   currentTauriVersions,
   ecosystemOf,
+  formatReport,
   highestLevel,
   parseBumps,
   semverLevel,
@@ -383,5 +385,142 @@ describe("currentTauriVersions", () => {
     expect(
       currentTauriVersions(tempRoot({ "Cargo.lock": "not = [toml", "package.json": "{" })).size,
     ).toBe(0);
+  });
+});
+
+describe("collect", () => {
+  const pulls = [
+    {
+      number: 12,
+      title: "deps: bump the cargo-minor-and-patch group with 2 updates",
+      body: "Updates `tauri` from 2.11.6 to 2.12.0\nUpdates `toml` from 0.8.2 to 0.9.0",
+      author: { login: "app/dependabot" },
+      headRefName: "dependabot/cargo/cargo-minor-and-patch-1",
+      mergeStateStatus: "CLEAN",
+      statusCheckRollup: [{ name: "Rust Core", status: "COMPLETED", conclusion: "FAILURE" }],
+      files: [{ path: "Cargo.lock" }, { path: "Cargo.toml" }],
+      url: "https://example.invalid/pull/12",
+    },
+    {
+      number: 7,
+      title: "deps: update just to v1.59.0",
+      body: "| [just](https://example.invalid) | minor | `1.58.0` -> `1.59.0` |",
+      author: { login: "renovate[bot]" },
+      headRefName: "renovate/just-1.x",
+      files: [{ path: "mise.toml" }],
+    },
+    { number: 9, title: "feat: a human's pull request", author: { login: "someone" } },
+  ];
+
+  it("keeps only bot pull requests, in number order, with every field read", () => {
+    expect(collect(pulls)).toEqual([
+      {
+        number: 7,
+        title: "deps: update just to v1.59.0",
+        url: "",
+        branch: "renovate/just-1.x",
+        author: "renovate[bot]",
+        ecosystem: "mise",
+        bumps: [{ name: "just", from: "1.58.0", to: "1.59.0" }],
+        level: "minor",
+        checks: "NONE",
+        failingChecks: [],
+        mergeState: "?",
+        files: ["mise.toml"],
+      },
+      {
+        number: 12,
+        title: "deps: bump the cargo-minor-and-patch group with 2 updates",
+        url: "https://example.invalid/pull/12",
+        branch: "dependabot/cargo/cargo-minor-and-patch-1",
+        author: "app/dependabot",
+        ecosystem: "cargo",
+        bumps: [
+          { name: "tauri", from: "2.11.6", to: "2.12.0" },
+          { name: "toml", from: "0.8.2", to: "0.9.0" },
+        ],
+        level: "major",
+        checks: "FAILING",
+        failingChecks: ["Rust Core=FAILURE"],
+        mergeState: "CLEAN",
+        files: ["Cargo.lock", "Cargo.toml"],
+      },
+    ]);
+  });
+
+  it("returns nothing for an empty listing or one with no bot pull request", () => {
+    expect(collect([])).toEqual([]);
+    expect(collect([{ number: 3, author: { login: "someone" } }])).toEqual([]);
+  });
+});
+
+describe("formatReport", () => {
+  it("prints one entry per row, then contested files, Tauri pairs, and Tauri majors", () => {
+    const rows = [
+      row({
+        number: 15,
+        title: "deps: bump tauri",
+        level: "major",
+        checks: "FAILING",
+        failingChecks: ["Rust Core=FAILURE"],
+        bumps: [
+          { name: "tauri", from: "2.11.6", to: "3.0.0" },
+          { name: "serde", from: "1.0.228", to: "1.0.229" },
+        ],
+        files: ["Cargo.lock"],
+      }),
+      row({ number: 16, ecosystem: "npm", level: "patch", files: ["Cargo.lock"] }),
+    ];
+    const lines = formatReport(rows, {
+      pairs: [
+        {
+          key: "tauri",
+          prs: [15, 16],
+          aligned: true,
+          split: true,
+          versions: [
+            { name: "tauri", version: "3.0.0", pr: 15 },
+            { name: "@tauri-apps/api", version: "~3.0.0", pr: 16 },
+            { name: "@tauri-apps/cli", version: "~3.0.1" },
+          ],
+        },
+        { key: "plugin-log", prs: [16], aligned: false, split: false, versions: [] },
+      ],
+      majors: [{ pr: 15, name: "tauri", from: "2.11.6", to: "3.0.0" }],
+    });
+    expect(lines).toEqual([
+      "2 open bot PR(s)",
+      "",
+      "  #15   [cargo         ] major   checks=FAILING  merge=CLEAN",
+      "        deps: bump tauri",
+      "        tauri 2.11.6 -> 3.0.0 (major)",
+      "        serde 1.0.228 -> 1.0.229",
+      "        HELD: Rust Core=FAILURE",
+      "        files: Cargo.lock",
+      "",
+      "  #16   [npm           ] patch   checks=PASSING  merge=CLEAN",
+      "        deps: bump something 16",
+      "        files: Cargo.lock",
+      "",
+      "Contested files (one combined branch):",
+      "  Cargo.lock: #15, #16",
+      "",
+      "Tauri family (one branch; tauri on its packages' minor, a plugin on its package's version):",
+      "  tauri: aligned, split across #15 #16 -- tauri 3.0.0 (#15), @tauri-apps/api ~3.0.0 (#16), @tauri-apps/cli ~3.0.1",
+      "  plugin-log: MISMATCH -- ",
+      "",
+      "Tauri major (a migration issue, never part of a batch):",
+      "  #15 tauri 2.11.6 -> 3.0.0",
+    ]);
+  });
+
+  it("prints only the rows, marking a PR that touches no file, when nothing else applies", () => {
+    expect(formatReport([row({ number: 4 })], { pairs: [], majors: [] })).toEqual([
+      "1 open bot PR(s)",
+      "",
+      "  #4    [cargo         ] unknown checks=PASSING  merge=CLEAN",
+      "        deps: bump something 4",
+      "        files: (none)",
+    ]);
   });
 });

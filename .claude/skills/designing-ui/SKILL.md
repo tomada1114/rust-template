@@ -98,15 +98,16 @@ decides on top of them and links the HIG for the rest.
 - **A menu is built in Rust** when the app adds one, in the shell's setup in
   `src-tauri/src/lib.rs`, with Tauri's `MenuBuilder`, `SubmenuBuilder`, and
   `PredefinedMenuItem` for the standard Edit items; on macOS every item must sit in a
-  submenu, and the first submenu becomes the app menu (<https://v2.tauri.app/learn/window-menu/>, checked 2026-09-29). A menu
-  event calls the same core function the matching command calls, then emits the same
-  event, so the screen updates through the path it already has. Tauri also offers a menu
-  API in JavaScript; this repository does not use it, because the menu is app-wide
-  wiring and belongs with the composition root, not in a screen. The sample adds none,
-  so it shows the default macOS menu Tauri installs when an app sets none
-  (`tauri::Builder::enable_macos_default_menu`,
-  <https://docs.rs/tauri/latest/tauri/struct.Builder.html#method.enable_macos_default_menu>,
-  checked 2026-09-30).
+  submenu, and the first submenu becomes the app menu
+  (<https://v2.tauri.app/learn/window-menu/>, checked 2026-09-29). A menu event calls the
+  same core function the matching command calls, then emits the same event, so the
+  screen updates through the path it already has. Tauri also offers a menu API in
+  JavaScript; this repository does not use it, because the menu is app-wide wiring and
+  belongs with the composition root, not in a screen. The sample adds none, so it shows
+  the default macOS menu Tauri installs when an app sets none
+  (`tauri::Builder::enable_macos_default_menu`, enabled by default,
+  <https://docs.rs/tauri/2.11.6/tauri/struct.Builder.html#method.enable_macos_default_menu>,
+  the version `Cargo.lock` pins, checked 2026-09-30).
 
 ## Copy style
 

@@ -159,7 +159,8 @@ that touches it says what to keep.
       commands, and this checklist
 - [ ] `.claude/rules/rust.md`, `.claude/rules/testing.md`, and
       `.claude/rules/typescript.md` — the sentences that give a counter type as the
-      example (each sits in its own sentence; replace it with your own type or delete it)
+      example (each is a parenthetical or its own sentence; replace it with your own
+      type or delete it)
 - [ ] `.github/PULL_REQUEST_TEMPLATE.md` — the counter in the example title
 - [ ] The skills under `.agents/skills/` that give the counter as an example, then
       `just agents-sync` (the `starting-an-app` skill)

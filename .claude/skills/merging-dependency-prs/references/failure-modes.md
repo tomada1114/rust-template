@@ -90,8 +90,9 @@ to accommodate a version nobody has decided to accept, and never lower a floor.
 ## F7: `BEHIND` or `DIRTY`
 
 Not a CI failure. `BEHIND` means `main` moved; `DIRTY` means a real conflict. Comment
-`@dependabot rebase` once the approved plan lists it; a PR that keeps conflicting, which
-is normal once two cargo or two npm PRs are open, goes into the combined branch.
+`@dependabot rebase` once the approved plan lists it, or when an earlier approved
+merge moved `main` (`SKILL.md` › "Step 4a"); a PR that keeps conflicting, which is
+normal once two cargo or two npm PRs are open, goes into the combined branch.
 
 ## F8: A check that never reports
 

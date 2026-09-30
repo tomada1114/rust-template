@@ -162,10 +162,10 @@ A script under `.agents/skills/<name>/scripts/` follows `AGENTS.md` › "Reposit
 scripts", and its tests run under `just test-scripts`. A TypeScript script's
 `*.test.ts` joins Vitest's `scripts` project by its path; a suite in another language
 (`shipping-issues`' Python and shell) is added to the `test-scripts` recipe in the same
-pull request. **REQUIRED:** `writing-repo-scripts`. Keep it a thin dispatcher (its
-arguments, one call into `scripts/lib/`, its output): branching logic belongs in
-`scripts/lib/`, under the `scripts/**` coverage floor, where another script or skill can
-reuse it.
+pull request. **REQUIRED:** `writing-repo-scripts`. Keep it a thin dispatcher: it
+parses its arguments, calls into `scripts/lib/`, and prints, with no decision of its
+own beyond choosing the output format. Branching logic belongs in `scripts/lib/`, under
+the `scripts/**` coverage floor, where another script or skill can reuse it.
 
 ## Before committing a skill
 

@@ -64,21 +64,31 @@ agent changed nothing. Teardown here is `cleanup_run.sh` and nothing else.
 
 ### What a worktree outside the checkout loses
 
-Claude Code anchors `.claude/settings.json` and `.claude/rules/` to the main checkout,
-so some of its conveniences do not follow a worktree under `<runstate>`:
+A session that starts in the main checkout and edits a worktree under `<runstate>`
+keeps the main checkout as its primary working directory, so some of Claude Code's
+conveniences do not follow the worktree:
 
-- a root-anchored rule such as the `Edit(/src-tauri/Entitlements.plist)` deny may not
-  match the worktree's copy of that file;
-- the `PostToolUse` formatter (`scripts/format-edited-file.ts`) does nothing for a file
-  outside the checkout;
-- the path-scoped `.claude/rules/` may not load for the worktree's files;
-- an edit there may stop for a permission prompt mid-run.
+- a `/path` rule in the project's `.claude/settings.json` resolves against the session's
+  primary working directory (<https://code.claude.com/docs/en/permissions>, checked
+  2026-09-30), so the `Edit(/src-tauri/Entitlements.plist)` deny names the main
+  checkout's copy of that file, not the worktree's;
+- Claude has access to files in the directory it was launched in, and to directories
+  added to the session (same page, "Working directories"), so an edit under
+  `<runstate>` may stop for a permission prompt mid-run;
+- the `PostToolUse` formatter (`scripts/format-edited-file.ts`) runs from
+  `$CLAUDE_PROJECT_DIR`, the main checkout, and does nothing for a file outside it;
+- the path-scoped `.claude/rules/` are documented as loading for the project's own
+  files (<https://code.claude.com/docs/en/memory>, checked 2026-09-30), and nothing there
+  says they load for a file under `<runstate>`.
 
 None of these is a gate. In a worktree, `src-tauri/Entitlements.plist` stays
 sign-off-only by `AGENTS.md`'s rule alone. Read the `.claude/rules/` file matching what
-you change, and run `just fmt` before committing. Lefthook's pre-commit hook still runs,
-because git uses the shared hooks in every worktree of the repository, and CI judges the
-worktree's commits exactly as it judges the main checkout's.
+you change, and run `just fmt` before committing. Lefthook's pre-commit hook still runs:
+a linked worktree uses `$GIT_COMMON_DIR/hooks`, the main repository's hooks directory
+(<https://git-scm.com/docs/gitrepository-layout>, checked 2026-09-30), and the
+repository config that could set `core.hooksPath` is shared by default
+(<https://git-scm.com/docs/git-worktree>, checked 2026-09-30). CI judges the worktree's
+commits exactly as it judges the main checkout's.
 
 ## Viability gate
 

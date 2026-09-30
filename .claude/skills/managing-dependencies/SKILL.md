@@ -7,11 +7,11 @@ description: >
   unless needed, and only the features used, which crate may depend on what
   (myapp-core stays platform-neutral), cargo deny licences, bans, and sources,
   pnpm-workspace.yaml's minimumReleaseAge, strictDepBuilds and allowBuilds, and trust
-  settings, the typescript ceiling, and a Tauri plugin counting as a dependency and a capability. Use when adding, bumping, or
-  removing a dependency by hand, editing Cargo.toml's dependencies or package.json,
-  enabling a crate feature such as tauri's tray-icon, an install or cargo deny fails on
-  a licence, a peer range, a build script, or the cooldown, or someone proposes raising
-  typescript or tauri to a new major.
+  settings, the typescript ceiling, and a Tauri plugin counting as a dependency and a
+  capability. Use when adding, bumping, or removing a dependency by hand, editing
+  Cargo.toml's dependencies or package.json, enabling a crate feature such as tauri's
+  tray-icon, an install or cargo deny fails on a licence, a peer range, a build script,
+  or the cooldown, or someone proposes raising typescript or tauri to a new major.
 ---
 
 # Managing Dependencies
