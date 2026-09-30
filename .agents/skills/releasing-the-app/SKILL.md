@@ -5,14 +5,15 @@ description: >
   what is contract, curating CHANGELOG.md's [Unreleased] section, just release-prep and
   its three version sites (Cargo.toml [workspace.package], src-tauri/tauri.conf.json,
   package.json) and Cargo.lock, the release pull request, the release.yml
-  workflow_dispatch dry run, the v* tag a human pushes, ad-hoc versus Developer ID
-  signing and notarization and the APPLE_* secrets docs/distribution.md names,
-  Gatekeeper and quarantine for an ad-hoc build, and verifying the built .app and .dmg
-  (codesign, entitlements, spctl, SHA256SUMS, gh attestation verify). Use when
-  preparing or tagging a release, an ERR_RELEASE_* code from scripts/release-prep.ts,
-  a tag that does not match the version, partly set APPLE_* secrets, a failed signing or
-  notarization step, a user
-  who cannot open a downloaded build, or deciding whether a change needs a release.
+  workflow_dispatch dry run, the v* tag a human pushes, the release environment and
+  release-tags ruleset, ad-hoc versus Developer ID signing and notarization and the
+  APPLE_* secrets docs/distribution.md names, Gatekeeper and quarantine for an ad-hoc
+  build, and verifying the built .app and .dmg (codesign, entitlements, spctl,
+  SHA256SUMS, gh attestation verify). Use when preparing or tagging a release, an
+  ERR_RELEASE_* code from scripts/release-prep.ts, a tag the release preflight refuses
+  (not the version, or not on main), partly set APPLE_* secrets, a failed signing or
+  notarization step, a user who cannot open a downloaded build, or deciding whether a
+  change needs a release.
 ---
 
 # Releasing the App
@@ -40,6 +41,10 @@ skill is the order of work and the decisions around it; it does not copy that pa
   pushes the tag (`AGENTS.md` › "Security and human approval" lists a release tag), and
   adds or changes any `APPLE_*` secret. An agent never reads, prints, or asks for a
   secret's value; it names the secret and where it goes.
+- **A repository admin**, once, configures the `release` environment, moves the
+  `APPLE_*` secrets onto it, and applies the `release-tags` ruleset
+  (`docs/distribution.md` › "Repository settings the release needs"). Only an admin can
+  then push a `v*` tag.
 - No `.dmg` is built locally, by anyone's routine: building one drives Finder through
   AppleScript (`AGENTS.md` › "Never taking over the developer's Mac"). The release
   workflow on a CI runner is the only place one is made.
@@ -96,7 +101,7 @@ reviewable diff. It refuses, each with a code and a `Next:` line:
   `ERR_RELEASE_CHANGELOG_EMPTY`), and a `cargo update` that fails (`ERR_RELEASE_LOCKFILE`).
 
 Why three sites: Cargo, Tauri's bundle, and pnpm each read their own, and the release
-workflow refuses a tag that differs from any of them, but only after the tag is pushed.
+workflow's preflight refuses a tag that differs from any of them, but only after the tag is pushed.
 The script checks the same agreement while it is still cheap.
 
 ## 4. The release pull request
@@ -121,20 +126,31 @@ release of an app. From the Actions tab, or:
 gh workflow run release.yml -f dry_run=true   # a human's step: it starts a workflow
 ```
 
+Once the `release` environment is configured it admits only `main` and `v*` tags, so a
+dry run from another branch is refused before the build job starts. On a dry run the
+`publish` job shows as skipped.
+
 A failure there costs nothing; the same failure after a tag push leaves a tag with no
 release.
 
 ## 6. The tag (a human pushes it)
 
 On the merge commit on `main`, `git tag v<version>` and `git push origin v<version>`.
-The workflow's `preflight` job then checks the tag against the version before anything
-is installed, and that the three sites agree; the tests run again; the release job's
-first step checks the `APPLE_*` secrets are all set or all absent; and it builds
-`pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked` without
-the Rust build cache, verifies, and publishes the `.dmg`, a `SHA256SUMS` file, and a
-build-provenance attestation with notes from `.github/release.yml`'s categories. A tag
-that fails the version check is deleted and re-pushed by the human after the fix, never
-moved silently.
+The workflow then runs four jobs:
+
+- **preflight** (read-only): before anything is installed, the tag equals the version
+  and its commit is on `main`; then the three sites agree;
+- **test**: the core and UI tests run again;
+- **build** (read-only token, `release` environment): its first step checks the
+  `APPLE_*` secrets are all set or all absent, then it builds
+  `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked` without
+  the Rust build cache, verifies, and uploads the `.dmg` and `SHA256SUMS` as an artifact;
+- **publish**: the only job with write scopes and `id-token`, and it runs no cargo,
+  pnpm, or mise; it attests the `.dmg` and publishes it with `SHA256SUMS` and notes from
+  `.github/release.yml`'s categories.
+
+A tag the preflight refuses (a version mismatch, or a commit not on `main`) is deleted
+and re-pushed by an admin after the fix, never moved silently.
 
 ## Signing and notarization
 
@@ -146,14 +162,14 @@ Two paths, chosen by which secrets exist, with no workflow edit
   blocked by Gatekeeper until the user allows it.
 - **Developer ID, notarized**: when all six secrets exist (`APPLE_CERTIFICATE`,
   `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`,
-  and `APPLE_TEAM_ID`, set by a human under the repository's Actions secrets), the job
+  and `APPLE_TEAM_ID`, set by a human as secrets of the `release` environment), the job
   imports the certificate into a temporary keychain, checks `security find-identity`
   lists the identity, signs with it, and Tauri notarizes and staples; the keychain is
   deleted in an `if: always()` step. The App Store Connect API key variables are an
   alternative that needs a workflow change.
 
 The six are all or nothing: a partial set, the signing three without the notarization
-three included, fails the release job's first step with the missing names, because a
+three included, fails the build job's first step with the missing names, because a
 signed but un-notarized app fails `spctl` and is blocked on download like an ad-hoc
 one. The fix is to add the missing secrets or remove the set ones, never a workflow
 edit. A path's steps are skipped by an `if:`, never by `continue-on-error`. Local
