@@ -114,6 +114,8 @@ const LOG_PREFIX = "tide-pool";
     "---\nname: example\n---\n\nRead [the reference](references/more.md).\n\n```bash\njust lint\n```\n",
   ".agents/skills/example/references/more.md": "More.\n",
   ".github/workflows/ci.yml": "jobs:\n  lint:\n    name: Lint\n",
+  ".github/workflows/release.yml":
+    'jobs:\n  release:\n    env:\n      APP_NAME: "Tide Pool"\n    steps:\n      - run: echo "$APP_NAME.app"\n',
   ".github/rulesets/main.json": '{ "rules": [{ "context": "Lint" }] }\n',
   "osv-scanner.toml": "# Tracking issue: https://github.com/tomada1114/tauri-template/issues/3\n",
 };
@@ -213,6 +215,13 @@ describe("assertGenerated", () => {
     ["src-tauri/tauri.conf.json", '"version": "0.1.0"', '"version": "0.4.0"'],
     ["crates/tide-pool-platform/src/paths.rs", "com.example.tide-pool", "com.example.tidepool"],
     ["justfile", 'app_name := "Tide Pool"', 'app_name := "TidePool"'],
+    [".github/workflows/release.yml", 'APP_NAME: "Tide Pool"', 'APP_NAME: "TidePool"'],
+    [".github/workflows/release.yml", 'APP_NAME: "Tide Pool"', 'TARGET: "Tide Pool"'],
+    [
+      ".github/workflows/release.yml",
+      "    steps:\n",
+      '    steps:\n      - env:\n          APP_NAME: "Other"\n',
+    ],
     ["scripts/smoke.ts", '"TIDE_POOL_SMOKE"', '"TIDE-POOL_SMOKE"'],
     ["src-tauri/src/startup.rs", "TIDE_POOL_SMOKE", "TIDEPOOL_SMOKE"],
     ["src-tauri/src/lib.rs", '"tide-pool"', '"tide_pool"'],

@@ -161,8 +161,8 @@ const bothSkillTrees = (path: string): string[] => [
 
 /**
  * Every placeholder site outside the skills. Keep this list explicit: a new file that
- * names the app is added here, and `node scripts/verify-bootstrap.ts` (and CI's
- * Template Bootstrap Smoke) fail on a placeholder in a file this list does not name.
+ * names the app is added here, and `node scripts/verify-bootstrap.ts` (which CI's
+ * Template Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
  */
 const REPOSITORY_SITES: readonly Site[] = [
   { file: ".claude/rules/project.md", forms: ["slug"] },
@@ -173,6 +173,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: ".github/ISSUE_TEMPLATE/config.yml", forms: ["repo"] },
   { file: ".github/PULL_REQUEST_TEMPLATE.md", forms: ["slug"] },
   { file: ".github/workflows/ci.yml", forms: ["slug"] },
+  { file: ".github/workflows/release.yml", forms: ["name"] },
   { file: "AGENTS.md", forms: ["bundleId", "slugSnake", "slug", "slugUpper"] },
   { file: "CODE_OF_CONDUCT.md", forms: ["owner"] },
   { file: "CONTRIBUTING.md", forms: ["slug"] },
@@ -381,6 +382,7 @@ export const UPSTREAM_REFERENCES: readonly (readonly [string, string])[] = [
 ];
 
 const CI_FILE = ".github/workflows/ci.yml";
+const RELEASE_FILE = ".github/workflows/release.yml";
 const CI_JOB_KEY = "  bootstrap-smoke:";
 const RULESET_FILE = ".github/rulesets/main.json";
 export const SMOKE_JOB_NAME = "Template Bootstrap Smoke";
@@ -859,6 +861,50 @@ function removeCiJob(text: string): string {
   return result;
 }
 
+function property(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/** Every value `key` takes in a workflow's `env` maps: the workflow's, each job's, each step's. */
+export function workflowEnvValues(workflow: unknown, key: string): unknown[] {
+  const jobs = property(workflow, "jobs");
+  const scopes = [
+    workflow,
+    ...(typeof jobs === "object" && jobs !== null ? Object.values(jobs) : []).flatMap(
+      (job: unknown) => {
+        const steps = property(job, "steps");
+        return [job, ...(Array.isArray(steps) ? (steps as unknown[]) : [])];
+      },
+    ),
+  ];
+  return scopes
+    .map((scope) => property(property(scope, "env"), key))
+    .filter((value) => value !== undefined);
+}
+
+/**
+ * The release workflow finds the built `<name>.app` and its dmg through APP_NAME, so after
+ * the rewrite it must read back as the display name itself — a string, not the number or
+ * null an unquoted name such as `1.10` or `Null` would become.
+ */
+function assertReleaseAppName(text: string, name: string): void {
+  let workflow: unknown;
+  try {
+    workflow = parseYaml(text);
+  } catch (error: unknown) {
+    throw rewriteFailed(RELEASE_FILE, error instanceof Error ? error.message : String(error));
+  }
+  const values = workflowEnvValues(workflow, "APP_NAME");
+  if (values.length === 0 || values.some((value) => value !== name)) {
+    throw rewriteFailed(
+      RELEASE_FILE,
+      `APP_NAME reads as ${JSON.stringify(values)} after the edit, not ${JSON.stringify(name)}; quote the value in the template`,
+    );
+  }
+}
+
 function removeRulesetContext(text: string): string {
   const result = replaceOnce(
     RULESET_FILE,
@@ -1008,6 +1054,7 @@ function plan(root: string, answers: Answers, year: number): Plan {
     }
     writes.set(site.file, current);
   }
+  assertReleaseAppName(text(RELEASE_FILE), answers.name);
 
   const pattern = leftoverPattern(tokensFor(answers));
   if (pattern !== undefined) {

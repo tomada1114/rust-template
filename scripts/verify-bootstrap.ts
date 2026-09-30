@@ -15,11 +15,14 @@
  *   justfile does not define;
  * - the names agree: the bundle identifier, display name, slug spellings, and version in
  *   tauri.conf.json, paths.rs, the justfile, scripts/smoke.ts, startup.rs, lib.rs,
- *   package.json, LICENSE, and CHANGELOG.md; the crate directories, their package names,
- *   the workspace members and dependencies, and Cargo.lock; every Rust crate and library
- *   name a valid identifier.
+ *   release.yml's APP_NAME, package.json, LICENSE, and CHANGELOG.md; the crate
+ *   directories, their package names, the workspace members and dependencies, and
+ *   Cargo.lock; every Rust crate and library name a valid identifier.
  *
  *   node scripts/verify-bootstrap.ts [--keep]
+ *
+ * CI's Template Bootstrap Smoke job runs it, so a leftover fails the pull request that
+ * introduced it rather than an app's first release.
  *
  * --keep leaves the scratch copy in place and prints its path. The run needs
  * `just install` first (the bootstrap and Prettier come from node_modules) and cargo's
@@ -47,6 +50,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, normalize, relative } from "node:path";
 
 import { parse as parseToml } from "smol-toml";
+import { parse as parseYaml } from "yaml";
 
 import {
   CRATE_DIRS,
@@ -54,6 +58,7 @@ import {
   findLeftovers,
   REMOVED_PATHS,
   SMOKE_JOB_NAME,
+  workflowEnvValues,
   type Answers,
 } from "./bootstrap.ts";
 import { formatFailure, ScriptError, type FailureDetails } from "./lib/fail.ts";
@@ -278,6 +283,10 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
   );
   const smoke = text("scripts/smoke.ts");
   const justfile = text("justfile");
+  const releaseNames = workflowEnvValues(
+    parsed(text(".github/workflows/release.yml"), parseYaml),
+    "APP_NAME",
+  );
 
   const expectations: (readonly [string, unknown, unknown])[] = [
     ["tauri.conf.json productName", at(tauri, ["productName"]), answers.name],
@@ -302,6 +311,9 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
       answers.bundleId,
     ],
     ["smoke.ts APP_NAME", quoted(smoke, /APP_NAME = "([^"]*)"/), answers.name],
+    ...(releaseNames.length === 0 ? [undefined] : releaseNames).map(
+      (value) => ["release.yml APP_NAME", value, answers.name] as const,
+    ),
     ["smoke.ts EXECUTABLE", quoted(smoke, /EXECUTABLE = "([^"]*)"/), names.slug],
     ["smoke.ts HELPER", quoted(smoke, /HELPER = "([^"]*)"/), `${names.slug}-cli`],
     ["smoke.ts SMOKE_ENV", quoted(smoke, /SMOKE_ENV = "([^"]*)"/), `${names.slugUpper}_SMOKE`],

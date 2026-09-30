@@ -235,6 +235,12 @@ jobs:
           corepack enable pnpm
           pnpm install --frozen-lockfile
 
+      - name: Verify the bootstrap on a scratch copy (fails on any leftover placeholder)
+        working-directory: ${{ runner.temp }}/bootstrap-smoke
+        # Before the bootstrap below, which deletes this script. The bootstrap itself only
+        # warns about a placeholder outside its site list; this is the step that fails.
+        run: node scripts/verify-bootstrap.ts
+
       - name: Bootstrap the clone non-interactively
         working-directory: ${{ runner.temp }}/bootstrap-smoke
         run: |
