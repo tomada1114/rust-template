@@ -146,6 +146,17 @@ describe("requiredPairs", () => {
     ]);
   });
 
+  it("gives a modifier's state rule the modifier's background, not only the base's", () => {
+    const css = `
+      .x { color: var(--color-a); background: var(--color-b); }
+      .x--m { background: var(--color-e); }
+      .x--m:hover { color: var(--color-f); }
+    `;
+    expect(pairs(css).filter((pair) => pair.startsWith(".x--m:hover "))).toEqual([
+      ".x--m:hover --color-f --color-e",
+    ]);
+  });
+
   it("skips the boundary of a rule whose background is a surface", () => {
     expect(pairs(".p { background: var(--color-s1); border: 1px solid var(--color-c); }")).toEqual(
       [],

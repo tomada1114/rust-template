@@ -133,11 +133,13 @@ function rolesOf(body: string, into: Roles): void {
   }
 }
 
-function baseOf(selector: string): string {
+/** The selectors `selector` takes roles from, outermost first: `.x`, then `.x--mod`, for `.x--mod:state`. */
+function basesOf(selector: string): string[] {
   const colon = selector.indexOf(":");
   const bare = colon === -1 ? selector : selector.slice(0, colon);
   const modifier = /^\.([\w-]+?)--[\w-]+$/.exec(bare);
-  return modifier?.[1] === undefined ? bare : `.${modifier[1]}`;
+  const bases = modifier?.[1] === undefined ? [bare] : [`.${modifier[1]}`, bare];
+  return bases.filter((base) => base !== selector);
 }
 
 /**
@@ -167,9 +169,10 @@ export function requiredPairs(css: string, surfaces: readonly string[]): Require
   };
   for (const [selector, own] of bySelector) {
     if (own.text === undefined && own.fill === undefined && own.boundary === undefined) continue;
-    const base = baseOf(selector);
-    const inherited = base === selector ? {} : (bySelector.get(base) ?? {});
-    const roles: Roles = { ...inherited, ...own };
+    const roles = [
+      ...basesOf(selector).map((base) => bySelector.get(base) ?? {}),
+      own,
+    ].reduce<Roles>((merged, next) => ({ ...merged, ...next }), {});
     if (roles.text !== undefined) {
       if (roles.fill === undefined) {
         for (const surface of surfaces) add(selector, roles.text, surface);
