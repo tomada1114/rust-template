@@ -139,7 +139,9 @@ changed, re-verify, push, record `--event review`.
 
 ## 5. Open the PR
 
-Serial from here to step 7 in both modes. Push; no commits means `SKIPPED(<why>)`. Open
+Serial from here to step 7 in both modes. Push; no commits means `SKIPPED(<why>)`. From
+the worktree, `git status --short` must be empty and the pushed head equal the local
+head; a dirty tree goes back to the implementer, never pushed as is. Open
 the PR against `main` from `.github/PULL_REQUEST_TEMPLATE.md`: `PR-TITLE`, then
 `PR-SUMMARY`, **`Closes #N`**, the Release impact line (`create-pr`), and `TEST-PLAN`,
 ticking only checklist items that actually ran. Record `--event pr-created`, then run
