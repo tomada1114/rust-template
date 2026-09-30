@@ -121,7 +121,8 @@ export function main(context: ScriptContext): void {
 
   let app = options.app;
   if (options.build) {
-    const targetDir = cargoTargetDir(run, root, "SMOKE");
+    // The Tauri CLI runs cargo in src-tauri/, where a relative CARGO_TARGET_DIR resolves.
+    const targetDir = cargoTargetDir(run, join(root, "src-tauri"), "SMOKE");
     log("smoke: building the release app bundle (no disk image)");
     const built = run("pnpm", ["tauri", "build", "--bundles", "app", "--", "--locked"], {
       cwd: root,

@@ -138,6 +138,7 @@ export function main(context: ScriptContext): void {
     }
     return stdout.trim();
   });
+  // Asked from the directory its own `cargo build` runs in, below.
   const targetDir = cargoTargetDir(context.run, context.root, "SIDECAR");
   const out = buildSidecar({ ...options, root: context.root, targetDir }, (command, args) =>
     context.run(command, args, { cwd: context.root, inherit: true }),

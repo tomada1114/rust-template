@@ -172,6 +172,7 @@ describe("main", () => {
       targetDir?: string;
       metadata?: { status: number; stdout: string };
     } = {},
+    cwds: [string, string, string | undefined][] = [],
   ): ScriptContext {
     const cargo = fakeCargo(targetDir, calls);
     return {
@@ -180,10 +181,8 @@ describe("main", () => {
       root,
       run: (command, args, options) => {
         if (command === "rustc") return { ...rustc, stderr: "" };
-        if (args[0] === "metadata") {
-          expect(options?.cwd).toBe(root);
-          return { ...metadata, stderr: "" };
-        }
+        cwds.push([command, args[0] ?? "", options?.cwd]);
+        if (args[0] === "metadata") return { ...metadata, stderr: "" };
         return { ...cargo(command, args), stdout: "", stderr: "" };
       },
       log: (line) => {
@@ -210,6 +209,17 @@ describe("main", () => {
     const out = sidecarPath(root, "aarch64-apple-darwin");
     expect(lines).toEqual([`sidecar: ${out}`]);
     expect(readFileSync(out, "utf8")).toBe("built for aarch64-apple-darwin release");
+  });
+
+  it("asks cargo metadata from the directory its cargo build runs in", () => {
+    const root = tempRoot();
+    const cwds: [string, string, string | undefined][] = [];
+    main(context(root, [], [], {}, cwds));
+    const cargoCalls = cwds.filter(([command]) => command === "cargo");
+    expect(cargoCalls).toEqual([
+      ["cargo", "metadata", root],
+      ["cargo", "build", root],
+    ]);
   });
 
   it("fails with ERR_SIDECAR_TRIPLE when rustc cannot answer", () => {

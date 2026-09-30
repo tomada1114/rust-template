@@ -203,7 +203,8 @@ describe("main", () => {
 
     expect(calls[0]?.command).toBe("cargo");
     expect(calls[0]?.args[0]).toBe("metadata");
-    expect(calls[0]?.options?.cwd).toBe(root);
+    // Where the Tauri CLI runs cargo, so a relative CARGO_TARGET_DIR resolves the same way.
+    expect(calls[0]?.options?.cwd).toBe(join(root, "src-tauri"));
     const build = calls[1];
     expect(build?.command).toBe("pnpm");
     expect(build?.args).toEqual(["tauri", "build", "--bundles", "app", "--", "--locked"]);
