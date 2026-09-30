@@ -17,6 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The app and the helper CLI can save the counter at the same moment: each save writes
+  its own temporary file and holds a lock on `counter.json.lock`, and each change holds
+  it from the load to the save, so no save fails, no load reads half a file, and
+  neither change is lost. A save also syncs the directory after the rename.
+
+- `just bootstrap` refuses, before it writes anything, the inputs that used to fail half
+  way or produce a broken app: a slug Cargo reserves (`build`, `deps`, …) or one whose
+  packages would share a dependency's name (`tauri`, `serde`, …), a work tree with
+  uncommitted or untracked changes (`ERR_BOOTSTRAP_DIRTY`), a malformed or `com.apple.`
+  bundle identifier, and any answer containing `myapp` or `tauri-template`. Answers pasted
+  in one go are each read, `--help` before `just install` fails with
+  `ERR_BOOTSTRAP_NO_DEPS`, and the usage no longer claims `just` drops a value's quotes.
+
 - The counter screen shows "Something went wrong. Details are in the app's log." when an
   action fails without a counter error code, instead of nothing (or the earlier error).
   A rejection whose `kind` is missing or unknown is no longer taken for a `CounterError`,
@@ -41,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The pre-commit staged guard reads a staged file larger than 1 MiB instead of refusing
   it with `ERR_STAGED_READ_FAILED`, so an icon source, a screenshot, or a large lockfile
   can be committed through the hook.
+
+- An app cut from the template releases its own `.app` and dmg: the bootstrap now
+  rewrites the release workflow's `APP_NAME`, which stayed `MyApp` and failed the first
+  release with `ERR_SMOKE_APP_MISSING`. CI's Template Bootstrap Smoke runs
+  `scripts/verify-bootstrap.ts`, so a placeholder the bootstrap leaves behind fails the
+  pull request instead of only printing a warning.
 
 ### Security
 
