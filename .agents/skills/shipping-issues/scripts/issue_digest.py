@@ -118,13 +118,80 @@ CONTRACT_KNOWN_FIELDS = ("tier", "area", "blocked-by", "blocks", "touches", "des
 CONTRACT_REQUIRED_FIELDS = ("tier", "blocked-by", "touches")
 
 
+# A fence opener: up to three spaces, then three or more backticks or tildes; a
+# backtick fence's info string may not contain a backtick (CommonMark).
+_FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}(?=[^`]*$)|~{3,})")
+_BACKTICK_RUN_RE = re.compile(r"`+")
+
+
+def _code_spans(body: str) -> list[tuple[int, int]]:
+    """The [start, end) offsets of `body`'s fenced code blocks and inline code
+    spans, so a quoted ship-contract example is not read as the contract.
+
+    A fence closes on a line of the same character at least as long as the
+    opener (an unclosed fence runs to the end); an inline span is a backtick
+    run closed by the next run of the same length, searched only outside fences
+    (an unmatched run is literal text). Indented code blocks, HTML blocks, and
+    backslash-escaped backticks are not modelled."""
+    spans: list[tuple[int, int]] = []
+    prose: list[tuple[int, int]] = []
+    pos = 0
+    fence: tuple[str, int, int] | None = None  # (char, length, start)
+    prose_start = 0
+    for line in body.splitlines(keepends=True):
+        stripped = line.rstrip("\r\n")
+        if fence is None:
+            m = _FENCE_OPEN_RE.match(stripped)
+            if m:
+                prose.append((prose_start, pos))
+                fence = (m.group(1)[0], len(m.group(1)), pos)
+        else:
+            char, length, start = fence
+            close = re.fullmatch(r" {0,3}(%s{%d,})\s*" % (re.escape(char), length), stripped)
+            if close:
+                spans.append((start, pos + len(line)))
+                fence = None
+                prose_start = pos + len(line)
+        pos += len(line)
+    if fence is not None:
+        spans.append((fence[2], len(body)))
+    else:
+        prose.append((prose_start, len(body)))
+    for start, end in prose:
+        runs = list(_BACKTICK_RUN_RE.finditer(body, start, end))
+        i = 0
+        while i < len(runs):
+            width = len(runs[i].group(0))
+            closer = next((j for j in range(i + 1, len(runs))
+                           if len(runs[j].group(0)) == width), None)
+            if closer is None:
+                i += 1
+                continue
+            spans.append((runs[i].start(), runs[closer].end()))
+            i = closer + 1
+    return spans
+
+
+def find_ship_contracts(body: str) -> list[re.Match[str]]:
+    """Every real `<!-- ship: ... -->` block in `body`, in order: a block that
+    starts inside a fenced code block or inline code is a quoted example, not
+    the contract. parse_ship_contract() and apply_priority_labels.py's
+    settle_contract_design() both read the contract through this one helper,
+    so they always agree on which block it is."""
+    body = body or ""
+    spans = _code_spans(body)
+    return [m for m in SHIP_CONTRACT_RE.finditer(body)
+            if not any(s <= m.start() < e for s, e in spans)]
+
+
 def parse_ship_contract(body: str) -> dict[str, Any] | None:
     """The `<!-- ship: ... -->` block's fields, or None if the body has none.
 
-    The last block wins: an issue edited to correct its contract usually gains a
+    Blocks quoted inside code are ignored (find_ship_contracts). The last
+    real block wins: an issue edited to correct its contract usually gains a
     second block rather than losing the first.
     """
-    blocks = SHIP_CONTRACT_RE.findall(body or "")
+    blocks = [m.group(1) for m in find_ship_contracts(body)]
     if not blocks:
         return None
     raw: dict[str, str] = {}
