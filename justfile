@@ -103,8 +103,23 @@ test-local: sidecar
 
 # Regenerate ui/src/ipc/generated/ from core's ts-rs types (commit the result; CI fails on drift)
 bindings:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Export into a fresh directory and replace the tracked one only after that succeeds:
+    # a failed build keeps the old bindings, and a type no longer exported leaves no file.
+    fresh="$(mktemp -d)"
+    trap 'rm -rf "$fresh"' EXIT
+    TS_RS_EXPORT_DIR="$fresh" cargo test --locked -p myapp-core --lib --features export-bindings export_bindings --quiet
+    if ! compgen -G "$fresh/*.ts" >/dev/null; then
+        echo "ERR_BINDINGS_EMPTY: the export wrote no bindings; ui/src/ipc/generated/ is unchanged" >&2
+        echo "Expected: one .ts file per core type exported by ts-rs" >&2
+        echo "Actual: no .ts file in the export directory" >&2
+        echo "Next: check myapp-core's export-bindings feature and each IPC type's cfg_attr(…, ts(export)), then rerun \`just bindings\`" >&2
+        exit 1
+    fi
     rm -rf ui/src/ipc/generated
-    cargo test --locked -p myapp-core --lib export_bindings --quiet
+    mkdir ui/src/ipc/generated
+    cp -R "$fresh"/. ui/src/ipc/generated/
 
 # Build the myapp-cli helper into src-tauri/binaries/ (Tauri's externalBin needs it before the Tauri crate compiles)
 sidecar *args:

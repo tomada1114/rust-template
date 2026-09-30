@@ -138,7 +138,8 @@ reading the clock is banned, not representing time.
 
 - The UI receives one `…View` struct per model: the data it renders, in plain numbers,
   strings, `Option`s, and `UnixMillis` — never wording, never an internal type. It
-  derives `Serialize` and `ts_rs::TS` with `#[ts(export)]` and
+  derives `Serialize` and `ts_rs::TS` with
+  `#[cfg_attr(feature = "export-bindings", ts(export))]` and
   `#[serde(rename_all = "camelCase")]`. In the sample, `CounterView { value,
   last_changed_at }` is the only counter type that crosses; `Counter` itself does not.
 - What goes to disk is its own type (in the sample, `StoredCounter`), separate from the

@@ -100,11 +100,12 @@ The moment one needs a decision, the decision moves into core behind the port.
 |---|---|
 | `#[tauri::command]` functions in `src-tauri/src/commands.rs`, registered once in `with_commands` (`src-tauri/src/lib.rs`), which the app and the command tests share | one wrapper per command in `ui/src/ipc/commands.ts` |
 | one `pub const` per event name (`COUNTER_CHANGED`), emitted with `app.emit` | one typed `listen` per event in `ui/src/ipc/events.ts` |
-| every DTO lives in core and derives `ts_rs::TS` with `#[ts(export)]` | `ui/src/ipc/generated/`, committed, never hand-edited; the rest of the UI imports from `ui/src/ipc/types.ts` |
+| every DTO lives in core and derives `ts_rs::TS` with `#[cfg_attr(feature = "export-bindings", ts(export))]` | `ui/src/ipc/generated/`, committed, never hand-edited; the rest of the UI imports from `ui/src/ipc/types.ts` |
 
-`just bindings` regenerates `ui/src/ipc/generated/` (`.cargo/config.toml` sets the
-export directory and exports 64-bit integers as `number`); CI regenerates and fails on a
-diff. A harness check compares the names in `generate_handler!` with those
+`just bindings` regenerates `ui/src/ipc/generated/`: it exports into a fresh directory
+with core's `export-bindings` feature and replaces the tracked one only once that
+succeeds, so no other test run rewrites it (`.cargo/config.toml` exports 64-bit integers
+as `number`). CI regenerates and fails on a diff. A harness check compares the names in `generate_handler!` with those
 `commands.ts` invokes, and the event constants with those `events.ts` listens to.
 
 A command decides nothing: it moves the work to a blocking thread, calls core, emits

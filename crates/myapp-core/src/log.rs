@@ -6,7 +6,7 @@ use ts_rs::TS;
 /// How serious a UI log entry is. The UI forwards only warnings and errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub enum UiLogLevel {
     /// Something unexpected that the UI recovered from.
     Warn,
@@ -18,7 +18,7 @@ pub enum UiLogLevel {
 /// written to the log file, on one line and cut to a bounded length.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub struct UiLogEntry {
     /// Severity.
     pub level: UiLogLevel,
