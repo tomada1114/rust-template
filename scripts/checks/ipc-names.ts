@@ -3,19 +3,27 @@
  *
  * - Commands: the functions registered in `tauri::generate_handler![…]` (in any `.rs`
  *   file under `src-tauri/src/`; each entry's last path segment is the command name)
- *   equal the names passed to `invoke` anywhere in `ui/src/ipc/` (every non-test
- *   TypeScript or JavaScript file there; `commands.ts` in practice).
+ *   equal the names passed to Tauri's `invoke` anywhere in `ui/src/ipc/` (`commands.ts`
+ *   in practice).
  * - Events: the names Rust emits (the event argument of every `emit`, `emit_to`,
  *   `emit_filter`, and `emit_str*` call under `src-tauri/src/`, called as a method —
- *   `app.emit(…)` — or through a path — `tauri::Emitter::emit(app, …)`,
- *   `<AppHandle as Emitter>::emit(&app, …)`, whose first argument is the emitter — and
- *   named by a string literal, or a `const NAME: &str = "…"` declared there,
- *   `src-tauri/src/commands.rs`'s `pub const`s in practice) equal the names passed to
- *   `listen` or `once` anywhere in `ui/src/ipc/` (`events.ts` in practice).
+ *   `app.emit(…)` — or through a path that names the `Emitter` trait —
+ *   `tauri::Emitter::emit(app, …)`, `<AppHandle as Emitter>::emit(&app, …)`, whose first
+ *   argument is the emitter — and named by a string literal, or a
+ *   `const NAME: &str = "…"` declared there, `src-tauri/src/commands.rs`'s `pub const`s
+ *   in practice) equal the names passed to Tauri's `listen` or `once` anywhere in
+ *   `ui/src/ipc/` (`events.ts` in practice).
+ *
+ * The TypeScript side reads every non-test script under `ui/src/ipc/` except
+ * `testing.ts` (test-only). A call counts when its callee is bound to Tauri: `invoke`
+ * imported from `@tauri-apps/api/core` or `listen`/`once` from `@tauri-apps/api/event`
+ * (under any local name, or through a namespace import), or a `.listen`/`.once` method
+ * on a value that comes from an `@tauri-apps/*` import (`getCurrentWindow().once(…)`).
+ * A same-named helper of the app's own (`once(() => …)`) is not a call to Tauri.
  *
  * Rust is read as text with comments removed; TypeScript with the TypeScript compiler's
- * parser. A TypeScript name is a string literal, a template literal without
- * substitutions, or a `const` declared in the same file with such a value. A name the
+ * parser and a checker over the one file. A TypeScript name is a string literal, a
+ * template literal without substitutions, or a `const` in scope with such a value. A name the
  * check cannot read (a variable, an expression) is a violation, never a silent skip:
  * a name built at run time is a name no check can compare.
  *
@@ -36,14 +44,21 @@ import ts from "typescript";
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
+import {
+  blank,
+  constInitializer,
+  importOf,
+  parseScript,
+  SCRIPT_FILE,
+  TEST_FILE,
+} from "./shared/sources.ts";
 
 const RUST_DIR = "src-tauri/src";
 const LIB_RS = `${RUST_DIR}/lib.rs`;
 const IPC_DIR = "ui/src/ipc";
 const COMMANDS_TS = `${IPC_DIR}/commands.ts`;
 const EVENTS_TS = `${IPC_DIR}/events.ts`;
-const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
-const TEST_FILE = /\.test\.[cm]?[jt]sx?$/;
+const TESTING_TS = `${IPC_DIR}/testing.ts`;
 
 /** Where a name was found: `path:line`. */
 type Sites = Map<string, string[]>;
@@ -97,7 +112,6 @@ function literalLength(source: string, i: number): number | undefined {
  * Strings, raw strings, and char literals are kept whole.
  */
 function stripRustComments(source: string): string {
-  const blank = (text: string): string => text.replace(/[^\n]/g, " ");
   let out = "";
   let i = 0;
   while (i < source.length) {
@@ -195,10 +209,13 @@ function rustCommands(files: readonly RustFile[]): Found | undefined {
 }
 
 /**
- * A call of an `Emitter` method: `.emit(` as a method, or `::emit(` through a path, where
- * the emitter is the first argument and the event moves one place right.
+ * A call of an `Emitter` method: `.emit(` as a method, or `Emitter::emit(` through a path
+ * that names the trait (`tauri::Emitter`, `<T as Emitter<R>>`), where the emitter is the
+ * first argument and the event moves one place right. A path call of any other function
+ * named `emit` (an app's own `events::emit`) is not Tauri's.
  */
-const EMIT = /(\.|::)\s*(emit(?:_str)?(?:_to|_filter)?)\s*(?:::\s*<[^>]*>\s*)?\(/g;
+const EMIT =
+  /(\.|\bEmitter\s*(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>\s*)?>?\s*::)\s*(emit(?:_str)?(?:_to|_filter)?)\s*(?:::\s*<[^>]*>\s*)?\(/g;
 const RUST_CONST =
   /\bconst\s+([A-Za-z_]\w*)\s*:\s*&\s*(?:'static\s+)?str\s*=\s*"((?:[^"\\]|\\.)*)"\s*;/g;
 
@@ -211,7 +228,7 @@ function rustEvents(files: readonly RustFile[]): Found {
   const violations: FailureDetails[] = [];
   for (const { path, text } of files) {
     for (const match of text.matchAll(EMIT)) {
-      const throughPath = match[1] === "::";
+      const throughPath = match[1] !== ".";
       const method = match[2] ?? "";
       const args = callArguments(text, match.index + match[0].length - 1);
       const arg = args[(method.endsWith("_to") ? 1 : 0) + (throughPath ? 1 : 0)];
@@ -234,112 +251,151 @@ function rustEvents(files: readonly RustFile[]): Found {
   return { names, violations };
 }
 
-/** Every non-test TypeScript or JavaScript file under `dir`, sorted. */
+/** Every script under `dir` that ships: no test file, and not `testing.ts`. */
 function scriptFiles(root: string, dir: string): string[] {
   return readdirSync(join(root, dir), { withFileTypes: true })
     .sort((a, b) => a.name.localeCompare(b.name))
     .flatMap((entry) => {
       const path = `${dir}/${entry.name}`;
       if (entry.isDirectory()) return scriptFiles(root, path);
-      return SCRIPT_FILE.test(entry.name) && !TEST_FILE.test(entry.name) ? [path] : [];
+      const ships = SCRIPT_FILE.test(entry.name) && !TEST_FILE.test(entry.name);
+      return ships && path !== TESTING_TS ? [path] : [];
     });
 }
 
-const SCRIPT_KINDS: readonly (readonly [RegExp, ts.ScriptKind])[] = [
-  [/\.tsx$/, ts.ScriptKind.TSX],
-  [/\.jsx$/, ts.ScriptKind.JSX],
-  [/\.[cm]?js$/, ts.ScriptKind.JS],
-];
+/** The Tauri functions whose first argument is an IPC name, and the module each is from. */
+type Callees = ReadonlyMap<string, string>;
 
-/** The names `paths` pass as the first argument to calls of `callees`. */
-function tsNames(root: string, paths: readonly string[], callees: ReadonlySet<string>): Found {
+const COMMAND_CALLEES: Callees = new Map([["invoke", "@tauri-apps/api/core"]]);
+const EVENT_CALLEES: Callees = new Map([
+  ["listen", "@tauri-apps/api/event"],
+  ["once", "@tauri-apps/api/event"],
+]);
+
+/** The identifier an expression such as `getCurrentWindow().once` or `w.listen` starts from. */
+function rootIdentifier(node: ts.Expression): ts.Identifier | undefined {
+  let inner = node;
+  for (;;) {
+    if (ts.isIdentifier(inner)) return inner;
+    if (
+      ts.isCallExpression(inner) ||
+      ts.isPropertyAccessExpression(inner) ||
+      ts.isElementAccessExpression(inner) ||
+      ts.isParenthesizedExpression(inner) ||
+      ts.isAwaitExpression(inner) ||
+      ts.isNonNullExpression(inner) ||
+      ts.isAsExpression(inner)
+    ) {
+      inner = inner.expression;
+    } else return undefined;
+  }
+}
+
+/** The names `paths` pass as the first argument to calls of Tauri's `callees`. */
+function tsNames(root: string, paths: readonly string[], callees: Callees): Found {
   const names: Sites = new Map();
   const violations: FailureDetails[] = [];
   for (const path of paths) {
-    const found = fileNames(root, path, callees);
-    for (const [name, sites] of found.names) for (const site of sites) addSite(names, name, site);
-    violations.push(...found.violations);
+    const { file, checker } = parseScript(path, readRepoFile(root, path) ?? "");
+    /** Whether `identifier` is bound to an `@tauri-apps/*` import, directly or through consts. */
+    const fromTauri = (identifier: ts.Identifier, seen: ReadonlySet<ts.Node>): boolean => {
+      if (importOf(checker, identifier)?.module.startsWith("@tauri-apps/") === true) return true;
+      const initializer = constInitializer(checker, identifier);
+      if (initializer === undefined || seen.has(initializer)) return false;
+      const next = rootIdentifier(initializer);
+      return next !== undefined && fromTauri(next, new Set([...seen, initializer]));
+    };
+    const isTauriCall = (callee: ts.Expression): boolean => {
+      if (ts.isIdentifier(callee)) {
+        const origin = importOf(checker, callee);
+        return origin !== undefined && callees.get(origin.name) === origin.module;
+      }
+      if (!ts.isPropertyAccessExpression(callee) || !callees.has(callee.name.text)) return false;
+      const receiver = callee.expression;
+      if (ts.isIdentifier(receiver)) {
+        const origin = importOf(checker, receiver);
+        if (origin?.name === "*") return callees.get(callee.name.text) === origin.module;
+      }
+      const start = rootIdentifier(receiver);
+      return start !== undefined && fromTauri(start, new Set());
+    };
+    const nameOf = (arg: ts.Expression | undefined): string | undefined => {
+      if (arg === undefined) return undefined;
+      if (ts.isStringLiteralLike(arg)) return arg.text;
+      const initializer = ts.isIdentifier(arg) ? constInitializer(checker, arg) : undefined;
+      return initializer !== undefined && ts.isStringLiteralLike(initializer)
+        ? initializer.text
+        : undefined;
+    };
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && isTauriCall(node.expression)) {
+        const site = `${path}:${String(file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1)}`;
+        const [arg] = node.arguments;
+        const name = nameOf(arg);
+        if (name === undefined) {
+          violations.push(
+            unparsed(
+              site,
+              `the name passed to ${node.expression.getText(file)}(…) is \`${arg?.getText(file) ?? "missing"}\`, not a string literal or a const in scope`,
+              "each IPC name a string literal, or a `const` in scope holding one",
+            ),
+          );
+        } else addSite(names, name, site);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
   }
   return { names, violations };
 }
 
-function fileNames(root: string, path: string, callees: ReadonlySet<string>): Found {
-  const text = readRepoFile(root, path) ?? "";
-  const kind = SCRIPT_KINDS.find(([pattern]) => pattern.test(path))?.[1] ?? ts.ScriptKind.TS;
-  const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, kind);
-  const consts = new Map<string, string>();
-  const calls: ts.CallExpression[] = [];
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.initializer !== undefined &&
-      ts.isStringLiteralLike(node.initializer)
-    ) {
-      consts.set(node.name.text, node.initializer.text);
-    }
-    if (ts.isCallExpression(node)) {
-      const callee = node.expression;
-      const name = ts.isIdentifier(callee)
-        ? callee.text
-        : ts.isPropertyAccessExpression(callee)
-          ? callee.name.text
-          : undefined;
-      if (name !== undefined && callees.has(name)) calls.push(node);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
-  const names: Sites = new Map();
-  const violations: FailureDetails[] = [];
-  for (const call of calls) {
-    const site = `${path}:${String(file.getLineAndCharacterOfPosition(call.getStart(file)).line + 1)}`;
-    const [arg] = call.arguments;
-    const name =
-      arg === undefined
-        ? undefined
-        : ts.isStringLiteralLike(arg)
-          ? arg.text
-          : ts.isIdentifier(arg)
-            ? consts.get(arg.text)
-            : undefined;
-    if (name === undefined) {
-      violations.push(
-        unparsed(
-          site,
-          `the name passed to ${call.expression.getText(file)}(…) is \`${arg?.getText(file) ?? "missing"}\`, not a string literal or a const in this file`,
-          "each IPC name a string literal, or a `const` in the same file holding one",
-        ),
-      );
-    } else addSite(names, name, site);
-  }
-  return { names, violations };
+/** How one side of the comparison is named in a message. */
+interface Side {
+  readonly kind: "command" | "event";
+  /** Where Rust declares the names, for a message. */
+  readonly rustWhere: string;
+  /** The TypeScript call that uses a name, as a verb: `invokes`, `listens to`. */
+  readonly verb: string;
+  /** The file a missing TypeScript wrapper belongs in. */
+  readonly wrapperFile: string;
+  /** How to add a name to the Rust side. */
+  readonly rustFix: string;
 }
 
-function compare(
-  code: string,
-  kind: string,
-  rust: Sites,
-  rustWhere: string,
-  typescript: Sites,
-  tsWhere: string,
-): FailureDetails[] {
-  const quote = kind === "command" ? (n: string) => `\`${n}\`` : (n: string) => `"${n}"`;
-  const missing = (from: Sites, to: Sites, fromWhere: string, toWhere: string): FailureDetails[] =>
-    [...from.keys()]
-      .filter((name) => !to.has(name))
-      .sort()
-      .map((name) => ({
+const filesOf = (sites: readonly string[]): string =>
+  [...new Set(sites.map((site) => site.replace(/:\d+$/, "")))].join(", ");
+
+function compare(code: string, side: Side, rust: Sites, typescript: Sites): FailureDetails[] {
+  const quote = side.kind === "command" ? (n: string) => `\`${n}\`` : (n: string) => `"${n}"`;
+  const expected = `the same ${side.kind} names in ${side.rustWhere} and ${IPC_DIR}/ (design D4)`;
+  const listed = (sites: Sites): string => [...sites.keys()].sort().map(quote).join(", ") || "none";
+  const onlyRust = [...rust.keys()]
+    .filter((name) => !typescript.has(name))
+    .sort()
+    .map((name): FailureDetails => {
+      const sites = rust.get(name) ?? [];
+      return {
         code,
-        summary: `the ${kind} ${quote(name)} is in ${fromWhere} but not ${toWhere}`,
-        expected: `the same ${kind} names in ${rustWhere} and ${tsWhere} (design D4)`,
-        actual: `${quote(name)} at ${(from.get(name) ?? []).join(", ")}; ${toWhere} has ${[...to.keys()].sort().map(quote).join(", ") || "none"}`,
-        next: `add the ${kind} to ${toWhere}, or remove or rename it in ${fromWhere}; a rename changes both sides in one commit`,
-      }));
-  return [
-    ...missing(rust, typescript, rustWhere, tsWhere),
-    ...missing(typescript, rust, tsWhere, rustWhere),
-  ];
+        summary: `the ${side.kind} ${quote(name)} is in ${side.rustWhere} but no file under ${IPC_DIR}/ ${side.verb} it`,
+        expected,
+        actual: `${quote(name)} at ${sites.join(", ")}; ${IPC_DIR}/ ${side.verb} ${listed(typescript)}`,
+        next: `add a wrapper that ${side.verb} it to ${side.wrapperFile}, or remove or rename it in ${filesOf(sites)}; a rename changes both sides in one commit`,
+      };
+    });
+  const onlyTypeScript = [...typescript.keys()]
+    .filter((name) => !rust.has(name))
+    .sort()
+    .map((name): FailureDetails => {
+      const sites = typescript.get(name) ?? [];
+      return {
+        code,
+        summary: `the ${side.kind} ${quote(name)} is used in ${filesOf(sites)} but not in ${side.rustWhere}`,
+        expected,
+        actual: `${quote(name)} at ${sites.join(", ")}; ${side.rustWhere} has ${listed(rust)}`,
+        next: `${side.rustFix}, or remove or rename the call in ${filesOf(sites)}; a rename changes both sides in one commit`,
+      };
+    });
+  return [...onlyRust, ...onlyTypeScript];
 }
 
 function run(root: string): FailureDetails[] {
@@ -358,7 +414,7 @@ function run(root: string): FailureDetails[] {
   const ipcFiles = scriptFiles(root, IPC_DIR);
   const violations: FailureDetails[] = [];
   const commands = rustCommands(files);
-  const invoked = tsNames(root, ipcFiles, new Set(["invoke"]));
+  const invoked = tsNames(root, ipcFiles, COMMAND_CALLEES);
   if (commands === undefined) {
     violations.push(
       unparsed(
@@ -373,28 +429,36 @@ function run(root: string): FailureDetails[] {
     violations.push(
       ...compare(
         "ERR_CHECK_IPC_COMMANDS_DIVERGED",
-        "command",
+        {
+          kind: "command",
+          rustWhere: "generate_handler!",
+          verb: "invokes",
+          wrapperFile: COMMANDS_TS,
+          rustFix: `register it in generate_handler! (${LIB_RS})`,
+        },
         commands.names,
-        "generate_handler!",
         invoked.names,
-        `${IPC_DIR}/'s invokes`,
       ),
     );
   }
 
   const emitted = rustEvents(files);
-  const heard = tsNames(root, ipcFiles, new Set(["listen", "once"]));
+  const heard = tsNames(root, ipcFiles, EVENT_CALLEES);
   const eventProblems = [...emitted.violations, ...heard.violations];
   violations.push(...eventProblems);
   if (eventProblems.length === 0) {
     violations.push(
       ...compare(
         "ERR_CHECK_IPC_EVENTS_DIVERGED",
-        "event",
+        {
+          kind: "event",
+          rustWhere: `${RUST_DIR}'s emits`,
+          verb: "listens to",
+          wrapperFile: EVENTS_TS,
+          rustFix: `emit it under ${RUST_DIR} with a \`pub const\` name`,
+        },
         emitted.names,
-        `${RUST_DIR}'s emits`,
         heard.names,
-        `${IPC_DIR}/'s listens`,
       ),
     );
   }

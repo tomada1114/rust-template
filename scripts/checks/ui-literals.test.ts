@@ -19,6 +19,7 @@ const PASS = join(import.meta.dirname, "fixtures", "ui-literals", "pass");
 const RAW = "ERR_CHECK_UI_RAW_COLOR";
 const FAMILY = "ERR_CHECK_UI_FONT_FAMILY";
 const PIXEL = "ERR_CHECK_UI_PIXEL_FONT_SIZE";
+const UNPARSED = "ERR_CHECK_UI_UNPARSED";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -134,12 +135,37 @@ describe("ui-literals", () => {
       expect(violations[0]?.actual).toContain("--size: 11px, read as font-size");
     });
 
-    it("follows a custom property declared in TypeScript into CSS", () => {
-      const root = rootWith("ui/src/counter/local.ts", 'export const s = { "--size": "11px" };\n');
-      writeFileSync(join(root, "ui/src/counter/Extra.css"), ".a { font-size: var(--size); }\n");
-      const violations = check.run(root);
+    it("does not tie a custom property to a same-named read in another file", () => {
+      const root = rootWith("ui/src/counter/A.css", ".icon{--size:16px;width:var(--size)}\n");
+      writeFileSync(join(root, "ui/src/counter/B.css"), ".t{font-size:var(--size)}\n");
+      writeFileSync(
+        join(root, "ui/src/counter/local.ts"),
+        'export const s = { "--size": "11px" };\n',
+      );
+      expect(check.run(root)).toEqual([]);
+    });
+
+    it("ties a read to the declaration in its own rule before any other in the file", () => {
+      const violations = check.run(
+        rootWith(
+          "ui/src/counter/Extra.css",
+          ".icon{--size:16px;width:var(--size)}\n.t{--size:13px;font-size:var(--size)}\n",
+        ),
+      );
       expect(codes(violations)).toEqual([PIXEL]);
-      expect(violations[0]?.summary).toMatch(/^ui\/src\/counter\/local\.ts:1: /);
+      expect(violations[0]?.summary).toMatch(/^ui\/src\/counter\/Extra\.css:2: /);
+      expect(violations[0]?.actual).toContain("--size: 13px");
+    });
+
+    it.each([
+      ["a system-font keyword in a custom property", ".a { --f: menu; font: var(--f); }"],
+      [
+        "a system-color word in a property that takes no color",
+        ".a { appearance: menulist; cursor: default; }",
+      ],
+      ["a system-color word as an animation name", ".a { animation-name: highlight; }"],
+    ])("does not flag %s", (_label, css) => {
+      expect(check.run(rootWith("ui/src/counter/Extra.css", `${css}\n`))).toEqual([]);
     });
 
     it.each([
@@ -241,6 +267,39 @@ describe("ui-literals", () => {
         "const css = `--f: Menlo; font-family: var(--f);`;",
         [FAMILY],
       ],
+      ["a named color after ||", 'const s = { color: given || "black" };', [RAW]],
+      ["a named color after &&", 'const s = { color: dark && "white" };', [RAW]],
+      [
+        "both named colors a const conditional holds",
+        'const C = dark ? "white" : "black"; const s = { color: C };',
+        [RAW, RAW],
+      ],
+      [
+        "a named color in a member of a const object",
+        'const P = { warn: "red" } as const; const s = { color: P.warn };',
+        [RAW],
+      ],
+      [
+        "a named color in an indexed member of a const object",
+        'const P = { tone: { warn: "red" } }; const s = { color: P.tone["warn"] };',
+        [RAW],
+      ],
+      [
+        "a hex color a const holds, used in a template, reported once",
+        'const BG = "#fff"; const s = { border: `1px solid ${BG}` };',
+        [RAW],
+      ],
+      [
+        "a named color a const holds, used in a template",
+        'const BG = "navy"; const s = { border: `1px solid ${BG}` };',
+        [RAW],
+      ],
+      ["a system color on a style key", 'const s = { color: "CanvasText" };', [RAW]],
+      [
+        "a system color as a custom property's whole value",
+        'const s = { "--accent": "AccentColor" };',
+        [RAW],
+      ],
     ])("flags %s", (_label, source, expected) => {
       const violations = check.run(rootWith("ui/src/counter/extra.ts", `${source}\n`));
       expect(codes(violations)).toEqual(expected);
@@ -269,6 +328,50 @@ describe("ui-literals", () => {
       expect(
         check.run(rootWith("ui/src/counter/x.test.js", 'const s = { color: "#fff" };\n')),
       ).toEqual([]);
+    });
+
+    it.each([
+      [
+        "copy under keys that merely contain color words",
+        'export const copy = { filterHint: "Filter the window list", backgroundLabel: "Keep running in the background" };',
+      ],
+      [
+        "a system-color word in copy that looks like a declaration",
+        'export const s = "Background: Menu bar only";',
+      ],
+      ["a component's color prop", 'export const X = () => <Badge color="highlight" />;'],
+      [
+        "a parameter that shadows a const",
+        'const tone = "red";\nexport const s = (tone: string) => ({ color: tone });',
+      ],
+      [
+        "an inner const that shadows an outer one",
+        'const c = "red";\nexport function f() { const c = "var(--x)"; return { color: c }; }',
+      ],
+      [
+        "$-prefixed keys, which are Sass variables only in .scss",
+        'export const s = { $type: "menu", "$c": "green" };',
+      ],
+    ])("does not flag %s", (_label, source) => {
+      expect(check.run(rootWith("ui/src/counter/Extra.tsx", `${source}\n`))).toEqual([]);
+    });
+
+    it("flags a system color on an SVG element's attribute", () => {
+      const violations = check.run(
+        rootWith("ui/src/counter/Extra.tsx", 'export const X = () => <svg fill="Highlight" />;\n'),
+      );
+      expect(codes(violations)).toEqual([RAW]);
+    });
+
+    it("reports a raw value a const holds where it is declared, not again at each use", () => {
+      const violations = check.run(
+        rootWith(
+          "ui/src/counter/Extra.tsx",
+          'const BG = "#fff";\nexport const a = { border: `1px solid ${BG}` };\nexport const b = { color: BG };\n',
+        ),
+      );
+      expect(codes(violations)).toEqual([RAW]);
+      expect(violations[0]?.summary).toMatch(/^ui\/src\/counter\/Extra\.tsx:1: /);
     });
 
     it("names the line where a const is used", () => {
@@ -311,6 +414,27 @@ describe("ui-literals", () => {
       const violations = check.run(rootWith("ui/src/design/icon.svg", `${svg}\n`));
       expect(codes(violations)).toEqual(expected);
       expect(violations[0]?.summary).toMatch(/^ui\/src\/design\/icon\.svg:1: /);
+    });
+
+    it("reads an attribute that follows a quoted value with no space", () => {
+      const violations = check.run(
+        rootWith("ui/src/design/icon.svg", '<svg><path d="M0"fill="red"/></svg>\n'),
+      );
+      expect(codes(violations)).toEqual([RAW]);
+    });
+
+    it.each([
+      [
+        "a tag that never closes, whose attributes read so far still count",
+        '<svg fill="red"',
+        [UNPARSED, RAW],
+      ],
+      ["a stray quote in a tag", '<svg "fill"="red"></svg>', [UNPARSED]],
+      ["a value whose quote never closes", '<svg fill="red></svg>', [UNPARSED]],
+    ])("fails on %s instead of passing it unread", (_label, svg, expected) => {
+      const violations = check.run(rootWith("ui/src/design/icon.svg", `${svg}\n`));
+      expect(codes(violations)).toEqual(expected);
+      expect(violations[0]?.summary).toMatch(/^ui\/src\/design\/icon\.svg:1: unreadable tag/);
     });
 
     it("names the line of a <style> declaration", () => {
