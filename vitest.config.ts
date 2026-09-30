@@ -20,8 +20,8 @@ export default defineConfig({
           environment: "jsdom",
           include: ["ui/src/**/*.test.{ts,tsx}"],
           setupFiles: ["ui/src/test/setup.ts"],
-          // Vitest stubs CSS by default; the contrast test reads tokens.css as text.
-          css: { include: [/tokens\.css/] },
+          // Vitest stubs CSS by default; the contrast test reads tokens.css and primitives.css as text.
+          css: { include: [/(tokens|primitives)\.css/] },
           testTimeout: 10_000,
         },
       },

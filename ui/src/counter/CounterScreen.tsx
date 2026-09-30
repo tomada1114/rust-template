@@ -4,19 +4,22 @@
  */
 import "./CounterScreen.css";
 
+import { useId } from "react";
+
 import { counterCopy, describeCounterError, describeLastChanged } from "../copy/counter";
 import { Button, IconButton, Panel, Stack, Text } from "../design";
 import { useCounter } from "./useCounter";
 
 export function CounterScreen() {
   const { state, increment, decrement, reset } = useCounter();
+  const titleId = useId();
 
   return (
     <main className="counter-screen">
       <div className="counter-screen__panel">
-        <Panel as="section" labelledBy="counter-title">
+        <Panel as="section" labelledBy={titleId}>
           <Stack gap="m" align="center">
-            <Text as="h1" variant="title" id="counter-title">
+            <Text as="h1" variant="title" id={titleId}>
               {counterCopy.title}
             </Text>
             {state.status === "loading" && <Text variant="secondary">{counterCopy.loading}</Text>}
@@ -29,7 +32,7 @@ export function CounterScreen() {
             )}
             {state.status === "ready" && (
               <>
-                <Text as="output" variant="largeTitle" role="status">
+                <Text as="output" variant="largeTitle" role="status" labelledBy={titleId}>
                   {state.view.value}
                 </Text>
                 <Text variant="secondary">{describeLastChanged(state.view.lastChangedAt)}</Text>
@@ -47,7 +50,7 @@ export function CounterScreen() {
                   <Button onClick={() => void reset()}>{counterCopy.reset}</Button>
                 </Stack>
                 {state.error !== null && (
-                  <Text variant="danger" role="alert">
+                  <Text key={state.errorCount} variant="danger" role="alert">
                     {state.error === "unexpected"
                       ? counterCopy.unexpected
                       : describeCounterError(state.error)}
