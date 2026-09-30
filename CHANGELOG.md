@@ -352,6 +352,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@types/node` follows the Node 24 that `mise.toml` runs instead of Node 26, so the
   scripts no longer type-check against APIs their runtime lacks.
 
+- A release's notes now start with `CHANGELOG.md`'s section for its version and, for an
+  ad-hoc build, say how to open it; GitHub's list of merged pull requests follows, and a
+  pull request with no category label lands under "Other Changes" instead of being
+  dropped. `just release-prep 0.1.0` now prepares an app's first release: while no `v*`
+  tag exists and `CHANGELOG.md` has no section for the version, the current version is
+  accepted.
+
 ### Security
 
 - The pre-commit hook no longer skips the commit that concludes a conflicted merge, or

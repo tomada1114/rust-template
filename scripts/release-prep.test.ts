@@ -237,12 +237,99 @@ describe("release-prep", () => {
     expect(git(dir, ["status", "--porcelain"]).stdout).toBe("");
   });
 
-  it.each(["0.1.0", "0.0.9"])("fails when %s is not newer than 0.1.0", (version) => {
+  it("fails when 0.0.9 is below 0.1.0, even with no v* tag", () => {
     expect(
       caught(() => {
-        prepare(setup(repo(), [version]).context, "2026-09-28");
+        prepare(setup(repo(), ["0.0.9"]).context, "2026-09-28");
       }).details.code,
     ).toBe("ERR_RELEASE_VERSION_NOT_NEWER");
+  });
+
+  it.each(["v0.0.1", "v0.1.0"])("refuses the current version once the tag %s exists", (tag) => {
+    const dir = repo();
+    git(dir, ["tag", tag]);
+    const error = caught(() => {
+      prepare(setup(dir, ["0.1.0"]).context, "2026-09-28");
+    });
+    expect(error.details.code).toBe("ERR_RELEASE_VERSION_NOT_NEWER");
+    expect(error.details.actual).toContain(tag);
+    expect(git(dir, ["status", "--porcelain"]).stdout).toBe("");
+  });
+
+  it("names only the first of several tags", () => {
+    const dir = repo();
+    git(dir, ["tag", "v0.0.1"]);
+    git(dir, ["tag", "v0.0.2"]);
+    const error = caught(() => {
+      prepare(setup(dir, ["0.1.0"]).context, "2026-09-28");
+    });
+    expect(error.details.actual).toBe(
+      "0.1.0, the current version; git tag --list 'v*' printed v0.0.1 and more",
+    );
+  });
+
+  it("accepts the current version as the first release when no v* tag exists", () => {
+    const dir = repo();
+    const { context, lines, calls } = setup(dir, ["0.1.0"]);
+    prepare(context, "2026-09-28");
+
+    expect(read(dir, "Cargo.toml")).toBe(CARGO);
+    expect(read(dir, "src-tauri/tauri.conf.json")).toBe(TAURI);
+    expect(read(dir, "package.json")).toBe(PACKAGE);
+    expect(read(dir, "CHANGELOG.md")).toBe(
+      CHANGELOG.replace("## [Unreleased]\n", "## [Unreleased]\n\n## [0.1.0] - 2026-09-28\n"),
+    );
+    expect(calls).toContainEqual(["git", "tag", "--list", "v*"]);
+    expect(calls).toContainEqual(["cargo", "update", "--workspace", "--offline"]);
+    const log = lines.join("\n");
+    expect(log).toContain("first release");
+    expect(log).toContain("package.json: 0.1.0 (unchanged)");
+  });
+
+  it("writes nothing for a first release on --dry-run", () => {
+    const dir = repo();
+    const { context, lines } = setup(dir, ["--dry-run", "0.1.0"]);
+    prepare(context, "2026-09-28");
+    expect(git(dir, ["status", "--porcelain"]).stdout).toBe("");
+    expect(lines.join("\n")).toContain("first release");
+  });
+
+  it("ignores tags outside v* when judging a first release", () => {
+    const dir = repo();
+    git(dir, ["tag", "0.0.1"]);
+    git(dir, ["tag", "release-1"]);
+    prepare(setup(dir, ["0.1.0"]).context, "2026-09-28");
+    expect(read(dir, "CHANGELOG.md")).toContain("## [0.1.0] - 2026-09-28");
+  });
+
+  it("refuses a first release that was already prepared but not tagged", () => {
+    const changelog = CHANGELOG.replace(
+      "## [0.0.1] - 2026-01-01",
+      "## [0.1.0] - 2026-01-02\n\n- Prepared.\n\n## [0.0.1] - 2026-01-01",
+    );
+    const dir = repo({ changelog });
+    const error = caught(() => {
+      prepare(setup(dir, ["0.1.0"]).context, "2026-09-28");
+    });
+    expect(error.details.code).toBe("ERR_RELEASE_VERSION_NOT_NEWER");
+    expect(error.details.actual).toContain("prepared but not tagged");
+    expect(git(dir, ["status", "--porcelain"]).stdout).toBe("");
+  });
+
+  it("refuses the current version when the tags cannot be listed", () => {
+    const { context } = setup(repo(), ["0.1.0"]);
+    const failing: ScriptContext = {
+      ...context,
+      run: (command, args, options) =>
+        command === "git" && args[0] === "tag"
+          ? { status: 128, stdout: "", stderr: "fatal: boom\n" }
+          : context.run(command, args, options),
+    };
+    const error = caught(() => {
+      prepare(failing, "2026-09-28");
+    });
+    expect(error.details.code).toBe("ERR_RELEASE_VERSION_NOT_NEWER");
+    expect(error.details.actual).toContain("fatal: boom");
   });
 
   it.each<[string, string | undefined]>([
