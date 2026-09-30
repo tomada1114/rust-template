@@ -34,6 +34,14 @@ current values.
   is owed.
 - Core's ban list and `AGENTS.md`'s description of it change together. Adding a ban is
   the routine direction; removing one is weakening a gate.
+- A `path` clippy cannot resolve (a typo, an item a Rust release renamed or moved, a
+  `std::os::unix` path on another target) is only a configuration warning, which
+  `-D warnings` does not turn into an error, so the ban would silently do nothing.
+  `just lint` and CI's clippy steps therefore run clippy through `scripts/clippy-guard.ts`,
+  which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on any diagnostic located in a
+  `clippy.toml`. Clippy's suggested `allow-invalid = true` hides the warning, which makes
+  it weakening a gate; fix the path instead. CI's Linux and macOS jobs both run the
+  guard, so a path must resolve on both.
 
 ## `rustfmt.toml`
 

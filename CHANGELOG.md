@@ -52,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A path in a `clippy.toml` that clippy cannot resolve (a typo, an item a Rust release
+  renamed or moved, or a path missing on the build's target) now fails `just lint` and
+  CI's clippy steps with `ERR_CLIPPY_BAN_UNRESOLVED`, instead of leaving a clippy warning
+  that `-D warnings` let pass while the ban in core's `clippy.toml` silently did nothing.
+  Clippy now runs through `scripts/clippy-guard.ts`; clippy's output is printed once it
+  finishes rather than as it runs.
 - An app cut from the template no longer keeps text about the template or references
   to files the bootstrap deletes. `just test-scripts` passes before the Product section
   is filled (the harness runner's tests use a fixture instead of the checkout), and

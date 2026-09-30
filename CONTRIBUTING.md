@@ -75,7 +75,7 @@ mise install && corepack enable pnpm && pnpm install --frozen-lockfile && leftho
 node scripts/verify-hooks.ts                     # just verify-hooks
 node scripts/build-sidecar.ts                    # just sidecar (the Tauri crate needs the helper first)
 cargo fmt --all --check                          # part of just lint
-cargo clippy --workspace --all-targets --locked -- -D warnings
+node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
 pnpm typecheck && pnpm lint && pnpm format:check
 cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
 cargo test --doc --locked -p myapp-core

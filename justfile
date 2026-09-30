@@ -72,7 +72,7 @@ fix:
 # Check formatting, lints, and types in both languages
 lint: sidecar
     cargo fmt --all --check
-    cargo clippy --workspace --all-targets --locked -- -D warnings
+    node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
     pnpm typecheck
     pnpm lint
     pnpm format:check

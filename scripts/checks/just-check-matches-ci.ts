@@ -94,7 +94,7 @@ export const EXCEPTIONS: Exceptions = {
       "hands the pnpm store path to actions/cache: CI plumbing with no local meaning",
     "pnpm install --frozen-lockfile":
       "dependency install: `just install` runs it once on a developer's Mac, not on every `just check`",
-    "cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
+    "node scripts/clippy-guard.ts cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
       "the Linux job lints only the crates that build without WebKitGTK; the macOS job runs `just lint`'s whole-workspace clippy line verbatim",
     "cargo deny --locked check":
       "`just deny`: fetches the RustSec advisory database over the network, so it stays out of the offline local gate; AGENTS.md › Validating a change runs it when a manifest or lockfile changes",
