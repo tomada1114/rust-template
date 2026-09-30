@@ -43,6 +43,11 @@ Two extras for a script whose behavior depends on what GitHub says over time:
   `--body-file` sent (read at call time, since the caller usually deletes the
   file afterwards) with that call's exit code; `fake.saved_bodies` keeps only
   the ones that exited 0, so its last item is what the PR body now is.
+
+`jq_newline=True` makes every call carrying `-q`/`--jq` print one newline
+after its stdout, as the real gh does after a string value, so a response is
+written as the bare value ("main", not "main\\n") and a script that writes a
+`-q` value back can be tested for keeping that newline out.
 """
 from __future__ import annotations
 
@@ -83,8 +88,11 @@ if "--body-file" in argv[:-1]:
         sent = None
     with open(os.environ["FAKE_GH_BODIES"], "a", encoding="utf-8") as fh:
         fh.write(json.dumps({"body": sent, "exit": reply.get("exit", 0)}) + "\\n")
+stdout = reply.get("stdout", "[]")
+if os.environ.get("FAKE_GH_JQ_NEWLINE") and ("-q" in argv or "--jq" in argv):
+    stdout += "\\n"
 sys.stderr.write(reply.get("stderr", ""))
-sys.stdout.write(reply.get("stdout", "[]"))
+sys.stdout.write(stdout)
 sys.exit(reply.get("exit", 0))
 '''
 
@@ -97,11 +105,13 @@ class FakeGh:
     def __init__(self, responses: dict[tuple[str, ...], str] | None = None,
                  *, exits: dict[tuple[str, ...], int] | None = None,
                  stderrs: dict[tuple[str, ...], str] | None = None,
-                 sequences: dict[tuple[str, ...], list[str | tuple[str, int]]] | None = None):
+                 sequences: dict[tuple[str, ...], list[str | tuple[str, int]]] | None = None,
+                 jq_newline: bool = False):
         self._responses = responses or {}
         self._exits = exits or {}
         self._stderrs = stderrs or {}
         self._sequences = sequences or {}
+        self._jq_newline = jq_newline
         self._tmpdir: tempfile.TemporaryDirectory | None = None
         self.env: dict[str, str] = {}
         self.state_dir: Path | None = None
@@ -143,6 +153,10 @@ class FakeGh:
         self.env["FAKE_GH_CONFIG"] = str(config_path)
         self.env["FAKE_GH_CALLS"] = str(calls_path)
         self.env["FAKE_GH_BODIES"] = str(bodies_path)
+        if self._jq_newline:
+            self.env["FAKE_GH_JQ_NEWLINE"] = "1"
+        else:
+            self.env.pop("FAKE_GH_JQ_NEWLINE", None)
         # Two isolations every test wants, and neither is safe to leave to the
         # individual test to remember:
         #   * the run-state dir is redirected into this temp dir, so nothing a

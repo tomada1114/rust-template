@@ -73,8 +73,10 @@ class Run:
 def run_resave(args, responses, *, sequences=None, exits=None, sleep_body=None):
     """Run the script with `sleep` stubbed on PATH -- it logs its argument and
     returns at once, so a re-save's waits are counted without being waited --
-    and with TMPDIR pointed at a directory the test can inspect."""
-    with FakeGh(responses, exits=exits, sequences=sequences) as fake, \
+    and with TMPDIR pointed at a directory the test can inspect. The fake adds
+    the newline `gh -q` prints after a value, so responses are bare values and
+    a saved body equal to the response proves that newline was not written back."""
+    with FakeGh(responses, exits=exits, sequences=sequences, jq_newline=True) as fake, \
             tempfile.TemporaryDirectory() as stub_td, \
             tempfile.TemporaryDirectory() as tmp_td:
         stub_dir = Path(stub_td)
@@ -236,8 +238,8 @@ BODY_WITH_KEYWORD = "## Summary\n\nCloses #7\n\nA long body.\n\n## Test Plan\n\n
 
 def resave_responses(pr, body, base="main"):
     return {
-        base_prefix(pr): f"{base}\n",
-        ("repo", "view", "--json", "defaultBranchRef"): "main\n",
+        base_prefix(pr): base,
+        ("repo", "view", "--json", "defaultBranchRef"): "main",
         ("pr", "view", pr, "--json", "body"): body,
     }
 
@@ -259,14 +261,14 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, BODY_WITH_KEYWORD),
-            # initial read, after re-save 1, after re-save 2
-            sequences={closing_prefix(pr): ["\n", "\n", "7\n"]},
+            # initial read, after re-save 1, after re-save 2 (the last allowed)
+            sequences={closing_prefix(pr): ["", "", "7"]},
         )
 
         self.assertEqual(run.proc.returncode, 0, run.proc.stdout + run.proc.stderr)
         self.assertNotIn("appended", run.proc.stdout)
-        self.assertIn("fix: re-save 1/3: not linked yet\n", run.proc.stdout)
-        self.assertIn("fix: re-save 2/3: linked\n", run.proc.stdout)
+        self.assertIn("fix: re-save 1/2: not linked yet\n", run.proc.stdout)
+        self.assertIn("fix: re-save 2/2: linked\n", run.proc.stdout)
         self.assertIn("verdict: LINKED\n", run.proc.stdout)
         original = BODY_WITH_KEYWORD
         self.assertEqual(
@@ -280,22 +282,22 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, BODY_WITH_KEYWORD),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
         )
 
         self.assertEqual(run.proc.returncode, 1)
-        self.assertIn("fix: re-save 3/3: not linked yet\n", run.proc.stdout)
+        self.assertIn("fix: re-save 2/2: not linked yet\n", run.proc.stdout)
         self.assertIn("verdict: NOT_LINKED\n", run.proc.stdout)
         self.assertIn(
             "detail: the PR body has a closing keyword for #7, but GitHub has not "
-            "linked it after 3 re-save(s) of the body\n",
+            "linked it after 2 re-save(s) of the body\n",
             run.proc.stdout,
         )
         self.assertNotIn("no Closes/Fixes/Resolves keyword", run.proc.stdout)
-        # Bounded: three minimal saves and three restores, two short waits each.
-        self.assertEqual(len(run.body_edits), 6)
+        # Bounded: two minimal saves and two restores, two short waits each.
+        self.assertEqual(len(run.body_edits), 4)
         self.assert_body_intact(run, BODY_WITH_KEYWORD)
-        self.assertEqual(len(run.sleeps), 6)
+        self.assertEqual(len(run.sleeps), 4)
         self.assertTrue(all(0 < int(s) <= 5 for s in run.sleeps), run.sleeps)
         self.assertEqual(run.leftovers, {})
 
@@ -305,7 +307,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, body),
-            sequences={closing_prefix(pr): ["\n", "7\n"]},
+            sequences={closing_prefix(pr): ["", "7"]},
         )
 
         self.assertEqual(run.proc.returncode, 0, run.proc.stdout)
@@ -320,14 +322,14 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, body),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
         )
 
         appended = body + "\n\nCloses #7\n"
         self.assertEqual(run.proc.returncode, 1)
         self.assertEqual(run.saved_bodies[0], appended)
         self.assert_body_intact(run, appended)
-        self.assertEqual(len(run.body_edits), 1 + 6)
+        self.assertEqual(len(run.body_edits), 1 + 4)
         self.assertIn(
             "detail: the PR body has a closing keyword for #7, but GitHub has not linked it",
             run.proc.stdout,
@@ -338,7 +340,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, "no keyword\n"),
-            sequences={closing_prefix(pr): ["\n"], ("pr", "edit", pr): [("", 1)]},
+            sequences={closing_prefix(pr): [""], ("pr", "edit", pr): [("", 1)]},
         )
 
         self.assertEqual(run.proc.returncode, 1)
@@ -360,7 +362,21 @@ class ResaveTest(unittest.TestCase):
             "resolved #7.\n":
                 "detail: the PR body has a closing keyword for #7, but GitHub has "
                 "not linked it (--fix re-saves the body)\n",
+            "Closes acme/widgets#7\n":
+                "detail: the PR body has a closing keyword for #7, but GitHub has "
+                "not linked it (--fix re-saves the body)\n",
+            "Fixes https://github.com/acme/widgets/issues/7\n":
+                "detail: the PR body has a closing keyword for #7, but GitHub has "
+                "not linked it (--fix re-saves the body)\n",
             "Closes #70 and see #7\n":
+                "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
+            "Closes #7x\n":
+                "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
+            "Closes acme/widgets#70\n":
+                "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
+            "Fixes https://github.com/acme/widgets/issues/7x\n":
+                "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
+            "Fixes https://github.com/acme/widgets/pull/7\n":
                 "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
             "prefixes #7\n":
                 "detail: the PR body has no Closes/Fixes/Resolves keyword\n",
@@ -370,7 +386,7 @@ class ResaveTest(unittest.TestCase):
                 run = run_resave(
                     [pr, "--issue", "7"],
                     resave_responses(pr, body),
-                    sequences={closing_prefix(pr): ["\n"]},
+                    sequences={closing_prefix(pr): [""]},
                 )
 
                 self.assertEqual(run.proc.returncode, 1)
@@ -382,7 +398,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr],
             resave_responses(pr, "Closes #12\n"),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
         )
 
         self.assertEqual(run.proc.returncode, 1)
@@ -397,7 +413,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7"],
             resave_responses(pr, BODY_WITH_KEYWORD),
-            sequences={closing_prefix(pr): ["5\n"]},
+            sequences={closing_prefix(pr): ["5"]},
         )
 
         self.assertEqual(run.proc.returncode, 1)
@@ -409,7 +425,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7"],
             responses,
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
             exits={("pr", "view", pr, "--json", "body"): 1},
         )
 
@@ -424,7 +440,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, ""),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
             exits={("pr", "view", pr, "--json", "body"): 1},
         )
 
@@ -439,13 +455,13 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix", "--dry-run"],
             resave_responses(pr, BODY_WITH_KEYWORD),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
         )
 
         self.assertEqual(run.proc.returncode, 0)
         self.assertIn(
             "fix: would re-save PR #50 body, which already has a closing keyword for #7, "
-            "up to 3 times (dry run -- no change made)\n",
+            "up to 2 times (dry run -- no change made)\n",
             run.proc.stdout,
         )
         self.assertEqual([c for c in run.calls if c[:2] == ["pr", "edit"]], [])
@@ -457,7 +473,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix", "--dry-run"],
             resave_responses(pr, BODY_WITH_KEYWORD, base="release"),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
         )
 
         self.assertEqual(run.proc.returncode, 2)
@@ -469,7 +485,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, BODY_WITH_KEYWORD, base="release"),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
         )
 
         self.assertEqual(run.proc.returncode, 2)
@@ -483,7 +499,7 @@ class ResaveTest(unittest.TestCase):
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, BODY_WITH_KEYWORD),
             sequences={
-                closing_prefix(pr): ["\n"],
+                closing_prefix(pr): [""],
                 ("pr", "edit", pr): [("", 1), ("", 0)],
             },
         )
@@ -500,7 +516,7 @@ class ResaveTest(unittest.TestCase):
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, BODY_WITH_KEYWORD),
             sequences={
-                closing_prefix(pr): ["\n"],
+                closing_prefix(pr): [""],
                 ("pr", "edit", pr): [("", 0), ("", 1)],
             },
         )
@@ -527,7 +543,7 @@ class ResaveTest(unittest.TestCase):
         run = run_resave(
             [pr, "--issue", "7", "--fix"],
             resave_responses(pr, BODY_WITH_KEYWORD),
-            sequences={closing_prefix(pr): ["\n"]},
+            sequences={closing_prefix(pr): [""]},
             sleep_body=sleep_body,
         )
 

@@ -15,7 +15,9 @@
 #               "Closes #N" appended; a body whose keyword GitHub has not
 #               linked (already there, or just appended) is re-saved -- a
 #               minimal "Closes #N" body, then the full body put back -- up to
-#               3 times, a few seconds apart, and never gains a second keyword.
+#               2 times, a few seconds apart, and never gains a second keyword.
+#               Every edit fires `pull_request: edited` workflows, hence the
+#               low bound; run --fix before watching CI.
 #               It refuses to rewrite a body it could not read, and if the full
 #               body cannot be put back, ERROR names the file that holds it.
 #               No re-save on a non-default base: that verdict is WRONG_BASE.
@@ -73,7 +75,7 @@ fi
 
 # Re-save bounds: attempts, seconds between steps, and tries to put the full
 # body back. Every wait is a plain `sleep`, which the tests stub out on PATH.
-RESAVES=3
+RESAVES=2
 WAIT=3
 RESTORE_TRIES=3
 
@@ -88,10 +90,23 @@ is_linked() {
 
 # has_closing_keyword <number-pattern> < body -- a keyword GitHub reads as
 # closing (close/closes/closed, fix/fixes/fixed, resolve/resolves/resolved, any
-# case, an optional colon) followed by #<number>. Reads stdin rather than a
-# pipe from printf: under pipefail, grep -q exiting early would fail the pipe.
+# case, an optional colon) followed by #<number>, owner/repo#<number>, or
+# https://github.com/owner/repo/issues/<number>, the number ending at a
+# non-word character. Reads stdin rather than a pipe from printf: under
+# pipefail, grep -q exiting early would fail the pipe.
 has_closing_keyword() {
-  grep -Eiq "(^|[^[:alnum:]_])(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]+#$1([^0-9]|\$)"
+  local repo='[[:alnum:]_.-]+/[[:alnum:]_.-]+'
+  grep -Eiq "(^|[^[:alnum:]_])(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]+(($repo)?#|https?://github\.com/$repo/issues/)$1([^[:alnum:]_]|\$)"
+}
+
+# read_body <file> -- write the PR body to <file> exactly: `gh -q` prints a
+# string value plus one newline, which would otherwise be written back (and
+# grow the body) on every edit. Fails, writing nothing, when gh does.
+read_body() {
+  local raw nl=$'\n'
+  raw="$(gh pr view "$PR" --json body -q .body 2>/dev/null && printf x)" || return 1
+  raw="${raw%x}"
+  printf '%s' "${raw%"$nl"}" > "$1"
 }
 
 base_ref="$(gh pr view "$PR" --json baseRefName -q .baseRefName 2>/dev/null)" || base_ref=""
@@ -131,7 +146,7 @@ restore_body() {
 restore_failed() {
   rm -f "$minimal_file"
   echo "verdict: ERROR"
-  echo "detail: could not restore PR #$PR body after a minimal re-save -- the full body is kept at $body_file; put it back with: gh pr edit $PR --body-file $body_file"
+  echo "detail: could not restore PR #$PR body after a minimal re-save -- the full body is kept at $body_file; put it back with: gh pr edit $PR --body-file $body_file (GitHub's edit history of the PR description also keeps it)"
   exit 3
 }
 
@@ -186,7 +201,7 @@ resave_body() {
 # --- repair a missing link --------------------------------------------------
 if [[ -n "$ISSUE" && $FIX -eq 1 ]] && ! is_linked; then
   body_file="$(mktemp "${TMPDIR:-/tmp}/link_check_body.XXXXXX")" || { echo "verdict: ERROR"; echo "detail: mktemp failed"; exit 3; }
-  if ! gh pr view "$PR" --json body -q .body > "$body_file" 2>/dev/null; then
+  if ! read_body "$body_file"; then
     echo "verdict: ERROR"
     echo "detail: could not read PR #$PR body -- refusing to rewrite it"
     rm -f "$body_file"
