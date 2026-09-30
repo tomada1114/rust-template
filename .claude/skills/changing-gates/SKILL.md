@@ -130,10 +130,10 @@ review. `paths.ts`'s list and `AGENTS.md`'s never-read list change together. Enf
 
 `AGENTS.md` › "Enforcement layers" names the gaps and the reasons they stay open: a
 UI-to-Rust wiring mistake only the running app shows, the `#[ignore]`d tests only a
-human runs, `--no-verify`, a ruleset that may not be applied, and a new recipe that
-takes over the Mac. Add to that list the release path: `release.yml` runs only on a tag
-or a manual dispatch, so a change to it is proven by its `dry_run` (`releasing-the-app`),
-never by a pull request's checks. A gate proposed to close any gap is a real gate
+human runs, `--no-verify` and the hook's other bypasses, a ruleset that may not be
+applied, and a new recipe that takes over the Mac. Add to that list the release path:
+`release.yml` runs only on a tag or a manual dispatch, so a change to it is proven by
+its `dry_run` (`releasing-the-app`), never by a pull request's checks. A gate proposed to close any gap is a real gate
 change and belongs in its pull request as one, with its "Enforcement layers" row
 updated or removed.
 
