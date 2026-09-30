@@ -2,18 +2,18 @@
 name: releasing-the-app
 description: >
   Covers cutting a release of the app: choosing the version (MAJOR, MINOR, PATCH) from
-  what is contract, curating CHANGELOG.md's [Unreleased] section, just release-prep and
-  its three version sites (Cargo.toml [workspace.package], src-tauri/tauri.conf.json,
-  package.json) and Cargo.lock, the release pull request, the release.yml
-  workflow_dispatch dry run, the v* tag a human pushes, the release environment and
-  release-tags ruleset, ad-hoc versus Developer ID signing and notarization and the
-  APPLE_* secrets docs/distribution.md names, Gatekeeper and quarantine for an ad-hoc
-  build, and verifying the built .app and .dmg (codesign, entitlements, spctl,
-  SHA256SUMS, gh attestation verify). Use when preparing or tagging a release, an
-  ERR_RELEASE_* code from scripts/release-prep.ts, a tag the release preflight refuses
-  (not the version, or not on main), partly set APPLE_* secrets, a failed signing or
-  notarization step, a user who cannot open a downloaded build, or deciding whether a
-  change needs a release.
+  what is contract, curating CHANGELOG.md's [Unreleased] section, which becomes the
+  release notes, just release-prep and its three version sites (Cargo.toml
+  [workspace.package], src-tauri/tauri.conf.json, package.json) and Cargo.lock, the
+  release pull request, the release.yml workflow_dispatch dry run, the v* tag a human
+  pushes, the release environment and release-tags ruleset, ad-hoc versus Developer ID
+  signing and notarization and the APPLE_* secrets, Gatekeeper and quarantine for an
+  ad-hoc build, and verifying the built .app and .dmg (codesign, spctl, SHA256SUMS,
+  attestation). Use when preparing or tagging a release, an ERR_RELEASE_* code from
+  scripts/release-prep.ts, an app's first release at 0.1.0, a tag the release preflight
+  refuses (not the version, or not on main), partly set APPLE_* secrets, a failed
+  signing or notarization step, a user who cannot open a downloaded build, or deciding
+  whether a change needs a release.
 ---
 
 # Releasing the App
@@ -75,8 +75,10 @@ is an ADR.
 
 Each pull request added its own entry; before the release, read the whole section as
 one user would. Merge duplicates, move entries to the right Keep a Changelog heading,
-and write each as behaviour a user sees. An ad-hoc release says in its notes how to
-open a quarantined download (`docs/distribution.md` › "Opening an ad-hoc build").
+and write each as behaviour a user sees. The section is the release's notes, published
+as written, so write it for the person downloading the build. The workflow adds the
+ad-hoc opening steps itself (`scripts/release-notes.ts`), so the Gatekeeper steps never
+go into `CHANGELOG.md`; GitHub's pull-request list follows the section.
 
 ## 3. `just release-prep <version>`
 
@@ -92,7 +94,10 @@ moves the `[Unreleased]` entries under `## [<version>] - <date>`, leaving an emp
 reviewable diff. It refuses, each with a code and a `Next:` line:
 
 - a version that is not plain `MAJOR.MINOR.PATCH` (`ERR_RELEASE_VERSION_INVALID`), or
-  not greater than the current one, compared as numbers (`ERR_RELEASE_VERSION_NOT_NEWER`);
+  not greater than the current one, compared as numbers (`ERR_RELEASE_VERSION_NOT_NEWER`)
+  — except an app's first release: while no `v*` tag exists and `CHANGELOG.md` has no
+  section for it, the current version is accepted, so a bootstrapped app runs
+  `just release-prep 0.1.0`;
 - a work tree with uncommitted changes (`ERR_RELEASE_DIRTY`) or no work tree
   (`ERR_RELEASE_NOT_A_REPO`);
 - three sites that already disagree (`ERR_RELEASE_VERSIONS_DIFFER`): fix that in its
@@ -128,7 +133,8 @@ gh workflow run release.yml -f dry_run=true   # a human's step: it starts a work
 
 Once the `release` environment is configured it admits only `main` and `v*` tags, so a
 dry run from another branch is refused before the build job starts. On a dry run the
-`publish` job shows as skipped.
+`publish` job shows as skipped. The dry run's artifact holds `release-notes.md`, the
+notes the release would publish; it is a placeholder until the version's section exists.
 
 A failure there costs nothing; the same failure after a tag push leaves a tag with no
 release.
@@ -146,8 +152,9 @@ The workflow then runs four jobs:
   `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked` without
   the Rust build cache, verifies, and uploads the `.dmg` and `SHA256SUMS` as an artifact;
 - **publish**: the only job with write scopes and `id-token`, and it runs no cargo,
-  pnpm, or mise; it attests the `.dmg` and publishes it with `SHA256SUMS` and notes from
-  `.github/release.yml`'s categories.
+  pnpm, or mise; it attests the `.dmg` and publishes it with `SHA256SUMS`, with the
+  `CHANGELOG.md` section as its notes, the ad-hoc opening steps when unsigned, and
+  GitHub's categorized pull-request list.
 
 A tag the preflight refuses (a version mismatch, or a commit not on `main`) is deleted
 and re-pushed by an admin after the fix, never moved silently.

@@ -8,6 +8,10 @@ name: Release
 # holds the Apple secrets) → publish (the write scopes; downloads the verified dmg,
 # attests it, creates the release, and checks out nothing).
 #
+# Release notes: CHANGELOG.md's section for the version, plus how to open an ad-hoc build
+# (scripts/release-notes.ts, run in the build job), then GitHub's generated pull-request
+# list.
+#
 # - A `v*` tag push (a human act) publishes a GitHub Release.
 # - `workflow_dispatch` with `dry_run: true` (the default) runs every step up to the
 #   upload and keeps the .dmg as a workflow artifact, creating no release — the way to
@@ -193,6 +197,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Before the long build, so a tag whose version has no CHANGELOG.md section fails in
+      # seconds. The file rides in the dmg artifact to the publish job, and a dry run's
+      # artifact shows the notes a release would publish.
+      - name: Write the release notes from CHANGELOG.md
+        env:
+          PUBLISH: ${{ needs.preflight.outputs.publish }}
+        run: |
+          ARGS=(--out dist-release/release-notes.md)
+          if [[ "$HAS_DEVELOPER_ID" != "true" ]]; then ARGS+=(--ad-hoc); fi
+          if [[ "$PUBLISH" != "true" ]]; then ARGS+=(--allow-missing); fi
+          node scripts/release-notes.ts "${ARGS[@]}" "$VERSION"
+
       - name: Import the Developer ID certificate into a temporary keychain
         if: ${{ env.HAS_DEVELOPER_ID == 'true' }}
         env:
@@ -306,4 +322,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" --verify-tag --generate-notes dist-release/*.dmg dist-release/SHA256SUMS
+        run: gh release create "$TAG" --verify-tag --notes-file dist-release/release-notes.md --generate-notes dist-release/*.dmg dist-release/SHA256SUMS

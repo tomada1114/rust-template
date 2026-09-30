@@ -16,7 +16,9 @@
  * every check and prints the plan without writing.
  *
  * <version> is MAJOR.MINOR.PATCH with no leading zeros and no pre-release or build
- * suffix, and must be greater than the current version, compared as numbers.
+ * suffix, and must be greater than the current version, compared as numbers — or equal
+ * to it for an app's first release (no v* tag, and no CHANGELOG.md section for it yet),
+ * since the bootstrap leaves the version at 0.1.0.
  *
  * Errors: ERR_RELEASE_USAGE, ERR_RELEASE_VERSION_INVALID, ERR_RELEASE_NOT_A_REPO,
  * ERR_RELEASE_DIRTY, ERR_RELEASE_VERSIONS_DIFFER, ERR_RELEASE_VERSION_NOT_NEWER,
@@ -176,6 +178,36 @@ function isGreater(a: string, b: string): boolean {
   return false;
 }
 
+/**
+ * Why the current version cannot be prepared again, or undefined when this is an app's
+ * first release: no `v*` tag (the glob the release workflow triggers on) and no
+ * CHANGELOG.md section for the version yet. A failing tag listing refuses.
+ */
+function firstReleaseRefusal(
+  context: ScriptContext,
+  version: string,
+  changelogPath: string,
+): string | undefined {
+  const tags = context.run("git", ["tag", "--list", "v*"], {
+    cwd: context.root,
+    env: gitEnv(context.env),
+  });
+  if (tags.status !== 0) {
+    return `git tag --list 'v*' exited ${String(tags.status)}: ${tags.stderr.trim()}`;
+  }
+  const listed = tags.stdout.trim();
+  if (listed !== "") {
+    const [first = ""] = listed.split("\n");
+    const more = listed.includes("\n") ? " and more" : "";
+    return `${version}, the current version; git tag --list 'v*' printed ${first}${more}`;
+  }
+  const heading = new RegExp(`^##\\s*\\[${version.replaceAll(".", "\\.")}\\](\\s.*)?$`);
+  if ((readText(changelogPath) ?? "").split("\n").some((line) => heading.test(line))) {
+    return `${version}, the current version; CHANGELOG.md already has a ## [${version}] section, so it was prepared but not tagged`;
+  }
+  return undefined;
+}
+
 /** The changelog with a dated heading inserted under an emptied [Unreleased]. */
 function rollChangelog(path: string, version: string, today: string): string {
   const text = readText(path);
@@ -229,20 +261,42 @@ export function prepare(context: ScriptContext, today: string): void {
       next: "make the three versions equal in a commit of their own, then re-run",
     });
   }
-  if (!RELEASE_VERSION.test(current) || !isGreater(version, current)) {
-    throw new ScriptError({
-      code: "ERR_RELEASE_VERSION_NOT_NEWER",
-      summary: `${version} is not greater than the current version ${current}`,
-      expected: `a version above ${current}, compared component by component`,
-      actual: version === current ? `${version}, the current version` : `${version}, below it`,
-      next: "pick a higher version, or check whether it was already prepared (`git log -1 package.json`)",
-    });
-  }
   const changelogPath = join(root, "CHANGELOG.md");
+  const refusal =
+    version === current ? firstReleaseRefusal(context, version, changelogPath) : undefined;
+  const firstRelease = version === current && refusal === undefined;
+  if (!RELEASE_VERSION.test(current) || (!isGreater(version, current) && !firstRelease)) {
+    throw new ScriptError(
+      refusal === undefined
+        ? {
+            code: "ERR_RELEASE_VERSION_NOT_NEWER",
+            summary: `${version} is not greater than the current version ${current}`,
+            expected: `a version above ${current}, compared component by component`,
+            actual:
+              version === current ? `${version}, the current version` : `${version}, below it`,
+            next: "pick a higher version, or check whether it was already prepared (`git log -1 package.json`)",
+          }
+        : {
+            code: "ERR_RELEASE_VERSION_NOT_NEWER",
+            summary: `${version} is the current version, and this is not the first release`,
+            expected: `a version above ${current}, or ${current} itself only for the first release`,
+            actual: refusal,
+            next: "pick a higher version; the current version is accepted only for the first release, while `git tag --list 'v*'` prints nothing and CHANGELOG.md has no section for it. A prepared but untagged version is tagged, not prepared again",
+          },
+    );
+  }
   const changelog = rollChangelog(changelogPath, version, today);
 
   log(`release-prep: plan for ${version}`);
-  for (const site of sites) log(`  ${site.path.slice(root.length + 1)}: ${current} -> ${version}`);
+  if (firstRelease) {
+    log(
+      `release-prep: no v* tag exists, so this is the first release, at the current version ${version}`,
+    );
+  }
+  for (const site of sites) {
+    const path = site.path.slice(root.length + 1);
+    log(firstRelease ? `  ${path}: ${version} (unchanged)` : `  ${path}: ${current} -> ${version}`);
+  }
   log("  Cargo.lock: refreshed with `cargo update --workspace --offline`");
   log(`  CHANGELOG.md: the [Unreleased] entries -> "## [${version}] - ${today}"`);
   if (dryRun) {

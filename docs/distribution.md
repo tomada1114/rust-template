@@ -49,7 +49,8 @@ entitlements cannot be lost by a second signing pass.
 
 1. **Trigger.** Pushing a `v*` tag (a human act), or running the workflow by hand with
    `dry_run: true`, which builds and uploads the `.dmg` as a workflow artifact without
-   creating a release.
+   creating a release. The artifact also holds `release-notes.md`, the notes a release
+   would publish; it is a placeholder until the version's `CHANGELOG.md` section exists.
 2. **Preflight.** The `preflight` job, a read-only job (`contents: read`) on a Linux
    runner, checks for a publishing run that the ref is a `v*` tag, that the tag is
    `v<version>` with `package.json`'s version, and that the tagged commit is on the
@@ -74,8 +75,13 @@ entitlements cannot be lost by a second signing pass.
    `attestations: write`, and `id-token: write`. It checks out nothing and runs no cargo,
    pnpm, or mise: it downloads the verified artifact, attests the `.dmg`
    (`actions/attest-build-provenance`), and runs `gh release create` with the `.dmg` and
-   `SHA256SUMS`; the release notes come from the categories in `.github/release.yml`. A
-   dry run skips this job.
+   `SHA256SUMS`. The release notes are `CHANGELOG.md`'s `## [<version>]` section; for an
+   ad-hoc build it is followed by how to open it (the steps in
+   [Opening an ad-hoc build](#opening-an-ad-hoc-build)). The build job writes both with
+   `scripts/release-notes.ts`, before the Tauri build, so a tag whose version has no
+   section fails early. GitHub's generated list of merged pull requests follows, grouped
+   by `.github/release.yml`'s categories; a pull request with no category label lands
+   under "Other Changes". A dry run skips this job.
 
 The build job still holds the signing identity and the notarization credentials while
 it compiles, because Tauri signs while it bundles, and Cargo build scripts run there.
@@ -92,7 +98,15 @@ write token and the OIDC token never enter that job.
 sites, refreshes `Cargo.lock`, and moves `CHANGELOG.md`'s `[Unreleased]` entries under
 a dated heading. It refuses a version that is not greater than the current one, a dirty
 work tree, and an empty `[Unreleased]`; `--dry-run` runs every check and writes nothing.
-It creates no commit, tag, or push — those stay human acts:
+It creates no commit, tag, or push — those stay human acts.
+
+The first release is the exception to "greater": while no `v*` tag exists and
+`CHANGELOG.md` has no section for it, the current version is accepted. A bootstrapped
+app starts at 0.1.0 with an empty `[Unreleased]`, so it adds its first entries under
+`[Unreleased]` and runs `just release-prep 0.1.0`: the three version sites stay at
+0.1.0, `Cargo.lock` is refreshed, and `CHANGELOG.md` gains `## [0.1.0] - <date>`. The
+commands below apply with `0.1.0` in place of `0.2.0`.
+
 
 ```bash
 just release-prep 0.2.0            # writes the three version sites, Cargo.lock, CHANGELOG.md
@@ -246,8 +260,9 @@ macOS 15, Control-click › Open no longer bypasses Gatekeeper
   xattr -dr com.apple.quarantine "/Applications/MyApp.app"
   ```
 
-Say this in the release notes of an ad-hoc release, or better, configure the Developer
-ID secrets above. None of this applies to a build made on the same Mac, which is never
+The release workflow puts these steps into an ad-hoc release's notes
+(`scripts/release-notes.ts`); configuring the Developer ID secrets above removes the
+need for them. None of this applies to a build made on the same Mac, which is never
 quarantined.
 
 ## Verifying a build
