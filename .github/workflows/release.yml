@@ -7,9 +7,12 @@ name: Release
 #   upload and keeps the .dmg as a workflow artifact, creating no release — the way to
 #   prove the pipeline without a tag.
 #
-# Signing: ad hoc unless the APPLE_CERTIFICATE secrets exist, then Developer ID; Tauri
-# notarizes and staples when the notarization secrets exist too. A missing secret skips
-# its step through an `if:` on a job-level flag, never through continue-on-error.
+# Order: `preflight` checks the tag against the version before anything is installed,
+# `test` re-runs the tests, and `release` builds, verifies, and publishes.
+#
+# Signing: ad hoc when none of the six APPLE_* secrets exists; Developer ID signed,
+# notarized, and stapled when all six do. Any other combination fails the release job's
+# first step, so a missing secret never yields a silently ad-hoc or un-notarized build.
 # Nothing on this path is cached (zizmor's cache-poisoning finding).
 
 on:
@@ -40,8 +43,59 @@ env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
 jobs:
+  preflight:
+    name: Check the tag and the version sites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node
+          cache: false
+
+      # Before any dependency is installed or any test runs: a wrong tag fails in seconds.
+      - name: Check the tag names package.json's version
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          if [[ "$EVENT" == "push" || "$DRY_RUN" != "true" ]]; then
+            if [[ "$REF" != refs/tags/v* ]]; then
+              echo "::error::A release is published only from a v* tag; run the workflow with dry_run: true on a branch."
+              exit 1
+            fi
+            if [[ "$REF_NAME" != "v$VERSION" ]]; then
+              echo "::error::Tag '$REF_NAME' does not match the version $VERSION (expected 'v$VERSION'); run just release-prep before tagging."
+              exit 1
+            fi
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (dry run: $DRY_RUN)."
+
+      - name: Enable pnpm (the version package.json's packageManager names)
+        run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the three version sites agree
+        run: node scripts/checks/version-sites.ts
+
   test:
     name: Test before release
+    needs: [preflight]
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -67,7 +121,7 @@ jobs:
 
   release:
     name: Build, verify, and publish the dmg
-    needs: [test]
+    needs: [preflight, test]
     runs-on: macos-26
     timeout-minutes: 60
     permissions:
@@ -79,11 +133,39 @@ jobs:
       # YAML would read as a number or null stays a string.
       APP_NAME: "MyApp"
       TARGET: aarch64-apple-darwin
+      VERSION: ${{ needs.preflight.outputs.version }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-      # The secrets context is not available in a step's `if:`, so each gate is a flag.
-      HAS_DEVELOPER_ID: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
-      HAS_NOTARIZATION: ${{ secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+      # The secrets context is not available in a step's `if:`, so the gate is a flag. The
+      # first step fails unless the six secrets are all set or all absent.
+      HAS_DEVELOPER_ID: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
+      # First, before anything is checked out or installed: a partial set of secrets would
+      # otherwise build ad hoc, or sign without notarizing, which Gatekeeper rejects.
+      - name: Check the Apple secrets are all set or all absent
+        env:
+          APPLE_CERTIFICATE_SET: ${{ secrets.APPLE_CERTIFICATE != '' }}
+          APPLE_CERTIFICATE_PASSWORD_SET: ${{ secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
+          APPLE_SIGNING_IDENTITY_SET: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+          APPLE_ID_SET: ${{ secrets.APPLE_ID != '' }}
+          APPLE_PASSWORD_SET: ${{ secrets.APPLE_PASSWORD != '' }}
+          APPLE_TEAM_ID_SET: ${{ secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          present=""
+          missing=""
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            flag="${name}_SET"
+            if [[ "${!flag}" == "true" ]]; then present+=" $name"; else missing+=" $name"; fi
+          done
+          if [[ -n "$present" && -n "$missing" ]]; then
+            echo "::error::The Apple secrets are partly set (set:${present}; missing:${missing}). A release is Developer ID signed and notarized with all six, or ad-hoc signed with none; signing without notarizing is not offered. Add the missing secrets or remove the set ones (docs/distribution.md, The two signing paths)."
+            exit 1
+          fi
+          if [[ -z "$present" ]]; then
+            echo "::notice::No APPLE_* secret is set, so this build is ad-hoc signed (signingIdentity \"-\") and not notarized. A downloaded copy needs Privacy & Security › Open Anyway; see docs/distribution.md."
+          else
+            echo "All six Apple secrets are set: this build is Developer ID signed and notarized."
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -98,27 +180,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Check the version sites agree, and the tag names that version
-        env:
-          EVENT: ${{ github.event_name }}
-          REF: ${{ github.ref }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          node scripts/checks/version-sites.ts
-          VERSION=$(node -p 'require("./package.json").version')
-          if [[ "$EVENT" == "push" || "$DRY_RUN" != "true" ]]; then
-            if [[ "$REF" != refs/tags/v* ]]; then
-              echo "::error::A release is published only from a v* tag; run the workflow with dry_run: true on a branch."
-              exit 1
-            fi
-            if [[ "$REF_NAME" != "v$VERSION" ]]; then
-              echo "::error::Tag '$REF_NAME' does not match the version $VERSION (expected 'v$VERSION'); run just release-prep before tagging."
-              exit 1
-            fi
-          fi
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "Releasing $APP_NAME $VERSION (dry run: $DRY_RUN)."
 
       - name: Import the Developer ID certificate into a temporary keychain
         if: ${{ env.HAS_DEVELOPER_ID == 'true' }}
@@ -137,33 +198,50 @@ jobs:
           security set-key-partition-list -S "apple-tool:,apple:" -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
 
-      - name: Ad-hoc signing notice
-        if: ${{ env.HAS_DEVELOPER_ID != 'true' }}
-        run: echo "::notice::The APPLE_CERTIFICATE secrets are not set — this build is ad-hoc signed (signingIdentity \"-\"). A downloaded copy needs Privacy & Security › Open Anyway; see docs/distribution.md."
-
-      - name: Notarization skipped notice
-        if: ${{ env.HAS_DEVELOPER_ID != 'true' || env.HAS_NOTARIZATION != 'true' }}
-        run: echo "::notice::Notarization needs the Developer ID secrets and APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID; it is skipped for this build. See docs/distribution.md."
+      # Here rather than deep inside `tauri build`: a wrong .p12, password, or identity
+      # name fails with its own message.
+      - name: Check the keychain holds the signing identity
+        if: ${{ env.HAS_DEVELOPER_ID == 'true' }}
+        env:
+          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          IDENTITIES=$(security find-identity -v -p codesigning "$RUNNER_TEMP/release.keychain-db")
+          if ! grep -Fq -- "$SIGNING_IDENTITY" <<<"$IDENTITIES"; then
+            echo "::error::APPLE_SIGNING_IDENTITY is not among the valid code-signing identities APPLE_CERTIFICATE imported. Check the secret names the certificate's identity exactly, and that the .p12 holds a current Developer ID Application certificate with its private key."
+            printf '%s\n' "$IDENTITIES"
+            exit 1
+          fi
+          echo "The keychain holds the signing identity."
 
       - name: Build the app and the dmg
         env:
           SIGNING_IDENTITY: ${{ env.HAS_DEVELOPER_ID == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          NOTARY_APPLE_ID: ${{ env.HAS_DEVELOPER_ID == 'true' && env.HAS_NOTARIZATION == 'true' && secrets.APPLE_ID || '' }}
-          NOTARY_PASSWORD: ${{ env.HAS_DEVELOPER_ID == 'true' && env.HAS_NOTARIZATION == 'true' && secrets.APPLE_PASSWORD || '' }}
-          NOTARY_TEAM_ID: ${{ env.HAS_DEVELOPER_ID == 'true' && env.HAS_NOTARIZATION == 'true' && secrets.APPLE_TEAM_ID || '' }}
+          NOTARY_APPLE_ID: ${{ env.HAS_DEVELOPER_ID == 'true' && secrets.APPLE_ID || '' }}
+          NOTARY_PASSWORD: ${{ env.HAS_DEVELOPER_ID == 'true' && secrets.APPLE_PASSWORD || '' }}
+          NOTARY_TEAM_ID: ${{ env.HAS_DEVELOPER_ID == 'true' && secrets.APPLE_TEAM_ID || '' }}
         run: |
           # Tauri reads these only when set: an empty APPLE_SIGNING_IDENTITY would not fall
           # back to tauri.conf.json's ad-hoc "-", and an empty APPLE_ID would still attempt
-          # notarization. So each is exported only when its secrets exist.
-          if [[ -n "$SIGNING_IDENTITY" ]]; then export APPLE_SIGNING_IDENTITY="$SIGNING_IDENTITY"; fi
-          if [[ -n "$NOTARY_APPLE_ID" ]]; then
+          # notarization. So they are exported only on the Developer ID path.
+          if [[ "$HAS_DEVELOPER_ID" == "true" ]]; then
+            export APPLE_SIGNING_IDENTITY="$SIGNING_IDENTITY"
             export APPLE_ID="$NOTARY_APPLE_ID" APPLE_PASSWORD="$NOTARY_PASSWORD" APPLE_TEAM_ID="$NOTARY_TEAM_ID"
           fi
           pnpm tauri build --target "$TARGET" --bundles app,dmg -- --locked
 
+      # always(): the keychain goes whether the build passed, failed, or was cancelled.
+      - name: Delete the temporary keychain
+        if: ${{ always() && env.HAS_DEVELOPER_ID == 'true' }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          if [[ -f "$KEYCHAIN" ]]; then security delete-keychain "$KEYCHAIN"; fi
+
       - name: Verify the built app (signature, entitlements, bundled helper, smoke launch)
         run: node scripts/smoke.ts --app "target/$TARGET/release/bundle/macos/$APP_NAME.app"
 
+      # Passes only for a notarized Developer ID app; the first step made sure this build
+      # was notarized whenever it was Developer ID signed.
       - name: Verify Gatekeeper accepts the Developer ID build
         if: ${{ env.HAS_DEVELOPER_ID == 'true' }}
         run: spctl --assess --type execute --verbose=2 "target/$TARGET/release/bundle/macos/$APP_NAME.app"
