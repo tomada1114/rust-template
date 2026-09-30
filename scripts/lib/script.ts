@@ -31,6 +31,11 @@ export interface RunOptions {
    * that writes more is killed and reported as status null with ENOBUFS.
    */
   readonly maxBuffer?: number;
+  /**
+   * How captured output is decoded (default utf8). `latin1` maps each byte to one
+   * character, so a caller parsing byte-counted frames can index by byte offset.
+   */
+  readonly encoding?: "utf8" | "latin1";
 }
 
 export type Run = (command: string, args: readonly string[], options?: RunOptions) => RunResult;
@@ -56,7 +61,7 @@ export const runCommand: Run = (command, args, options = {}) => {
     cwd: options.cwd,
     env: options.env === undefined ? process.env : { ...options.env },
     input: options.input,
-    encoding: "utf8",
+    encoding: options.encoding ?? "utf8",
     stdio: captured ? "pipe" : "inherit",
     timeout: options.timeoutMs,
     // An explicit `maxBuffer: undefined` would override Node's default with no limit.
