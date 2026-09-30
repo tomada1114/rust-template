@@ -195,15 +195,18 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   and core never sleeps or starts a thread that outlives the call:
   `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`,
   `std::io::{stdin, stdout, stderr}`, `std::fs::{File, OpenOptions, DirBuilder}` and
-  every `std::fs` free function, `std::os::unix::fs::symlink`, `std::path::Path`'s
-  file-system queries (`exists`, `try_exists`, `metadata`, `symlink_metadata`,
-  `read_dir`, `read_link`, `canonicalize`, `is_file`, `is_dir`, `is_symlink`, which a
-  `PathBuf` reaches too), `std::net::{TcpStream, TcpListener, UdpSocket}` and
-  `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit, abort}`,
-  `SystemTime::now`/`Instant::now` and both types' `elapsed`, `std::env`'s
-  `var`/`var_os`/`vars`/`vars_os`, `args`/`args_os`, `current_dir`/`set_current_dir`,
-  `current_exe`, `home_dir`, `temp_dir`, and `set_var`/`remove_var`, and
-  `std::thread::{spawn, sleep}` and `std::thread::Builder::spawn` there.
+  every `std::fs` free function, `std::os::unix::fs::{symlink, chown, fchown, lchown,
+  chroot}`, `std::path::Path`'s file-system queries (`exists`, `try_exists`,
+  `metadata`, `symlink_metadata`, `read_dir`, `read_link`, `canonicalize`, `is_file`,
+  `is_dir`, `is_symlink`, which a `PathBuf` reaches too), `std::net::{TcpStream,
+  TcpListener, UdpSocket}`, `std::os::unix::net::{UnixStream, UnixListener,
+  UnixDatagram}`, and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit,
+  abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`/`Instant::now`
+  and both types' `elapsed`, `std::env`'s `var`/`var_os`/`vars`/`vars_os`,
+  `args`/`args_os`, `current_dir`/`set_current_dir`, `current_exe`, `home_dir`,
+  `temp_dir`, and `set_var`/`remove_var`, and
+  `std::thread::{spawn, sleep, park_timeout, available_parallelism}` and
+  `std::thread::Builder::spawn` there.
   `std::thread::scope` is allowed, in production core and tests alike: it joins every
   thread before it returns, so none can outlive the call.
   Core denies `clippy::wildcard_enum_match_arm`, so a `match` on a core enum names
@@ -526,7 +529,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | `scripts/check-staged.ts` (the hook's staged guard; rules in `scripts/lib/guard/`) | `git commit`, whatever is staged | anyone who ran `just install` | no secret-shaped path (`.env*`, `.envrc.*`, `secrets/`, signing material, SSH keys, `.claude/settings.local.json`) or credential-shaped content (private-key header, GitHub token, AWS keys, Anthropic or OpenAI API key, Slack token, Google API key, Stripe live key, and the rest `credentials.ts` lists) lands in a commit; judged from the index, so a partly staged file is judged as committed; staged deletions are never inspected |
 | `scripts/verify-hooks.ts` (`just install`'s last step, `just check`'s first) | `just install`, `just verify-hooks`, and `just check` | anyone who runs one | lefthook's pre-commit hook is installed in this checkout — skips under CI or the `ALLOW_MISSING_GIT_HOOKS` opt-out |
 | The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp` depends on `tauri` and only `myapp` and `myapp-cli` on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
-| `crates/myapp-core/clippy.toml` and core's `#![deny(clippy::wildcard_enum_match_arm)]` | `just lint`, `just check`, and CI's clippy steps | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `symlink`, `std::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, `thread::spawn`, `thread::Builder::spawn`, or `thread::sleep` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive |
+| `crates/myapp-core/clippy.toml` and core's `#![deny(clippy::wildcard_enum_match_arm)]` | `just lint`, `just check`, and CI's clippy steps | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `std::os::unix::fs`'s `symlink`, `chown`, `fchown`, `lchown`, and `chroot`, `std::net`'s and `std::os::unix::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, the process and parent-process ids, `thread::available_parallelism`, `thread::spawn`, `thread::Builder::spawn`, `thread::sleep`, or `thread::park_timeout` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive |
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
 | ESLint's `no-restricted-imports`, `no-restricted-syntax`, `no-console`, `no-restricted-properties`, and `switch-exhaustiveness-check` (`eslint.config.mjs`) | the hook, `just lint`, and CI's `Frontend` job | every author | only `ui/src/ipc/` imports `@tauri-apps/*` or `ui/src/ipc/generated/`, only tests import `ui/src/ipc/testing.ts`, and inside `ui/src/ipc/` only `testing.ts` and tests import `@tauri-apps/api/mocks`, statically or by `import()`; no `console` (nor `window.console` or `globalThis.console`) outside `ui/src/ipc/log.ts` and `scripts/`; a `switch` over a union names every member and has no `default`; an unused disable directive is an error |
 | Coverage floors | `just test-core`, `just test-ui`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `ui/src/` 80 / 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
