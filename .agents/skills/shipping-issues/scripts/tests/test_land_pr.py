@@ -240,10 +240,13 @@ class LandPrTest(unittest.TestCase):
         issue = "41"
         merge = ("pr", "merge", pr, "--squash", "--delete-branch", "--auto")
         proc, calls = run_script(
-            [pr, "--issue", issue, "--method", "squash", "--auto", "--no-link-check"],
+            [pr, "--issue", issue, "--method", "squash", "--auto"],
             {
                 state_prefix(pr): "OPEN\n",
                 draft_prefix(pr): "false\n",
+                ("pr", "view", pr, "--json", "baseRefName"): "main\n",
+                ("repo", "view", "--json", "defaultBranchRef"): "main\n",
+                ("pr", "view", pr, "--json", "closingIssuesReferences"): f"{issue}\n",
                 merge: "",
             },
         )
@@ -257,6 +260,19 @@ class LandPrTest(unittest.TestCase):
         # the merge-state gate is never consulted for it.
         self.assertEqual(
             [c for c in calls if c[:5] == list(merge_state_prefix(pr))], [])
+
+    def test_auto_with_no_link_check_is_refused_before_any_gh_call(self):
+        # Nothing would close the issue once GitHub's auto-merge lands: the
+        # closing link is unverified and confirm_issue never runs after --auto.
+        proc, calls = run_script(
+            ["27", "--issue", "41", "--auto", "--no-link-check"], {}
+        )
+
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--auto cannot be combined with --no-link-check", proc.stderr)
+        self.assertIn("Merge without --auto", proc.stderr)
+        self.assertEqual(proc.stdout, "")
+        self.assertEqual(calls, [])
 
     def test_refuses_to_merge_unless_the_merge_state_is_clean(self):
         pr = "30"

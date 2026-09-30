@@ -80,8 +80,9 @@ from typing import Any
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from issue_digest import (CONTRACT_FIELD_RE, DEPENDENCY_BLOCK_LABELS, DESIGN_BLOCK_LABELS,
-                          SHIP_CONTRACT_RE, TIER_ALIASES, TIER_LABELS, TIER_ORDER,
-                          normalize_label, parse_ship_contract, resolve_design_label)
+                          TIER_ALIASES, TIER_LABELS, TIER_ORDER,
+                          find_ship_contracts, normalize_label, parse_ship_contract,
+                          resolve_design_label)
 
 DIGEST = Path(__file__).resolve().parent / "issue_digest.py"
 
@@ -213,7 +214,8 @@ def settle_contract_design(body: str) -> str | None:
     `design=` field, or one parse_ship_contract() already reads as settled.
 
     Only the value of a `design=open` field inside a `<!-- ship: ... -->` block
-    changes; the key's spelling, the spacing, every other field, and the prose
+    changes (a block quoted inside code is left alone, as the parser ignores
+    it); the key's spelling, the spacing, every other field, and the prose
     around the block are kept byte for byte. Every such field is rewritten, not
     only the one the parser's last-block-wins rule reads, so no stale `open`
     is left for a human to misread."""
@@ -231,7 +233,12 @@ def settle_contract_design(body: str) -> str | None:
         return (block.group(0)[: block.start(1) - block.start(0)] + inner
                 + block.group(0)[block.end(1) - block.start(0):])
 
-    return SHIP_CONTRACT_RE.sub(settle_block, body)
+    out: list[str] = []
+    pos = 0
+    for block in find_ship_contracts(body):
+        out += [body[pos:block.start()], settle_block(block)]
+        pos = block.end()
+    return "".join(out) + body[pos:]
 
 
 def clear_design(number: int, dry_run: bool) -> list[str]:

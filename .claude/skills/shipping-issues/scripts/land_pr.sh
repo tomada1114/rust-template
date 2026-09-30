@@ -30,6 +30,10 @@
 # a repository cut from this template has none until its owner runs
 # `just ruleset`.
 #
+# --auto and --no-link-check together are a usage error (exit 2, before any
+# GitHub call): after --auto nothing confirms the issue closed, so only a PR
+# GitHub has verifiably linked may be armed.
+#
 # Exit codes: 0 = merged (or auto-merge armed), 1 = merge refused, 2 = usage
 
 set -uo pipefail
@@ -70,6 +74,12 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+if [[ $AUTO -eq 1 && $LINK_CHECK -eq 0 ]]; then
+  echo "--auto cannot be combined with --no-link-check: nothing would close the issue once auto-merge lands." >&2
+  echo "Merge without --auto (confirm_issue then closes the issue after the merge), or wait until GitHub links the PR and use --auto with the link check." >&2
+  exit 2
+fi
 
 if [[ -z "$PR" ]]; then
   echo "Usage: land_pr.sh <pr-number> [--issue N] [--method squash|merge|rebase] [--auto] [--dry-run]" >&2

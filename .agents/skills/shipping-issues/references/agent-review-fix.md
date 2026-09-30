@@ -46,7 +46,10 @@ Do:
    FOLLOW-UPS, not into this diff.
 4. Run the verification command in the **foreground** -- never in the
    background where you then have to poll it -- then commit and push. Push
-   before you return.
+   before you return. After the gate, run `git status --short`: commit any
+   leftover change (such as a `just fmt` rewrite) and re-run the gate before
+   pushing. Stage paths explicitly, never a generated artefact (`__pycache__`,
+   `coverage/`, `target/`).
 5. No GitHub write of any kind beyond the read above -- no `gh pr`, no
    `gh issue edit/comment/close`, no label change. Never `rm`: undo a probe
    inside the checkout with `git checkout --`, or move it aside with `mv`

@@ -8,6 +8,9 @@ comment block anywhere in the body:
      touches=crates/myapp-core/src/,crates/myapp-core/tests/ design=settled -->
 ```
 
+A block quoted inside a fenced code block or inline code, as above, is an
+example and is ignored; the last block outside code is the contract.
+
 Nothing here is required, and a repo with no contracts works exactly as before --
 the heuristics stay. But every field an issue carries is one the run does not
 re-derive, which is why `file_followup.py` writes a contract on everything this
