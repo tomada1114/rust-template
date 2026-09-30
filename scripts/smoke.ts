@@ -62,9 +62,16 @@ export function newestLog(dir: string, prefix: string): string | undefined {
   return candidates[0]?.path;
 }
 
-/** The `startup complete` line written by the process with this pid, if any. */
+/**
+ * The shell's own `startup complete` line written by the process with this pid, if any:
+ * an optional timestamp, `INFO`, then a target other than `ui` (the bootstrap renames the
+ * shell's crate, so its target is not spelled out) — a UI message quoting the text never
+ * matches.
+ */
 export function startupLineFor(text: string, pid: number): string | undefined {
-  const pattern = new RegExp(`startup complete.*\\bpid=${String(pid)}\\b`);
+  const pattern = new RegExp(
+    `^(?:\\S+\\s+)?INFO (?!ui:)[A-Za-z0-9_:]+: startup complete pid=${String(pid)}\\b`,
+  );
   return text.split("\n").find((line) => pattern.test(line));
 }
 

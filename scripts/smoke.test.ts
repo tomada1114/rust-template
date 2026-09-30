@@ -145,12 +145,30 @@ describe("newestLog", () => {
 describe("startupLineFor", () => {
   it("finds the startup line carrying the pid", () => {
     const text =
-      "a\nINFO startup complete pid=12 smoke=true\nINFO startup complete pid=7 smoke=true\n";
-    expect(startupLineFor(text, 7)).toBe("INFO startup complete pid=7 smoke=true");
+      "a\n2026-01-01T00:00:00.000000Z  INFO myapp_lib: startup complete pid=12 smoke=true\n" +
+      "2026-01-01T00:00:00.000000Z  INFO myapp_lib: startup complete pid=7 smoke=true\n";
+    expect(startupLineFor(text, 7)).toBe(
+      "2026-01-01T00:00:00.000000Z  INFO myapp_lib: startup complete pid=7 smoke=true",
+    );
   });
 
   it("does not match a different pid that shares digits", () => {
-    expect(startupLineFor("INFO startup complete pid=77 smoke=true", 7)).toBeUndefined();
+    expect(startupLineFor("INFO myapp_lib: startup complete pid=77 smoke=true", 7)).toBeUndefined();
+  });
+
+  it("does not accept a UI message that quotes the startup line", () => {
+    const forged = [
+      "2026-01-01T00:00:00.000000Z ERROR ui: message=x startup complete pid=7",
+      "2026-01-01T00:00:00.000000Z  WARN ui: message=INFO myapp_lib: startup complete pid=7",
+      "2026-01-01T00:00:00.000000Z  INFO ui: startup complete pid=7",
+    ].join("\n");
+    expect(startupLineFor(forged, 7)).toBeUndefined();
+    expect(
+      startupLineFor(
+        `${forged}\n2026-01-01T00:00:00.000000Z  INFO myapp_lib: startup complete pid=7`,
+        7,
+      ),
+    ).toBe("2026-01-01T00:00:00.000000Z  INFO myapp_lib: startup complete pid=7");
   });
 });
 

@@ -57,11 +57,9 @@ impl Clock for FixedClock {
 /// When the clock breaks the contract; that is how the calling test fails.
 pub fn clock_contract(mut make: impl FnMut() -> Box<dyn Clock>) {
     const JAN_1_2020: UnixMillis = UnixMillis(1_577_836_800_000);
-    let clock = make();
-    for read in [clock.now(), clock.now()] {
-        assert!(
-            read > JAN_1_2020,
-            "a clock reads milliseconds since the Unix epoch: {read:?}"
-        );
-    }
+    let read = make().now();
+    assert!(
+        read > JAN_1_2020,
+        "a clock reads milliseconds since the Unix epoch: {read:?}"
+    );
 }

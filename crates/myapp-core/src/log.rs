@@ -54,26 +54,25 @@ impl UiLogEntry {
         let mut loggable = String::new();
         let mut chars = 0;
         for character in self.message.chars() {
-            let escaped = escaped(character);
-            let width = escaped.chars().count();
+            let escape = needs_escape(character).then(|| character.escape_default());
+            let width = escape.as_ref().map_or(1, ExactSizeIterator::len);
             if chars + width > Self::MAX_MESSAGE_CHARS {
                 loggable.push_str(TRUNCATED);
                 return loggable;
             }
             chars += width;
-            loggable.push_str(&escaped);
+            match escape {
+                Some(escape) => loggable.extend(escape),
+                None => loggable.push(character),
+            }
         }
         loggable
     }
 }
 
-/// `character` as it may appear inside one log line.
-fn escaped(character: char) -> String {
-    if character.is_control() || matches!(character, '\u{2028}' | '\u{2029}') {
-        character.escape_default().collect()
-    } else {
-        character.to_string()
-    }
+/// Whether `character` could break or rewrite a log line if written as is.
+fn needs_escape(character: char) -> bool {
+    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
 }
 
 #[cfg(test)]
