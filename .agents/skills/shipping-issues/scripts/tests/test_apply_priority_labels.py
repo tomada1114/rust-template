@@ -241,11 +241,13 @@ class MainEndToEndTest(unittest.TestCase):
                     rc = apl.main()
                 except SystemExit as exc:
                     rc = exc.code
-            return rc, out.getvalue(), err.getvalue(), fake
+            # Copied inside the block: leaving it deletes the fake's call log.
+            calls = list(fake.calls)
+        return rc, out.getvalue(), err.getvalue(), calls
 
     def test_backfill_labels_unlabeled_open_issue(self):
         issues = json.dumps([issue(12, [])])
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--backfill", "--json"],
             {
                 ("label", "list"): ALL_LABELS,
@@ -262,10 +264,13 @@ class MainEndToEndTest(unittest.TestCase):
         # #12 had no leverage signal, an empty body and no unblocks, so the
         # heuristic suggestion is the lowest tier.
         self.assertEqual(payload["changed"][0]["tier"], "P3")
+        edits = [c for c in calls if c[:2] == ["issue", "edit"]]
+        self.assertEqual(len(edits), 1)
+        self.assertIn("12", edits[0])
 
     def test_set_overrides_backfill_suggestion(self):
         issues = json.dumps([issue(9, [])])
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--set", "9=P0", "--json"],
             {
                 ("label", "list"): ALL_LABELS,
@@ -281,7 +286,7 @@ class MainEndToEndTest(unittest.TestCase):
 
     def test_quiet_suppresses_per_issue_lines(self):
         issues = json.dumps([issue(12, [])])
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--backfill", "--quiet"],
             {
                 ("label", "list"): ALL_LABELS,
@@ -296,7 +301,7 @@ class MainEndToEndTest(unittest.TestCase):
 
     def test_dry_run_makes_no_gh_mutations(self):
         issues = json.dumps([issue(12, [])])
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--backfill", "--dry-run"],
             {
                 ("label", "list"): ALL_LABELS,
@@ -305,40 +310,27 @@ class MainEndToEndTest(unittest.TestCase):
             },
         )
         self.assertEqual(rc, 0, err)
-        mutating = [c for c in fake.calls if c[:2] == ["issue", "edit"]]
-        self.assertEqual(mutating + label_writes(fake.calls), [])
+        # The label read proves the log was captured, so the empty check bites.
+        self.assertIn(["label", "list"], [c[:2] for c in calls])
+        mutating = [c for c in calls if c[:2] == ["issue", "edit"]]
+        self.assertEqual(mutating + label_writes(calls), [])
 
     def test_no_arguments_is_a_usage_error(self):
-        rc, out, err, fake = self._run([], {})
+        rc, out, err, calls = self._run([], {})
         self.assertNotEqual(rc, 0)
 
     def test_set_design_combined_with_backfill_is_a_usage_error(self):
-        rc, out, err, fake = self._run(["--set-design", "12", "--backfill"], {})
+        rc, out, err, calls = self._run(["--set-design", "12", "--backfill"], {})
         self.assertNotEqual(rc, 0)
         self.assertIn("standalone", err)
 
     def test_gh_not_found_reports_error(self):
-        rc, out, err, fake = self._run(["--backfill"], {}, path_override="/nonexistent-only")
+        rc, out, err, calls = self._run(["--backfill"], {}, path_override="/nonexistent-only")
         self.assertEqual(rc, 1)
         self.assertIn("gh CLI not found", err)
 
-    def _run_with_calls(self, args, responses):
-        """Like _run, but reads fake.calls while the FakeGh block is open (see
-        test_set_design_via_main_never_calls_the_digest)."""
-        with FakeGh(responses) as fake:
-            out, err = io.StringIO(), io.StringIO()
-            with patch.dict("os.environ", fake.env, clear=False), \
-                    patch.object(sys, "argv", ["apply_priority_labels.py", *args]), \
-                    redirect_stdout(out), redirect_stderr(err):
-                try:
-                    rc = apl.main()
-                except SystemExit as exc:
-                    rc = exc.code
-            calls = list(fake.calls)
-        return rc, out.getvalue(), err.getvalue(), calls
-
     def test_check_labels_only_skips_the_digest(self):
-        rc, out, err, calls = self._run_with_calls(
+        rc, out, err, calls = self._run(
             ["--check-labels"], {("label", "list"): ALL_LABELS})
         self.assertEqual(rc, 0, err)
         self.assertIn("verdict: OK", out)
@@ -347,7 +339,7 @@ class MainEndToEndTest(unittest.TestCase):
         self.assertFalse(any(c[:2] == ["issue", "list"] for c in calls))
 
     def test_check_labels_reports_missing_with_just_labels_as_next_step(self):
-        rc, out, err, calls = self._run_with_calls(
+        rc, out, err, calls = self._run(
             ["--check-labels"], {("label", "list"): json.dumps([{"name": "priority: P0"}])})
         self.assertEqual(rc, apl.MISSING_LABEL_EXIT)
         self.assertIn("priority: P1", err)
@@ -356,7 +348,7 @@ class MainEndToEndTest(unittest.TestCase):
 
     def test_backfill_with_a_missing_tier_label_writes_nothing(self):
         issues = json.dumps([issue(12, [])])
-        rc, out, err, calls = self._run_with_calls(
+        rc, out, err, calls = self._run(
             ["--backfill"],
             {("label", "list"): "[]", ("issue", "list"): issues, ("pr", "list"): "[]",
              ("issue", "edit"): ""},
@@ -367,7 +359,7 @@ class MainEndToEndTest(unittest.TestCase):
         self.assertEqual(label_writes(calls), [])
 
     def test_set_design_with_no_design_label_writes_nothing(self):
-        rc, out, err, calls = self._run_with_calls(
+        rc, out, err, calls = self._run(
             ["--set-design", "12"], {("label", "list"): "[]", ("issue", "edit"): ""})
         self.assertEqual(rc, apl.MISSING_LABEL_EXIT, err)
         self.assertFalse(any(c[:2] == ["issue", "edit"] for c in calls))
@@ -377,7 +369,7 @@ class MainEndToEndTest(unittest.TestCase):
         # #99 is a valid --set target that the digest does not return (closed,
         # or filtered out) -- it must still get labeled, not treated as an error.
         issues = json.dumps([issue(12, [])])
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--set", "99=P1", "--json"],
             {
                 ("label", "list"): ALL_LABELS,
@@ -394,33 +386,17 @@ class MainEndToEndTest(unittest.TestCase):
     def test_set_design_via_main_never_calls_the_digest(self):
         # --set-design alone must not shell out to issue_digest.py -- it needs
         # only the repo's label list and the one issue, not the whole backlog.
-        # Written without self._run(): that helper returns `fake` only after
-        # its own `with FakeGh(...)` block has already exited and cleaned up
-        # its tmpdir, so a `fake.calls` check made after it returns is
-        # vacuously true/false regardless of what actually ran. Read calls
-        # here, inside the block, while the log file still exists.
-        responses = {
-            ("label", "list"): ALL_LABELS,
-            ("issue", "edit"): "",
-        }
-        with FakeGh(responses) as fake:
-            out, err = io.StringIO(), io.StringIO()
-            with patch.dict("os.environ", fake.env, clear=False), \
-                    patch.object(sys, "argv", ["apply_priority_labels.py",
-                                               "--set-design", "12"]), \
-                    redirect_stdout(out), redirect_stderr(err):
-                try:
-                    rc = apl.main()
-                except SystemExit as exc:
-                    rc = exc.code
-            issue_list_called = any(c[:2] == ["issue", "list"] for c in fake.calls)
-        self.assertEqual(rc, 0, err.getvalue())
-        self.assertIn("verdict: OK", out.getvalue())
-        self.assertFalse(issue_list_called)
+        rc, out, err, calls = self._run(
+            ["--set-design", "12"],
+            {("label", "list"): ALL_LABELS, ("issue", "edit"): ""},
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertIn("verdict: OK", out)
+        self.assertFalse(any(c[:2] == ["issue", "list"] for c in calls))
 
     def test_clear_design_via_main_reports_cleared(self):
         view = json.dumps({"labels": [{"name": "blocked: design"}]})
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--clear-design", "12"],
             {("issue", "view"): view, ("issue", "edit"): ""},
         )
@@ -429,7 +405,7 @@ class MainEndToEndTest(unittest.TestCase):
 
     def test_clear_design_via_main_json_output(self):
         view = json.dumps({"labels": []})
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--clear-design", "12", "--json"],
             {("issue", "view"): view},
         )
@@ -439,7 +415,7 @@ class MainEndToEndTest(unittest.TestCase):
 
     def test_clear_dependency_via_main_reports_cleared(self):
         view = json.dumps({"labels": [{"name": "blocked: dependency"}]})
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--clear-dependency", "12"],
             {("issue", "view"): view, ("issue", "edit"): ""},
         )
@@ -448,26 +424,28 @@ class MainEndToEndTest(unittest.TestCase):
 
     def test_clear_dependency_via_main_is_noop_when_absent(self):
         view = json.dumps({"labels": []})
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--clear-dependency", "12"],
             {("issue", "view"): view},
         )
         self.assertEqual(rc, 0, err)
         self.assertIn("#12: dependency-block already clear", out)
-        self.assertFalse(any(c[:2] == ["issue", "edit"] for c in fake.calls))
+        self.assertIn(["issue", "view"], [c[:2] for c in calls])
+        self.assertFalse(any(c[:2] == ["issue", "edit"] for c in calls))
 
     def test_clear_dependency_dry_run_makes_no_gh_mutations(self):
         view = json.dumps({"labels": [{"name": "blocked: dependency"}]})
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--clear-dependency", "12", "--dry-run"],
             {("issue", "view"): view},
         )
         self.assertEqual(rc, 0, err)
-        self.assertFalse(any(c[:2] == ["issue", "edit"] for c in fake.calls))
+        self.assertIn(["issue", "view"], [c[:2] for c in calls])
+        self.assertFalse(any(c[:2] == ["issue", "edit"] for c in calls))
 
     def test_clear_dependency_via_main_json_output(self):
         view = json.dumps({"labels": []})
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--clear-dependency", "12", "--json"],
             {("issue", "view"): view},
         )
@@ -478,7 +456,7 @@ class MainEndToEndTest(unittest.TestCase):
     def test_clear_dependency_combines_with_clear_design_in_one_call(self):
         view = json.dumps({"labels": [{"name": "blocked: dependency"},
                                       {"name": "blocked: design"}]})
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--clear-dependency", "12", "--clear-design", "12", "--json"],
             {("issue", "view"): view, ("issue", "edit"): ""},
         )
@@ -490,13 +468,13 @@ class MainEndToEndTest(unittest.TestCase):
                          [{"number": 12, "removed": ["blocked: design"]}])
 
     def test_clear_dependency_combined_with_backfill_is_a_usage_error(self):
-        rc, out, err, fake = self._run(["--clear-dependency", "12", "--backfill"], {})
+        rc, out, err, calls = self._run(["--clear-dependency", "12", "--backfill"], {})
         self.assertNotEqual(rc, 0)
         self.assertIn("standalone", err)
 
     def test_set_on_already_correct_label_is_unchanged(self):
         issues = json.dumps([issue(12, ["priority: P0"])])
-        rc, out, err, fake = self._run(
+        rc, out, err, calls = self._run(
             ["--set", "12=P0", "--json"],
             {
                 ("label", "list"): ALL_LABELS,
