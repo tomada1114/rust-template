@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code of conduct, architecture, distribution and signing, and getting-started guides, an
   empty architecture-decision index with its template, a roadmap skeleton, issue forms,
   and a pull request template.
+- `just verify-bootstrap` runs `scripts/verify-bootstrap.ts` locally, so a placeholder
+  spelling or template-only text the bootstrap would leave behind fails before the push
+  rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
+  names it for a new file or placeholder spelling. The recipe and that row are
+  template-only: the bootstrap removes both.
 
 ### Changed
 
@@ -63,6 +68,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `no-issue-references` no longer reports an upstream project's `owner/repo#N` (such as
+  `tauri-apps/tauri#1234`), which it now treats like the same issue's URL, as a source;
+  a bare `#N` and this repository's own `owner/repo#N` are still references. It and
+  `just-recipes-exist` now also read the sub-agent definitions under `.claude/agents/`
+  and the issue forms and templates in `.github/ISSUE_TEMPLATE/`, from one shared list
+  in `scripts/checks/shared/documents.ts`. `just-recipes-exist` reads the code spans and
+  fenced blocks in each string of a YAML issue form, and fails with
+  `ERR_CHECK_INPUT_UNREADABLE` on a form that is not YAML.
 - An app cut from the template no longer inherits sentences about the template itself.
   `AGENTS.md`, `docs/architecture.md`, `docs/architecture/README.md`, the roadmap, and
   the `designing-core-logic`, `recording-architecture-decisions`, `steering-the-roadmap`,

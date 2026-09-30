@@ -49,6 +49,26 @@ just b && just _helper
 \`\`\`
 `;
 
+// An issue form: only the code in its string values is read, so the dropdown option's
+// prose and the YAML comment name nothing.
+const FORM = `# Mentions just bogus-comment, which is YAML, not a code span.
+name: Bug Report
+body:
+  - type: dropdown
+    attributes:
+      label: How You Got the App
+      options:
+        - A local build (just bogus-prose)
+  - type: textarea
+    attributes:
+      label: Log Excerpt
+      description: >
+        The newest log file (\`just quiet\` prints
+        it; \`mise exec -- just
+        build\` makes one).
+      placeholder: "\`just b\`"
+`;
+
 const SETTINGS = `{
   "permissions": {
     "allow": ["Bash(just build)", "Bash(just test-fast:*)", "Bash(git status)", "Bash(just:*)"],
@@ -78,6 +98,12 @@ function fixture(overrides: Record<string, string | undefined> = {}): string {
     "docs/template/plan.md": "A planned `just not-yet` (docs/template/ is not read).\n",
     "CLAUDE.md": "# Claude\n\nThe hook runs `just build`.\n",
     ".claude/rules/docs.md": "---\npaths:\n  - docs/**\n---\n\n- Run `just build`.\n",
+    ".claude/agents/executor.md": "---\nname: executor\n---\n\nCheck with `just quiet`.\n",
+    ".github/ISSUE_TEMPLATE/bug_report.yml": FORM,
+    ".github/ISSUE_TEMPLATE/legacy.md": "Attach `just build` output.\n",
+    // GitHub reads neither a subdirectory of the issue templates nor another extension.
+    ".github/ISSUE_TEMPLATE/drafts/old.yml": "description: `just bogus-draft`\n",
+    ".github/ISSUE_TEMPLATE/notes.txt": "`just bogus-notes`\n",
     ".github/PULL_REQUEST_TEMPLATE.md": "## Test Plan\n\n- [ ] `just build` passes\n",
     ".agents/skills/demo/SKILL.md": "---\nname: demo\n---\n\nRun `just build`.\n",
     ".agents/skills/demo/references/more.md": "Iterate with `just test-fast x`.\n",
@@ -174,10 +200,66 @@ describe("just-recipes-exist", () => {
     ["the pull request template", ".github/PULL_REQUEST_TEMPLATE.md"],
     ["a SKILL.md", ".agents/skills/demo/SKILL.md"],
     ["a skill's reference file", ".agents/skills/demo/references/deep/more.md"],
+    ["a sub-agent definition", ".claude/agents/x.md"],
+    ["a Markdown issue template", ".github/ISSUE_TEMPLATE/legacy.md"],
   ])("reads %s", (_label, path) => {
     const violations = check.run(fixture({ [path]: "Run `just bogus-four`.\n" }));
     expect(violations.map((v) => v.summary)).toEqual([
       `${path}:1 names \`just bogus-four\`, which the justfile does not define`,
+    ]);
+  });
+
+  it.each([
+    [".github/ISSUE_TEMPLATE/bug_report.yml", "description: Run `just bogus-four`."],
+    [".github/ISSUE_TEMPLATE/task.yaml", "description: Run `just bogus-four`."],
+    [".github/ISSUE_TEMPLATE/config.yml", "contact_links:\n  - about: Run `just bogus-four`."],
+  ])("reads the issue form %s", (path, text) => {
+    const violations = check.run(fixture({ [path]: `# Form\n${text}\n` }));
+    expect(violations.map((v) => v.summary)).toEqual([
+      `${path}:${String(lineOf(`# Form\n${text}`, "bogus-four"))} names \`just bogus-four\`, which the justfile does not define`,
+    ]);
+  });
+
+  it("reads each string of an issue form as Markdown, at its own line", () => {
+    const form = [
+      "name: Task",
+      "body:",
+      "  - type: markdown",
+      "    attributes:",
+      "      value: |",
+      "        Triage first.",
+      "",
+      "        ```sh",
+      "        just bogus-fenced",
+      "        ```",
+      "      label: 'Run `just bogus-quoted`'",
+      "      description: >-",
+      "        A span that wraps: `just",
+      "        bogus-wrapped`.",
+      "      options:",
+      "        - just bogus-prose",
+      "        - Run `just bogus-listed`",
+    ].join("\n");
+    const violations = check.run(fixture({ ".github/ISSUE_TEMPLATE/task.yml": form }));
+    expect(violations.map((v) => v.summary)).toEqual(
+      [
+        [9, "bogus-fenced"],
+        [11, "bogus-quoted"],
+        [13, "bogus-wrapped"],
+        [17, "bogus-listed"],
+      ].map(
+        ([line, recipe]) =>
+          `.github/ISSUE_TEMPLATE/task.yml:${String(line)} names \`just ${String(recipe)}\`, which the justfile does not define`,
+      ),
+    );
+  });
+
+  it("fails on an issue form that is not YAML", () => {
+    const violations = check.run(
+      fixture({ ".github/ISSUE_TEMPLATE/bug_report.yml": "body: [\n  `just build`\n" }),
+    );
+    expect(violations.map((v) => [v.code, v.summary])).toEqual([
+      ["ERR_CHECK_INPUT_UNREADABLE", ".github/ISSUE_TEMPLATE/bug_report.yml is not YAML"],
     ]);
   });
 

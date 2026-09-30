@@ -107,7 +107,10 @@ again" below.
   any leftover placeholder or template-only marker, text that holds only in the
   template (`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT`), a dangling skill reference, a
   mismatch between the names it produced, or a Product section that filling its four
-  bullets does not make pass (`ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION`).
+  bullets does not make pass (`ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION`). Run it locally
+  with `just verify-bootstrap` (`--keep` leaves the copy for a look) after adding a
+  file or a placeholder spelling: it opens no window and writes nothing in this
+  checkout, but it is not part of `just check`, so nothing else runs it before CI does.
 - CI's `Template Bootstrap Smoke` job (macOS, `timeout-minutes: 60`) runs
   `scripts/verify-bootstrap.ts` first — the bootstrap itself only warns about a
   placeholder outside its site list, so this is the step that fails on one. It then
@@ -122,8 +125,9 @@ again" below.
   verdict; and a test that survives the bootstrap never asserts a literal that is only
   true before it runs.
 - A change to the script, to a placeholder site, or to any file the script rewrites is
-  proven by that job and by `just test-scripts`; a new mention of the app's name in a
-  file the list does not cover fails the leftover check there.
+  proven by `just verify-bootstrap` and `just test-scripts` locally, and by that job; a
+  new mention of the app's name in a file the list does not cover fails the leftover
+  check there.
 
 ## Running it, and running it again
 
