@@ -171,18 +171,19 @@ describe("no-issue-references", () => {
   });
 
   it("treats an upstream owner/repo#N like its URL, and this repository's as a reference", () => {
-    const config = CONFIG.replace("acme/widgets", "tomada1114/tauri-template");
+    const own = "tomada1114/tauri-template";
+    const config = CONFIG.replace("acme/widgets", own);
     const text = [
       "Upstream: other/repo#12 and acme/widgets#12.",
       "Bare: #12.",
-      "This repository: tomada1114/tauri-template#12 and Tomada1114/Tauri-Template#13.",
+      `This repository: ${own}#12 and ${own.toUpperCase()}#13.`,
       "A path is not an owner/repo: docs/a/b#14.",
     ].join("\n");
     const root = fixture({ ".github/ISSUE_TEMPLATE/config.yml": config, "AGENTS.md": text });
     expect(check.run(root).map((v) => v.summary)).toEqual([
       "AGENTS.md:2 cites `#12`",
-      "AGENTS.md:3 cites `tomada1114/tauri-template#12`",
-      "AGENTS.md:3 cites `Tomada1114/Tauri-Template#13`",
+      `AGENTS.md:3 cites \`${own}#12\``,
+      `AGENTS.md:3 cites \`${own.toUpperCase()}#13\``,
       "AGENTS.md:4 cites `#14`",
     ]);
   });

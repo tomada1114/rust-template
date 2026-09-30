@@ -261,6 +261,7 @@ const REPOSITORY_SITES: readonly Site[] = [
     forms: ["slugSnake", "slug"],
   },
   { file: "scripts/checks/just-check-matches-ci.ts", forms: ["slug"] },
+  { file: "scripts/checks/no-issue-references.test.ts", forms: ["repo"] },
   { file: "scripts/checks/tauri-versions.test.ts", forms: ["slug"] },
   { file: "scripts/checks/version-sites.test.ts", forms: ["name", "slug"] },
   { file: "scripts/smoke.test.ts", forms: ["bundleId", "name", "slugSnake", "slug", "slugUpper"] },
@@ -514,8 +515,8 @@ export const TEXT_EDITS: readonly TextEdit[] = [
   },
   {
     file: "scripts/checks/just-recipes-exist.ts",
-    find: "(`docs/template/`, the\n * roadmap, and the ADRs:",
-    replace: "(the roadmap and\n * the ADRs:",
+    find: "(`docs/template/`, the roadmap, and the ADRs:",
+    replace: "(the roadmap and the ADRs:",
   },
   {
     file: "scripts/checks/just-recipes-exist.test.ts",
@@ -536,7 +537,7 @@ export const TEXT_EDITS: readonly TextEdit[] = [
   },
   {
     file: "scripts/checks/no-issue-references.ts",
-    find: "(`docs/template/`, the\n * template's design record the bootstrap deletes; the roadmap,",
+    find: "(`docs/template/`, the template's design record the bootstrap deletes; the roadmap,",
     replace: "(the roadmap,",
   },
   {
