@@ -475,6 +475,11 @@ export const TEXT_EDITS: readonly TextEdit[] = [
     replace: "  ciOnlyJobs: {},",
   },
   {
+    file: "scripts/checks/just-check-matches-ci.ts",
+    find: " ciOnlyJobs is\n *   not: the bootstrap removes that job from an app cut from the template.",
+    replace: " ciOnlyJobs is\n *   not reported as stale; it lists no job in this app.",
+  },
+  {
     file: "scripts/checks/shared/documents.ts",
     find: ` * Documents neither check reads. \`docs/template/\` is the template's own design record: it
  * cites the upstream template's issues and plans recipes before they exist, and the
@@ -1485,14 +1490,14 @@ export function runBootstrap(
     "The bootstrap script and its verifier deleted themselves.",
     "",
     "Next steps:",
-    "  1. Fill in AGENTS.md's `## Product` section — what the app is and who it is for, the core",
+    "  1. just install (the rename changed package.json's name), review the rewrite",
+    "     (`git status`, `git diff`), and commit it as one commit before editing anything.",
+    "  2. Fill in AGENTS.md's `## Product` section — what the app is and who it is for, the core",
     "     interaction, the non-goals — and delete every `TODO:` there. `just check-harness`",
     "     (and so `just check`) fails until you do.",
-    "  2. Fill in docs/architecture/roadmap.md (Now / Next / Later) with the steering-the-roadmap skill.",
-    "  3. just install, then just check.",
-    "  4. Review the rewrite (`git status`, `git diff`) and commit it as one commit, then the",
-    "     Product section and roadmap as the next, and push both to main (the ruleset is not",
-    "     on yet, so main takes a direct push).",
+    "  3. Fill in docs/architecture/roadmap.md (Now / Next / Later) with the steering-the-roadmap skill.",
+    "  4. just check, then commit the Product section and roadmap and push both commits to",
+    "     main (the ruleset is not on yet, so main takes a direct push).",
     "  5. just labels — create the label set from .github/labels.yml on the new repository.",
     "  6. Turn on the GitHub security settings: secret scanning and push protection, private",
     "     vulnerability reporting, Dependabot alerts and security updates.",

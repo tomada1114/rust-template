@@ -282,19 +282,20 @@ See [docs/design/design-system.md](docs/design/design-system.md).
    holder, and rewrites exactly those placeholder sites. It then removes
    `docs/template/` and this section, resets `CHANGELOG.md` and the version to 0.1.0,
    deletes itself, and prints the steps below.
-3. Fill in `AGENTS.md`'s `## Product` section: what the app is and who it is for, the
+3. Run `just install` again (the rename changed `package.json`'s name, and pnpm runs
+   nothing until the next install), review the rewrite (`git status`, `git diff`), and
+   commit it as one commit before you edit anything, so the rename stays one reviewable
+   diff.
+4. Fill in `AGENTS.md`'s `## Product` section: what the app is and who it is for, the
    core interaction, and the non-goals it must not grow. Delete every `TODO:` marker as
    you go; `just check` fails while one is left.
-4. Fill in the [docs/architecture/roadmap.md](docs/architecture/roadmap.md) skeleton —
+5. Fill in the [docs/architecture/roadmap.md](docs/architecture/roadmap.md) skeleton —
    the Now, Next, and Later outcomes that follow from the Product section — with the
    `steering-the-roadmap` skill. Nothing checks that page, so its `TODO:` lines stay
    until you replace them.
-5. Verify the result: `just install && just check` (the rename changed `package.json`'s
-   name, and pnpm runs nothing until the next install).
-6. Review the rewrite (`git status`, `git diff`) and commit it as one commit, then the
-   Product section and roadmap as the next, and push both to `main`. The ruleset is not
-   on yet (step 11), so `main` still takes a direct push, and CI's first run checks the
-   result.
+6. Verify the result with `just check`, commit the Product section and roadmap, and
+   push both commits to `main`. The ruleset is not on yet (step 11), so `main` still
+   takes a direct push, and CI's first run checks the result.
 7. Create the label set on the new repository: `just labels` (the issue forms rely on
    the labels in `.github/labels.yml`).
 8. Turn on the repository's security settings: secret scanning and push protection,

@@ -42,22 +42,23 @@ so this skill is where an app still finds them.
    It needs step 1's `just install`. **REQUIRED:**
    [references/bootstrap.md](references/bootstrap.md), for its flags, defaults, and
    validation, before running it, changing it, or chasing a leftover placeholder.
-3. **Write `AGENTS.md`'s `## Product` section**: what the app is and who it is for, the
+3. **Commit the rewrite**: `just install` again (the rename changed `package.json`'s
+   name, and pnpm runs nothing until the next install), review the rewrite
+   (`git status`, `git diff`), and commit it as one commit before editing anything, so
+   the rename stays one reviewable diff.
+4. **Write `AGENTS.md`'s `## Product` section**: what the app is and who it is for, the
    core interaction, the non-goals, and where those decisions are recorded. The owner
    decides every line; an agent drafts only from what the owner has said. Delete each
    `TODO:` as it is replaced: once the bootstrap has run, `just check-harness` (and so
    `just check`) fails while one is left. Write it before any feature: without it, an
    agent picking up an issue has no in-repo answer to "is this in scope?", and a
    non-goal nobody wrote down is one an eager implementer reads as a feature.
-4. **Fill `docs/architecture/roadmap.md`**: the Now, Next, and Later outcomes that follow
+5. **Fill `docs/architecture/roadmap.md`**: the Now, Next, and Later outcomes that follow
    from the Product section, with `steering-the-roadmap`. Nothing checks that page, so
    its `TODO:` lines stay until someone replaces them.
-5. **Verify**: `just install && just check` (the rename changed `package.json`'s name,
-   and pnpm runs nothing until the next install).
-6. **Commit and push**: the bootstrap's rewrite as one commit, so the rename is one
-   reviewable diff, then the Product section and roadmap as the next; push both to
-   `main`, which takes a direct push until step 11's ruleset. Pushing is a remote write:
-   a human's step, or an agent's with the owner's sign-off.
+6. **Verify and push**: `just check`, then commit the Product section and roadmap and
+   push both commits to `main`, which takes a direct push until step 11's ruleset.
+   Pushing is a remote write: a human's step, or an agent's with the owner's sign-off.
 7. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
    repository. Run it before the first issue is filed from a form, so every label the
    forms apply exists. It writes to GitHub: a human's step, or an agent's with the

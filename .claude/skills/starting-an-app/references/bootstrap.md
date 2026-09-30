@@ -78,9 +78,9 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    every `<!-- template-only -->` … `<!-- /template-only -->` block, the `bootstrap`
    recipe, and every passage that names it, removed; the passages outside a block that
    hold only in the template (`TEXT_EDITS`: the Product section's introduction, the
-   README's first sentence, the checks' exclusion of `docs/template/`) rewritten; the template-only CI job,
-   `Template Bootstrap Smoke`, removed with its required context in
-   `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the app runs;
+   README's first sentence, the checks' exclusion of `docs/template/`) rewritten; the
+   template-only CI job, `Template Bootstrap Smoke`, removed with its required context
+   in `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the app runs;
    `CHANGELOG.md` reset to an empty `[Unreleased]` and the version at its three sites to
    `0.1.0`; the author written into `package.json` and the copyright line into
    `LICENSE`.
@@ -92,9 +92,9 @@ Every edit is computed and checked in memory first, so a drifted site list fails
 5. Deletes the template's own material: `docs/template/`, this page in both skill
    trees, `scripts/bootstrap.ts` and `scripts/verify-bootstrap.ts`, and their tests.
 6. Scans for a placeholder left outside the site list and warns about it, then prints
-   the next steps: fill `AGENTS.md` › Product, fill `docs/architecture/roadmap.md` with
-   `steering-the-roadmap`, `just install`, commit and push to `main`, `just labels`, the
-   GitHub security settings, and `just ruleset`.
+   the next steps: `just install` and commit the rewrite, fill `AGENTS.md` › Product,
+   fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
+   to `main`, `just labels`, the GitHub security settings, and `just ruleset`.
 
 A failure from step 3 on leaves a half-rewritten clone; see "Running it, and running it
 again" below.
@@ -112,7 +112,8 @@ again" below.
   bootstraps a fresh `git clone` with a hyphenated multi-word slug, asserts that
   `just check-harness` **fails** with the Product-section code (the check must fire on
   an app nobody has described yet), runs `just test-scripts` on that unfilled app,
-  fills in only the Product section's four bullets, and runs `just check` there. It runs on every pull request, so the bootstrap cannot rot unnoticed.
+  fills in only the Product section's four bullets, and runs `just check` there. It
+  runs on every pull request, so the bootstrap cannot rot unnoticed.
 - The generated tree, not this checkout, is what a bootstrap change is tested against.
   Build the temporary copy from the tracked files (`git ls-files`), never the working
   directory, so ignored build output (`target/`, `node_modules/`) cannot change a

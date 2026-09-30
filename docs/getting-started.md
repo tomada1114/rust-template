@@ -106,8 +106,10 @@ that touches it says what to keep.
 
 - [ ] `crates/myapp-platform/src/counter_store.rs` (`JsonFileCounterStore`), its `mod`
       and re-export in `src/lib.rs`, `COUNTER_FILE_NAME` and `counter_file` in
-      `src/paths.rs` and their test, `tests/json_file_counter_store.rs`, and the
-      counter-store test in `tests/contracts.rs`
+      `src/paths.rs` (drop only the `counter_file` assertion from
+      `directories_follow_the_macos_conventions`, which also covers the data and log
+      directories), `tests/json_file_counter_store.rs`, and the counter-store test in
+      `tests/contracts.rs`
 - [ ] `crates/myapp-test-support/src/counter_store.rs` (`InMemoryCounterStore`,
       `FailingCounterStore`, `counter_store_contract`) and its `mod` and re-export in
       `src/lib.rs`
@@ -124,8 +126,12 @@ that touches it says what to keep.
 - [ ] `src-tauri/tests/commands.rs` — the counter tests and the counter state in
       `app_holding` and `app_over`; keep the `log_from_ui_*` tests and
       `an_unregistered_command_is_rejected`, building the app from your state
-- [ ] `src-tauri/tests/startup.rs` — the counter-file test and the counter commands in
-      `setup_then_every_command`; keep its `log_from_ui` call and the startup-plan tests
+- [ ] `src-tauri/tests/startup.rs` — the counter-file test, the counter-only helpers
+      `saved_value` and `without_time`, the `counter_file` import, the counter commands
+      in `setup_then_every_command`, and the `saved` element of its tuple with that
+      element's assertion in `setup_leaves_the_same_state_and_commands_under_both_plans`;
+      keep the `log_from_ui` call, the unregistered-command check, and the
+      startup-plan tests
 - [ ] `crates/myapp-cli/src/main.rs` — the `counter` subcommand (keep `--help`,
       `--version`, and the exit-code convention) and its tests in `tests/cli.rs`
 
@@ -162,15 +168,15 @@ Then run `just bindings` and `just check`, and this search, which should print n
 
 ```bash
 git grep -nIiE 'counter|test-fast increment' -- . ':(exclude)scripts/' \
-  ':(exclude).claude/skills/' ':(exclude,glob).agents/skills/*/scripts/**' ':(exclude)*.css'
+  ':(exclude).claude/skills/' ':(exclude,glob).agents/skills/*/scripts/**' \
+  ':(exclude)CHANGELOG.md'
 ```
 
 It uses `git grep`, which needs nothing beyond the prerequisites. The exclusions are
 words that are not the sample: the harness's own tests and fixtures under `scripts/`
 (and the `yaml` library's `LineCounter` there), a skill's bundled scripts,
-`.claude/skills/` (the mirror `just agents-sync` regenerates), and CSS, whose
-`counter-reset` and `counter()` are properties, not the sample (its stylesheet goes with
-`ui/src/counter/`).
+`.claude/skills/` (the mirror `just agents-sync` regenerates), and `CHANGELOG.md`, where
+the entry recording the sample's removal names it on purpose.
 
 ## App icon
 

@@ -689,7 +689,7 @@ describe("runBootstrap", () => {
       "just labels",
       "just ruleset",
       "secret scanning",
-      "push both to main",
+      "push both commits to",
     ]) {
       expect(output).toContain(step);
     }
