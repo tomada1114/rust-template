@@ -613,6 +613,25 @@ class MainEndToEndTest(DigestRunner, unittest.TestCase):
         self.assertEqual(rc, 0, err)
         self.assertIn("select: #1", out)
 
+    def test_more_open_prs_than_the_cap_fails_loudly(self):
+        issues = [gh_issue(n, labels=["priority: P2"]) for n in (1, 2)]
+        prs = [gh_pr(10 + n, head=f"x{n}") for n in range(3)]
+        with patch.object(idg, "PR_LIMIT", 2):
+            rc, out, err = self._run(["--select"], issues, prs=prs)
+        self.assertEqual(rc, 1)
+        self.assertIn("more than 2 open pull requests", err)
+        self.assertNotIn("select:", out)
+        pr_list = next(c for c in self.gh_calls if c[:2] == ["pr", "list"])
+        self.assertEqual(pr_list[pr_list.index("--limit") + 1], "3")
+
+    def test_open_prs_exactly_at_the_cap_are_used(self):
+        issues = [gh_issue(n, labels=["priority: P2"]) for n in (1, 2)]
+        prs = [gh_pr(10, body="Closes #1"), gh_pr(11, head="x")]
+        with patch.object(idg, "PR_LIMIT", 2):
+            rc, out, err = self._run(["--select"], issues, prs=prs)
+        self.assertEqual(rc, 0, err)
+        self.assertIn("select: #2", out)
+
     def test_a_limit_below_one_is_a_usage_error(self):
         rc, out, err = self._run(["--limit", "0"], [gh_issue(1)])
         self.assertEqual(rc, 2)

@@ -50,12 +50,12 @@ def add_local_origin(repo, parent):
     git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 
-def run_script(args, repo, responses, *, exits=None, stderrs=None):
+def run_script(args, repo, responses, *, exits=None, stderrs=None, env=None):
     with FakeGh(responses, exits=exits, stderrs=stderrs) as fake:
         proc = subprocess.run(
             ["bash", str(SCRIPT), *args],
             cwd=repo,
-            env=fake.env,
+            env={**fake.env, **(env or {})},
             text=True,
             capture_output=True,
         )
@@ -64,11 +64,11 @@ def run_script(args, repo, responses, *, exits=None, stderrs=None):
 
 
 MERGED_LIST = (
-    "pr", "list", "--state", "merged", "--limit", "200", "--json",
+    "pr", "list", "--state", "merged", "--limit", "5001", "--json",
     "headRefName", "-q", ".[].headRefName",
 )
 OPEN_LIST = (
-    "pr", "list", "--state", "open", "--limit", "200", "--json",
+    "pr", "list", "--state", "open", "--limit", "5001", "--json",
     "headRefName", "-q", ".[].headRefName",
 )
 
@@ -98,6 +98,67 @@ class CleanupRunTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("unknown flag: --no-such-flag", proc.stderr)
         self.assertEqual(calls, [])
+
+    def test_more_merged_prs_than_the_cap_fails_loudly(self):
+        capped = tuple("4" if a == "5001" else a for a in MERGED_LIST)
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            make_repo(repo)
+            git(repo, "branch", "feat/1-merged")
+            proc, calls = run_script(
+                [], repo, {capped: "a\nb\nc\nfeat/1-merged", OPEN_LIST: ""},
+                env={"CLEANUP_PR_LIMIT": "3"},
+            )
+            branches = git(repo, "branch", "--format=%(refname:short)").stdout.splitlines()
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("more than 3 merged pull requests", proc.stderr)
+        self.assertNotIn("cleanup: done", proc.stdout)
+        self.assertIn("feat/1-merged", branches)
+
+    def test_more_open_prs_than_the_cap_fails_loudly(self):
+        capped_open = tuple("3" if a == "5001" else a for a in OPEN_LIST)
+        capped_merged = tuple("3" if a == "5001" else a for a in MERGED_LIST)
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            make_repo(repo)
+            git(repo, "branch", "feat/1-merged")
+            proc, _ = run_script(
+                [], repo, {capped_merged: "feat/1-merged", capped_open: "a\nb\nc"},
+                env={"CLEANUP_PR_LIMIT": "2"},
+            )
+            branches = git(repo, "branch", "--format=%(refname:short)").stdout.splitlines()
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("more than 2 open pull requests", proc.stderr)
+        self.assertIn("feat/1-merged", branches)
+
+    def test_merged_prs_exactly_at_the_cap_are_used(self):
+        capped = tuple("3" if a == "5001" else a for a in MERGED_LIST)
+        capped_open = tuple("3" if a == "5001" else a for a in OPEN_LIST)
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            make_repo(repo)
+            git(repo, "branch", "feat/1-merged")
+            proc, _ = run_script(
+                [], repo, {capped: "a\nfeat/1-merged", capped_open: ""},
+                env={"CLEANUP_PR_LIMIT": "2"},
+            )
+            branches = git(repo, "branch", "--format=%(refname:short)").stdout.splitlines()
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("feat/1-merged", branches)
+
+    def test_a_failed_pr_list_aborts(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            make_repo(repo)
+            git(repo, "branch", "feat/1-merged")
+            proc, _ = run_script([], repo, {MERGED_LIST: ""}, exits={MERGED_LIST: 1})
+            branches = git(repo, "branch", "--format=%(refname:short)").stdout.splitlines()
+
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("feat/1-merged", branches)
 
     def test_runs_when_origin_head_is_unset(self):
         """A repo with an origin remote but no origin/HEAD ref.
