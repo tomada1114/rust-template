@@ -217,6 +217,14 @@ class SettleContractDesignTest(unittest.TestCase):
                          "<!-- ship: design=settled -->\nx\n"
                          "<!-- ship: tier=P1 design=settled -->")
 
+    def test_design_open_inside_another_fields_value_is_not_a_design_field(self):
+        # Values never contain spaces, so `touches=a,design=open` is one
+        # touches= value; issue_digest.py reads no design= field here, and
+        # neither does the rewrite -- the two must keep agreeing.
+        body = "<!-- ship: tier=P1 touches=a,design=open -->"
+        self.assertIsNone(apl.parse_ship_contract(body)["design"])
+        self.assertIsNone(apl.settle_contract_design(body))
+
     def test_none_when_there_is_nothing_to_settle(self):
         for body in ("", "no contract, design=open in prose only",
                      "<!-- ship: tier=P1 -->", SETTLED_BODY,
@@ -246,7 +254,14 @@ class ClearDesignBothFormsTest(unittest.TestCase):
                 patch("apply_priority_labels.gh", side_effect=capture):
             with patch.dict("os.environ", fake.env, clear=False):
                 cleared = apl.clear_design(12, dry_run=dry_run)
+            views = [c for c in fake.calls if c[:2] == ["issue", "view"]]
             edits = [c for c in fake.calls if c[:2] == ["issue", "edit"]]
+        # The fake answers whatever is asked, so without this a view that
+        # dropped `body` would read as "no contract" and every test would pass.
+        self.assertEqual(len(views), 1)
+        fields = views[0][views[0].index("--json") + 1].split(",")
+        self.assertIn("body", fields)
+        self.assertIn("labels", fields)
         return cleared, edits, written.get("body")
 
     def test_label_only(self):
@@ -301,6 +316,30 @@ class ClearDesignBothFormsTest(unittest.TestCase):
         self.assertEqual(cleared, ["blocked: design", apl.CONTRACT_DESIGN_MARKER])
         self.assertEqual(edits, [])
         self.assertIsNone(body)
+
+    def test_a_failed_edit_exits_non_zero_and_removes_the_temp_file(self):
+        view = json.dumps({"labels": [], "body": OPEN_BODY})
+        paths = []
+        real_gh = apl.gh
+
+        def capture(args, check=True):
+            if args[:2] == ["issue", "edit"]:
+                paths.append(Path(args[args.index("--body-file") + 1]))
+                self.assertTrue(paths[-1].exists())
+            return real_gh(args, check=check)
+
+        with FakeGh({("issue", "view"): view, ("issue", "edit"): ""},
+                    exits={("issue", "edit"): 1},
+                    stderrs={("issue", "edit"): "boom"}) as fake, \
+                patch("apply_priority_labels.gh", side_effect=capture):
+            err = io.StringIO()
+            with patch.dict("os.environ", fake.env, clear=False), \
+                    redirect_stderr(err), self.assertRaises(SystemExit) as cm:
+                apl.clear_design(12, dry_run=False)
+        self.assertNotEqual(cm.exception.code, 0)
+        self.assertIn("boom", err.getvalue())
+        self.assertEqual(len(paths), 1)
+        self.assertFalse(paths[0].exists())
 
     def test_the_digest_no_longer_holds_the_issue_afterwards(self):
         import issue_digest as idg
@@ -547,6 +586,18 @@ class MainEndToEndTest(unittest.TestCase):
         edits = [c for c in calls if c[:2] == ["issue", "edit"]]
         self.assertEqual(len(edits), 1)
         self.assertIn("--body-file", edits[0])
+
+    def test_clear_design_dry_run_text_says_would_clear(self):
+        view = json.dumps({"labels": [{"name": "blocked: design"}], "body": OPEN_BODY})
+        rc, out, err, calls = self._run(
+            ["--clear-design", "12", "--dry-run"],
+            {("issue", "view"): view},
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertIn(
+            "#12: needs-design would clear (blocked: design, ship:design=open)", out)
+        self.assertNotIn("needs-design cleared", out)
+        self.assertFalse(any(c[:2] == ["issue", "edit"] for c in calls))
 
     def test_clear_design_dry_run_via_main_makes_no_gh_mutations(self):
         view = json.dumps({"labels": [{"name": "blocked: design"}], "body": OPEN_BODY})

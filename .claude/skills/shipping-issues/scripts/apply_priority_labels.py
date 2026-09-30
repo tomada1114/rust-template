@@ -93,8 +93,10 @@ PERMISSION_MARKERS = ("HTTP 403", "Resource not accessible", "must have admin",
 
 def gh(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     try:
+        # UTF-8, not the locale's encoding: clear_design() writes a body read
+        # here back to GitHub as UTF-8, and the round trip must be symmetric.
         return subprocess.run(["gh", *args], capture_output=True, text=True,
-                              check=check, timeout=120)
+                              encoding="utf-8", check=check, timeout=120)
     except FileNotFoundError:
         print("error: gh CLI not found", file=sys.stderr)
         raise SystemExit(1)
@@ -235,7 +237,10 @@ def settle_contract_design(body: str) -> str | None:
 def clear_design(number: int, dry_run: bool) -> list[str]:
     """Clear both forms of the design block: remove whichever design-block
     label(s) the issue carries, and settle a `design=open` field in its ship
-    contract (see settle_contract_design), in one `gh issue edit`.
+    contract (see settle_contract_design), in one `gh issue edit` call. The
+    call is not atomic -- gh may send the label removal and the body change as
+    separate mutations -- so on failure re-run --clear-design, which
+    recomputes what is left.
 
     Returns what was cleared: the label names, plus CONTRACT_DESIGN_MARKER when
     the contract was rewritten. Empty when the issue carried neither, which is
@@ -368,9 +373,10 @@ def main() -> int:
             verb = "would set" if args.dry_run else "set"
             for n, lbl in design_set:
                 print(f"#{n}: needs-design -> {lbl}")
+            cleared_verb = "would clear" if args.dry_run else "cleared"
             for n, removed in design_cleared:
-                print(f"#{n}: needs-design cleared ({', '.join(removed)})" if removed
-                      else f"#{n}: needs-design already clear")
+                print(f"#{n}: needs-design {cleared_verb} ({', '.join(removed)})"
+                      if removed else f"#{n}: needs-design already clear")
             for n, removed in dependency_cleared:
                 print(f"#{n}: dependency-block cleared" if removed
                       else f"#{n}: dependency-block already clear")
