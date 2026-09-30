@@ -189,11 +189,14 @@ Either way, the same four things happen in the same order:
 3. Record it in the run record (`--event design --field issue=<n> --field
    mode=<inline|background> --field verdict=<DECIDED|DEFERRED>`).
 4. Clear the block: `python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py
-   --clear-design <n>` -- after the comment posted, never before.
+   --clear-design <n>` -- after the comment posted, never before. It clears both
+   forms of the block: the `blocked: design` label (or its equivalent) and a
+   `design=open` in the ship contract, rewritten to `design=settled` with the
+   rest of the body untouched. Clearing only the label leaves the issue held.
 
 **Neither path invents a product or UX call** the repo and the issue thread do
 not already answer. Inline, ask the user and do not implement past it; in the
-background, the agent returns `DEFERRED` with the question, leaves the label
+background, the agent returns `DEFERRED` with the question, leaves the block
 on, and the question reaches the user in the step 10 report.
 
 Inline, continue at step 3 with the decided approach as part of the brief. In
@@ -224,12 +227,13 @@ backlog (step 1's `needs-design:`), gets one `architect` from
 - The agent writes no code, no branch, no PR: it decides the approach, posts it
   as a comment (the design of record the next implementer reads), and clears the
   block itself. A design turning on a product or UX call the repository and the
-  issue thread do not already answer comes back `DEFERRED` -- the label stays on,
+  issue thread do not already answer comes back `DEFERRED` -- the block stays on,
   the `OPEN-QUESTION` goes to the user at step 10, and that is a correct outcome.
 - Record each return (`--event design --field issue=<n> --field mode=background
   --field verdict=<DECIDED|DEFERRED>`). `LABEL: left-on` alongside `VERDICT:
-  DECIDED` means only the label write failed -- clear it from this session before
-  treating the issue as ready.
+  DECIDED` means only the `--clear-design` write failed -- re-run
+  `python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py
+  --clear-design <n>` from this session before treating the issue as ready.
 
 An issue returned `DECIDED` is ordinary backlog from that moment: ready for the
 next run, or for this one at step 8c. Under Codex CLI there is no background
