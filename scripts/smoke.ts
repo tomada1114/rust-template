@@ -7,17 +7,19 @@
  * It first runs the executable in smoke mode with `HOME` unset, which must fail startup
  * cleanly: exit 1 (not a signal) and `HOME is not set` on stderr.
  *
- * Failure codes: ERR_SMOKE_ARGS, ERR_SMOKE_HOME, ERR_SMOKE_BUILD, ERR_SMOKE_APP_MISSING,
- * ERR_SMOKE_CODESIGN, ERR_SMOKE_ENTITLEMENTS, ERR_SMOKE_SIDECAR, ERR_SMOKE_STARTUP_ERROR,
- * ERR_SMOKE_EXIT, ERR_SMOKE_STARTUP_LINE.
+ * Failure codes: ERR_SMOKE_ARGS, ERR_SMOKE_HOME, ERR_SMOKE_TARGET_DIR, ERR_SMOKE_BUILD,
+ * ERR_SMOKE_APP_MISSING, ERR_SMOKE_CODESIGN, ERR_SMOKE_ENTITLEMENTS, ERR_SMOKE_SIDECAR,
+ * ERR_SMOKE_STARTUP_ERROR, ERR_SMOKE_EXIT, ERR_SMOKE_STARTUP_LINE.
  *
  * Usage: node scripts/smoke.ts [--app <path to MyApp.app>]
  * With --app it checks an already-built bundle (the release workflow's artifact) instead
- * of building one.
+ * of building one. Without it, the bundle is looked for under the target directory
+ * `cargo metadata` reports, where the Tauri CLI puts it.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import { cargoTargetDir } from "./lib/cargo.ts";
 import { ScriptError } from "./lib/fail.ts";
 import { runScript, type ScriptContext } from "./lib/script.ts";
 
@@ -117,8 +119,9 @@ export function main(context: ScriptContext): void {
     );
   }
 
-  let app = options.app ?? join(root, "target", "release", "bundle", "macos", `${APP_NAME}.app`);
+  let app = options.app;
   if (options.build) {
+    const targetDir = cargoTargetDir(run, root, "SMOKE");
     log("smoke: building the release app bundle (no disk image)");
     const built = run("pnpm", ["tauri", "build", "--bundles", "app", "--", "--locked"], {
       cwd: root,
@@ -134,13 +137,13 @@ export function main(context: ScriptContext): void {
         "read the build output above, fix it, and rerun `just smoke`",
       );
     }
-    app = join(root, "target", "release", "bundle", "macos", `${APP_NAME}.app`);
+    app = join(targetDir, "release", "bundle", "macos", `${APP_NAME}.app`);
   }
-  if (!existsSync(app)) {
+  if (app === undefined || !existsSync(app)) {
     fail(
       "ERR_SMOKE_APP_MISSING",
       "the app bundle is not there",
-      app,
+      app ?? `${APP_NAME}.app`,
       "no such directory",
       "build it with `just smoke` (no --app), or pass the right path",
     );

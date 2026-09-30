@@ -166,6 +166,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ui/index.html`, `.svg`, `.html`, `.scss`, and JavaScript files, and fails on a markup
   tag it cannot read (`ERR_CHECK_UI_UNPARSED`).
 
+- `just sidecar` and `just smoke` find Cargo's target directory from `cargo metadata`, so
+  they work with `CARGO_TARGET_DIR` or `build.target-dir` set instead of failing with
+  `ERR_SIDECAR_MISSING` or checking a stale bundle under `./target`. `just test-core`,
+  `just test-fast`, and a plain `cargo test` no longer rewrite the tracked
+  `ui/src/ipc/generated/`: ts-rs's export tests compile only with core's new
+  `export-bindings` feature, which `just bindings` enables, and a type marked with a bare
+  `#[ts(export)]` now fails its test instead of writing files. `just bindings` exports
+  into a fresh directory and replaces `ui/src/ipc/generated/` only once that succeeds, so
+  a failed build no longer leaves it empty and a removed type leaves no stale file.
+  `tauri.conf.json`'s `bundle.targets` is `["app"]`, so a plain `pnpm tauri build` makes
+  no disk image locally; the release workflow still builds one with `--bundles app,dmg`.
+  `@types/node` follows the Node 24 that `mise.toml` runs instead of Node 26.
+
 ### Security
 
 - The staged guard catches this template's own signing secrets it used to miss: an

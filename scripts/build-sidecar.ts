@@ -9,11 +9,16 @@
  * Usage: node scripts/build-sidecar.ts [--release] [--target <triple>]
  * Without flags it reads TAURI_ENV_TARGET_TRIPLE / TAURI_ENV_DEBUG (set by the Tauri
  * CLI for its before-commands; DEBUG only in a debug build), then falls back to the host
- * triple and a debug build.
+ * triple and a debug build. Cargo's output is found through `cargo metadata`, so a
+ * `CARGO_TARGET_DIR` or `build.target-dir` is honoured.
+ *
+ * Failure codes: ERR_SIDECAR_ARGS, ERR_SIDECAR_TRIPLE, ERR_SIDECAR_TARGET_DIR,
+ * ERR_SIDECAR_BUILD, ERR_SIDECAR_MISSING.
  */
 import { chmodSync, copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { cargoTargetDir } from "./lib/cargo.ts";
 import { ScriptError } from "./lib/fail.ts";
 import { runScript, type ScriptContext } from "./lib/script.ts";
 
@@ -73,12 +78,15 @@ export function sidecarPath(root: string, triple: string): string {
   return join(root, "src-tauri", "binaries", `${HELPER}-${triple}`);
 }
 
-/** Build the helper with cargo and copy it into place. Returns the copied file's path. */
+/**
+ * Build the helper with cargo and copy it into place. `targetDir` is Cargo's target
+ * directory (`cargoTargetDir`). Returns the copied file's path.
+ */
 export function buildSidecar(
-  options: SidecarOptions & { readonly root: string },
+  options: SidecarOptions & { readonly root: string; readonly targetDir: string },
   run: RunCommand,
 ): string {
-  const { root, triple, release } = options;
+  const { root, targetDir, triple, release } = options;
   const args = [
     "build",
     "--locked",
@@ -98,14 +106,14 @@ export function buildSidecar(
       next: "read cargo's errors above, fix them, then run `just sidecar` again",
     });
   }
-  const built = join(root, "target", triple, release ? "release" : "debug", HELPER);
+  const built = join(targetDir, triple, release ? "release" : "debug", HELPER);
   if (!existsSync(built)) {
     throw new ScriptError({
       code: "ERR_SIDECAR_MISSING",
       summary: "cargo reported success but the helper binary is not where it should be",
       expected: built,
       actual: "no such file",
-      next: "check CARGO_TARGET_DIR is unset (the script expects ./target), then rerun",
+      next: "compare `cargo metadata --format-version 1 --no-deps` with where cargo built it, then rerun `just sidecar`",
     });
   }
   const out = sidecarPath(root, triple);
@@ -130,7 +138,8 @@ export function main(context: ScriptContext): void {
     }
     return stdout.trim();
   });
-  const out = buildSidecar({ ...options, root: context.root }, (command, args) =>
+  const targetDir = cargoTargetDir(context.run, context.root, "SIDECAR");
+  const out = buildSidecar({ ...options, root: context.root, targetDir }, (command, args) =>
     context.run(command, args, { cwd: context.root, inherit: true }),
   );
   context.log(`sidecar: ${out}`);
