@@ -229,8 +229,9 @@ The repository is developed with coding agents, often unattended. `AGENTS.md` gi
 the architecture, the gates, and the hard prohibitions; path-scoped rules under
 `.claude/rules/` and skills authored under `.agents/skills/` (mirrored by
 `just agents-sync`) carry the procedures. `.claude/settings.json` is committed so its
-deny list — no `--no-verify`, no force push, no edit to the entitlements file — is
-reviewed in pull requests like any other file. The app itself calls no LLM.
+deny list — no hook bypass, no force push, no `gh` read turned into a write or a
+browser window, no edit to the entitlements file — is reviewed in pull requests like
+any other file. The app itself calls no LLM.
 
 ### Why an ADR tree that ships empty?
 
