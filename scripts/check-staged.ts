@@ -4,9 +4,10 @@
  *
  * Two phases per staged path: the path (scripts/lib/guard/paths.ts), then — only if the
  * path passes — the staged blob (scripts/lib/guard/credentials.ts), read by blob id from
- * the index through one `git cat-file --batch` for the whole run, so a partially staged file is judged as it will be committed. Every finding
- * is collected before failing once. Output never contains file content: a finding names
- * the path and the rule, never the matched text.
+ * the index through one `git cat-file --batch` for the whole run, so a partially staged
+ * file is judged as it will be committed. Every finding is collected before failing
+ * once. Output never contains file content: a finding names the path and the rule,
+ * never the matched text.
  *
  * Deletions are never inspected (a deletion cannot add a secret, and refusing it would
  * block the commit that removes one). Spawned git keeps GIT_INDEX_FILE, which
@@ -77,7 +78,11 @@ function readBlobs(
     "--batch",
   );
   if (batch.status !== 0) {
-    throw readFailed("could not read the staged content", expected, batch.stderr.trim());
+    throw readFailed(
+      "could not read the staged content",
+      expected,
+      Buffer.from(batch.stderr, "latin1").toString("utf8").trim(),
+    );
   }
   const out = batch.stdout;
   let offset = 0;
