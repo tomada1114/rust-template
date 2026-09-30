@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Vitest coverage floors count every script and UI source extension (`.mts`, `.cts`,
+  `.js`, `.jsx`, `.mjs`, `.cjs` as well as `.ts`/`.tsx`), so an untested file in any of them
+  shows as 0%.
 - **Breaking:** `Tuning`'s fields are private. Code that built `Tuning { min, max }` must
   now call `Tuning::new(min, max)?`, which returns `TuningError::MinAboveMax` when
   `min > max`, and read the bounds through `min()` and `max()`.

@@ -354,9 +354,12 @@ reader new to Rust can maintain them. Scripts are `scripts/*.ts` executed with `
 git except where the staged guard deliberately inherits `GIT_INDEX_FILE`, and follow the
 failure contract: first stderr line `ERR_<STAGE>_<WHAT>: …`, then `Expected:`, `Actual:`,
 `Next:`, exit 1, never printing a secret. Every script has a test under
-`scripts/**/*.test.ts`; scripts are coverage-gated (typescript-template's per-glob floors).
+`scripts/**/*.test.ts`. The TypeScript and JavaScript under `scripts/` and under
+`.agents/skills/*/scripts/` (every `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`,
+`.cjs` file, tested or not) is coverage-gated by typescript-template's per-glob floors.
 A skill's bundled scripts may keep their language when ported with their tests
-(`shipping-issues`' Python helpers); `just test-scripts` runs those suites too.
+(`shipping-issues`' Python helpers and shell scripts); `just test-scripts` runs those
+suites (`unittest`, `shellcheck`) too, with no coverage floor.
 
 ### D13. Gates — Designer
 
