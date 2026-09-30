@@ -202,12 +202,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ui-literals` reads the spellings it used to pass unread: a value reached through a
   `const` imported from another module under `ui/` (named, default, namespace, or
   re-exported), every value a `let` or `var` is given, the `content` of
-  `<meta name="theme-color">`, the body of an inline `<script>` (JavaScript, or JSON
-  such as an import map), and every file under `ui/` rather than only `ui/src/` and
-  `ui/index.html` — another entry page and `ui/public/` included — along with PostCSS's
-  `.pcss`/`.postcss`. An inline script of another type fails with
-  `ERR_CHECK_UI_UNPARSED`, and a Less, Sass (indented), Stylus, or SugarSS file with the
-  new `ERR_CHECK_UI_UNSUPPORTED_FILE`, instead of passing.
+  `<meta name="theme-color">`, the body of an inline JavaScript `<script>`, every entry
+  page directly under `ui/`, the stylesheets in `ui/public/`, and PostCSS's
+  `.pcss`/`.postcss`. An inline script of an unknown type, with a syntax error, or with
+  no `</script>` fails with `ERR_CHECK_UI_UNPARSED`, and a Less, indented Sass, Stylus,
+  SugarSS, Vue, Svelte, MDX, or Astro file with the new `ERR_CHECK_UI_UNSUPPORTED_FILE`,
+  instead of passing.
 
 - `just sidecar` and `just smoke` find Cargo's target directory from `cargo metadata`, so
   they work with `CARGO_TARGET_DIR` or `build.target-dir` set instead of failing with

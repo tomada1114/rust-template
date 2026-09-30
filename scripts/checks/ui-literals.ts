@@ -1,9 +1,12 @@
 /**
  * Components reach design values only through tokens (design D23): outside
- * `ui/src/design/tokens.css`, nothing under `ui/` — `ui/src/`, `ui/index.html` and any
- * other entry page, `ui/public/` — holds a raw color, a font family, or a pixel font
- * size. The keywords `currentColor`, `transparent`, `inherit`, `none`, `initial`,
- * `unset` (and `revert`) are not colors, and `var(--…)` is always allowed.
+ * `ui/src/design/tokens.css`, nothing the WebView styles with — everything under
+ * `ui/src/`, each entry page directly under `ui/` (`ui/index.html`, `ui/*.html`, `.htm`,
+ * `.xhtml`), and the stylesheets in `ui/public/` (`.css`, `.pcss`, `.postcss`) — holds a
+ * raw color, a font family, or a pixel font size. The rest of `ui/public/` is not
+ * judged: an SVG there is loaded as an image, where `var()` cannot work, and a script
+ * there is vendored. The keywords `currentColor`, `transparent`, `inherit`, `none`,
+ * `initial`, `unset` (and `revert`) are not colors, and `var(--…)` is always allowed.
  *
  * What counts as a raw value in a declaration:
  *
@@ -34,14 +37,18 @@
  * - CSS (`.css`, `.scss`, and PostCSS's `.pcss`/`.postcss`): every declaration, with
  *   comments removed (and `//` line comments in `.scss`, whose `$variables` count as
  *   custom properties there only).
- * - Another style syntax (Less's `.less`, indented Sass's `.sass`, Stylus's two extensions,
- *   SugarSS's `.sss`) is not parsed: the file fails the check rather than passing unread.
+ * - A kind the check does not parse fails it (ERR_CHECK_UI_UNSUPPORTED_FILE) rather than
+ *   passing unread, anywhere under `ui/`: another style syntax (Less's `.less`, indented
+ *   Sass's `.sass`, Stylus's two extensions, SugarSS's `.sss`), `.htm` or `.xhtml` other
+ *   than an entry page, and a single-file component (`.vue`, `.svelte`, `.mdx`, `.astro`).
  * - TypeScript and JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`, and their `.m`/`.c` forms),
  *   read with the TypeScript compiler's parser and one checker over every scanned script,
  *   so comments and JSX text are never read, a name resolves to the binding in scope,
  *   and a name imported from another scanned module (named, default, namespace, or
- *   re-exported, as Vite's bundler resolution finds it) resolves to what that module
- *   holds. A module the check does not scan (a package) resolves to nothing. A value
+ *   re-exported) resolves to what that module holds. Only a relative specifier is
+ *   followed, with or without its extension (`./c`, `./c.ts`, `./c.js`, a directory's
+ *   `index`); a root-absolute `/src/…` path, a `resolve.alias` name, a JSON module, and a
+ *   package resolve to nothing, as does a module the check does not scan. A value
  *   given to a CSS-like property is judged as that declaration: an object key (a plain,
  *   quoted, or computed one, such as `color`, `"font-family"`, `["color"]`, or a
  *   `--custom` property), a JSX attribute such as `fill`, an assignment to
@@ -50,22 +57,29 @@
  *   `` `${n}px` `` is a pixel size), a `const` in scope or imported, every value a `let`
  *   or `var` is given (its initializer and each `=`, `+=`, `||=`, `??=`, or `&&=` to it),
  *   a member of an object literal such a binding holds, and each branch of a `?:`, `||`,
- *   `??`, or `&&`; a number given to `fontSize` is a pixel size (React appends px). A raw
- *   value a binding holds is reported once, where it is declared when it is flagged
- *   there (in whichever file), otherwise where it is used. Any other string is flagged
- *   when it is a hex color as a whole, holds a color function, or holds a CSS
- *   declaration of a color or font property (CSS in a template literal). A bare word
- *   such as `"red"` in an unrelated string is not flagged, nor is one an imported or
- *   `let` binding holds until a style reads it: copy and variant names use such words.
+ *   `??`, or `&&`; a number given to `fontSize` is a pixel size (React appends px). A
+ *   binding is resolved once per run, and one met again while it is being resolved (a
+ *   `let` assigned from itself) adds nothing there, so no spelling makes the check
+ *   recurse without end. A raw value a binding holds is reported once, where it is
+ *   declared when it is flagged there (in whichever file), otherwise where it is used.
+ *   Any other string is flagged when it is a hex color as a whole, holds a color
+ *   function, or holds a CSS declaration of a color or font property (CSS in a template
+ *   literal). A bare word such as `"red"` in an unrelated string is not flagged, nor is
+ *   one an imported or `let` binding holds until a style reads it: copy and variant
+ *   names use such words.
  * - Markup (`.html`, `.svg`): the declarations of every `style` attribute and `<style>`
  *   element, every attribute named like a CSS-like property (`fill`, `stroke`,
  *   `stop-color`, `font-family`, `font-size`, where a bare number is a pixel size), and
  *   the `content` of a `<meta>` whose `name` ends in `color` (`theme-color`), as a color,
- *   with comments removed. An inline `<script>` body of a JavaScript type is read as a
- *   script (above), and one of a JSON type (`importmap`, `application/json`) as a
- *   JavaScript expression, each with its findings on its lines in the markup file. A tag
- *   whose attributes the check cannot read, and an inline script of any other type, fail
- *   the check rather than passing unread.
+ *   with comments removed; that value's Next line says to remove the meta or set it at
+ *   runtime, since `var()` cannot appear in `content`. An inline `<script>` body of a
+ *   JavaScript type is read as a script (above), with its findings on its lines in the
+ *   markup file; one of a JSON type (`importmap`, `application/json`,
+ *   `application/ld+json`) is data and is not judged. A tag whose attributes the check
+ *   cannot read, an inline script of any other type, one the parser reports a syntax
+ *   error in (no other gate parses it; `ui/src/` is left to tsc and ESLint), and a
+ *   `<script>` with no `</script>` (whose rest is then not read as markup) fail the check
+ *   rather than passing unread.
  *
  * Not scanned: `ui/src/design/tokens.css` (where the values live), test files
  * (`*.test.ts`, `*.test.tsx`, and the JavaScript forms), which never ship and must feed
@@ -79,8 +93,8 @@
  *
  * Errors: ERR_CHECK_INPUT_MISSING (no ui/src/), ERR_CHECK_UI_RAW_COLOR,
  * ERR_CHECK_UI_FONT_FAMILY, ERR_CHECK_UI_PIXEL_FONT_SIZE, ERR_CHECK_UI_UNPARSED (a
- * markup tag, or an inline script's type, it cannot read), ERR_CHECK_UI_UNSUPPORTED_FILE
- * (a style file in a syntax it does not parse).
+ * markup tag, or an inline script's type, syntax, or missing `</script>`, it cannot
+ * read), ERR_CHECK_UI_UNSUPPORTED_FILE (a file kind it does not parse).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -91,7 +105,7 @@ import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, type Check } from "./lib.ts";
 import {
-  bindingValues,
+  bindingOf,
   blank,
   parseScripts,
   SCRIPT_FILE,
@@ -104,9 +118,17 @@ const UI_SRC = "ui/src";
 const TOKENS = "ui/src/design/tokens.css";
 /** CSS, SCSS, and PostCSS files, which are written in CSS syntax. */
 const CSS_FILE = /\.(?:s?css|p(?:ost)?css)$/;
+/** What `ui/public/` holds that the WebView applies as a stylesheet. */
+const PUBLIC_CSS_FILE = /\.(?:css|p(?:ost)?css)$/;
 const MARKUP_FILE = /\.(?:html|svg)$/;
-/** Preprocessor syntaxes the check does not parse, and so refuses rather than passes. */
-const UNREAD_STYLE_FILE = /\.(?:less|sass|sty(?:l|lus)|sss)$/;
+/** An entry page, directly under `ui/`. */
+const ENTRY_PAGE = /^ui\/[^/]+\.(?:html|htm|xhtml)$/;
+/**
+ * Files the check does not parse, and so refuses rather than passes: other style
+ * syntaxes (Less, indented Sass, Stylus, SugarSS), markup under another extension, and
+ * single-file component formats.
+ */
+const REFUSED_FILE = /\.(?:less|sass|sty(?:l|lus)|sss|htm|xhtml|vue|svelte|mdx|astro)$/;
 
 const isDirectory = (path: string): boolean => {
   try {
@@ -393,6 +415,8 @@ interface Unit {
   readonly shown: string;
   /** Findings already reported where the value was declared (a `const`), as `key`s. */
   readonly reported: ReadonlySet<string>;
+  /** The Next line for this value's findings, where the rule's own would mislead. */
+  readonly next?: string;
 }
 
 /** Something the check could not read, which fails it rather than passing unread. */
@@ -400,6 +424,8 @@ interface Unreadable {
   readonly rule: "unparsed" | "script" | "file";
   readonly line: number;
   readonly what: string;
+  /** The Next line, where the rule's own does not fit this case. */
+  readonly next?: string;
 }
 
 /** What a file yields: the values to judge, and what it could not read. */
@@ -484,17 +510,91 @@ interface Site {
   readonly scope: string;
 }
 
+/** A binding or member the resolution reaches, and the expressions it holds. */
+interface Target {
+  readonly key: ts.Node;
+  readonly values: readonly ts.Expression[];
+}
+
+/**
+ * A resolution memoized per key (a binding's declaration, a member's initializer), so
+ * each is resolved once per run however many paths reach it. A key met again while it is
+ * still being resolved yields nothing there: a `let` assigned from itself
+ * (`c = p ? c : "…"`) contributes its other values and never recurses. When the first key
+ * of such a cycle is done it holds everything the cycle reaches, and every other key in
+ * the cycle is given that result (Tarjan's strongly connected components).
+ */
+function memoized<T>(): (key: ts.Node, compute: () => T[]) => T[] {
+  const done = new Map<ts.Node, T[]>();
+  const stack: { key: ts.Node; low: number }[] = [];
+  const cycle: { key: ts.Node; depth: number }[] = [];
+  return (key, compute) => {
+    const known = done.get(key);
+    if (known !== undefined) return known;
+    const at = stack.findIndex((frame) => frame.key === key);
+    const top = stack.at(-1);
+    if (at !== -1) {
+      if (top !== undefined) top.low = Math.min(top.low, at);
+      return [];
+    }
+    const depth = stack.length;
+    const frame = { key, low: depth };
+    stack.push(frame);
+    const result = compute();
+    stack.pop();
+    done.set(key, result);
+    if (frame.low < depth) {
+      if (top !== undefined) top.low = Math.min(top.low, frame.low);
+      cycle.push({ key, depth });
+    } else {
+      for (let member = cycle.at(-1); member !== undefined && member.depth > depth;) {
+        done.set(member.key, result);
+        cycle.pop();
+        member = cycle.at(-1);
+      }
+    }
+    return result;
+  };
+}
+
+/** Where a literal is written: its file and span. */
+const placeOf = (node: ts.Node): string => `${node.getSourceFile().fileName}:${String(node.pos)}`;
+
+/** `values` without repeats: the same text, from the same literals. */
+function distinctValues(values: readonly Resolved[]): Resolved[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const id = [
+      value.text,
+      String(value.numeric),
+      ...value.direct.map(placeOf),
+      "|",
+      ...value.via.map(placeOf),
+    ].join(" ");
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+const distinctNodes = <T extends ts.Node>(nodes: readonly T[]): T[] => [...new Set(nodes)];
+
 /** A script to scan: the file it is reported under, and its own name in the program. */
 interface ScriptEntry extends ScriptSource {
   readonly reportAs: string;
+  /**
+   * An inline `<script>` body, which no other gate parses: a syntax error in it fails the
+   * check rather than leaving part of it unread. (tsc and ESLint parse `ui/src/`.)
+   */
+  readonly inline: boolean;
 }
 
 /**
  * Every script at once, so a name imported from another scanned module resolves to what
  * that module holds. The units of each script, keyed by the file it is reported under.
  */
-function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
-  const { files, checker } = parseScripts(entries);
+function scanScripts(entries: readonly ScriptEntry[]): Map<string, Scanned> {
+  const { files, checker, syntaxErrors } = parseScripts(entries);
   const parsed = entries.flatMap((entry) => {
     const file = files.get(entry.path);
     return file === undefined ? [] : [{ file, reportAs: entry.reportAs }];
@@ -507,27 +607,36 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
     return only !== undefined && more.length === 0 && !only.numeric ? only.text : undefined;
   };
 
-  /** What a name or a member can hold: through bindings, and members of object literals. */
-  const nextOf = (node: ts.Expression, seen: ReadonlySet<ts.Node>): ts.Expression[] =>
-    (ts.isIdentifier(node) ? bindingValues(checker, node) : membersOf(node, seen)).filter(
-      (next) => !seen.has(next),
-    );
+  const values = memoized<Resolved>();
+  const objects = memoized<ts.ObjectLiteralExpression>();
+
+  /**
+   * What a name or a member leads to, each under the key its resolution is memoized by: a
+   * binding's values under its declaration, a member's initializer under itself.
+   */
+  const targetsOf = (node: ts.Expression): Target[] => {
+    if (ts.isIdentifier(node)) {
+      const binding = bindingOf(checker, node);
+      return binding === undefined ? [] : [{ key: binding.declaration, values: binding.values }];
+    }
+    return membersOf(node).map((initializer) => ({ key: initializer, values: [initializer] }));
+  };
 
   /** The object literals an expression can be, through bindings and members. */
-  const objectsOf = (
-    node: ts.Expression,
-    seen: ReadonlySet<ts.Node>,
-  ): ts.ObjectLiteralExpression[] => {
+  const objectsOf = (node: ts.Expression): ts.ObjectLiteralExpression[] => {
     const inner = unwrap(node);
     if (ts.isObjectLiteralExpression(inner)) return [inner];
-    return nextOf(inner, seen).flatMap((next) => objectsOf(next, new Set([...seen, next])));
+    return targetsOf(inner).flatMap((target) =>
+      objects(target.key, () => distinctNodes(target.values.flatMap(objectsOf))),
+    );
   };
 
   /**
    * The initializers `P.name` or `P["name"]` reads from the object literals `P` can be;
-   * failing that, what `ns.name` holds when `ns` is a namespace import.
+   * failing that, `ns.name`'s own name, which resolves to the export when `ns` is a
+   * namespace import.
    */
-  const membersOf = (node: ts.Expression, seen: ReadonlySet<ts.Node>): ts.Expression[] => {
+  const membersOf = (node: ts.Expression): ts.Expression[] => {
     let object: ts.Expression;
     let name: string | undefined;
     if (ts.isPropertyAccessExpression(node)) {
@@ -540,7 +649,7 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
         : undefined;
     } else return [];
     if (name === undefined) return [];
-    const found = objectsOf(object, seen).flatMap((literal) => {
+    const found = objectsOf(object).flatMap((literal) => {
       const property = literal.properties.find(
         (p): p is ts.PropertyAssignment =>
           ts.isPropertyAssignment(p) && propertyName(p.name) === name,
@@ -549,15 +658,11 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
     });
     return found.length > 0 || !ts.isPropertyAccessExpression(node) || !ts.isIdentifier(node.name)
       ? found
-      : bindingValues(checker, node.name);
+      : [node.name];
   };
 
   /** Every value an expression can take that the check can read. */
-  const resolveAll = (
-    node: ts.Expression,
-    throughConst = false,
-    seen: ReadonlySet<ts.Node> = new Set(),
-  ): Resolved[] => {
+  const resolveAll = (node: ts.Expression, throughConst = false): Resolved[] => {
     const inner = unwrap(node);
     const at = (text: string, numeric: boolean): Resolved => ({
       text,
@@ -570,7 +675,7 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
     if (ts.isTemplateExpression(inner)) {
       let combined: Resolved[] = [at(inner.head.text, false)];
       for (const span of inner.templateSpans) {
-        const parts = resolveAll(span.expression, throughConst, seen);
+        const parts = resolveAll(span.expression, throughConst);
         combined = combined
           .flatMap((before) =>
             (parts.length > 0 ? parts : [UNREADABLE]).map((part) => ({
@@ -586,8 +691,8 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
     }
     if (ts.isConditionalExpression(inner)) {
       return [
-        ...resolveAll(inner.whenTrue, throughConst, seen),
-        ...resolveAll(inner.whenFalse, throughConst, seen),
+        ...resolveAll(inner.whenTrue, throughConst),
+        ...resolveAll(inner.whenFalse, throughConst),
       ];
     }
     if (
@@ -596,12 +701,13 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
         inner.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
         inner.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)
     ) {
-      return [
-        ...resolveAll(inner.left, throughConst, seen),
-        ...resolveAll(inner.right, throughConst, seen),
-      ];
+      return [...resolveAll(inner.left, throughConst), ...resolveAll(inner.right, throughConst)];
     }
-    return nextOf(inner, seen).flatMap((next) => resolveAll(next, true, new Set([...seen, next])));
+    return targetsOf(inner).flatMap((target) =>
+      values(target.key, () =>
+        distinctValues(target.values.flatMap((value) => resolveAll(value, true))),
+      ),
+    );
   };
 
   const isStyle = (node: ts.Expression): boolean =>
@@ -695,10 +801,27 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
     return judgeDeclaration(owner.property, literal.text, owner.surelyCss).map(key);
   };
 
-  const units = new Map<string, Unit[]>();
-  const add = (reportAs: string, unit: Unit): void => {
-    units.set(reportAs, [...(units.get(reportAs) ?? []), unit]);
+  const scanned = new Map<string, { units: Unit[]; unreadable: Unreadable[] }>();
+  const of = (reportAs: string): { units: Unit[]; unreadable: Unreadable[] } => {
+    const known = scanned.get(reportAs);
+    if (known !== undefined) return known;
+    const fresh = { units: [], unreadable: [] };
+    scanned.set(reportAs, fresh);
+    return fresh;
   };
+  const add = (reportAs: string, unit: Unit): void => {
+    of(reportAs).units.push(unit);
+  };
+  for (const entry of entries) {
+    const [error] = entry.inline ? syntaxErrors(entry.path) : [];
+    if (error === undefined) continue;
+    of(entry.reportAs).unreadable.push({
+      rule: "script",
+      line: error.file.getLineAndCharacterOfPosition(error.start).line + 1,
+      what: ts.flattenDiagnosticMessageText(error.messageText, " "),
+      next: "fix the script's syntax (the WebView refuses it too), or move it into a file under ui/src/",
+    });
+  }
   for (const { reportAs, site, property, values } of sites) {
     for (const value of values) {
       const anchor = value.direct[0] ?? site.value;
@@ -744,7 +867,7 @@ function scanScripts(entries: readonly ScriptEntry[]): Map<string, Unit[]> {
     };
     ts.forEachChild(file, free);
   }
-  return units;
+  return scanned;
 }
 
 const TAG_NAME = /[A-Za-z][\w:.-]*/y;
@@ -780,23 +903,37 @@ function scanMarkup(path: string, source: string): ScannedMarkup {
   let text = source.replace(/<!--[\s\S]*?-->/g, blank);
   const unreadable: Unreadable[] = [];
   const scripts: ScriptEntry[] = [];
+  const inside: (readonly [number, number])[] = [];
   for (const match of text.matchAll(SCRIPT_ELEMENT)) {
+    inside.push([match.index, match.index + match[0].length]);
     const open = match[1] ?? "";
     const body = match[2] ?? "";
-    if (body.trim() === "") continue;
     const typed = TYPE_ATTRIBUTE.exec(open);
     const type = (typed?.[1] ?? typed?.[2] ?? typed?.[3] ?? "").trim();
-    // Blanking what precedes the body keeps each finding on its line in the markup file.
-    const before = blank(text.slice(0, match.index + open.length));
-    const name = `${path}#script${String(scripts.length + 1)}.js`;
+    // A JSON type is data (an import map, a JSON block), never a style: it is not judged.
+    if (body.trim() === "" || JSON_TYPE.test(type)) continue;
     if (JS_TYPE.test(type)) {
-      scripts.push({ reportAs: path, path: name, source: `${before}${body}` });
-    } else if (JSON_TYPE.test(type)) {
-      // `(` in place of the open tag's `>` makes the JSON one expression, on the same lines.
-      scripts.push({ reportAs: path, path: name, source: `${before.slice(0, -1)}(${body}\n)` });
+      // Blanking what precedes the body keeps each finding on its line in the markup file.
+      const before = blank(text.slice(0, match.index + open.length));
+      const name = `${path}#script${String(scripts.length + 1)}.js`;
+      scripts.push({ reportAs: path, path: name, source: `${before}${body}`, inline: true });
     } else {
       unreadable.push({ rule: "script", line: lineOf(text, match.index), what: open });
     }
+  }
+  // A <script> with no </script>: the rest of the file is its body, not markup to read.
+  const unclosed = [...text.matchAll(/<script\b/gi)].find(
+    (open) => !inside.some(([start, end]) => open.index >= start && open.index < end),
+  );
+  if (unclosed !== undefined) {
+    const lineEnd = text.indexOf("\n", unclosed.index);
+    unreadable.push({
+      rule: "script",
+      line: lineOf(text, unclosed.index),
+      what: text.slice(unclosed.index, lineEnd < 0 ? undefined : lineEnd).trim(),
+      next: "close the <script> with </script>; until it is closed, nothing after it is read",
+    });
+    text = `${text.slice(0, unclosed.index)}${blank(text.slice(unclosed.index))}`;
   }
   text = text.replace(
     SCRIPT_ELEMENT,
@@ -848,7 +985,10 @@ function scanMarkup(path: string, source: string): ScannedMarkup {
     const content = attributes.find((a) => a.name === "content");
     if (named === undefined || content === undefined || !/color$/i.test(named.value.trim())) return;
     const shown = `<meta name="${named.value}" content="${content.value}">`;
-    units.push(valueUnit("color", shown, content.value, content.at));
+    units.push({
+      ...valueUnit("color", shown, content.value, content.at),
+      next: `remove the <meta name="${named.value}">, or set its content at runtime from the token (getComputedStyle(document.documentElement).getPropertyValue("--color-…")): var() cannot appear in a meta's content`,
+    });
   };
   /**
    * Read the tag whose name starts at `at`, judging each attribute read (even when a later
@@ -955,6 +1095,7 @@ interface Located extends Finding {
   readonly path: string;
   readonly line: number;
   readonly declaration: string;
+  readonly next?: string | undefined;
 }
 
 /**
@@ -1016,48 +1157,72 @@ function throughLocals(all: readonly Held[]): Located[] {
   });
 }
 
+type Kind = "css" | "markup" | "script" | "refused";
+
+/**
+ * How a file under `ui/` is read, or undefined when it is not: everything under
+ * `ui/src/`, each entry page directly under `ui/`, only the stylesheets in `ui/public/`
+ * (an SVG there is loaded as an image, where var() cannot work, and a script there is
+ * vendored), and a refused kind anywhere.
+ */
+function kindOf(path: string): Kind | undefined {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  if (TEST_FILE.test(name) || path === TOKENS) return undefined;
+  if (ENTRY_PAGE.test(path)) return "markup";
+  if (REFUSED_FILE.test(name)) return "refused";
+  if (path.startsWith(`${UI_SRC}/`)) {
+    if (CSS_FILE.test(name)) return "css";
+    if (MARKUP_FILE.test(name)) return "markup";
+    return SCRIPT_FILE.test(name) ? "script" : undefined;
+  }
+  return path.startsWith(`${UI}/public/`) && PUBLIC_CSS_FILE.test(name) ? "css" : undefined;
+}
+
 function files(root: string, dir: string): string[] {
   return readdirSync(join(root, dir), { withFileTypes: true })
     .sort((a, b) => a.name.localeCompare(b.name))
     .flatMap((entry) => {
       const path = `${dir}/${entry.name}`;
       if (entry.isDirectory()) return entry.name === "node_modules" ? [] : files(root, path);
-      const scanned =
-        CSS_FILE.test(entry.name) ||
-        SCRIPT_FILE.test(entry.name) ||
-        MARKUP_FILE.test(entry.name) ||
-        UNREAD_STYLE_FILE.test(entry.name);
-      return scanned && !TEST_FILE.test(entry.name) && path !== TOKENS ? [path] : [];
+      return kindOf(path) === undefined ? [] : [path];
     });
 }
 
 /** Every file's findings to judge; the scripts, markup's inline ones included, read together. */
 function scanAll(root: string, paths: readonly string[]): (Scanned & { path: string })[] {
   const scripts: ScriptEntry[] = [];
-  const scanned = paths.map((path) => {
-    const source = readFileSync(join(root, path), "utf8");
-    if (UNREAD_STYLE_FILE.test(path)) {
+  const scanned = paths.map((path): Scanned & { path: string } => {
+    const kind = kindOf(path);
+    if (kind === "refused") {
       const what = /\.[^./]+$/.exec(path)?.[0] ?? path;
-      return { path, units: [], unreadable: [{ rule: "file" as const, line: 1, what }] };
+      const next = `this check cannot read ${what} files: write the styles as CSS using the tokens (var(--…) from ${TOKENS}), and markup as .html or .tsx`;
+      return { path, units: [], unreadable: [{ rule: "file", line: 1, what, next }] };
     }
-    if (CSS_FILE.test(path)) return { path, ...scanCss(path, source) };
-    if (MARKUP_FILE.test(path)) {
+    const source = readFileSync(join(root, path), "utf8");
+    if (kind === "css") return { path, ...scanCss(path, source) };
+    if (kind === "markup") {
       const markup = scanMarkup(path, source);
       scripts.push(...markup.scripts);
       return { path, units: markup.units, unreadable: markup.unreadable };
     }
-    scripts.push({ reportAs: path, path, source });
+    scripts.push({ reportAs: path, path, source, inline: false });
     return { path, units: [], unreadable: [] };
   });
   const fromScripts = scanScripts(scripts);
   return scanned.map((file) => ({
     ...file,
-    units: [...file.units, ...(fromScripts.get(file.path) ?? [])],
+    units: [...file.units, ...(fromScripts.get(file.path)?.units ?? [])],
+    unreadable: [...file.unreadable, ...(fromScripts.get(file.path)?.unreadable ?? [])],
   }));
 }
 
+/**
+ * Each rule's code and wording. A raw-value rule (`raw`, `family`, `pixel`) and an
+ * unreadable tag read "… outside tokens.css" and cite design D23; a script or a file the
+ * check cannot read is not a raw value, so its wording stands alone (`standalone`).
+ */
 const RULES: Readonly<
-  Record<Rule, { code: string; summary: string; expected: string; next: string }>
+  Record<Rule, { code: string; summary: string; expected: string; next: string; standalone?: true }>
 > = {
   raw: {
     code: "ERR_CHECK_UI_RAW_COLOR",
@@ -1087,15 +1252,17 @@ const RULES: Readonly<
     code: "ERR_CHECK_UI_UNPARSED",
     summary: "unreadable script",
     expected:
-      "inline scripts the check can read (a JavaScript or JSON type), so no style they set passes unjudged",
-    next: "give the <script> a JavaScript type (none, `module`, `text/javascript`) or a JSON one, or move its content into a file under ui/src/",
+      "inline scripts the check can read — a JavaScript type, closed, with valid syntax — so no style they set passes unjudged (a JSON type is data and is not read)",
+    next: "give the <script> a JavaScript type (none, `module`, `text/javascript`), or move its content into a file under ui/src/",
+    standalone: true,
   },
   file: {
     code: "ERR_CHECK_UI_UNSUPPORTED_FILE",
-    summary: "unsupported style file",
+    summary: "this check cannot read",
     expected:
-      "UI styles in files the check reads (.css, .scss, .pcss, .postcss), so no value passes unjudged",
-    next: "write the styles as .css (or .scss) under ui/src/; reading another preprocessor's syntax is a change to scripts/checks/ui-literals.ts first",
+      "UI files in kinds the check reads — CSS (.css, .scss, .pcss, .postcss), markup (.html, .svg), scripts (.ts, .tsx, .js, .jsx) — so no value passes unjudged",
+    next: `write the styles as CSS using the tokens (var(--…) from ${TOKENS})`,
+    standalone: true,
   },
 };
 
@@ -1113,12 +1280,13 @@ function run(root: string): FailureDetails[] {
   }
   const scanned = scanAll(root, files(root, UI));
   const direct = scanned.flatMap(({ path, units, unreadable }) => [
-    ...unreadable.map(({ rule, line, what }): Located => ({
+    ...unreadable.map(({ rule, line, what, next }): Located => ({
       code: rule,
       what,
       path,
       line,
       declaration: rule === "file" ? `${path}, a ${what} file` : what,
+      next,
     })),
     ...units.flatMap((unit) =>
       judgeUnit(unit).map((finding): Located => ({
@@ -1126,6 +1294,7 @@ function run(root: string): FailureDetails[] {
         path,
         line: unit.line,
         declaration: unit.shown,
+        next: unit.next,
       })),
     ),
   ]);
@@ -1136,12 +1305,19 @@ function run(root: string): FailureDetails[] {
   ].sort((a, b) => (order.get(a.path) ?? 0) - (order.get(b.path) ?? 0) || a.line - b.line);
   return located.map((finding): FailureDetails => {
     const rule = RULES[finding.code];
+    const where = `${finding.path}:${String(finding.line)}`;
     return {
       code: rule.code,
-      summary: `${finding.path}:${String(finding.line)}: ${rule.summary} \`${finding.what}\` outside ${TOKENS}`,
-      expected: `${rule.expected} (design D23; ${TOKENS} is the one file that holds raw values)`,
+      summary:
+        rule.standalone === true
+          ? `${where}: ${rule.summary} \`${finding.what}\``
+          : `${where}: ${rule.summary} \`${finding.what}\` outside ${TOKENS}`,
+      expected:
+        rule.standalone === true
+          ? rule.expected
+          : `${rule.expected} (design D23; ${TOKENS} is the one file that holds raw values)`,
       actual: `\`${finding.declaration}\``,
-      next: rule.next,
+      next: finding.next ?? rule.next,
     };
   });
 }

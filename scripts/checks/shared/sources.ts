@@ -56,14 +56,18 @@ export interface ScriptSource {
 export interface ParsedScripts {
   readonly files: ReadonlyMap<string, ts.SourceFile>;
   readonly checker: ts.TypeChecker;
+  /** The syntax errors the parser reported in one of the files, by its given path. */
+  readonly syntaxErrors: (path: string) => readonly ts.DiagnosticWithLocation[];
 }
 
 /**
  * Parse several scripts as one program whose checker follows a relative import from one
  * to another (as `moduleResolution: "bundler"` does), so an imported name resolves to
- * the declaration it names in the file it comes from; see {@link bindingValues}. Every
- * file is a module, so two files' top-level names never merge. A module outside the
- * given scripts (a package, a file not given) resolves to nothing.
+ * the declaration it names in the file it comes from; see {@link bindingOf}. A relative
+ * specifier is followed, with or without its extension (`./c`, `./c.ts`, `./c.js`, a
+ * directory's `index`). Nothing else is: a root-absolute `/src/…` path, a bundler alias
+ * such as Vite's `resolve.alias`, a package, a JSON module, or a file not given resolves
+ * to nothing. Every file is a module, so two files' top-level names never merge.
  */
 export function parseScripts(scripts: readonly ScriptSource[]): ParsedScripts {
   const byName = new Map(scripts.map((script) => [`/__check__/${script.path}`, script]));
@@ -105,7 +109,11 @@ export function parseScripts(scripts: readonly ScriptSource[]): ParsedScripts {
     const file = program.getSourceFile(name);
     if (file !== undefined) files.set(script.path, file);
   }
-  return { files, checker: program.getTypeChecker() };
+  const syntaxErrors = (path: string): readonly ts.DiagnosticWithLocation[] => {
+    const file = files.get(path);
+    return file === undefined ? [] : program.getSyntacticDiagnostics(file);
+  };
+  return { files, checker: program.getTypeChecker(), syntaxErrors };
 }
 
 /** The declaration an identifier's binding comes from, shorthand `{ name }` included. */
@@ -156,25 +164,41 @@ function assignmentsIn(
   return found;
 }
 
+/** A variable, or a module's default export, and every expression it can hold. */
+export interface Binding {
+  /** The declaration: one key per binding, however many names reach it. */
+  readonly declaration: ts.VariableDeclaration | ts.ExportAssignment;
+  readonly values: readonly ts.Expression[];
+}
+
 /**
- * Every expression the binding an identifier names can hold: a `const`'s initializer; a
- * `let` or `var`'s initializer and the right-hand side of each `=`, `+=`, `||=`, `??=`,
- * or `&&=` to it in its file; and, through an import the program resolves, the same for
- * the binding the other module exports (an `export default` expression included).
- * Empty for a parameter, a function, a destructured name, or a name bound nowhere.
+ * The binding an identifier names and every expression it can hold: a `const`'s
+ * initializer; a `let` or `var`'s initializer and the right-hand side of each `=`, `+=`,
+ * `||=`, `??=`, or `&&=` to it in its file; and, through an import the program resolves,
+ * the same for the binding the other module exports (an `export default` expression
+ * included). Undefined for a parameter, a function, a destructured name, or a name bound
+ * nowhere.
  */
-export function bindingValues(checker: ts.TypeChecker, identifier: ts.Identifier): ts.Expression[] {
+export function bindingOf(checker: ts.TypeChecker, identifier: ts.Identifier): Binding | undefined {
   let symbol = symbolOf(checker, identifier);
   if (symbol !== undefined && (symbol.flags & ts.SymbolFlags.Alias) !== 0) {
     symbol = checker.getAliasedSymbol(symbol);
   }
   const declaration = symbol?.declarations?.[0];
-  if (symbol === undefined || declaration === undefined) return [];
-  if (ts.isExportAssignment(declaration)) return [declaration.expression];
-  if (!ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name)) return [];
+  if (symbol === undefined || declaration === undefined) return undefined;
+  if (ts.isExportAssignment(declaration)) return { declaration, values: [declaration.expression] };
+  if (!ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name))
+    return undefined;
   const initial = declaration.initializer === undefined ? [] : [declaration.initializer];
-  if ((ts.getCombinedNodeFlags(declaration) & ts.NodeFlags.Const) !== 0) return initial;
-  return [...initial, ...(assignmentsIn(checker, declaration.getSourceFile()).get(symbol) ?? [])];
+  if ((ts.getCombinedNodeFlags(declaration) & ts.NodeFlags.Const) !== 0)
+    return { declaration, values: initial };
+  const later = assignmentsIn(checker, declaration.getSourceFile()).get(symbol) ?? [];
+  return { declaration, values: [...initial, ...later] };
+}
+
+/** The expressions {@link bindingOf} finds for an identifier; empty when it finds none. */
+export function bindingValues(checker: ts.TypeChecker, identifier: ts.Identifier): ts.Expression[] {
+  return [...(bindingOf(checker, identifier)?.values ?? [])];
 }
 
 /** The initializer of the `const` an identifier is bound to, if it is bound to one. */

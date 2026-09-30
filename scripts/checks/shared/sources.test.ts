@@ -139,6 +139,16 @@ describe("parseScripts", () => {
     expect(files.get("a.tsx")?.languageVariant).toBe(ts.LanguageVariant.JSX);
   });
 
+  it("reports a file's syntax errors, and none for a file it was not given", () => {
+    const { syntaxErrors } = parseScripts([
+      { path: "bad.js", source: "const = ;\n" },
+      { path: "good.js", source: "const a = 1;\n" },
+    ]);
+    expect(syntaxErrors("bad.js").length).toBeGreaterThan(0);
+    expect(syntaxErrors("good.js")).toEqual([]);
+    expect(syntaxErrors("missing.js")).toEqual([]);
+  });
+
   it("keeps two files' top-level names apart, as modules", () => {
     const values = valuesAt('const c = "a";\nuse(c);\n', "c", { "other.ts": 'const c = "b";\n' });
     expect(values).toEqual(['"a"']);
