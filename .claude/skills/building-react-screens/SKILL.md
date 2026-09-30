@@ -108,9 +108,9 @@ Every screen renders each state, and a test reaches each one:
   in the sample), an error in `role="alert"`.
 - **Keyboard:** every action is a native `button` (the primitives are), so Tab reaches it
   and Enter or Space presses it. Never a clickable `div`. The focus ring comes from
-  `base.css`; never remove an outline to tidy a control. An action the user repeats
-  also gets a menu item with a shortcut (`designing-ui` › "Menus and keyboard
-  shortcuts").
+  `base.css`; never remove an outline to tidy a control. Once the app has its own menu,
+  an action the user repeats also gets a menu item with a shortcut there
+  (`designing-ui` › "Menus and keyboard shortcuts"); the sample has none.
 - **Motion:** a transition uses `var(--duration-fast)` or `var(--duration-base)` with
   `var(--easing-standard)`; the tokens become `0ms` under `prefers-reduced-motion:
   reduce`, so the rule holds without code in the component. Nothing is communicated by

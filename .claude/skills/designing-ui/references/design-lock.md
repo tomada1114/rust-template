@@ -80,7 +80,7 @@ first version; a field left out is a gap, listed under Open questions until deci
 | Motion | "Transitions only on state change", or which animations exist and what each says | `--duration-*`, `--easing-standard`; the reduced-motion block |
 | Materials | "None": opaque surfaces from the tokens, or where a translucent window or panel is used and why | the surface tokens; a translucent window is also `transparent` on the window in `src-tauri/tauri.conf.json`, which on macOS needs `app.macOSPrivateApi` and tauri's `macos-private-api` feature, and a private API keeps the app out of the Mac App Store (<https://docs.rs/tauri-utils/2.9.3/tauri_utils/config/struct.WindowConfig.html>, the version `Cargo.lock` pins, checked 2026-09-30). `tauri.conf.json` is a sign-off change (`AGENTS.md` › "Validating a change"), and leaving the App Store is a distribution decision (`AGENTS.md` › "Before changing the architecture") |
 | Window sizing | Default and minimum size; for a menu-bar agent, the panel's fixed size | `app.windows` in `src-tauri/tauri.conf.json` |
-| Menus | The app-specific menus and the shortcuts they carry | the menu built in `src-tauri/src/lib.rs` |
+| Menus | The app-specific menus and the shortcuts they carry | the menu built in `src-tauri/src/lib.rs`, once the app adds one |
 | Copy style | Title or sentence case per element type; the app's voice in one sentence | `ui/src/copy/` |
 | App icon | Who supplies it, or "placeholder until distribution" | `src-tauri/icons/`, `bundle.icon` (`docs/getting-started.md` › "App icon") |
 

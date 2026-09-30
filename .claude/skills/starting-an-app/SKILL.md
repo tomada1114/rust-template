@@ -130,9 +130,14 @@ The counter is a deletable illustration, not the app. The checklist is
 the sample, the `log_from_ui` wiring and tests to keep, and the search that ends it. On
 top of it:
 
-- delete the sentences in the skills under `.agents/skills/` that give the counter as an
-  example (each sits in its own sentence, so deleting it leaves the rule), then run
-  `just agents-sync`;
+- delete or rewrite what the skills under `.agents/skills/` give the counter as an
+  example: the sample appears as its own "In the sample" sentences, parentheticals, code
+  blocks, or a table column (`integrating-system-apis`), each of which can be deleted or
+  rewritten with the app's own names while the rule around it stands. Three files are
+  the sample's worked examples throughout and are rewritten with the app's own first
+  command, use case, and tests rather than deleted:
+  `designing-ipc/references/adding-a-command.md`, `writing-tests/references/patterns.md`,
+  and `tdd/SKILL.md` Steps 1-3. Then run `just agents-sync`;
 - replace the core module and its tests in the same pull request that removes them, so
   the core coverage floor still measures real code.
 

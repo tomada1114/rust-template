@@ -122,9 +122,9 @@ reading the clock is banned, not representing time.
 
 - A domain value is a struct with private fields and a constructor that establishes its
   invariant. A state transition is a method that takes `self` and returns the new value
-  or a typed error — `fn increment(self) -> Result<Self, CounterError>` — never a
-  `&mut self` setter that returns nothing. A rejected transition then leaves nothing
-  half-changed, and a test of it is one `assert_eq!`.
+  or a typed error, never a `&mut self` setter that returns nothing. In the sample,
+  `Counter::increment` takes `self` and returns `Result<Self, CounterError>`. A rejected
+  transition then leaves nothing half-changed, and a test of it is one `assert_eq!`.
 - A use case is a method on a service named for what the user did (`increment`,
   `reset`), not a setter and not a generic `dispatch(action)`: each is typed,
   discoverable, and tested on its own. It runs **load → decide → save**: load the

@@ -412,6 +412,13 @@ writes that skill exists to make, for that invocation only.
   the follow-up issues and comments it files, and removing the branches and worktrees
   it created.
 
+One request is a standing exception too: the human explicitly asking for an issue
+("file an issue for this") is the sign-off for the `gh issue create` of each issue that
+request asks for, with the labels `triaging-issues` gives it, and for comments on those
+issues in the same request. An issue the agent would file from a friction it noticed on
+its own, or from one the human raised without asking for an issue, is drafted in the
+reply and waits for a yes.
+
 None of them covers anything else in the list above: a force push or other history
 rewrite, `--no-verify`, weakening a gate, entitlements or signing, a release tag, a
 new dependency, `just labels`, or `just ruleset`. A skill that reaches one of those

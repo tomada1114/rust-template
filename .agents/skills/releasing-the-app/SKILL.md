@@ -52,7 +52,11 @@ Judge the diff since the last release against what is contract, the table in
 |---|---|
 | A user's data or integration stops working: an on-disk format the new build cannot read, a helper command line or exit code changed incompatibly, a raised `minimumSystemVersion` | MAJOR |
 | A new user-visible capability: a screen, a setting, a helper subcommand, a format version that still reads the old one | MINOR |
-| A fix, a wording change, a dependency bump with no visible change, documentation | PATCH |
+| A fix, a wording change, a runtime dependency bump with no visible change | PATCH |
+
+A change that leaves the shipped `.app` and its helper untouched (documentation, CI,
+tests, repository scripts, skills, a dev-only dependency) has no level and does not call
+for a release on its own (`create-pr` › `references/release-impact.md`).
 
 The level is the highest row any change touches. While the app is below `1.0.0`, a
 MAJOR change ships as a minor bump; its changelog entry says what a user must do and

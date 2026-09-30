@@ -88,12 +88,13 @@ the fake drifting from the real thing.
 ## Asserting errors
 
 - Assert the variant or the code, never the message text: the message is for a
-  developer reading a log, and rewording it must not break a test.
-  Rust: `assert_eq!(service.increment(), Err(CounterError::AtMaximum))`. Command:
-  `Err(json!({ "code": "atMaximum" }))`. UI: `error: { code: "atMaximum" }`. When a
-  variant has no `PartialEq`, use `assert!(matches!(result, Err(Kind::Variant)))`. The
-  exception is a test whose subject is the message, such as proving it carries no user
-  data (`error_messages_carry_no_data` in `crates/myapp-core/tests/serialization.rs`).
+  developer reading a log, and rewording it must not break a test. In the sample, Rust
+  asserts `assert_eq!(service.increment(), Err(CounterError::AtMaximum))`, a command
+  test `Err(json!({ "code": "atMaximum" }))`, and a UI test
+  `error: { code: "atMaximum" }`. When a variant has no `PartialEq`, use
+  `assert!(matches!(result, Err(Kind::Variant)))`. The exception is a test whose
+  subject is the message, such as proving it carries no user data
+  (`error_messages_carry_no_data` in `crates/myapp-core/tests/serialization.rs`).
 - After a rejected change, assert that nothing changed as well: the store still holds
   the old value, and no event was emitted.
 - A command rejects with Rust's plain `{ code }` object, not an `Error`; `rejectWith`
@@ -104,10 +105,10 @@ the fake drifting from the real thing.
 The expected value is a literal worked out by hand, a table pairing each input with
 its answer, or an invariant that holds whatever the input (a save then a load returns
 what went in). Never compute it with the code under test or re-derive it with the
-implementation's formula: `assert_eq!(counter.value(), 99)` catches a bug that
-`assert_eq!(counter.value(), (98 + 1).min(tuning.max))` shares with the code. JSON that
-crosses IPC or reaches disk is pinned with a literal `json!({ … })`, independent of
-serde's derive (`crates/myapp-core/tests/serialization.rs`).
+implementation's formula. In the sample, `assert_eq!(counter.value(), 99)` catches a bug
+that `assert_eq!(counter.value(), (98 + 1).min(tuning.max))` shares with the code. JSON
+that crosses IPC or reaches disk is pinned with a literal `json!({ … })`, independent
+of serde's derive (`crates/myapp-core/tests/serialization.rs`).
 
 ## Edge cases to sweep
 
