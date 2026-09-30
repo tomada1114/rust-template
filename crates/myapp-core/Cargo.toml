@@ -19,5 +19,11 @@ ts-rs = { workspace = true }
 myapp-test-support = { workspace = true }
 serde_json = { workspace = true }
 
+# Compiles ts-rs's `export_bindings_*` tests, which write one `.ts` file per IPC type into
+# `TS_RS_EXPORT_DIR`. Only `just bindings` enables it, so `just test-core`, `test-fast`,
+# and coverage runs never rewrite the tracked `ui/src/ipc/generated/`.
+[features]
+export-bindings = []
+
 [lints]
 workspace = true

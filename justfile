@@ -104,8 +104,7 @@ test-local: sidecar
 
 # Regenerate ui/src/ipc/generated/ from core's ts-rs types (commit the result; CI fails on drift)
 bindings:
-    rm -rf ui/src/ipc/generated
-    cargo test --locked -p myapp-core --lib export_bindings --quiet
+    node scripts/bindings.ts
 
 # Build the myapp-cli helper into src-tauri/binaries/ (Tauri's externalBin needs it before the Tauri crate compiles)
 sidecar *args:

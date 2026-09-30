@@ -26,7 +26,9 @@ Silicon graph only.
 bundle only, never a disk image: Tauri's disk-image step drives Finder through
 AppleScript unless `CI=true`
 (<https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-bundler/src/bundle/macos/dmg/mod.rs>,
-checked 2026-09-28), so only the release workflow on a CI runner builds one. Every
+checked 2026-09-28), so only the release workflow on a CI runner builds one.
+`tauri.conf.json`'s `bundle.targets` is `["app"]`, so a plain `pnpm tauri build` makes
+no disk image either; the release workflow asks for one with `--bundles app,dmg`. Every
 building recipe unsets the `APPLE_*` variables, so a local build is always ad-hoc signed
 and never signs as a developer or contacts Apple.
 

@@ -68,7 +68,7 @@ An error the UI receives derives `Serialize` and `ts_rs::TS` and is internally t
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, Serialize, TS)]
 #[serde(tag = "code", rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub enum CounterError { /* in the sample: AtMaximum, AtMinimum, Storage { kind } */ }
 ```
 
