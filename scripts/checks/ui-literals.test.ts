@@ -320,6 +320,25 @@ describe("ui-literals", () => {
       expect(violations[0]?.summary).toMatch(/^ui\/src\/counter\/Extra\.tsx:2: /);
     });
 
+    it.each([
+      ["an href fragment", '<a href="#add">x</a>'],
+      ["another href fragment", '<a href="#face">x</a>'],
+      ["an href fragment in braces", '<a href={"#decade"}>x</a>'],
+      ["an aria-controls id", '<button aria-controls="#bead">x</button>'],
+    ])("does not flag %s as a color", (_label, jsx) => {
+      const source = `export const L = () => (\n  ${jsx}\n);\n`;
+      expect(check.run(rootWith("ui/src/counter/Link.tsx", source))).toEqual([]);
+    });
+
+    it.each([
+      ["a style color", '<p style={{ color: "#add" }} />'],
+      ["a fill", '<svg fill="#add" />'],
+      ["a const read as a color", '<a href="#add">{(() => { const c = "#add"; return c; })()}</a>'],
+    ])("still flags a hex-looking %s", (_label, jsx) => {
+      const source = `export const L = () => (\n  ${jsx}\n);\n`;
+      expect(codes(check.run(rootWith("ui/src/counter/Link.tsx", source)))).toEqual([RAW]);
+    });
+
     it.each([["extra.js"], ["extra.jsx"], ["extra.mjs"], ["extra.mts"]])("reads %s", (name) => {
       const violations = check.run(
         rootWith(`ui/src/counter/${name}`, 'const s = { color: "#fff" };\n'),
