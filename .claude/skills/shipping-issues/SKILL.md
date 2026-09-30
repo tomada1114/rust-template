@@ -69,7 +69,8 @@ Spawn by `subagent_type` (`executor`, `architect`, or `worker`, as
 [cost-discipline.md](references/cost-discipline.md) assigns each step), never a bare
 `model`, with the prompts in [delegation-templates.md](references/delegation-templates.md).
 A resume goes to the same agent by `SendMessage` while it is reachable. Codex CLI has
-neither ([delegation-templates.md](references/delegation-templates.md) cites why): run each such step inline with the same prompt as its brief.
+neither ([delegation-templates.md](references/delegation-templates.md) cites why): run
+each such step inline with the same prompt as its brief.
 
 Everything the run generates lives under `<runstate>`, never in a checkout; record
 events as they happen with `run_record.py` ([run-record.md](references/run-record.md)).
