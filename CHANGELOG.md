@@ -112,6 +112,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`ERR_CHECK_LABEL_TYPE_UNMAPPED`). `core-boundary` walks build-dependency edges as
   well as normal ones.
 
+- `ruleset-contexts` matches a required context against the exact names a job reports
+  instead of treating an expression in its name as a wildcard: a literal
+  `strategy.matrix` is expanded as GitHub does (`include` and `exclude` too, up to its
+  limit of 256 jobs), so a context such as `Analyze (python)` fails once the matrix no
+  longer lists `python`. A name made only of an expression, such as `${{ matrix.os }}`,
+  which used to match nothing, now matches each value of a literal matrix. A name it
+  cannot know from the files — an expression that is not fixed on a pull request, a
+  matrix computed at run time, a matrix job whose name has expressions but none that
+  reads `matrix`, a null or mapping among the appended matrix values — matches nothing,
+  and the failure names it with the edit that would make it known. A job that calls a
+  reusable workflow as `./.github/workflows/<file>.yml` now reports
+  `<caller> / <called job>`, up to GitHub's ten levels of workflows, and counts only when
+  both jobs run on every pull request; a workflow in another repository or any other path
+  form fails closed.
+
 - `ipc-names` and `ui-literals` catch the common spellings of what they ban.
   `ipc-names` compares the calls of Tauri's `invoke`, `listen`, and `once` (found by
   their `@tauri-apps/*` import, aliases and namespace imports included) in every file
