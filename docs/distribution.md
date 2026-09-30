@@ -121,10 +121,11 @@ A repository admin applies these once. Each is a remote write that needs sign-of
 
    ```bash
    REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+   DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
    gh api --method PUT "repos/$REPO/environments/release" --input - <<'JSON'
    {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
    JSON
-   gh api --method POST "repos/$REPO/environments/release/deployment-branch-policies" -f name=main -f type=branch
+   gh api --method POST "repos/$REPO/environments/release/deployment-branch-policies" -f name="$DEFAULT_BRANCH" -f type=branch
    gh api --method POST "repos/$REPO/environments/release/deployment-branch-policies" -f name='v*' -f type=tag
    ```
 
