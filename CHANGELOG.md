@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code of conduct, architecture, distribution and signing, and getting-started guides, an
   empty architecture-decision index with its template, a roadmap skeleton, issue forms,
   and a pull request template.
+- `just verify-bootstrap` runs `scripts/verify-bootstrap.ts` locally, so a placeholder
+  spelling or template-only text the bootstrap would leave behind fails before the push
+  rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
+  names it for a new file or placeholder spelling. The recipe and that row are
+  template-only: the bootstrap removes both.
 
 ### Changed
 
