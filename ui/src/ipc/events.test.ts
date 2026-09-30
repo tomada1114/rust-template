@@ -12,9 +12,9 @@ describe("onCounterChanged", () => {
     mockCommands({});
     const seen: unknown[] = [];
     const unlisten = await onCounterChanged((view) => seen.push(view));
-    await emitEvent("counter-changed", { value: 4, lastChangedAt: 9 });
+    await emitEvent("counter-changed", { value: 4, lastChangedAt: 9, revision: 1 });
     unlisten();
-    await emitEvent("counter-changed", { value: 5, lastChangedAt: 10 });
-    expect(seen).toEqual([{ value: 4, lastChangedAt: 9 }]);
+    await emitEvent("counter-changed", { value: 5, lastChangedAt: 10, revision: 2 });
+    expect(seen).toEqual([{ value: 4, lastChangedAt: 9, revision: 1 }]);
   });
 });

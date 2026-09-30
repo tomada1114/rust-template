@@ -1,6 +1,7 @@
 //! `CounterService` against the fakes: every use case, both bounds, and every storage
 //! failure. The expected values are written out, not computed with core's own code.
 
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use myapp_core::{
@@ -26,7 +27,8 @@ fn a_fresh_counter_shows_the_minimum_and_no_change_time() {
         service.view(),
         Ok(CounterView {
             value: 0,
-            last_changed_at: None
+            last_changed_at: None,
+            revision: 0
         })
     );
 }
@@ -42,7 +44,8 @@ fn view_shows_the_saved_counter() {
         service.view(),
         Ok(CounterView {
             value: 1,
-            last_changed_at: Some(UnixMillis(5))
+            last_changed_at: Some(UnixMillis(5)),
+            revision: 0
         })
     );
 }
@@ -65,7 +68,8 @@ fn increment_saves_the_new_value_with_the_clock_time() {
         service.increment(),
         Ok(CounterView {
             value: 1,
-            last_changed_at: Some(T0)
+            last_changed_at: Some(T0),
+            revision: 1
         })
     );
     assert_eq!(
@@ -112,7 +116,8 @@ fn decrement_saves_the_new_value() {
         service.decrement(),
         Ok(CounterView {
             value: 1,
-            last_changed_at: Some(T0)
+            last_changed_at: Some(T0),
+            revision: 1
         })
     );
     assert_eq!(
@@ -143,7 +148,8 @@ fn reset_saves_the_minimum_with_the_clock_time() {
         service.reset(),
         Ok(CounterView {
             value: 0,
-            last_changed_at: Some(T0)
+            last_changed_at: Some(T0),
+            revision: 1
         })
     );
     assert_eq!(
@@ -156,7 +162,88 @@ fn reset_saves_the_minimum_with_the_clock_time() {
 }
 
 #[test]
-fn a_failed_load_is_a_storage_error_for_every_use_case() {
+fn each_saved_change_raises_the_revision_by_one() {
+    let service = service_over(Arc::default(), Arc::default());
+    assert_eq!(service.increment().map(|v| v.revision), Ok(1));
+    assert_eq!(service.decrement().map(|v| v.revision), Ok(2));
+    assert_eq!(service.reset().map(|v| v.revision), Ok(3));
+    assert_eq!(service.view().map(|v| v.revision), Ok(3));
+}
+
+#[test]
+fn a_rejected_change_keeps_the_revision() {
+    let service = service_over(Arc::default(), Arc::default());
+    assert_eq!(service.increment().map(|v| v.revision), Ok(1));
+    assert_eq!(service.increment().map(|v| v.revision), Ok(2));
+    assert_eq!(service.increment(), Err(CounterError::AtMaximum));
+    assert_eq!(service.view().map(|v| v.revision), Ok(2));
+}
+
+#[test]
+fn a_failed_save_keeps_the_revision() {
+    let service = CounterService::new(
+        Arc::new(FailingCounterStore::save_fails(
+            StorageErrorKind::Unavailable,
+            Some(StoredCounter {
+                value: 1,
+                last_changed_at: None,
+            }),
+        )),
+        Arc::new(FixedClock::default()),
+        TUNING,
+    );
+    assert!(service.increment().is_err());
+    assert!(service.decrement().is_err());
+    assert!(service.reset().is_err());
+    assert_eq!(service.view().map(|v| v.revision), Ok(0));
+}
+
+#[test]
+fn reset_replaces_a_counter_the_store_cannot_read() {
+    for kind in [StorageErrorKind::Corrupt, StorageErrorKind::Unavailable] {
+        let store = Arc::new(FailingCounterStore::load_fails(kind));
+        let service = CounterService::new(store.clone(), Arc::new(FixedClock::default()), TUNING);
+        assert_eq!(
+            service.reset(),
+            Ok(CounterView {
+                value: 0,
+                last_changed_at: Some(T0),
+                revision: 1
+            }),
+            "{kind:?}"
+        );
+        assert_eq!(
+            store.saved(),
+            Some(StoredCounter {
+                value: 0,
+                last_changed_at: Some(T0)
+            }),
+            "{kind:?}"
+        );
+    }
+}
+
+#[test]
+fn reset_over_an_unreadable_counter_reports_a_failed_save() {
+    let mut store = FailingCounterStore::load_fails(StorageErrorKind::Corrupt);
+    store.save_fails_with = Some(StorageErrorKind::Unavailable);
+    let service = CounterService::new(Arc::new(store), Arc::new(FixedClock::default()), TUNING);
+    assert_eq!(
+        service.reset(),
+        Err(CounterError::Storage {
+            kind: StorageErrorKind::Unavailable
+        })
+    );
+    assert_eq!(
+        service.view(),
+        Err(CounterError::Storage {
+            kind: StorageErrorKind::Corrupt
+        })
+    );
+}
+
+#[test]
+fn a_failed_load_is_a_storage_error_for_view_increment_and_decrement() {
     let service = CounterService::new(
         Arc::new(FailingCounterStore::load_fails(StorageErrorKind::Corrupt)),
         Arc::new(FixedClock::default()),
@@ -167,8 +254,7 @@ fn a_failed_load_is_a_storage_error_for_every_use_case() {
     });
     assert_eq!(service.view(), expected.clone());
     assert_eq!(service.increment(), expected.clone());
-    assert_eq!(service.decrement(), expected.clone());
-    assert_eq!(service.reset(), expected);
+    assert_eq!(service.decrement(), expected);
 }
 
 #[test]
@@ -199,18 +285,26 @@ fn concurrent_increments_lose_no_update() {
         Arc::new(FixedClock::default()),
         Tuning::new(0, 1_000).unwrap(),
     );
-    // The scope joins all eight threads before it returns, and panics if any of them
-    // panicked, so the assertion below sees every increment.
-    std::thread::scope(|scope| {
-        for _ in 0..8 {
-            scope.spawn(|| {
-                for _ in 0..25 {
-                    service.increment().unwrap();
-                }
-            });
-        }
+    // Every worker is joined before the scope returns, so the assertions below see
+    // every increment.
+    let revisions: BTreeSet<u64> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..8)
+            .map(|_| {
+                scope.spawn(|| {
+                    (0..25)
+                        .map(|_| service.increment().unwrap().revision)
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|worker| worker.join().unwrap())
+            .collect()
     });
     assert_eq!(store.saved().map(|s| s.value), Some(200));
+    assert_eq!(revisions, (1..=200).collect::<BTreeSet<u64>>());
+    assert_eq!(service.view().map(|v| v.revision), Ok(200));
 }
 
 /// A store that records which of its methods the service called. Its `update` hands the
@@ -255,13 +349,13 @@ impl CounterStore for RecordingStore {
 }
 
 #[test]
-fn every_change_is_one_store_update_so_another_process_cannot_interleave() {
+fn increment_and_decrement_are_one_store_update_and_reset_is_one_save() {
     let store = Arc::new(RecordingStore::default());
     let service = CounterService::new(store.clone(), Arc::new(FixedClock::default()), TUNING);
     assert_eq!(service.increment().map(|v| v.value), Ok(1));
     assert_eq!(service.decrement(), Err(CounterError::AtMinimum));
     assert_eq!(service.reset().map(|v| v.value), Ok(0));
-    assert_eq!(*store.calls.lock().unwrap(), ["update"; 3]);
+    assert_eq!(*store.calls.lock().unwrap(), ["update", "update", "save"]);
 }
 
 #[test]

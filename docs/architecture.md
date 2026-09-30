@@ -110,9 +110,12 @@ as `number`). CI regenerates and fails on a diff. A harness check compares the n
 `events.ts` listens to.
 
 A command decides nothing: it moves the work to a blocking thread, calls core, emits
-`counter-changed` after a change, and logs one line. The shell watches nothing in the
-sample; a change made by the helper CLI reaches an open window when the window next
-loads or changes the counter (every command reads the file before it decides). An app
+`counter-changed` after a change, in the order the changes were saved, and logs one
+line. `revision` counts the changes this app process has saved; the UI subscribes
+before it loads and keeps the view with the highest revision. The shell watches nothing
+in the sample; a change made by the helper CLI reaches an open window when the window
+next loads or changes the counter (every command returns what the file holds once it
+has run). An app
 that needs to reflect outside changes live adds a file watcher in `myapp-platform`,
 behind a port whose callback the shell turns into the same event.
 
@@ -230,7 +233,7 @@ launchd job, or the user. These are contract; everything else is private.
 |---|---|---|
 | **Core's public API** — every `pub` item re-exported from `crates/myapp-core/src/lib.rs` (`Counter`, `CounterService`, `CounterView`, `CounterError`, `CounterStore`, `StoredCounter`, `StorageError`, `StorageErrorKind`, `Tuning`, `TuningError`, `Clock`, `UnixMillis`, `UiLogEntry`, `UiLogLevel`) | `myapp-platform`, `myapp-test-support`, `myapp-cli`, the shell, and their tests | Update every caller in the same pull request; the compiler finds them. A new port is an ADR. |
 | **The bundle identifier** — `com.example.myapp`: `identifier` in `src-tauri/tauri.conf.json`, `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the justfile, and `scripts/smoke.ts` | Everything macOS keys by it on a user's Mac: the data directory `~/Library/Application Support/com.example.myapp/`, the log directory `~/Library/Logs/com.example.myapp/`, and privacy (TCC) grants | Fixed once a build has left your machine: a new identifier is a new app to macOS, and the user's data and grants stay behind under the old one. Changing it is a human's decision, recorded as an ADR; the bootstrap sets it once. |
-| **IPC command and event names, and their payloads** — commands `get_counter`, `increment`, `decrement`, `reset`, `log_from_ui`; event `counter-changed`; the JSON shapes of `CounterView` (`{ value, lastChangedAt }`), `CounterError`'s codes, and `UiLogEntry` (`{ level: "warn" \| "error", message }`) | The UI, which is built separately from the Rust side | Change both sides in one pull request; `just bindings`, the harness check, and the command tests catch a mismatch. |
+| **IPC command and event names, and their payloads** — commands `get_counter`, `increment`, `decrement`, `reset`, `log_from_ui`; event `counter-changed`; the JSON shapes of `CounterView` (`{ value, lastChangedAt, revision }`), `CounterError`'s codes, and `UiLogEntry` (`{ level: "warn" \| "error", message }`) | The UI, which is built separately from the Rust side | Change both sides in one pull request; `just bindings`, the harness check, and the command tests catch a mismatch. |
 | **On-disk file formats** — see below | Files already on a user's disk; `just logs`, `just smoke`, and anyone reading the logs | A new version still reads the old format: a format version and a migration, with a test that reads a sample of the previous format. |
 | **The helper's command line** — `myapp-cli counter show`, `myapp-cli counter increment`, `--help`, `--version`, and the exit codes (0 success, 1 the action failed, 2 a usage error) | A launchd job or script that runs the bundled helper | Keep the old form working, or treat the change as breaking and say so in `CHANGELOG.md`. |
 
@@ -255,12 +258,13 @@ A save writes a temporary file named for its process and that save
 the old file, and syncs the directory, so a crash or a concurrent save leaves the old
 file or the new one, never half of each. Every save holds an advisory lock
 (`std::fs::File::lock`) on `counter.json.lock` beside it, which is created once, stays
-empty, and is never removed; a change (`CounterStore::update`) holds it from the load
-to the save, so when the app and the helper change the counter at once, neither change
+empty, and is never removed; an increment or decrement (`CounterStore::update`) holds it
+from the load to the save, so when the app and the helper change the counter at once, neither change
 is lost. A load takes no lock. A save removes temporary files a crashed save left,
 including the fixed `counter.json.tmp` of earlier builds. A missing file is a
-fresh counter; an unreadable file or an unknown `version` is a `corrupt` storage error,
-never silently replaced. A field is added with `#[serde(default)]`; renaming or removing
+fresh counter; an unreadable file or an unknown `version` is a `corrupt` storage error:
+`get_counter`, `increment` and `decrement` fail and leave it untouched, and only `reset`
+— the user's explicit request to start over — replaces it. A field is added with `#[serde(default)]`; renaming or removing
 one bumps `version`, and the reader keeps accepting the old version.
 
 **Log files**: `myapp.YYYY-MM-DD.log` from the app in `~/Library/Logs/com.example.myapp/`,

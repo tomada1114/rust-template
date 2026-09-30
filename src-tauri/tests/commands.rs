@@ -45,16 +45,17 @@ fn app_holding(value: Option<i64>) -> (App<MockRuntime>, WebviewWindow<MockRunti
 }
 
 fn app_over(store: Arc<dyn CounterStore>) -> (App<MockRuntime>, WebviewWindow<MockRuntime>) {
-    let service = CounterService::new(
-        store,
-        Arc::new(FixedClock::default()),
-        must(Tuning::new(0, 2), "0 to 2 is a valid range"),
-    );
+    app_with(store, must(Tuning::new(0, 2), "0 to 2 is a valid range"))
+}
+
+fn app_with(
+    store: Arc<dyn CounterStore>,
+    tuning: Tuning,
+) -> (App<MockRuntime>, WebviewWindow<MockRuntime>) {
+    let service = CounterService::new(store, Arc::new(FixedClock::default()), tuning);
     let app = must(
         with_commands(mock_builder())
-            .manage(AppState {
-                counter: Arc::new(service),
-            })
+            .manage(AppState::new(Arc::new(service)))
             .build(mock_context(noop_assets())),
         "the mock app builds",
     );
@@ -117,7 +118,7 @@ fn get_counter_returns_the_view_as_camel_case_json_and_emits_nothing() {
     let events = record_events(&app);
     assert_eq!(
         invoke(&window, "get_counter", json!({})),
-        Ok(json!({ "value": 1, "lastChangedAt": null }))
+        Ok(json!({ "value": 1, "lastChangedAt": null, "revision": 0 }))
     );
     assert!(
         nothing_emitted(&events),
@@ -129,7 +130,7 @@ fn get_counter_returns_the_view_as_camel_case_json_and_emits_nothing() {
 fn increment_returns_the_new_view_and_emits_counter_changed() {
     let (app, window) = app_holding(None);
     let events = record_events(&app);
-    let expected = json!({ "value": 1, "lastChangedAt": T0 });
+    let expected = json!({ "value": 1, "lastChangedAt": T0, "revision": 1 });
     assert_eq!(
         invoke(&window, "increment", json!({})),
         Ok(expected.clone())
@@ -141,7 +142,7 @@ fn increment_returns_the_new_view_and_emits_counter_changed() {
 fn decrement_returns_the_new_view_and_emits_counter_changed() {
     let (app, window) = app_holding(Some(2));
     let events = record_events(&app);
-    let expected = json!({ "value": 1, "lastChangedAt": T0 });
+    let expected = json!({ "value": 1, "lastChangedAt": T0, "revision": 1 });
     assert_eq!(
         invoke(&window, "decrement", json!({})),
         Ok(expected.clone())
@@ -153,7 +154,7 @@ fn decrement_returns_the_new_view_and_emits_counter_changed() {
 fn reset_returns_the_new_view_and_emits_counter_changed() {
     let (app, window) = app_holding(Some(2));
     let events = record_events(&app);
-    let expected = json!({ "value": 0, "lastChangedAt": T0 });
+    let expected = json!({ "value": 0, "lastChangedAt": T0, "revision": 1 });
     assert_eq!(invoke(&window, "reset", json!({})), Ok(expected.clone()));
     assert_eq!(events.recv_timeout(Duration::from_secs(5)), Ok(expected));
 }
@@ -179,12 +180,12 @@ fn decrement_at_the_minimum_rejects_with_a_code() {
 }
 
 #[test]
-fn a_store_that_cannot_load_rejects_every_command_with_the_storage_code() {
+fn a_store_that_cannot_load_rejects_reading_and_stepping_with_the_storage_code() {
     let (app, window) = app_over(Arc::new(FailingCounterStore::load_fails(
         StorageErrorKind::Corrupt,
     )));
     let events = record_events(&app);
-    for cmd in ["get_counter", "increment", "decrement", "reset"] {
+    for cmd in ["get_counter", "increment", "decrement"] {
         assert_eq!(
             invoke(&window, cmd, json!({})),
             Err(json!({ "code": "storage", "kind": "corrupt" })),
@@ -192,6 +193,55 @@ fn a_store_that_cannot_load_rejects_every_command_with_the_storage_code() {
         );
     }
     assert!(nothing_emitted(&events), "no event for a failed change");
+}
+
+#[test]
+fn reset_replaces_an_unreadable_counter_and_emits() {
+    let (app, window) = app_over(Arc::new(FailingCounterStore::load_fails(
+        StorageErrorKind::Corrupt,
+    )));
+    let events = record_events(&app);
+    assert_eq!(
+        invoke(&window, "get_counter", json!({})),
+        Err(json!({ "code": "storage", "kind": "corrupt" }))
+    );
+    let expected = json!({ "value": 0, "lastChangedAt": T0, "revision": 1 });
+    assert_eq!(invoke(&window, "reset", json!({})), Ok(expected.clone()));
+    assert_eq!(events.recv_timeout(Duration::from_secs(5)), Ok(expected));
+    assert!(nothing_emitted(&events), "one event for one reset");
+}
+
+#[test]
+fn concurrent_increments_emit_in_the_order_they_were_saved() {
+    let (app, window) = app_with(
+        Arc::new(InMemoryCounterStore::default()),
+        must(Tuning::new(0, 1_000), "0 to 1000 is a valid range"),
+    );
+    let events = record_events(&app);
+    std::thread::scope(|scope| {
+        for _ in 0..2 {
+            let window = window.clone();
+            scope.spawn(move || {
+                for _ in 0..25 {
+                    assert!(invoke(&window, "increment", json!({})).is_ok());
+                }
+            });
+        }
+    });
+    let received: Vec<Value> = (0..50)
+        .map(|_| {
+            must(
+                events.recv_timeout(Duration::from_secs(5)),
+                "an event arrives",
+            )
+        })
+        .collect();
+    let field = |name: &str| -> Vec<Option<u64>> {
+        received.iter().map(|event| event[name].as_u64()).collect()
+    };
+    let one_to_fifty: Vec<Option<u64>> = (1..=50).map(Some).collect();
+    assert_eq!(field("revision"), one_to_fifty, "revisions in save order");
+    assert_eq!(field("value"), one_to_fifty, "values in save order");
 }
 
 #[test]

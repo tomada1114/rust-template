@@ -47,13 +47,11 @@ pub enum StartupError {
 
 /// The real wiring: the JSON file store under the app data directory, the system clock.
 fn build_state(home: &Path) -> AppState {
-    AppState {
-        counter: Arc::new(CounterService::new(
-            Arc::new(JsonFileCounterStore::new(counter_file(home))),
-            Arc::new(SystemClock),
-            Tuning::default(),
-        )),
-    }
+    AppState::new(Arc::new(CounterService::new(
+        Arc::new(JsonFileCounterStore::new(counter_file(home))),
+        Arc::new(SystemClock),
+        Tuning::default(),
+    )))
 }
 
 /// Register every command. Shared by `run()` and the command tests, so the tests

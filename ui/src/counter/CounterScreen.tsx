@@ -11,7 +11,7 @@ import { Button, IconButton, Panel, Stack, Text } from "../design";
 import { useCounter } from "./useCounter";
 
 export function CounterScreen() {
-  const { state, increment, decrement, reset } = useCounter();
+  const { state, increment, decrement, reset, retry } = useCounter();
   const titleId = useId();
 
   return (
@@ -24,11 +24,21 @@ export function CounterScreen() {
             </Text>
             {state.status === "loading" && <Text variant="secondary">{counterCopy.loading}</Text>}
             {state.status === "failed" && (
-              <Text variant="danger" role="alert">
-                {state.error === "unexpected"
-                  ? counterCopy.loadFailed
-                  : describeCounterError(state.error)}
-              </Text>
+              <>
+                <Text variant="danger" role="alert">
+                  {state.error === "unexpected"
+                    ? counterCopy.loadFailed
+                    : describeCounterError(state.error)}
+                </Text>
+                <Stack direction="row" gap="s" align="center">
+                  <Button onClick={retry}>{counterCopy.retry}</Button>
+                  {state.error !== "unexpected" &&
+                    state.error.code === "storage" &&
+                    state.error.kind === "corrupt" && (
+                      <Button onClick={() => void reset()}>{counterCopy.reset}</Button>
+                    )}
+                </Stack>
+              </>
             )}
             {state.status === "ready" && (
               <>
