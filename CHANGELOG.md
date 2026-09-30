@@ -239,6 +239,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- The pre-commit hook no longer skips the commit that concludes a conflicted merge, or
+  one made at a rebase stop: the staged guard and the skills-mirror check now judge the
+  conflict resolution, so a credential-shaped line or a drifted `.claude/skills/` staged
+  while resolving is refused. Only the style checks, which CI reruns, still skip those
+  commits. A `reword` or a `git commit --amend` at an `edit` stop in an interactive
+  rebase now runs the guard and the mirror too, over what is staged at that stop. During
+  a merge the guard's advice is to remove the secret and re-stage the file, since
+  `git restore --staged` would also drop the other side's change.
+  `git rebase --continue`, `git am`, and a merge git concludes itself commit without the
+  hook, and `AGENTS.md` lists them among the gaps.
+
 - The staged guard catches this template's own signing secrets it used to miss: an
   `APPLE_PASSWORD`, `APPLE_CERTIFICATE_PASSWORD`, or other `*_password` assignment, a
   JSON `"password"` value, a base64 `.p12` such as `APPLE_CERTIFICATE`, a PGP private key
