@@ -72,3 +72,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   JSON `"password"` value, a base64 `.p12` such as `APPLE_CERTIFICATE`, a PGP private key
   block, and a Slack webhook URL. An `.npmrc` `_authToken=${NPM_TOKEN}` reference is no
   longer refused.
+
+- `.claude/settings.json` refuses more ways to skip the pre-commit hook on Claude Code:
+  `git commit --no-veri` and the other abbreviations of `--no-verify`, a `LEFTHOOK=`,
+  `LEFTHOOK_EXCLUDE=`, `LEFTHOOK_BIN=`, or `LEFTHOOK_CONFIG=` assignment, and
+  `core.hooksPath` set through `git -c`, `git --config-env`, or `git config`. It also
+  refuses a second `-X`/`--method` after an allowed `gh api -X GET`, which sent the
+  request with the second verb, and `--web`/`-w` on the allowed `gh` reads, which opened
+  a browser without a prompt. A new harness check fails when `allow` admits a recipe
+  that opens the app, needs a human, or writes beyond the working tree, and
+  `AGENTS.md` names the hook bypasses and lefthook's fail-open hook among the gaps.
