@@ -11,7 +11,7 @@ user sees when they open it, and how to verify one.
 |---|---|---|
 | Architecture | Apple Silicon only, `aarch64-apple-darwin` | `rust-toolchain.toml`'s `targets`; the release builds with `--target aarch64-apple-darwin` |
 | macOS floor | 14.0 | `bundle.macOS.minimumSystemVersion` in `src-tauri/tauri.conf.json` |
-| Signing identity | `"-"` (ad hoc) unless Developer ID secrets exist | `bundle.macOS.signingIdentity` |
+| Signing identity | `"-"` (ad hoc) unless the six Apple secrets exist | `bundle.macOS.signingIdentity` |
 | Hardened runtime | on | `bundle.macOS.hardenedRuntime` |
 | Entitlements | `src-tauri/Entitlements.plist` (empty in the template) | `bundle.macOS.entitlements` |
 | Bundled helper | `Contents/MacOS/myapp-cli` | `bundle.externalBin` |
@@ -50,16 +50,21 @@ signing pass.
 1. **Trigger.** Pushing a `v*` tag (a human act), or running the workflow by hand with
    `dry_run: true`, which builds and uploads the `.dmg` as a workflow artifact without
    creating a release.
-2. **Version check.** The tag must equal the version in `Cargo.toml`
-   (`[workspace.package]`), `src-tauri/tauri.conf.json`, and `package.json`;
-   otherwise the job fails.
+2. **Preflight.** The `preflight` job, on a Linux runner, checks that a tag equals
+   `package.json`'s version before any dependency is installed or any test runs, then
+   that the version in `Cargo.toml` (`[workspace.package]`), `src-tauri/tauri.conf.json`,
+   and `package.json` agree; otherwise the run fails within a minute or two. A dry run
+   from a branch skips the tag comparison, not the version sites.
 3. **Tests.** The core and UI tests run again: nothing unverified ships.
-4. **Build.** `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg --
+4. **Secrets check.** The release job's first step, before anything is checked out,
+   fails unless the six `APPLE_*` secrets are all set or all absent (see
+   [The two signing paths](#the-two-signing-paths)).
+5. **Build.** `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg --
    --locked` (the `--locked` goes to cargo), signed as described below. Rust's build
    cache is not used on this path.
-5. **Verify** the built app before anything is uploaded (see
+6. **Verify** the built app before anything is uploaded (see
    [Verifying a build](#verifying-a-build)).
-6. **Publish.** A `SHA256SUMS` file, a build-provenance attestation
+7. **Publish.** A `SHA256SUMS` file, a build-provenance attestation
    (`actions/attest-build-provenance`), and `gh release create` with the `.dmg`; the
    release notes come from the categories in `.github/release.yml`.
 
@@ -106,12 +111,22 @@ step never runs on this path.
 
 ### Developer ID, notarized
 
-When the `APPLE_CERTIFICATE` secret exists, the release job imports the certificate into
-a temporary keychain and passes `APPLE_SIGNING_IDENTITY` to Tauri, which signs with it
-instead of ad hoc. When the notarization secrets exist too, Tauri submits the signed app
-to Apple's notary service and staples the ticket. Each step is skipped by an `if:` on a
-step-level check of its secrets — never by `continue-on-error` — so a missing secret
-means a clearly ad-hoc release, not a silently failed signing step.
+When all six secrets below exist, the release job imports the certificate into a
+temporary keychain, checks that `security find-identity -v -p codesigning` lists
+`APPLE_SIGNING_IDENTITY` there, and passes that identity to Tauri, which signs with it
+instead of ad hoc; Tauri then submits the signed app to Apple's notary service and
+staples the ticket. A step that runs only on this path is skipped by an `if:` on a
+job-level flag, never by `continue-on-error`, and a step that runs whether the build
+passed, failed, or was cancelled (`if: always()`) deletes the keychain after the build.
+
+The secrets are all or nothing. When some but not all of the six are set, the release
+job's first step fails and names the ones that are missing, so a forgotten secret never
+yields a silently ad-hoc build. That includes the Developer ID three without the
+notarization three: signing without notarizing is not offered, because Gatekeeper's
+check (`spctl --assess`, the last verification step) rejects a Developer ID app that is
+not notarized, and a downloaded copy is then blocked just as an ad-hoc one is. A
+certificate or identity that does not match fails at the `find-identity` check, before
+the build rather than inside it.
 
 | Secret | What it is |
 |---|---|
@@ -164,8 +179,10 @@ APP="target/aarch64-apple-darwin/release/bundle/macos/MyApp.app"
 # 1. The signature is valid, for the app and everything nested in it.
 codesign --verify --deep --strict "$APP"
 
-# 2. The entitlements the app carries equal src-tauri/Entitlements.plist.
-codesign -d --entitlements - --xml "$APP"
+# 2. The entitlements the app carries equal src-tauri/Entitlements.plist: the same keys
+#    with the same values. smoke.ts parses both with plutil and compares the dictionaries.
+codesign -d --entitlements - --xml "$APP" | plutil -convert json -o - -
+plutil -convert json -o - src-tauri/Entitlements.plist
 
 # 3. The bundled helper is signed and runs.
 codesign --verify --strict "$APP/Contents/MacOS/myapp-cli"
@@ -174,7 +191,8 @@ codesign --verify --strict "$APP/Contents/MacOS/myapp-cli"
 # 4. The launch smoke: the app starts windowless, logs `startup complete`, and exits 0.
 node scripts/smoke.ts --app "$APP"
 
-# 5. Developer ID builds only: Gatekeeper accepts it (an ad-hoc build is rejected here).
+# 5. Developer ID builds only, which are always notarized: Gatekeeper accepts it (an
+#    ad-hoc build, or a Developer ID one that is not notarized, is rejected here).
 spctl --assess --type execute --verbose "$APP"
 ```
 

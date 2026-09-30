@@ -52,6 +52,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The release workflow fails early and explicitly instead of late or silently. The
+  six `APPLE_*` secrets must be all set (Developer ID signed and notarized) or all absent
+  (ad hoc): a partial set, including signing without notarizing, which Gatekeeper's
+  `spctl` check always rejected, now fails the release job's first step with the missing
+  names instead of publishing an ad-hoc dmg. After importing the certificate the job
+  checks that `security find-identity` lists `APPLE_SIGNING_IDENTITY`, and deletes the
+  temporary keychain in an `if: always()` step. A new `preflight` job checks the tag
+  against the version before `pnpm install` and the test job. `just smoke` and the
+  release's verification compare the app's entitlements with
+  `src-tauri/Entitlements.plist` value for value (parsed by `plutil`), so a value flipped
+  from `<false/>` to `<true/>` no longer passes.
 - `ruleset-contexts` judges workflows' `pull_request` branch filters against the branches
   the ruleset really gates instead of always against `main`. `~DEFAULT_BRANCH` is the one
   branch `.github/workflows/ci.yml`'s `on: push: branches:` names literally (patterns
