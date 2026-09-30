@@ -2,16 +2,19 @@ name: Release
 
 # Builds, verifies, and publishes the app's .dmg (docs/distribution.md).
 #
+# Four jobs, so no job that runs cargo, pnpm, or mise holds a write scope or id-token:
+# preflight (read-only: the tag names the version and is on the default branch; the
+# version sites agree) → test → build (read-only, in the `release` environment that
+# holds the Apple secrets) → publish (the write scopes; downloads the verified dmg,
+# attests it, creates the release, and checks out nothing).
+#
 # - A `v*` tag push (a human act) publishes a GitHub Release.
 # - `workflow_dispatch` with `dry_run: true` (the default) runs every step up to the
 #   upload and keeps the .dmg as a workflow artifact, creating no release — the way to
 #   prove the pipeline without a tag.
 #
-# Order: `preflight` checks the tag against the version before anything is installed,
-# `test` re-runs the tests, and `release` builds, verifies, and publishes.
-#
 # Signing: ad hoc when none of the six APPLE_* secrets exists; Developer ID signed,
-# notarized, and stapled when all six do. Any other combination fails the release job's
+# notarized, and stapled when all six do. Any other combination fails the build job's
 # first step, so a missing secret never yields a silently ad-hoc or un-notarized build.
 # Nothing on this path is cached (zizmor's cache-poisoning finding).
 
@@ -44,17 +47,19 @@ env:
 
 jobs:
   preflight:
-    name: Check the tag and the version sites
+    name: Preflight — the ref may release
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: read # read the history to check the tag is on the default branch
     outputs:
-      version: ${{ steps.tag.outputs.version }}
+      version: ${{ steps.ref.outputs.version }}
+      publish: ${{ steps.ref.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
@@ -62,31 +67,40 @@ jobs:
           cache: false
 
       # Before any dependency is installed or any test runs: a wrong tag fails in seconds.
-      - name: Check the tag names package.json's version
-        id: tag
+      - name: Check the ref may publish (a v* tag naming the version, on the default branch)
+        id: ref
         env:
           EVENT: ${{ github.event_name }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           REF: ${{ github.ref }}
           REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           VERSION=$(node -p 'require("./package.json").version')
+          PUBLISH=false
           if [[ "$EVENT" == "push" || "$DRY_RUN" != "true" ]]; then
+            PUBLISH=true
             if [[ "$REF" != refs/tags/v* ]]; then
-              echo "::error::A release is published only from a v* tag; run the workflow with dry_run: true on a branch."
+              echo "::error::A release is published only from a v* tag; run the workflow with dry_run: true from $DEFAULT_BRANCH."
               exit 1
             fi
             if [[ "$REF_NAME" != "v$VERSION" ]]; then
               echo "::error::Tag '$REF_NAME' does not match the version $VERSION (expected 'v$VERSION'); run just release-prep before tagging."
               exit 1
             fi
+            if ! git merge-base --is-ancestor HEAD "refs/remotes/origin/$DEFAULT_BRANCH"; then
+              echo "::error::Tag '$REF_NAME' points at $(git rev-parse HEAD), which is not on $DEFAULT_BRANCH; tag the merged release commit on $DEFAULT_BRANCH."
+              exit 1
+            fi
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION (dry run: $DRY_RUN)."
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (publish: $PUBLISH)."
 
       - name: Enable pnpm (the version package.json's packageManager names)
         run: corepack enable pnpm
 
+      # scripts/checks/version-sites.ts reads Cargo.toml with smol-toml.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -99,7 +113,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: read # check out the commit under test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -119,22 +133,20 @@ jobs:
       - name: Core and UI tests with their coverage floors
         run: just test
 
-  release:
-    name: Build, verify, and publish the dmg
+  build:
+    name: Build and verify the dmg
     needs: [preflight, test]
     runs-on: macos-26
     timeout-minutes: 60
+    environment: release
     permissions:
-      contents: write
-      attestations: write
-      id-token: write
+      contents: read # check out the tagged commit
     env:
       # tauri.conf.json's productName, which names the .app and the dmg; quoted so a name
       # YAML would read as a number or null stays a string.
       APP_NAME: "MyApp"
       TARGET: aarch64-apple-darwin
       VERSION: ${{ needs.preflight.outputs.version }}
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       # The secrets context is not available in a step's `if:`, so the gate is a flag. The
       # first step fails unless the six secrets are all set or all absent.
       HAS_DEVELOPER_ID: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
@@ -267,15 +279,31 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  publish:
+    name: Attest and publish the release
+    needs: [preflight, build]
+    if: ${{ needs.preflight.outputs.publish == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # create the GitHub Release and upload its assets
+      attestations: write # store the build-provenance attestation
+      id-token: write # mint the OIDC token the attestation is signed with
+    steps:
+      - name: Download the dmg the build job verified
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dmg
+          path: dist-release
+
       - name: Attest build provenance
-        if: ${{ env.DRY_RUN != 'true' }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist-release/*.dmg
 
       - name: Create the GitHub Release
-        if: ${{ env.DRY_RUN != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: gh release create "$TAG" --verify-tag --generate-notes dist-release/*.dmg dist-release/SHA256SUMS
