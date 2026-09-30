@@ -35,7 +35,8 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 1. Do the whole survey and review first, writing nothing remote.
 2. Present the plan: the exact PR numbers to merge, which go individually and which into
    a combined branch, which are held and why, every major bump named, and any issue the
-   plan would file (a Tauri major, below).
+   plan would file (a Tauri major, below). A Tauri side moved by hand under F11 is
+   named with its package, from, and to versions.
 3. Get one explicit approval for that listed batch, then run it without asking per
    merge.
 
@@ -59,8 +60,12 @@ contest, whether the batch keeps each Tauri pair on one minor, and any Tauri maj
 and any other conclusion, including one the script has never seen, is listed under
 `HELD`. An unknown CI state holds a PR; it is never waved through.
 
-Minor and patch bumps arrive grouped, one PR per ecosystem, and majors one per PR
-(`.github/dependabot.yml`), so read a grouped PR's diff in full:
+Minor and patch bumps arrive grouped and majors one per PR (`.github/dependabot.yml`).
+For cargo and npm, the Tauri family arrives in its own group (`cargo-tauri`,
+`npm-tauri`) and everything else in `cargo-minor-and-patch` / `npm-minor-and-patch`.
+Dependabot counts a 0.x minor as a minor (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference, `groups` › `update-types`, checked 2026-09-30), so it rides in a group; the survey shows that
+row's level as `major` and marks the bump `(major)`: name it in the plan as a major and
+read its release notes (review checklist). Read a grouped PR's diff in full:
 
 ```bash
 gh pr diff <number>
@@ -87,9 +92,13 @@ repository also keeps `@tauri-apps/cli` on `tauri`'s minor, so the CLI that buil
 app matches the crate it builds. A mismatch is one no single test run catches.
 Dependabot opens the cargo and npm sides as separate PRs, so:
 
-- **Both sides land in one combined branch**, never one PR at a time, even when each is
-  green alone. `survey-prs.ts` prints `MISMATCH` for a pair the open PRs would leave
-  apart; the combined branch moves the missing side by hand (Step 4b).
+- **Both sides land in one combined branch**, never one PR at a time, whether or not
+  each is green alone. When a Tauri minor ships, `cargo-tauri` and `npm-tauri` each
+  carry one side, so each is red alone: the survey prints `split across #<a> #<b>`, and
+  Step 3 admits the pair (`failure-modes.md` F11). `MISMATCH` means the open PRs leave
+  a pair apart: Step 3 admits them too, and the combined branch moves the missing side
+  by hand (Step 4b) only to a version published at least 7 days ago and named in the
+  approved plan; otherwise the PR is held (F11).
 - **A Tauri major (`3.x`) is never part of a batch.** Hold the PR and propose filing a
   migration issue for it (**REQUIRED:** `triaging-issues`), with the upstream migration
   guide linked;
@@ -98,7 +107,12 @@ Dependabot opens the cargo and npm sides as separate PRs, so:
 ## Step 3: Choose the landing mode
 
 A PR is eligible only when every check passes, its merge state is `CLEAN`, and the review
-found nothing.
+found nothing. One exception: a Tauri-family PR in a pair the survey prints as `split` or
+`MISMATCH` is eligible for the combined branch only, never landed alone, when every
+failing check on it is one F11 attributes to the version divergence, confirmed from the
+run log. For such a PR the merge state need only be not `DIRTY` (`UNSTABLE`, or
+`BLOCKED` only by those checks, is accepted); the review findings apply unchanged. The
+combined branch's own PR must be `CLEAN` with every check green before it lands.
 
 - **Individually** when eligible PRs share no file: in practice the Actions PRs and a
   lone mise or rust-toolchain PR.
@@ -133,7 +147,7 @@ a lockfile or by merging bot branches:
 - **cargo:** `cargo update -p <crate> --precise <version>` per crate the PRs moved.
   `Cargo.toml` changes only when a PR changed a requirement. Read the `Cargo.lock`
   diff: a crate no PR named that moved too is reverted, since only what the bots
-  proposed was reviewed.
+  proposed was reviewed, except the Tauri side the approved plan names under F11.
 - **npm:** `pnpm add <package>@<range>` (`pnpm add -D` for a devDependency), keeping the
   range style `package.json` uses (a tilde range for the Tauri packages).
 - **mise:** edit the pin in `mise.toml`, then `mise install`, so the version exists for
