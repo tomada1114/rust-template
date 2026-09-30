@@ -103,8 +103,10 @@ An error travels: into a log file, a test's output, a bug report, and a pull req
   naming it, because the caller already knows which one it passed.
 - `tracing::warn!(%error, …)` writes the error's `Display`, so the `#[error]` text is
   held to the same rule as the payload.
-- `UiLogEntry.message` is written to the log as-is: the UI sends developer terms
-  (`"get_counter failed without a counter error code"`), never what the user entered.
+- `UiLogEntry.message` reaches the log through `UiLogEntry::loggable_message`, which
+  keeps it on one line and cuts it to a bounded length but cannot remove user data: the
+  UI sends developer terms (`"get_counter failed without a counter error code"`), never
+  what the user entered.
 - Log once, where the error is handled. A command logs the outcome (`log_outcome` in
   `src-tauri/src/commands.rs`); core and adapters return the error and do not also log
   it, or one failure prints three lines.

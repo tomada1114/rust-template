@@ -3,7 +3,7 @@ import type { UiLogLevel } from "./UiLogLevel";
 
 /**
  * One entry from the UI's `ipc/log.ts`. The message must carry no user data: it is
- * written to the log file as-is.
+ * written to the log file, on one line and cut to a bounded length.
  */
 export type UiLogEntry = { 
 /**

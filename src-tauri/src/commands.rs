@@ -98,12 +98,20 @@ pub async fn reset<R: Runtime>(
     change("reset", &state, &app, CounterService::reset).await
 }
 
-/// Record a warning or error the UI caught (`ui/src/ipc/log.ts`).
+/// Record a warning or error the UI caught (`ui/src/ipc/log.ts`), as one line holding
+/// core's escaped and length-capped [`UiLogEntry::loggable_message`]. The log writer is
+/// synchronous, so the write runs on a blocking thread, off the main thread.
 #[tauri::command]
-pub fn log_from_ui(entry: UiLogEntry) {
-    let UiLogEntry { level, message } = entry;
-    match level {
-        UiLogLevel::Warn => tracing::warn!(target: "ui", %message),
-        UiLogLevel::Error => tracing::error!(target: "ui", %message),
+pub async fn log_from_ui(entry: UiLogEntry) {
+    let written = tauri::async_runtime::spawn_blocking(move || {
+        let message = entry.loggable_message();
+        match entry.level {
+            UiLogLevel::Warn => tracing::warn!(target: "ui", %message),
+            UiLogLevel::Error => tracing::error!(target: "ui", %message),
+        }
+    })
+    .await;
+    if let Err(error) = written {
+        tracing::warn!(%error, "a UI log entry was not written");
     }
 }
