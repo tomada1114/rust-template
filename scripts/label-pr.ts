@@ -14,7 +14,11 @@
 import { ScriptError } from "./lib/fail.ts";
 import { runScript, type ScriptContext } from "./lib/script.ts";
 
-/** Every type `.github/workflows/check-pr-title.yml` accepts, and its label. */
+/**
+ * Every type `.github/workflows/check-pr-title.yml` accepts, and its label. The
+ * labels-declared harness check parses this literal and fails on a title type it lacks,
+ * so it stays a `new Map([…])` of string pairs.
+ */
 const TYPE_LABELS: ReadonlyMap<string, string> = new Map([
   ["feat", "enhancement"],
   ["perf", "enhancement"],

@@ -1,7 +1,8 @@
 /**
  * Helpers the workflow checks share: reading YAML with line numbers, the workflow files
  * and their jobs and steps, the repository's own composite actions, the Dependabot and
- * Renovate file locations, and a run script's logical lines. Lives under `shared/`, which scripts/check-harness.ts never loads as a
+ * Renovate file locations and the Renovate config, the PR-title checks' accepted types,
+ * and a run script's logical lines. Lives under `shared/`, which scripts/check-harness.ts never loads as a
  * check (it reads only the top level of `scripts/checks/`).
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
@@ -17,13 +18,57 @@ const ACTIONS_DIR = ".github/actions";
 const ACTION_FILES = ["action.yml", "action.yaml"];
 
 export const DEPENDABOT_FILES = [".github/dependabot.yml", ".github/dependabot.yaml"];
+/** Every file name Renovate reads its config from, in the order it looks for them. */
 export const RENOVATE_FILES = [
   "renovate.json",
+  "renovate.json5",
   ".github/renovate.json",
+  ".github/renovate.json5",
   ".gitlab/renovate.json",
+  ".gitlab/renovate.json5",
   ".renovaterc",
   ".renovaterc.json",
+  ".renovaterc.json5",
 ];
+
+/** A Renovate config read as JSON, or why it could not be. */
+export type RenovateReading =
+  | {
+      readonly path: string;
+      readonly text: string;
+      readonly config: Record<string, unknown>;
+    }
+  | { readonly path: string; readonly problem: string };
+
+/**
+ * The Renovate config under the root: the first of RENOVATE_FILES present, parsed as
+ * JSON, or undefined when there is none. A JSON5 file anywhere in the list is a problem,
+ * never a skip: no JSON5 parser is a dependency, so the cooldown, prefix, and label rules
+ * would otherwise pass on a config they never read.
+ */
+export function readRenovate(root: string): RenovateReading | undefined {
+  const present = RENOVATE_FILES.filter((path) => readRepoFile(root, path) !== undefined);
+  const json5 = present.find((path) => path.endsWith(".json5"));
+  if (json5 !== undefined) {
+    return {
+      path: json5,
+      problem: `${json5}: a JSON5 Renovate config, which the harness checks cannot read (rename it to renovate.json and write it as JSON)`,
+    };
+  }
+  const [path] = present;
+  if (path === undefined) return undefined;
+  const text = readRepoFile(root, path) ?? "";
+  let config: unknown;
+  try {
+    config = JSON.parse(text);
+  } catch (error: unknown) {
+    return {
+      path,
+      problem: `${path}: not JSON (${error instanceof Error ? error.message : String(error)})`,
+    };
+  }
+  return { path, text, config: isRecord(config) ? config : {} };
+}
 
 /** Whether a `continue-on-error:` value lets a failure pass (anything but absent or false). */
 export const continuesOnError = (value: unknown): boolean =>
@@ -259,4 +304,51 @@ export function scriptLines(script: string): [number, string][] {
     if (text !== "" && !text.startsWith("#")) joined.push([start, text]);
   }
   return joined;
+}
+
+/** amannn/action-semantic-pull-request's `types` when the input is unset (v6). */
+export const DEFAULT_TITLE_TYPES: readonly string[] = [
+  "feat",
+  "fix",
+  "docs",
+  "style",
+  "refactor",
+  "perf",
+  "test",
+  "build",
+  "ci",
+  "chore",
+  "revert",
+];
+export const TITLE_ACTION = "amannn/action-semantic-pull-request@";
+
+/** A PR-title check: where its step is, and the Conventional Commit types it accepts. */
+export interface TitleCheck {
+  /** `path:line` of the step's `uses:`. */
+  readonly where: string;
+  readonly types: readonly string[];
+}
+
+/** Every workflow step using amannn/action-semantic-pull-request, with its `types`. */
+export function titleChecks(workflows: readonly Workflow[]): TitleCheck[] {
+  const checks: TitleCheck[] = [];
+  for (const workflow of workflows) {
+    for (const [id, job] of jobsOf(workflow)) {
+      for (const [index, step] of stepsOf(job)) {
+        const uses = step["uses"];
+        if (typeof uses !== "string" || !uses.startsWith(TITLE_ACTION)) continue;
+        const withInputs = step["with"];
+        const types = isRecord(withInputs) ? withInputs["types"] : undefined;
+        const line = workflow.locate(["jobs", id, "steps", index, "uses"]).line;
+        checks.push({
+          where: `${workflow.path}:${String(line)}`,
+          types:
+            typeof types === "string"
+              ? types.split(/[\s,]+/).filter((type) => type !== "")
+              : DEFAULT_TITLE_TYPES,
+        });
+      }
+    }
+  }
+  return checks;
 }

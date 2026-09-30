@@ -171,6 +171,58 @@ describe("bots-agree", () => {
     ]);
   });
 
+  it.each([
+    "renovate.json5",
+    ".github/renovate.json5",
+    ".gitlab/renovate.json5",
+    ".renovaterc.json5",
+  ])("reports a JSON5 Renovate config at %s as unreadable, never skipping it", (path) => {
+    const found = check.run(root({ ".github/renovate.json": undefined, [path]: "{}\n" }));
+    expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_BOTS_UNREADABLE"]);
+    expect(found[0]?.actual).toContain(path);
+  });
+
+  it("reports a JSON5 Renovate config even beside a JSON one", () => {
+    expect(codes({ "renovate.json5": "{}\n" })).toEqual(["ERR_CHECK_BOTS_UNREADABLE"]);
+  });
+
+  describe("Dependabot's per-semver cooldowns", () => {
+    const withSemver = (lines: string): string =>
+      DEPENDABOT.replace("default-days: 7\n  - ", `default-days: 7\n${lines}  - `);
+
+    it("rejects a semver-patch-days below the cooldown, naming it", () => {
+      const found = check.run(
+        root({ ".github/dependabot.yml": withSemver("      semver-patch-days: 0\n") }),
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_BOTS_COOLDOWN_DISAGREE"]);
+      expect(found[0]?.actual).toContain(
+        ".github/dependabot.yml:7: Dependabot `cargo` cooldown.semver-patch-days = 0 day(s)",
+      );
+    });
+
+    it("rejects a semver-major-days above the cooldown", () => {
+      expect(
+        codes({ ".github/dependabot.yml": withSemver("      semver-major-days: 14\n") }),
+      ).toEqual(["ERR_CHECK_BOTS_COOLDOWN_DISAGREE"]);
+    });
+
+    it("rejects a semver-minor-days that is not a whole number of days", () => {
+      expect(
+        codes({ ".github/dependabot.yml": withSemver("      semver-minor-days: 1.5\n") }),
+      ).toEqual(["ERR_CHECK_BOTS_COOLDOWN_MISSING"]);
+    });
+
+    it("passes per-semver cooldowns equal to the policy", () => {
+      expect(
+        codes({
+          ".github/dependabot.yml": withSemver(
+            "      semver-major-days: 7\n      semver-minor-days: 7\n      semver-patch-days: 7\n",
+          ),
+        }),
+      ).toEqual([]);
+    });
+  });
+
   it("reads Renovate durations as whole days", () => {
     expect(toDays("7 days")).toBe(7);
     expect(toDays("1 day")).toBe(1);

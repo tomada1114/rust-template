@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { ScriptContext } from "../lib/script.ts";
-import { check, findLabelViolations, main } from "./labels-declared.ts";
+import { check, findLabelViolations, main, readTypeLabels } from "./labels-declared.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -82,6 +82,34 @@ const RELEASE = `changelog:
       labels: ["*"]
 `;
 
+const labelPr = (pairs: readonly (readonly [string, string])[]): string =>
+  [
+    'import { ScriptError } from "./lib/fail.ts";',
+    "",
+    "const TYPE_LABELS: ReadonlyMap<string, string> = new Map([",
+    ...pairs.map(([type, label]) => `  [${JSON.stringify(type)}, ${JSON.stringify(label)}],`),
+    "]);",
+    "",
+  ].join("\n");
+
+const TYPE_PAIRS: readonly (readonly [string, string])[] = [
+  ["feat", "enhancement"],
+  ["fix", "bug"],
+  ["docs", "documentation"],
+  ["chore", "chore"],
+  ["ci", "ci"],
+  ["deps", "dependencies"],
+];
+
+const TITLE_WORKFLOW = (types: string): string => `name: Check PR title
+on: pull_request
+jobs:
+  main:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: amannn/action-semantic-pull-request@0000000000000000000000000000000000000000 # v6.1.1
+${types}`;
+
 function write(root: string, path: string, content: string): void {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), content);
@@ -100,7 +128,7 @@ function fixture(overrides: Record<string, string | undefined> = {}): string {
     ".github/dependabot.yml": DEPENDABOT,
     ".github/renovate.json": RENOVATE,
     ".github/release.yml": RELEASE,
-    "scripts/label-pr.ts": "// its TYPE_LABELS are imported, not parsed\n",
+    "scripts/label-pr.ts": labelPr(TYPE_PAIRS),
     ...overrides,
   };
   for (const [path, content] of Object.entries(files)) {
@@ -255,6 +283,12 @@ describe("labels-declared", () => {
       ]);
     });
 
+    it("fails on a JSON5 Renovate config instead of skipping it", () => {
+      const found = check.run(fixture({ "renovate.json5": "{ labels: ['tooling'] }\n" }));
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_INPUT_UNREADABLE"]);
+      expect(found[0]?.summary).toContain("renovate.json5");
+    });
+
     it.each([[".github/renovate.json"], ["renovate.json"]])(
       "fails on an undeclared label in %s",
       (path) => {
@@ -279,9 +313,16 @@ describe("labels-declared", () => {
 
   describe("label-pr and the release notes", () => {
     it("fails on a label label-pr applies that labels.yml does not declare", () => {
-      const violations = findLabelViolations(fixture(), new Set(["bug", "feature"]));
+      const violations = findLabelViolations(
+        fixture({
+          "scripts/label-pr.ts": labelPr([
+            ["fix", "bug"],
+            ["feat", "feature"],
+          ]),
+        }),
+      );
       expect(violations.map((v) => v.summary)).toEqual([
-        "scripts/label-pr.ts applies `feature`, which .github/labels.yml does not declare",
+        "scripts/label-pr.ts:5 applies `feature`, which .github/labels.yml does not declare",
         "scripts/label-pr.ts applies `feature`, which no .github/release.yml category lists",
       ]);
       expect(violations.map((v) => v.code)).toEqual([
@@ -310,6 +351,83 @@ describe("labels-declared", () => {
       expect(check.run(root)).toEqual([]);
     });
 
+    it("reads the root's label-pr map, not this checkout's", () => {
+      const root = fixture({
+        "scripts/label-pr.ts": labelPr([
+          ["fix", "bug"],
+          ["perf", "speed"],
+        ]),
+      });
+      expect(codes(root)).toEqual(["ERR_CHECK_LABEL_UNDECLARED", "ERR_CHECK_LABEL_NO_CATEGORY"]);
+    });
+
+    it.each([
+      ["no TYPE_LABELS", "export const OTHER = 1;\n"],
+      ["a TYPE_LABELS with no value", "let TYPE_LABELS;\n"],
+      ["a map built by a call", "const TYPE_LABELS = build();\n"],
+      ["a map over a variable", "const TYPE_LABELS = new Map(PAIRS);\n"],
+      ["an entry that is not a pair", 'const TYPE_LABELS = new Map([["fix"]]);\n'],
+      ["an entry built from a variable", 'const TYPE_LABELS = new Map([["fix", BUG]]);\n'],
+      ["an entry spread in", "const TYPE_LABELS = new Map([...MORE]);\n"],
+    ])("fails when label-pr's map cannot be read: %s", (_label, source) => {
+      expect(codes(fixture({ "scripts/label-pr.ts": source }))).toEqual([
+        "ERR_CHECK_INPUT_UNREADABLE",
+      ]);
+    });
+
+    it("reads each pair of the map with its line", () => {
+      expect(readTypeLabels(labelPr([["fix", "bug"]]))).toEqual([
+        { type: "fix", label: "bug", line: 4 },
+      ]);
+    });
+  });
+
+  describe("PR-title types and label-pr's map", () => {
+    it("passes when label-pr maps every type the title check accepts", () => {
+      const root = fixture({
+        ".github/workflows/title.yml": TITLE_WORKFLOW(
+          "        with:\n          types: |\n            feat\n            fix\n            deps\n",
+        ),
+      });
+      expect(check.run(root)).toEqual([]);
+    });
+
+    it("fails on a PR-title type label-pr does not map, naming it", () => {
+      const root = fixture({
+        ".github/workflows/title.yml": TITLE_WORKFLOW(
+          "        with:\n          types: |\n            feat\n            fix\n            security\n",
+        ),
+      });
+      const found = check.run(root);
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_LABEL_TYPE_UNMAPPED"]);
+      expect(found[0]?.summary).toContain(
+        ".github/workflows/title.yml:7 accepts the PR-title type `security`",
+      );
+    });
+
+    it("compares the action's default types when the step sets none", () => {
+      const root = fixture({ ".github/workflows/title.yml": TITLE_WORKFLOW("") });
+      // The v6 defaults the fixture's map leaves out: style, refactor, perf, test, build, revert.
+      expect(check.run(root).map((v) => /type `([a-z]+)`/.exec(v.summary)?.[1])).toEqual([
+        "style",
+        "refactor",
+        "perf",
+        "test",
+        "build",
+        "revert",
+      ]);
+    });
+
+    it("skips the comparison when the root has no label-pr.ts", () => {
+      const root = fixture({
+        ".github/workflows/title.yml": TITLE_WORKFLOW(""),
+        "scripts/label-pr.ts": undefined,
+      });
+      expect(check.run(root)).toEqual([]);
+    });
+  });
+
+  describe("release notes", () => {
     it("fails on a release category naming an undeclared label", () => {
       const root = fixture({
         ".github/release.yml": RELEASE.replace("labels: [bug]", "labels: [bug, regression]"),

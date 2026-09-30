@@ -11,7 +11,8 @@
  * repository's own composite actions (every action.yml|action.yaml under
  * <root>/.github/actions/, and any other one a step's `uses: ./…` names); <root>/justfile
  * for the lockfile rule; and for the bot-prefix rule <root>/.github/dependabot.yml|.yaml
- * and the first JSON Renovate config found (RENOVATE_FILES; a JSON5 config is not read).
+ * and the Renovate config (shared/workflows.ts's readRenovate; a JSON5 config is a finding,
+ * since it cannot be read).
  * Rules, per workflow (the step rules also per composite action step):
  *   - pins: every `uses:` (a step's, or a job's reusable-workflow call) other than a
  *     local `./` action is `owner/repo[/path]@<40 lowercase hex>`, and the raw source
@@ -69,7 +70,7 @@
  *   ERR_CHECK_WORKFLOW_SHELL                 a `run:` step does not fail closed
  *   ERR_CHECK_WORKFLOW_FAIL_OPEN             a `run:` turns errexit off or swallows a failure with an `||` fallback
  *   ERR_CHECK_WORKFLOW_UNLOCKED              an install, cargo, or tauri command (in a workflow, an action, or the justfile) ignores the lockfile
- *   ERR_CHECK_WORKFLOW_BOT_PREFIX            a bot's commit prefix is missing or not a PR-title type
+ *   ERR_CHECK_WORKFLOW_BOT_PREFIX            a bot's commit prefix is missing or not a PR-title type, or a bot config (a JSON5 Renovate one included) cannot be read
  */
 import { basename } from "node:path";
 
@@ -79,16 +80,18 @@ import { checkMain, readRepoFile, type Check } from "./lib.ts";
 import { isWholeExpression, templateOnPush, truthy, type PushValue } from "./shared/expressions.ts";
 import {
   DEPENDABOT_FILES,
-  RENOVATE_FILES,
   actionStepsOf,
   continuesOnError,
   isRecord,
   jobsOf,
   readActions,
+  readRenovate,
   readWorkflows,
   readYaml,
   scriptLines,
   stepsOf,
+  TITLE_ACTION,
+  titleChecks,
   triggerNames,
   type Action,
   type Key,
@@ -101,22 +104,6 @@ const JUSTFILE = "justfile";
 
 /** The shell every `run:` step resolves to unless it starts with `set -euo pipefail`. */
 export const FAIL_CLOSED_SHELL = "bash --noprofile --norc -euo pipefail {0}";
-
-/** amannn/action-semantic-pull-request's `types` when the input is unset (v6). */
-const DEFAULT_TITLE_TYPES = [
-  "feat",
-  "fix",
-  "docs",
-  "style",
-  "refactor",
-  "perf",
-  "test",
-  "build",
-  "ci",
-  "chore",
-  "revert",
-];
-const TITLE_ACTION = "amannn/action-semantic-pull-request@";
 
 const PINNED = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[^@\s]+)?@[0-9a-f]{40}$/;
 const VERSION_COMMENT = /#\s*v\d+\.\d+\.\d+(?:[\s-]|$)/;
@@ -698,33 +685,6 @@ function checkSteps(sites: readonly StepSite[]): FailureDetails[] {
   ]);
 }
 
-interface TitleCheck {
-  readonly where: string;
-  readonly types: readonly string[];
-}
-
-function titleChecks(workflows: readonly Workflow[]): TitleCheck[] {
-  const checks: TitleCheck[] = [];
-  for (const workflow of workflows) {
-    for (const [id, job] of jobsOf(workflow)) {
-      for (const [index, step] of stepsOf(job)) {
-        const uses = step["uses"];
-        if (typeof uses !== "string" || !uses.startsWith(TITLE_ACTION)) continue;
-        const withInputs = step["with"];
-        const types = isRecord(withInputs) ? withInputs["types"] : undefined;
-        checks.push({
-          where: at(workflow, ["jobs", id, "steps", index, "uses"]),
-          types:
-            typeof types === "string"
-              ? types.split(/[\s,]+/).filter((type) => type !== "")
-              : DEFAULT_TITLE_TYPES,
-        });
-      }
-    }
-  }
-  return checks;
-}
-
 interface Prefix {
   readonly where: string;
   readonly setting: string;
@@ -761,35 +721,24 @@ function dependabotPrefixes(root: string): { prefixes: Prefix[]; problems: strin
 }
 
 function renovatePrefixes(root: string): { prefixes: Prefix[]; problems: string[] } | undefined {
-  for (const path of RENOVATE_FILES) {
-    const text = readRepoFile(root, path);
-    if (text === undefined) continue;
-    let config: unknown;
-    try {
-      config = JSON.parse(text);
-    } catch (error: unknown) {
-      return {
-        prefixes: [],
-        problems: [`${path}: not JSON (${error instanceof Error ? error.message : String(error)})`],
-      };
+  const reading = readRenovate(root);
+  if (reading === undefined) return undefined;
+  if ("problem" in reading) return { prefixes: [], problems: [reading.problem] };
+  const { path, config } = reading;
+  const prefixes: Prefix[] = [
+    { where: path, setting: "Renovate commitMessagePrefix", value: config["commitMessagePrefix"] },
+  ];
+  const rules = config["packageRules"];
+  (Array.isArray(rules) ? rules : []).forEach((rule: unknown, index) => {
+    if (isRecord(rule) && rule["commitMessagePrefix"] !== undefined) {
+      prefixes.push({
+        where: path,
+        setting: `Renovate packageRules[${String(index)}].commitMessagePrefix`,
+        value: rule["commitMessagePrefix"],
+      });
     }
-    const top = isRecord(config) ? config : {};
-    const prefixes: Prefix[] = [
-      { where: path, setting: "Renovate commitMessagePrefix", value: top["commitMessagePrefix"] },
-    ];
-    const rules = top["packageRules"];
-    (Array.isArray(rules) ? rules : []).forEach((rule: unknown, index) => {
-      if (isRecord(rule) && rule["commitMessagePrefix"] !== undefined) {
-        prefixes.push({
-          where: path,
-          setting: `Renovate packageRules[${String(index)}].commitMessagePrefix`,
-          value: rule["commitMessagePrefix"],
-        });
-      }
-    });
-    return { prefixes, problems: [] };
-  }
-  return undefined;
+  });
+  return { prefixes, problems: [] };
 }
 
 function checkBotPrefixes(root: string, workflows: readonly Workflow[]): FailureDetails[] {
