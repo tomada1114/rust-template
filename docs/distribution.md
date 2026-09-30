@@ -42,31 +42,49 @@ Apple: <https://support.apple.com/guide/security/gatekeeper-and-runtime-protecti
 
 ## The release
 
-`.github/workflows/release.yml` runs on a macOS runner. It never re-signs the app by
-hand: Tauri signs the bundle and the helper inside it itself, with the identity and the
-entitlements `tauri.conf.json` names, so the entitlements cannot be lost by a second
-signing pass.
+`.github/workflows/release.yml` builds on a macOS runner and publishes from a separate
+job. It never re-signs the app by hand: Tauri signs the bundle and the helper inside it
+itself, with the identity and the entitlements `tauri.conf.json` names, so the
+entitlements cannot be lost by a second signing pass.
 
 1. **Trigger.** Pushing a `v*` tag (a human act), or running the workflow by hand with
    `dry_run: true`, which builds and uploads the `.dmg` as a workflow artifact without
    creating a release.
-2. **Preflight.** The `preflight` job, on a Linux runner, checks that a tag equals
-   `package.json`'s version before any dependency is installed or any test runs, then
-   that the version in `Cargo.toml` (`[workspace.package]`), `src-tauri/tauri.conf.json`,
-   and `package.json` agree; otherwise the run fails within a minute or two. A dry run
-   from a branch skips the tag comparison, not the version sites.
-3. **Tests.** The core and UI tests run again: nothing unverified ships.
-4. **Secrets check.** The release job's first step, before anything is checked out,
-   fails unless the six `APPLE_*` secrets are all set or all absent (see
+2. **Preflight.** The `preflight` job, a read-only job (`contents: read`) on a Linux
+   runner, checks for a publishing run that the ref is a `v*` tag, that the tag is
+   `v<version>` with `package.json`'s version, and that the tagged commit is on the
+   default branch, all before any dependency is installed or any test runs. It then
+   checks that the version in `Cargo.toml` (`[workspace.package]`),
+   `src-tauri/tauri.conf.json`, and `package.json` agree. A refused ref fails within a
+   minute or two and starts no macOS job. A dry run skips the ref checks, not the
+   version sites.
+3. **Tests.** The core and UI tests run again, on a commit that already passed `main`'s
+   required checks to get there.
+4. **Secrets check.** The build job's first step, before anything is checked out, fails
+   unless the six `APPLE_*` secrets are all set or all absent (see
    [The two signing paths](#the-two-signing-paths)).
-5. **Build.** `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg --
-   --locked` (the `--locked` goes to cargo), signed as described below. Rust's build
-   cache is not used on this path.
+5. **Build.** In the `release` environment, with a read-only token (`contents: read`):
+   `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg -- --locked` (the
+   `--locked` goes to cargo), signed as described below. Rust's build cache is not used
+   on this path.
 6. **Verify** the built app before anything is uploaded (see
-   [Verifying a build](#verifying-a-build)).
-7. **Publish.** A `SHA256SUMS` file, a build-provenance attestation
-   (`actions/attest-build-provenance`), and `gh release create` with the `.dmg`; the
-   release notes come from the categories in `.github/release.yml`.
+   [Verifying a build](#verifying-a-build)). The build job then uploads the `.dmg` and a
+   `SHA256SUMS` file as a workflow artifact.
+7. **Publish.** A separate Linux job, the only one with `contents: write`,
+   `attestations: write`, and `id-token: write`. It checks out nothing and runs no cargo,
+   pnpm, or mise: it downloads the verified artifact, attests the `.dmg`
+   (`actions/attest-build-provenance`), and runs `gh release create` with the `.dmg` and
+   `SHA256SUMS`; the release notes come from the categories in `.github/release.yml`. A
+   dry run skips this job.
+
+The build job still holds the signing identity and the notarization credentials while
+it compiles, because Tauri signs while it bundles, and Cargo build scripts run there.
+What limits this: only a commit on the default branch, reached through a reviewed pull
+request, can reach that job, since the `release` environment's deployment policy and the
+admin-only `v*` tags gate it (see
+[Repository settings the release needs](#repository-settings-the-release-needs)); pnpm
+runs no dependency's install script (`strictDepBuilds`, an empty `allowBuilds`); and the
+write token and the OIDC token never enter that job.
 
 ### Preparing the version
 
@@ -94,6 +112,69 @@ committed: the Summary, its `**Release impact:**` line naming the level of this 
 the Test Plan, and the Checklist, the same body the `create-pr` skill writes. Filling the
 body from the commit message instead (`--fill`) drops all four.
 
+### Repository settings the release needs
+
+A repository admin applies these once. Each is a remote write that needs sign-off, and
+"Use this template" copies none of them.
+
+1. **The `release` environment**, deployable only from the default branch and `v*` tags:
+
+   ```bash
+   REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+   DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+   gh api --method PUT "repos/$REPO/environments/release" --input - <<'JSON'
+   {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+   JSON
+   gh api --method POST "repos/$REPO/environments/release/deployment-branch-policies" -f name="$DEFAULT_BRANCH" -f type=branch
+   gh api --method POST "repos/$REPO/environments/release/deployment-branch-policies" -f name='v*' -f type=tag
+   ```
+
+   A workflow that references an environment that does not exist creates it, with no
+   protection rules or secrets
+   (<https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments>,
+   checked 2026-09-30), so until this step releases behave as they did before the
+   environment existed. With "Selected branches and tags", only refs matching the
+   patterns can deploy, and environment secrets reach only the jobs that reference the
+   environment
+   (<https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments>,
+   checked 2026-09-30). On a private repository, environments need GitHub Pro or Team
+   (both pages). Once the policy exists, a dry run from any branch other than the
+   default one is refused at the build job.
+
+   The template configures no required reviewer: the human gate is the admin-only tag
+   push. An app with more than one admin may add one under Settings › Environments ›
+   release with no workflow change; it then also gates every dry run.
+
+2. **The Apple secrets as secrets of the `release` environment**
+   (`gh secret set <NAME> --env release`), not repository secrets. A repository that
+   already has them at repository level keeps working, because repository secrets reach
+   every job, but it should set each one on the environment and then delete the
+   repository-level copy; that is a human's step on release secrets.
+
+3. **The tag ruleset**, `.github/rulesets/release-tags.json`: only a repository admin may
+   create, move, or delete a `v*` tag. Apply it once:
+
+   ```bash
+   gh api --method POST "repos/$REPO/rulesets" --input .github/rulesets/release-tags.json
+   ```
+
+   To update it later, get its id and send the file again:
+
+   ```bash
+   gh api "repos/$REPO/rulesets?includes_parents=false" --jq '.[] | select(.name == "release-tags") | .id'
+   gh api --method PUT "repos/$REPO/rulesets/<id>" --input .github/rulesets/release-tags.json
+   ```
+
+   Unlike `main.json`, which has no bypass actor so that nobody skips the pull request,
+   this ruleset has one: the repository admin role (`actor_id` 5 with `RepositoryRole`;
+   <https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_ruleset>,
+   checked 2026-09-29). A creation rule with no bypass would stop everyone from
+   releasing, and the bypass is also how a tag the preflight refused is deleted and
+   re-pushed. Without the creation rule, anyone with write access could push a `v*` tag
+   on a branch whose edited workflow drops the preflight, and the environment's `v*`
+   policy would admit it. Like `main`'s, rulesets on a private repository need a paid
+   plan.
+
 ## The two signing paths
 
 ### Ad hoc (the default)
@@ -111,7 +192,7 @@ step never runs on this path.
 
 ### Developer ID, notarized
 
-When all six secrets below exist, the release job imports the certificate into a
+When all six secrets below exist, the build job imports the certificate into a
 temporary keychain, checks that `security find-identity -v -p codesigning` lists
 `APPLE_SIGNING_IDENTITY` there, and passes that identity to Tauri, which signs with it
 instead of ad hoc; Tauri then submits the signed app to Apple's notary service and
@@ -119,7 +200,7 @@ staples the ticket. A step that runs only on this path is skipped by an `if:` on
 job-level flag, never by `continue-on-error`, and a step that runs whether the build
 passed, failed, or was cancelled (`if: always()`) deletes the keychain after the build.
 
-The secrets are all or nothing. When some but not all of the six are set, the release
+The secrets are all or nothing. When some but not all of the six are set, the build
 job's first step fails and names the ones that are missing, so a forgotten secret never
 yields a silently ad-hoc build. That includes the Developer ID three without the
 notarization three: signing without notarizing is not offered, because Gatekeeper's
@@ -127,6 +208,9 @@ check (`spctl --assess`, the last verification step) rejects a Developer ID app 
 not notarized, and a downloaded copy is then blocked just as an ad-hoc one is. A
 certificate or identity that does not match fails at the `find-identity` check, before
 the build rather than inside it.
+
+They are secrets of the `release` environment, not repository secrets (see
+[Repository settings the release needs](#repository-settings-the-release-needs)):
 
 | Secret | What it is |
 |---|---|
@@ -139,7 +223,7 @@ the build rather than inside it.
 
 Tauri also accepts an App Store Connect API key for notarization (`APPLE_API_ISSUER`,
 `APPLE_API_KEY`, and `APPLE_API_KEY_PATH`, a path to the downloaded key file); using it
-instead of the Apple ID means changing the release job to write that file. The variable
+instead of the Apple ID means changing the build job to write that file. The variable
 names are Tauri's: <https://v2.tauri.app/distribute/sign/macos/> (checked 2026-09-28).
 Signing and notarization need a paid
 [Apple Developer Program](https://developer.apple.com/programs/) membership.
@@ -168,8 +252,8 @@ quarantined.
 
 ## Verifying a build
 
-The release job runs these checks on the built `.app` and fails before upload unless
-all pass. `just smoke` runs the same signature, entitlement, and helper checks on a
+The build job runs these checks on the built `.app` and fails before the artifact is
+uploaded unless all pass, so the publish job never starts. `just smoke` runs the same signature, entitlement, and helper checks on a
 local release build (`scripts/smoke.ts`), and `node scripts/smoke.ts --app <path>`
 checks an already-built bundle.
 

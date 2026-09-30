@@ -367,3 +367,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a browser without a prompt. A new harness check fails when `allow` admits a recipe
   that opens the app, needs a human, or writes beyond the working tree, and
   `AGENTS.md` names the hook bypasses and lefthook's fail-open hook among the gaps.
+
+- The release workflow no longer runs dependency code while holding a write token or an
+  OIDC token. A read-only `preflight` job checks that the tag names the version and sits
+  on the default branch, and that the version sites agree. The build signs and verifies
+  with a read-only token in a `release` environment that holds the Apple secrets. A
+  separate `publish` job, which runs no cargo, pnpm, or mise, attests the verified dmg and
+  creates the release. `.github/rulesets/release-tags.json` lets only a repository admin
+  create, move, or delete a `v*` tag, and `docs/distribution.md` lists the one-time
+  settings an admin applies.
