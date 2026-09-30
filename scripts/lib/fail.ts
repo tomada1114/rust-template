@@ -1,5 +1,5 @@
 /**
- * The failure contract every repository script follows (design D12): the first stderr
+ * The failure contract every repository script follows: the first stderr
  * line is `ERR_<STAGE>_<WHAT>: <summary>`, then `Expected:`, `Actual:`, and `Next:`,
  * and the process exits 1 (or the exit code the error names, such as a hook's 2). A
  * message never contains a secret.

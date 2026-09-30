@@ -1,4 +1,4 @@
-# ts-rs settings for the IPC bindings (design D4).
+# ts-rs settings for the IPC bindings.
 [env]
 # Core's export tests compile only with its `export-bindings` feature, which `just bindings`
 # enables, passing its own fresh TS_RS_EXPORT_DIR (the environment overrides this file).

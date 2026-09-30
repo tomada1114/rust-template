@@ -1,6 +1,6 @@
 /**
  * The tools that read the tree agree on skipping `.claude/skills/` and on reading
- * `.agents/skills/` (design D13, D14). The mirror is a generated, byte-identical copy
+ * `.agents/skills/`. The mirror is a generated, byte-identical copy
  * (`just agents-sync`): checking it reports every finding twice, at a path nobody may
  * edit, and a formatter rewriting the copy alone is drift the mirror check must undo.
  * The opposite ignore is worse — a skill's real files checked nowhere, with CI green.

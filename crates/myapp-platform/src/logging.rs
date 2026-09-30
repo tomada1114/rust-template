@@ -4,7 +4,7 @@ use tracing::Level;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::fmt::writer::{BoxMakeWriter, MakeWriterExt};
 
-/// How many daily log files are kept (design D7).
+/// How many daily log files are kept.
 pub const LOG_FILES_KEPT: usize = 14;
 
 /// Logging could not be set up. Carries no path: the caller knows which directory it passed.
@@ -24,7 +24,7 @@ pub enum LoggingError {
 ///
 /// Only the Tauri shell and the helper CLI call this; libraries only emit events. The
 /// appender writes synchronously — no background worker whose last lines a
-/// `process::exit` could drop (design D7).
+/// `process::exit` could drop.
 ///
 /// # Errors
 /// [`LoggingError`] when the directory cannot be used or a subscriber already exists.

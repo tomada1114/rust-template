@@ -1,5 +1,5 @@
 //! What startup does differently in smoke mode — visibility and lifetime only, never
-//! behaviour (design D22). Pure functions, so they are tested without a window.
+//! behaviour. Pure functions, so they are tested without a window.
 
 use std::ffi::OsStr;
 

@@ -24,7 +24,7 @@ pub const LOG_FILE_PREFIX: &str = "myapp";
 /// renamed label stops `just smoke` instead of silently never showing the window.
 pub const MAIN_WINDOW: &str = "main";
 
-/// Why the app could not start. Carries no path: no user data in errors (design D2).
+/// Why the app could not start. Carries no path: no user data in errors.
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
     /// `HOME` is not set, so the data and log directories cannot be found.
@@ -76,7 +76,7 @@ pub fn compose<R: Runtime>(builder: tauri::Builder<R>, home: &Path) -> tauri::Bu
 
 /// The setup step, once the event loop has created the configured windows: show the main
 /// window when the plan says so, then log `startup complete`. Both plans run the same
-/// body; only the window's visibility differs (design D22).
+/// body; only the window's visibility differs.
 ///
 /// # Errors
 ///
@@ -133,7 +133,7 @@ fn exit_after_startup_error(error: &StartupError) -> ! {
 
 /// Start the app. In smoke mode (`MYAPP_SMOKE=1`) it runs the same startup path with no
 /// window, no Dock icon, and no focus change, logs `startup complete`, and exits 0; any
-/// startup error exits 1 (design D22).
+/// startup error exits 1.
 pub fn run() {
     let plan = startup_plan(smoke_requested(std::env::var_os(SMOKE_ENV).as_deref()));
     let app = match prepare(plan) {

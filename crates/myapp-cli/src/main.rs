@@ -1,4 +1,4 @@
-//! `myapp-cli`: the helper executable bundled inside the app as a sidecar (design D5).
+//! `myapp-cli`: the helper executable bundled inside the app as a sidecar.
 //!
 //! It reads and writes the same store as the app, through the same core and platform
 //! code, without starting the GUI — the shape a launchd job needs.

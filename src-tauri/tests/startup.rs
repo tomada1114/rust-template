@@ -1,6 +1,6 @@
 //! The composition root through Tauri's mock runtime: `compose` wires the real store
 //! under a temporary `HOME`, and `finish_startup` — the setup body `run()` uses — behaves
-//! the same under both startup plans apart from the window's visibility (design D22).
+//! the same under both startup plans apart from the window's visibility.
 
 use std::path::Path;
 

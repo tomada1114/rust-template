@@ -18,7 +18,7 @@ const CARGO = `[workspace]
 members = ["core"]
 
 [workspace.package]
-version = "0.1.0" # one of the three version sites (design D18)
+version = "0.1.0" # one of the three version sites
 edition = "2024"
 
 [workspace.dependencies]

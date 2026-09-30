@@ -1,6 +1,6 @@
 /**
  * No reference to this repository's issues or pull requests in a document an agent reads
- * as standing instructions (design D14). An agent reading "see #139" cannot open the issue
+ * as standing instructions. An agent reading "see #139" cannot open the issue
  * offline, and a repository cut from the template has different issues under the same
  * numbers, so the text states the rule and its reason itself instead of pointing at one.
  *

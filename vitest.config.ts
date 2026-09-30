@@ -55,7 +55,7 @@ export default defineConfig({
         "**/*.d.ts",
       ],
       // Per-glob floors, never one combined number, so one tree cannot subsidise
-      // another (typescript-template's pattern; design D13).
+      // another (typescript-template's pattern).
       thresholds: {
         "ui/src/**": { lines: 80, functions: 80 },
         // Every repository script; scripts/lib/guard/** also counts here.

@@ -1,7 +1,7 @@
 /**
  * Every label something in the repository applies is declared exactly once in
  * `.github/labels.yml`, and every label `scripts/label-pr.ts` applies has a release-notes
- * category (design D14) — so `just labels` creates every label the repository expects,
+ * category — so `just labels` creates every label the repository expects,
  * never two conflicting ones, and no merged pull request falls out of the release notes.
  *
  *   node scripts/checks/labels-declared.ts [--root DIR]

@@ -1,5 +1,5 @@
 /*
- * The design system's values (design D23). The only file in ui/src/ that may hold a
+ * The design system's values. The only file in ui/src/ that may hold a
  * raw color, a font family, or a pixel font size: components reach every value through
  * var(--…). A harness check enforces that, and tokens.test.ts checks that every
  * semantic color has a dark value and that every declared pair meets WCAG contrast.

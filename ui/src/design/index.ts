@@ -1,4 +1,4 @@
-/** The design system's primitives (design D23; docs/design/design-system.md). */
+/** The design system's primitives (docs/design/design-system.md). */
 export { Button, type ButtonProps } from "./Button";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Panel, type PanelProps } from "./Panel";

@@ -1,5 +1,5 @@
 /**
- * The IPC names agree across the language boundary (design D4):
+ * The IPC names agree across the language boundary:
  *
  * - Commands: the functions registered in `tauri::generate_handler![…]` (in any `.rs`
  *   file under `src-tauri/src/`; each entry's last path segment is the command name)
@@ -77,7 +77,7 @@ const unparsed = (site: string, what: string, expected: string): FailureDetails 
   summary: `${site}: ${what}`,
   expected,
   actual: what,
-  next: "name the command or event with a string literal or a const holding one, so the Rust and TypeScript lists can be compared (design D4)",
+  next: "name the command or event with a string literal or a const holding one, so the Rust and TypeScript lists can be compared",
 });
 
 const lineAt = (text: string, offset: number): number => text.slice(0, offset).split("\n").length;
@@ -242,7 +242,7 @@ function rustEvents(files: readonly RustFile[]): Found {
           unparsed(
             site,
             `the event \`${expr}\` passed to ${throughPath ? "::" : "."}${method} is not a string literal or a \`const …: &str\` under ${RUST_DIR}`,
-            'each event emitted with a `pub const NAME: &str = "…"` (design D4), or a string literal',
+            'each event emitted with a `pub const NAME: &str = "…"`, or a string literal',
           ),
         );
       } else addSite(names, name, site);
@@ -367,7 +367,7 @@ const filesOf = (sites: readonly string[]): string =>
 
 function compare(code: string, side: Side, rust: Sites, typescript: Sites): FailureDetails[] {
   const quote = side.kind === "command" ? (n: string) => `\`${n}\`` : (n: string) => `"${n}"`;
-  const expected = `the same ${side.kind} names in ${side.rustWhere} and ${IPC_DIR}/ (design D4)`;
+  const expected = `the same ${side.kind} names in ${side.rustWhere} and ${IPC_DIR}/`;
   const listed = (sites: Sites): string => [...sites.keys()].sort().map(quote).join(", ") || "none";
   const onlyRust = [...rust.keys()]
     .filter((name) => !typescript.has(name))
@@ -404,7 +404,7 @@ function run(root: string): FailureDetails[] {
     .map((path): FailureDetails => ({
       code: "ERR_CHECK_INPUT_MISSING",
       summary: `${path} does not exist`,
-      expected: `${path}, one side of the IPC name lists (design D4)`,
+      expected: `${path}, one side of the IPC name lists`,
       actual: "no such file",
       next: `restore ${path} from version control, or update scripts/checks/ipc-names.ts if it moved`,
     }));
