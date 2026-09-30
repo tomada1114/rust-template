@@ -75,9 +75,11 @@ A screen uses these and the tokens, never a literal value (`building-react-scree
 - **The literal check** (a harness check, `just check-harness`) fails on a raw color
   (hex, `rgb()`, `hsl()`, a named color, a CSS system color such as `CanvasText`, or a
   WebKit one such as `-apple-system-label`), a `font-family`, or a pixel font size
-  anywhere in `ui/src/` or `ui/index.html` outside `tokens.css`, including one carried
-  by a local custom property or a `const`. `currentColor`, `transparent`, `inherit`,
-  `none`, `initial`, and `unset` are allowed.
+  anywhere under `ui/` (`ui/src/`, every entry page such as `ui/index.html` with its
+  `theme-color` and inline scripts, `ui/public/`) outside `tokens.css`, including one
+  carried by a local custom property, a `const` (imported ones too), or a `let`. A style
+  file in a syntax it does not parse (`.less`, `.sass`, Stylus) fails it.
+  `currentColor`, `transparent`, `inherit`, `none`, `initial`, and `unset` are allowed.
 - **The contrast test** (`ui/src/design/tokens.test.ts`, part of `just test-ui`) parses
   `tokens.css`, fails if a semantic color has no dark value of its own, and checks every
   pair in `contrast-pairs.ts` in both appearances: 4.5:1 for body text, 3:1 for large

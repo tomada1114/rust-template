@@ -6,10 +6,12 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 import {
+  bindingValues,
   blank,
   constInitializer,
   importOf,
   parseScript,
+  parseScripts,
   SCRIPT_FILE,
   TEST_FILE,
 } from "./sources.ts";
@@ -107,5 +109,72 @@ describe("importOf", () => {
     const { checker, found } = identifiers("x.ts", source, name);
     const use = found.at(-1);
     expect(use === undefined ? "missing" : importOf(checker, use)).toEqual(expected);
+  });
+});
+
+/** The texts `bindingValues` finds for the last use of `name` in `use.ts`, beside `other`. */
+function valuesAt(use: string, name: string, other: Record<string, string> = {}): string[] {
+  const { files, checker } = parseScripts([
+    ...Object.entries(other).map(([path, source]) => ({ path, source })),
+    { path: "use.ts", source: use },
+  ]);
+  const found: ts.Identifier[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && node.text === name) found.push(node);
+    ts.forEachChild(node, visit);
+  };
+  const file = files.get("use.ts");
+  if (file !== undefined) visit(file);
+  const last = found.at(-1);
+  return last === undefined ? ["missing"] : bindingValues(checker, last).map((v) => v.getText());
+}
+
+describe("parseScripts", () => {
+  it("keys each file by its path and parses it as its own kind", () => {
+    const { files } = parseScripts([
+      { path: "a.tsx", source: "export const a = <p />;\n" },
+      { path: "b.ts", source: "export const b = 1;\n" },
+    ]);
+    expect([...files.keys()]).toEqual(["a.tsx", "b.ts"]);
+    expect(files.get("a.tsx")?.languageVariant).toBe(ts.LanguageVariant.JSX);
+  });
+
+  it("keeps two files' top-level names apart, as modules", () => {
+    const values = valuesAt('const c = "a";\nuse(c);\n', "c", { "other.ts": 'const c = "b";\n' });
+    expect(values).toEqual(['"a"']);
+  });
+});
+
+describe("bindingValues", () => {
+  it.each([
+    ["a const's initializer", 'const c = "red";\nuse(c);\n', "c", ['"red"']],
+    [
+      "a let's initializer and each assignment",
+      'let c = "red";\nc = "blue";\nc += "x";\nc ||= "y";\nuse(c);\n',
+      "c",
+      ['"red"', '"blue"', '"x"', '"y"'],
+    ],
+    ["a var assigned only later", 'var c;\nc = "red";\nuse(c);\n', "c", ['"red"']],
+    ["a shorthand property", 'const c = "red";\nconst s = { c };\n', "c", ['"red"']],
+    ["nothing for a parameter", "const f = (c: string) => c;\n", "c", []],
+    ["nothing for a destructured name", "const { c } = o;\nuse(c);\n", "c", []],
+    ["nothing for a name bound nowhere", "use(c);\n", "c", []],
+    ["nothing for a function", "function c() {}\nuse(c);\n", "c", []],
+  ])("finds %s", (_label, source, name, expected) => {
+    expect(valuesAt(source, name)).toEqual(expected);
+  });
+
+  it.each([
+    ["a named import", 'import { C } from "./c";\nuse(C);\n', "C", ['"red"']],
+    ["a default import of an expression", 'import D from "./c";\nuse(D);\n', "D", ['"navy"']],
+    ["a re-export", 'import { R } from "./r";\nuse(R);\n', "R", ['"red"']],
+    ["a namespace member", 'import * as N from "./c";\nuse(N.C);\n', "C", ['"red"']],
+    ["nothing from a package", 'import { C } from "pkg";\nuse(C);\n', "C", []],
+  ])("follows %s", (_label, source, name, expected) => {
+    const other = {
+      "c.ts": 'export const C = "red";\nexport default "navy";\n',
+      "r.ts": 'export { C as R } from "./c";\n',
+    };
+    expect(valuesAt(source, name, other)).toEqual(expected);
   });
 });
