@@ -1,11 +1,22 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { gitEnv } from "../lib/git-env.ts";
 import type { ScriptContext } from "../lib/script.ts";
-import { check, jobNames, main, matrixCombinations, type JobNames } from "./ruleset-contexts.ts";
+import {
+  check,
+  jobNames,
+  jobNameText,
+  main,
+  makeCheck,
+  matrixCombinations,
+  originHead,
+  type JobNames,
+} from "./ruleset-contexts.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -54,9 +65,13 @@ jobs:
     name: Label
 `;
 
-function ruleset(contexts: readonly string[]): string {
+function ruleset(
+  contexts: readonly string[],
+  include: readonly unknown[] = ["~DEFAULT_BRANCH"],
+): string {
   return JSON.stringify({
     name: "main",
+    conditions: { ref_name: { include, exclude: [] } },
     rules: [
       { type: "deletion" },
       {
@@ -302,6 +317,218 @@ jobs:
     expect(found[0]?.actual).toContain(reason);
     expect(found[0]?.next).toContain(next);
   };
+
+  describe("the gated branch", () => {
+    const ciOn = (push: string): string =>
+      CI.replace(
+        "on:\n  push:\n    branches: [main]\n  pull_request:\n",
+        `on:\n${push}  pull_request:\n`,
+      );
+    const docs = (branches: string): string => `on:
+  pull_request:
+    branches: ${branches}
+jobs:
+  docs:
+    name: Docs Only
+    runs-on: ubuntu-24.04
+`;
+    const trunk = (overrides: Files): string[] =>
+      codes({
+        ".github/workflows/ci.yml": ciOn("  push:\n    branches: [trunk]\n"),
+        ".github/rulesets/main.json": ruleset(["Build", "Docs Only"]),
+        ...overrides,
+      });
+
+    it("resolves ~DEFAULT_BRANCH to ci.yml's push branch, not main", () => {
+      expect(trunk({ ".github/workflows/docs.yml": docs("[trunk]") })).toEqual([]);
+      const found = check.run(
+        root({
+          ".github/workflows/ci.yml": ciOn("  push:\n    branches: [trunk]\n"),
+          ".github/workflows/docs.yml": docs("[main]"),
+          ".github/rulesets/main.json": ruleset(["Docs Only"]),
+        }),
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+      expect(found[0]?.actual).toContain("do not match `trunk`");
+    });
+
+    it("reads a push branch written as a string", () => {
+      expect(
+        trunk({
+          ".github/workflows/ci.yml": ciOn("  push:\n    branches: trunk\n"),
+          ".github/workflows/docs.yml": docs("[trunk]"),
+        }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ["no push trigger", ""],
+      ["a push trigger without branches", "  push:\n"],
+      ["a push trigger with branches-ignore", "  push:\n    branches-ignore: [dev]\n"],
+      ["two push branches", "  push:\n    branches: [main, trunk]\n"],
+      ["a push branch pattern", '  push:\n    branches: ["release/**"]\n'],
+      ["an empty push branch list", "  push:\n    branches: []\n"],
+      ["a push branch that is not a string", "  push:\n    branches: [1]\n"],
+    ])("fails, never assuming main, when ci.yml has %s", (_label, push) => {
+      const found = check.run(root({ ".github/workflows/ci.yml": ciOn(push) }));
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_BRANCH_UNKNOWN"]);
+      expect(found[0]?.next).toContain("on: push: branches:");
+    });
+
+    it("fails when ci.yml is missing, does not parse, or is not a mapping", () => {
+      for (const ci of [undefined, "on: [\n", "- a\n"]) {
+        expect(codes({ ".github/workflows/ci.yml": ci }), String(ci)).toEqual([
+          "ERR_CHECK_RULESET_BRANCH_UNKNOWN",
+        ]);
+      }
+    });
+
+    it.each([
+      ["~ALL", ["~ALL"]],
+      ["a pattern", ["refs/heads/release/*"]],
+      ["a bare refs/heads/", ["refs/heads/"]],
+      ["a non-string", [5]],
+      ["nothing", []],
+    ])("fails on a ruleset include of %s", (_label, include) => {
+      expect(codes({ ".github/rulesets/main.json": ruleset(PASSING, include) })).toEqual([
+        "ERR_CHECK_RULESET_BRANCH_UNKNOWN",
+      ]);
+    });
+
+    it("fails on required contexts with no conditions at all", () => {
+      const bare = JSON.parse(ruleset(PASSING)) as Record<string, unknown>;
+      delete bare["conditions"];
+      expect(codes({ ".github/rulesets/main.json": JSON.stringify(bare) })).toEqual([
+        "ERR_CHECK_RULESET_BRANCH_UNKNOWN",
+      ]);
+    });
+
+    it("judges every branch the ruleset includes", () => {
+      const both = ruleset(["Docs Only"], ["~DEFAULT_BRANCH", "refs/heads/release"]);
+      expect(
+        codes({
+          ".github/workflows/docs.yml": docs("[main, release]"),
+          ".github/rulesets/main.json": both,
+        }),
+      ).toEqual([]);
+      const found = check.run(
+        root({ ".github/workflows/docs.yml": docs("[main]"), ".github/rulesets/main.json": both }),
+      );
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+      expect(found[0]?.actual).toContain("do not match `release`");
+    });
+
+    it("fails when ci.yml's push branch is not the clone's origin/HEAD", () => {
+      const found = makeCheck(() => "trunk").run(root());
+      expect(found.map((v) => v.code)).toEqual(["ERR_CHECK_RULESET_BRANCH_MISMATCH"]);
+      expect(found[0]?.actual).toContain("refs/remotes/origin/trunk");
+      expect(makeCheck(() => "main").run(root())).toEqual([]);
+      const named = ruleset(PASSING, ["refs/heads/main"]);
+      expect(makeCheck(() => "trunk").run(root({ ".github/rulesets/main.json": named }))).toEqual(
+        [],
+      );
+    });
+
+    describe("originHead", () => {
+      const git = (cwd: string, ...args: string[]): void => {
+        const result = spawnSync("git", args, { cwd, env: gitEnv(process.env), encoding: "utf8" });
+        expect(result.status, result.stderr).toBe(0);
+      };
+      const clone = (head?: string): string => {
+        const dir = root();
+        git(dir, "init", "--quiet");
+        if (head !== undefined) {
+          git(dir, "symbolic-ref", "refs/remotes/origin/HEAD", `refs/remotes/origin/${head}`);
+        }
+        return dir;
+      };
+
+      it("reads the branch origin/HEAD names at the top of a work tree", () => {
+        expect(originHead(clone("trunk"))).toBe("trunk");
+      });
+
+      it("reads nothing without origin/HEAD, below the top, or outside a work tree", () => {
+        expect(originHead(clone())).toBeUndefined();
+        const dir = clone("trunk");
+        mkdirSync(join(dir, "sub"));
+        expect(originHead(join(dir, "sub"))).toBeUndefined();
+        expect(originHead(root())).toBeUndefined();
+      });
+
+      it("reads nothing when git fails or names a path that does not exist", () => {
+        const fails = (): { status: number; stdout: string; stderr: string } => ({
+          status: 128,
+          stdout: "",
+          stderr: "fatal",
+        });
+        expect(originHead(root(), fails)).toBeUndefined();
+        const missing = (): { status: number; stdout: string; stderr: string } => ({
+          status: 0,
+          stdout: "/nonexistent/ruleset-contexts\n",
+          stderr: "",
+        });
+        expect(originHead(root(), missing)).toBeUndefined();
+      });
+
+      it("makes the check fail in a clone whose origin/HEAD disagrees with ci.yml", () => {
+        expect(check.run(clone("trunk")).map((v) => v.code)).toEqual([
+          "ERR_CHECK_RULESET_BRANCH_MISMATCH",
+        ]);
+        expect(check.run(clone("main"))).toEqual([]);
+      });
+    });
+  });
+
+  describe("a job name that is not a string", () => {
+    const named = (name: string, contexts: readonly string[], matrix = ""): string[] =>
+      codes({
+        ".github/workflows/named.yml": `on: pull_request
+jobs:
+  build:
+    name: ${name}
+    runs-on: ubuntu-24.04
+${matrix}`,
+        ".github/rulesets/main.json": ruleset(contexts),
+      });
+
+    it("reports a number or a boolean as GitHub renders it, never as the id", () => {
+      expect(named("123", ["123"])).toEqual([]);
+      expect(named("123", ["build"])).toEqual(["ERR_CHECK_RULESET_CONTEXT"]);
+      expect(named("true", ["true"])).toEqual([]);
+      expect(named("123", ["123 (a)"], "    strategy:\n      matrix:\n        os: [a]\n")).toEqual(
+        [],
+      );
+    });
+
+    it.each([
+      ["null", "~", "is null"],
+      ["a fraction", "1.5", "the number 1.5"],
+      ["a list", "[a]", "not a scalar"],
+    ])("does not know a name that is %s, and matches it to nothing", (_label, name, reason) => {
+      failsClosed(
+        {
+          ".github/workflows/named.yml": `on: pull_request
+jobs:
+  build:
+    name: ${name}
+    runs-on: ubuntu-24.04
+`,
+          ".github/rulesets/main.json": ruleset(["build"]),
+        },
+        reason,
+        "quote the job's `name:`",
+      );
+    });
+
+    it("renders each scalar as GitHub's parser converts it", () => {
+      expect(jobNameText("build", undefined)).toBe("build");
+      expect(jobNameText("build", "Build")).toBe("Build");
+      expect(jobNameText("build", 123)).toBe("123");
+      expect(jobNameText("build", -7)).toBe("-7");
+      expect(jobNameText("build", false)).toBe("false");
+      expect(jobNameText("build", 2 ** 60)).toHaveProperty("reason");
+    });
+  });
 
   describe("a name that is only an expression", () => {
     const named = (name: string, condition = "", matrix = true): string => `on: pull_request
