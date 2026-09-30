@@ -1,0 +1,77 @@
+# The tree every fixture under fail/ starts from: workflow-hygiene passes it, and so
+# does just-check-matches-ci with an empty exception list. Each key is the path the
+# test writes the file to under a temp root it passes as --root; the files are kept in
+# this one manifest so no tool that discovers a workflow, an action.yml, or a justfile
+# (actionlint, zizmor, CodeQL, just, Dependabot) ever reads them from the checkout.
+files:
+  justfile: |
+    set shell := ["bash", "-euo", "pipefail", "-c"]
+
+    check: lint test-ui build
+
+    lint:
+        pnpm lint
+
+    test-ui:
+        pnpm test:ui
+
+    build:
+        pnpm tauri build --debug --bundles app -- --locked
+
+    deny:
+        cargo deny --locked check
+
+    shear:
+        cargo shear --locked
+
+  .github/actions/setup/action.yml: |
+    name: Setup
+    description: Install the pinned tools and the locked dependencies
+    runs:
+      using: composite
+      steps:
+        - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        - shell: bash --noprofile --norc -euo pipefail {0}
+          run: pnpm install --frozen-lockfile
+
+  .github/workflows/ci.yml: |
+    name: CI
+    on:
+      push:
+        branches: [main]
+      pull_request:
+    permissions:
+      contents: read
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+    jobs:
+      lint:
+        name: Lint
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+          contents: read
+        steps:
+          - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            with:
+              persist-credentials: false
+          - uses: ./.github/actions/setup
+          - run: pnpm lint
+          - run: just test-ui
+      build:
+        name: Build
+        runs-on: macos-26
+        timeout-minutes: 30
+        permissions:
+          contents: read
+        steps:
+          - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            with:
+              persist-credentials: false
+          - uses: ./.github/actions/setup
+          - name: Build the app
+            run: just build

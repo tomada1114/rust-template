@@ -113,7 +113,7 @@ export function main(context: ScriptContext): void {
   let app = options.app ?? join(root, "target", "release", "bundle", "macos", `${APP_NAME}.app`);
   if (options.build) {
     log("smoke: building the release app bundle (no disk image)");
-    const built = run("pnpm", ["tauri", "build", "--bundles", "app"], {
+    const built = run("pnpm", ["tauri", "build", "--bundles", "app", "--", "--locked"], {
       cwd: root,
       inherit: true,
       env: withoutSigning(context.env),
@@ -122,7 +122,7 @@ export function main(context: ScriptContext): void {
       fail(
         "ERR_SMOKE_BUILD",
         "the release build failed",
-        "`pnpm tauri build --bundles app` to exit 0",
+        "`pnpm tauri build --bundles app -- --locked` to exit 0",
         `exit status ${String(built.status)}`,
         "read the build output above, fix it, and rerun `just smoke`",
       );

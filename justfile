@@ -55,7 +55,7 @@ verify-hooks:
 
 # Run the app with hot reload (opens a window: a human's recipe, never part of `just check`)
 dev: sidecar
-    {{ no_signing }} pnpm tauri dev
+    {{ no_signing }} pnpm tauri dev -- --locked
 
 # Format every Rust and TypeScript file
 fmt:
@@ -112,7 +112,7 @@ sidecar *args:
 
 # Build the debug app bundle (target/debug/bundle/macos/); no disk image
 build: sidecar
-    {{ no_signing }} pnpm tauri build --debug --bundles app
+    {{ no_signing }} pnpm tauri build --debug --bundles app -- --locked
 
 # Build, quit any running copy, and open the debug app (shows a window: a human's recipe)
 run: build
@@ -142,7 +142,7 @@ reset-permissions:
 
 # Build the release app and copy it to ~/Applications, quitting an older copy first (a human's recipe)
 install-app:
-    {{ no_signing }} pnpm tauri build --bundles app
+    {{ no_signing }} pnpm tauri build --bundles app -- --locked
     -pkill -x myapp
     mkdir -p "$HOME/Applications"
     rm -rf "$HOME/Applications/{{ app_name }}.app"
@@ -150,7 +150,7 @@ install-app:
 
 # Supply-chain checks for crates: advisories, licences, bans, sources
 deny:
-    cargo deny check
+    cargo deny --locked check
 
 # Remove build output
 clean:

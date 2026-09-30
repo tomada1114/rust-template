@@ -1,0 +1,8 @@
+# A justfile recipe running `cargo shear` without --locked.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
+  just-check-matches-ci: []
+edits:
+  - file: justfile
+    from: "    cargo shear --locked\n"
+    to: "    cargo shear\n"

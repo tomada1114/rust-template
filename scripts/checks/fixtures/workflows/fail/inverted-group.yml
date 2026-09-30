@@ -1,0 +1,8 @@
+# The group expression inverted: it names github.sha, but a push run takes github.ref, so pushes share one group.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_CONCURRENCY]
+  just-check-matches-ci: []
+edits:
+  - file: .github/workflows/ci.yml
+    from: "github.event_name == 'pull_request' && github.ref || github.sha"
+    to: "github.event_name == 'push' && github.ref || github.sha"

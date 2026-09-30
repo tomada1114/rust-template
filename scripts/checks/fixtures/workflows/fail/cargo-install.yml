@@ -1,0 +1,8 @@
+# `cargo install` without --locked, which resolves the crate's dependencies afresh.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
+  just-check-matches-ci: []
+edits:
+  - file: .github/actions/setup/action.yml
+    from: "run: pnpm install --frozen-lockfile\n"
+    to: "run: cargo install cargo-foo\n"
