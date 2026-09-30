@@ -100,9 +100,13 @@ formats. None of them opens a window.
   variants with `A | B =>`. A new variant then fails to compile (E0004) at every place
   that must decide what it means, instead of falling silently into a default. Enforced
   by: `#![deny(clippy::wildcard_enum_match_arm)]` in `crates/myapp-core/src/lib.rs`
-  (core only; follow the same rule in the other crates). An enum a foreign crate owns
-  may end with `_ =>`. In the sample, `describe` in `crates/myapp-cli/src/main.rs`
-  matches every `CounterError` and every `StorageErrorKind` inside it.
+  (core only; follow the same rule in the other crates). In core the lint fires on an
+  enum a foreign crate owns too (observed on this Mac with `cargo clippy` on
+  `std::cmp::Ordering` and `std::io::ErrorKind`, 2026-09-29): name every variant of an
+  exhaustive one, and test a `#[non_exhaustive]` one, whose match rustc refuses without
+  `_` (E0004), with `==` or `matches!` instead. Outside core such a match ends with
+  `_ =>`. In the sample, `describe` in `crates/myapp-cli/src/main.rs` matches every
+  `CounterError` and every `StorageErrorKind` inside it.
 
 ## Modules and visibility
 

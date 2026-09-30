@@ -73,8 +73,12 @@ The short, always-on version of the `writing-rust` and `designing-errors` skills
 
 - A `match` on an enum core declares names every variant, with no `_ =>` arm (core
   denies `clippy::wildcard_enum_match_arm`), so a new variant is a compile error at every
-  place that must decide about it. Group variants with `A | B =>` instead. An enum a
-  foreign crate owns may end with `_ =>`
+  place that must decide about it. Group variants with `A | B =>` instead. In core the
+  lint also fires on an enum a foreign crate owns (`std::cmp::Ordering`,
+  `std::io::ErrorKind`): name every variant of an exhaustive one, and test a
+  `#[non_exhaustive]` one with `==` or `matches!`, since rustc requires the `_` arm the
+  lint rejects. Outside core a match on a `#[non_exhaustive]` foreign enum ends with
+  `_ =>`
 
 ## Constants
 

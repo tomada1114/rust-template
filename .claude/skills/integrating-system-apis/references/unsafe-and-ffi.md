@@ -26,10 +26,11 @@ safe crate covers. Then, in one pull request:
    and turning on `clippy::undocumented_unsafe_blocks` there in the same change, so a
    block without a `// SAFETY:` comment fails `just lint`. It is more than one line: an
    `#[allow(unsafe_code)]` cannot lower a `forbid`
-   (<https://doc.rust-lang.org/rustc/lints/levels.html>), and cargo refuses a crate that
-   inherits `[workspace.lints]` and also overrides one of them ("cannot override
-   `workspace.lints` in `lints`": observed with cargo 1.98.1, 2026-09-29), so the
-   crate's `[lints]` table stops inheriting and restates the list itself.
+   (<https://doc.rust-lang.org/rustc/lints/levels.html>, checked 2026-09-30), and cargo
+   refuses a crate that inherits `[workspace.lints]` and also overrides one of them
+   ("cannot override `workspace.lints` in `lints`": observed with cargo 1.98.1,
+   2026-09-29), so the crate's `[lints]` table stops inheriting and restates the list
+   itself.
 
 Lifting `forbid` to get past a borrow-checker error is weakening a gate
 (`AGENTS.md` › "Security and human approval"), whatever the ADR says.
@@ -84,10 +85,15 @@ of them the main thread. The decisions:
   (<https://docs.rs/tauri/latest/tauri/struct.AppHandle.html>, checked 2026-09-29). The
   closure must be `Send + 'static`, so it creates the framework objects inside itself
   and sends back only a value, over a channel the command awaits.
-- **Never block the main thread waiting for itself.** A plain `fn` command already runs
-  on the main thread (<https://v2.tauri.app/develop/calling-rust/>, checked
-  2026-09-29); if it then asked `run_on_main_thread` and waited for the answer, it would
-  wait forever. A command that needs a main-thread call is `async`.
+- **Keep the main thread free.** A plain `fn` command already runs on the main thread
+  (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29), and every window
+  stalls for as long as it runs. Called from the main thread, `run_on_main_thread` does
+  not hop: it runs the closure inline before it returns (observed in the source of
+  tauri-runtime-wry 2.11.4, the version `Cargo.lock` pins, `send_user_message`,
+  2026-09-29). The hang to avoid is the main thread blocking on a result that another
+  thread can only produce by posting back to the main thread. A command that needs a
+  main-thread call is `async`: it runs off the main thread, hops with
+  `run_on_main_thread`, and awaits the channel rather than blocking on it.
 
 ## C callbacks
 
