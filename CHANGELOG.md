@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `engines.node` is `>=26`, and `@types/node` follows it to `^26.6.2`. Building from the
   template now needs Node 26. Node 25 stopped bundling corepack, so `mise.toml` pins
   it as `npm:corepack` (installed with npm) and CI installs it beside Node.
+- A harness check (`scripts/checks/node-types-major.ts`, run by `just check-harness`)
+  fails with `ERR_CHECK_NODE_MAJOR_DIVERGED` when the `@types/node` major resolved in
+  `pnpm-lock.yaml` differs from `mise.toml`'s `node` major, so a Renovate or Dependabot
+  bump can no longer move one alone; `merging-dependency-prs` moves a Node major's two
+  sides together.
 - The pre-commit staged guard reads every staged blob through one `git cat-file --batch`
   instead of one `git cat-file blob` per file, so a 1,000-file merge is judged in under a
   second rather than about 20 s. The 256 MiB read cap now bounds all staged content

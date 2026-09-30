@@ -14,6 +14,6 @@ extend-exclude = [
   # Data under test: a fixture misspelled on purpose is the point of the fixture.
   "scripts/**/fixtures/",
   # Generated mirror of .agents/skills/ (`just agents-sync`); the real files are
-  # checked at their real path (issue #139).
+  # checked at their real path.
   ".claude/skills/",
 ]

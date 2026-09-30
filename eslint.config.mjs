@@ -82,7 +82,7 @@ function importBoundaries(...boundaries) {
 
 export default defineConfig([
   // Generated and build output only; everything hand-written is linted. .claude/skills/
-  // is a generated mirror of .agents/skills/ (issue #139), linted at its real path.
+  // is a generated mirror of .agents/skills/, linted at its real path.
   globalIgnores([
     "dist/",
     "coverage/",

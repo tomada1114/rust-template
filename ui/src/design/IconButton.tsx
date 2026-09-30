@@ -4,7 +4,7 @@ export interface IconButtonProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
   "className" | "style" | "children" | "aria-label"
 > {
-  /** The accessible name, read by VoiceOver and used by tests (issue #169). Required. */
+  /** The accessible name, read by VoiceOver and used by tests. Required. */
   readonly label: string;
   /** The visible glyph; hidden from assistive technology. */
   readonly glyph: string;
