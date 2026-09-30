@@ -261,6 +261,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SugarSS, Vue, Svelte, MDX, or Astro file with the new `ERR_CHECK_UI_UNSUPPORTED_FILE`,
   instead of passing.
 
+- `ipc-names` compares the commands and events `ui/src/ipc/` reaches Tauri with in two
+  ways it used to pass unread. A call of `invoke` on `__TAURI_INTERNALS__`
+  (`window.__TAURI_INTERNALS__.invoke("…")`, bare or through `globalThis`) is compared
+  with `generate_handler!`, and any other use of that global in running code — an alias,
+  a destructuring, a key held in a variable, another member — fails with
+  `ERR_CHECK_IPC_UNPARSED`. An `invoke`, `listen`, or `once` (or a Tauri value whose
+  `.listen`/`.once` is called) imported from another script under `ui/src/ipc/` that
+  re-exports it — `export { … } from`, a renamed local export, `export *`,
+  `export * as`, `export default`, or an exported `const` alias — is followed to its
+  `@tauri-apps/*` module and compared, while a same-named helper of the app's own still
+  is not.
+
 - `just sidecar` and `just smoke` find Cargo's target directory from `cargo metadata`, so
   they work with `CARGO_TARGET_DIR` or `build.target-dir` set instead of failing with
   `ERR_SIDECAR_MISSING` or checking a stale bundle under `./target`.

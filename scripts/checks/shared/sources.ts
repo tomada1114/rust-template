@@ -1,9 +1,9 @@
 /**
  * What the harness checks that read the UI's sources (`ipc-names`, `ui-literals`) share:
- * which files are scripts and which are tests, parsing a script with a type checker so a
+ * which files are scripts and which are tests, parsing scripts with a type checker so a
  * name resolves to the binding actually in scope (a parameter or an inner `const`
- * shadows an outer one) — one file alone, or several whose imports of each other resolve —
- * and blanking text while keeping its line breaks.
+ * shadows an outer one), across the files' relative imports of each other, and blanking
+ * text while keeping its line breaks.
  */
 import ts from "typescript";
 
@@ -21,30 +21,6 @@ const KINDS: readonly (readonly [RegExp, ts.ScriptKind])[] = [
   [/\.jsx$/, ts.ScriptKind.JSX],
   [/\.[cm]?js$/, ts.ScriptKind.JS],
 ];
-
-/** A parsed script and a checker over it alone (no lib, no imports resolved). */
-export interface ParsedScript {
-  readonly file: ts.SourceFile;
-  readonly checker: ts.TypeChecker;
-}
-
-/**
- * Parse `source` as the script kind its path names, with a checker whose symbol lookups
- * follow the file's own scopes. Imports are not resolved: an imported name resolves to
- * its import specifier, which {@link importOf} reads.
- */
-export function parseScript(path: string, source: string): ParsedScript {
-  const name = `/__check__/${path}`;
-  const kind = KINDS.find(([pattern]) => pattern.test(path))?.[1] ?? ts.ScriptKind.TS;
-  const file = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true, kind);
-  const options: ts.CompilerOptions = { noLib: true, noResolve: true, allowJs: true, types: [] };
-  const host = ts.createCompilerHost(options, true);
-  host.getSourceFile = (requested) => (requested === name ? file : undefined);
-  host.fileExists = (requested) => requested === name;
-  host.readFile = (requested) => (requested === name ? source : undefined);
-  const program = ts.createProgram({ rootNames: [name], options, host });
-  return { file, checker: program.getTypeChecker() };
-}
 
 /** One script of a {@link parseScripts} program: its path under the root, and its text. */
 export interface ScriptSource {
@@ -215,29 +191,158 @@ export function constInitializer(
     : undefined;
 }
 
-/** Where an identifier's binding is imported from: the module, and the name it exports. */
-export function importOf(
-  checker: ts.TypeChecker,
-  identifier: ts.Identifier,
-): { readonly module: string; readonly name: string } | undefined {
-  const declaration = declarationOf(checker, identifier);
-  if (declaration === undefined) return undefined;
-  let name: string;
-  let clause: ts.Node;
-  if (ts.isImportSpecifier(declaration)) {
-    name = (declaration.propertyName ?? declaration.name).text;
-    clause = declaration.parent.parent;
-  } else if (ts.isNamespaceImport(declaration)) {
-    name = "*";
-    clause = declaration.parent;
-  } else if (ts.isImportClause(declaration)) {
-    name = "default";
-    clause = declaration;
-  } else {
-    return undefined;
+/** An export of a module the program does not hold: its specifier, and the export's name. */
+export interface ModuleOrigin {
+  readonly module: string;
+  /** The export's name: `default` for a default import, `*` for the module's namespace. */
+  readonly name: string;
+}
+
+/** What a value can be: an export of a module outside the program, or a program file's namespace. */
+type Origin = ModuleOrigin | { readonly namespace: ts.Symbol; readonly file: ts.SourceFile };
+
+/** `node` without the parentheses, type assertions, and `!` around it, which change no value. */
+export function withoutWrappers(node: ts.Expression): ts.Expression {
+  let inner = node;
+  while (
+    ts.isParenthesizedExpression(inner) ||
+    ts.isAsExpression(inner) ||
+    ts.isSatisfiesExpression(inner) ||
+    ts.isTypeAssertionExpression(inner) ||
+    ts.isNonNullExpression(inner)
+  ) {
+    inner = inner.expression;
   }
-  const specifier = ts.isImportClause(clause) ? clause.parent.moduleSpecifier : undefined;
-  return specifier !== undefined && ts.isStringLiteral(specifier)
-    ? { module: specifier.text, name }
+  return inner;
+}
+
+/** The member a `.name` or `["name"]` access reads, when it is fixed in the source. */
+export function memberName(node: ts.Expression): string | undefined {
+  if (ts.isPropertyAccessExpression(node)) return node.name.text;
+  return ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)
+    ? node.argumentExpression.text
     : undefined;
+}
+
+function originsOfModule(
+  checker: ts.TypeChecker,
+  specifier: ts.Expression | undefined,
+  name: string,
+  seen: ReadonlySet<ts.Node>,
+): Origin[] {
+  if (specifier === undefined || !ts.isStringLiteral(specifier)) return [];
+  const namespace = checker.getSymbolAtLocation(specifier);
+  const file = namespace?.declarations?.[0];
+  if (namespace === undefined || file === undefined || !ts.isSourceFile(file)) {
+    return [{ module: specifier.text, name }];
+  }
+  return name === "*"
+    ? [{ namespace, file }]
+    : originsOfExport(checker, { namespace, file }, name, seen);
+}
+
+/**
+ * What a program file's export `name` can be. An `export * from` a module outside the
+ * program hides which names it supplies, so a name the file does not declare is looked
+ * up in each such module.
+ */
+function originsOfExport(
+  checker: ts.TypeChecker,
+  module: { readonly namespace: ts.Symbol; readonly file: ts.SourceFile },
+  name: string,
+  seen: ReadonlySet<ts.Node>,
+): Origin[] {
+  const exported = checker.getExportsOfModule(module.namespace).find((s) => s.name === name);
+  if (exported !== undefined) return originsOfSymbol(checker, exported, seen);
+  return module.file.statements.flatMap((statement) =>
+    ts.isExportDeclaration(statement) &&
+    statement.exportClause === undefined &&
+    !seen.has(statement)
+      ? originsOfModule(checker, statement.moduleSpecifier, name, new Set([...seen, statement]))
+      : [],
+  );
+}
+
+function originsOfSymbol(
+  checker: ts.TypeChecker,
+  symbol: ts.Symbol,
+  seen: ReadonlySet<ts.Node>,
+): Origin[] {
+  const declaration = symbol.declarations?.[0];
+  if (declaration === undefined || seen.has(declaration)) return [];
+  const next = new Set([...seen, declaration]);
+  if (ts.isImportSpecifier(declaration)) {
+    const name = (declaration.propertyName ?? declaration.name).text;
+    return originsOfModule(checker, declaration.parent.parent.parent.moduleSpecifier, name, next);
+  }
+  if (ts.isNamespaceImport(declaration)) {
+    return originsOfModule(checker, declaration.parent.parent.moduleSpecifier, "*", next);
+  }
+  if (ts.isImportClause(declaration)) {
+    return originsOfModule(checker, declaration.parent.moduleSpecifier, "default", next);
+  }
+  if (ts.isNamespaceExport(declaration)) {
+    return originsOfModule(checker, declaration.parent.moduleSpecifier, "*", next);
+  }
+  if (ts.isExportSpecifier(declaration)) {
+    const from = declaration.parent.parent.moduleSpecifier;
+    if (from !== undefined) {
+      return originsOfModule(
+        checker,
+        from,
+        (declaration.propertyName ?? declaration.name).text,
+        next,
+      );
+    }
+    const local = checker.getExportSpecifierLocalTargetSymbol(declaration);
+    return local === undefined ? [] : originsOfSymbol(checker, local, next);
+  }
+  if (ts.isExportAssignment(declaration)) {
+    return originsOfExpression(checker, declaration.expression, next);
+  }
+  return ts.isVariableDeclaration(declaration) &&
+    ts.isIdentifier(declaration.name) &&
+    declaration.initializer !== undefined &&
+    (ts.getCombinedNodeFlags(declaration) & ts.NodeFlags.Const) !== 0
+    ? originsOfExpression(checker, declaration.initializer, next)
+    : [];
+}
+
+function originsOfExpression(
+  checker: ts.TypeChecker,
+  expression: ts.Expression,
+  seen: ReadonlySet<ts.Node>,
+): Origin[] {
+  const node = withoutWrappers(expression);
+  if (ts.isIdentifier(node)) {
+    const symbol = checker.getSymbolAtLocation(node);
+    return symbol === undefined ? [] : originsOfSymbol(checker, symbol, seen);
+  }
+  const member = memberName(node);
+  if (
+    member === undefined ||
+    !(ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
+  ) {
+    return [];
+  }
+  return originsOfExpression(checker, node.expression, seen).flatMap((origin): Origin[] => {
+    if ("file" in origin) return originsOfExport(checker, origin, member, seen);
+    return origin.name === "*" ? [{ module: origin.module, name: member }] : [];
+  });
+}
+
+/**
+ * The exports of modules outside the program that `expression` can be. An identifier
+ * imported from one (by any local name; a default or namespace import too) is, and so is
+ * one that reaches it through the program's own modules: a re-export
+ * (`export { x } from`, `export { local as x }`, `export * from`, `export * as ns from`,
+ * `export default x`), or a `const` that aliases it. So is a member read from such a
+ * namespace (`core.invoke`, `core["invoke"]`). A value the program declares itself — a
+ * function, a parameter, a `let`, a call's result — is none. An `export *` from several
+ * outside modules gives one origin per module, since any of them may supply the name.
+ */
+export function moduleOrigins(checker: ts.TypeChecker, expression: ts.Expression): ModuleOrigin[] {
+  return originsOfExpression(checker, expression, new Set()).filter(
+    (origin): origin is ModuleOrigin => "module" in origin,
+  );
 }

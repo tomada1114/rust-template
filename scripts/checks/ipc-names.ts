@@ -16,24 +16,35 @@
  *
  * The TypeScript side reads every non-test script under `ui/src/ipc/` except
  * `testing.ts` (test-only). A call counts when its callee is bound to Tauri: `invoke`
- * imported from `@tauri-apps/api/core` or `listen`/`once` from `@tauri-apps/api/event`
- * (under any local name, or through a namespace import), or a `.listen`/`.once` method
- * on a value that comes from an `@tauri-apps/*` import (`getCurrentWindow().once(…)`).
- * A same-named helper of the app's own (`once(() => …)`) is not a call to Tauri.
+ * exported by `@tauri-apps/api/core` or `listen`/`once` by `@tauri-apps/api/event` —
+ * imported under any local name or through a namespace import, aliased by a `const`, or
+ * re-exported by another script under `ui/src/ipc/` (`export { invoke } from …`,
+ * `export { local as name }`, `export * from …`, `export * as ns from …`,
+ * `export default …`) — or a `.listen`/`.once` method on a value reached from such an
+ * export (`getCurrentWindow().once(…)`). A same-named helper of the app's own
+ * (`once(() => …)`), declared in a script or re-exported from one, is not a call to
+ * Tauri. So is `invoke` on `__TAURI_INTERNALS__`, the global `@tauri-apps/api/core`'s
+ * `invoke` wraps whatever `withGlobalTauri` is: `window.__TAURI_INTERNALS__.invoke(…)`,
+ * bare or through `globalThis`, with a fixed member name. Any other use of
+ * `__TAURI_INTERNALS__` in running code — an alias, a destructuring, a key held in a
+ * variable, another member — is a call the check cannot bind, and a violation; a type
+ * or a `declare` that names it runs nothing and is not.
  *
  * Rust is read as text with comments removed; TypeScript with the TypeScript compiler's
- * parser and a checker over the one file. A TypeScript name is a string literal, a
- * template literal without substitutions, or a `const` in scope with such a value. A name the
- * check cannot read (a variable, an expression) is a violation, never a silent skip:
- * a name built at run time is a name no check can compare.
+ * parser and a checker over those scripts together, following their relative imports of
+ * each other. A TypeScript name is a string literal, a template literal without
+ * substitutions, or a `const` in scope with such a value. A name the check cannot read
+ * (a variable, an expression) is a violation, never a silent skip: a name built at run
+ * time is a name no check can compare.
  *
  *   node scripts/checks/ipc-names.ts [--root DIR]
  *
  * Git work tree: not required.
  *
  * Errors: ERR_CHECK_INPUT_MISSING (src-tauri/src/lib.rs, commands.ts, or events.ts
- * absent), ERR_CHECK_IPC_UNPARSED (no generate_handler!, or a name that is not a
- * literal or a resolvable const), ERR_CHECK_IPC_COMMANDS_DIVERGED,
+ * absent), ERR_CHECK_IPC_UNPARSED (no generate_handler!, a name that is not a literal
+ * or a resolvable const, or `__TAURI_INTERNALS__` used other than by calling its
+ * `invoke`), ERR_CHECK_IPC_COMMANDS_DIVERGED,
  * ERR_CHECK_IPC_EVENTS_DIVERGED.
  */
 import { readdirSync } from "node:fs";
@@ -45,12 +56,15 @@ import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
 import {
+  bindingOf,
   blank,
   constInitializer,
-  importOf,
-  parseScript,
+  memberName,
+  moduleOrigins,
+  parseScripts,
   SCRIPT_FILE,
   TEST_FILE,
+  withoutWrappers,
 } from "./shared/sources.ts";
 
 const RUST_DIR = "src-tauri/src";
@@ -72,12 +86,17 @@ function addSite(sites: Sites, name: string, site: string): void {
   sites.set(name, [...(sites.get(name) ?? []), site]);
 }
 
-const unparsed = (site: string, what: string, expected: string): FailureDetails => ({
+const unparsed = (
+  site: string,
+  what: string,
+  expected: string,
+  next = "name the command or event with a string literal or a const holding one, so the Rust and TypeScript lists can be compared",
+): FailureDetails => ({
   code: "ERR_CHECK_IPC_UNPARSED",
   summary: `${site}: ${what}`,
   expected,
   actual: what,
-  next: "name the command or event with a string literal or a const holding one, so the Rust and TypeScript lists can be compared",
+  next,
 });
 
 const lineAt = (text: string, offset: number): number => text.slice(0, offset).split("\n").length;
@@ -272,81 +291,161 @@ const EVENT_CALLEES: Callees = new Map([
   ["once", "@tauri-apps/api/event"],
 ]);
 
-/** The identifier an expression such as `getCurrentWindow().once` or `w.listen` starts from. */
-function rootIdentifier(node: ts.Expression): ts.Identifier | undefined {
-  let inner = node;
-  for (;;) {
-    if (ts.isIdentifier(inner)) return inner;
+/** The global `@tauri-apps/api/core`'s `invoke` wraps, present whatever `withGlobalTauri` is. */
+const INTERNALS = "__TAURI_INTERNALS__";
+
+/**
+ * The node that names Tauri's internals in `node` — `__TAURI_INTERNALS__`,
+ * `x.__TAURI_INTERNALS__`, or `x["__TAURI_INTERNALS__"]` — if it is one of those.
+ */
+function internalsName(node: ts.Expression): ts.Node | undefined {
+  const inner = withoutWrappers(node);
+  if (ts.isIdentifier(inner)) return inner.text === INTERNALS ? inner : undefined;
+  if (memberName(inner) !== INTERNALS) return undefined;
+  if (ts.isPropertyAccessExpression(inner)) return inner.name;
+  return ts.isElementAccessExpression(inner) ? inner.argumentExpression : undefined;
+}
+
+/** For a callee `<internals>.invoke` or `<internals>["invoke"]`, the node naming the internals. */
+function internalsInvoke(callee: ts.Expression): ts.Node | undefined {
+  const inner = withoutWrappers(callee);
+  if (memberName(inner) !== "invoke") return undefined;
+  return ts.isPropertyAccessExpression(inner) || ts.isElementAccessExpression(inner)
+    ? internalsName(inner.expression)
+    : undefined;
+}
+
+/**
+ * Code that never runs: a type, an interface, a type alias, or an ambient `declare`. A
+ * class's `extends` clause is a type node that holds a running expression, so it is read.
+ */
+function erased(node: ts.Node): boolean {
+  return (
+    (ts.isTypeNode(node) && !ts.isExpressionWithTypeArguments(node)) ||
+    ts.isInterfaceDeclaration(node) ||
+    ts.isTypeAliasDeclaration(node) ||
+    (ts.canHaveModifiers(node) &&
+      (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.DeclareKeyword))
+  );
+}
+
+/** The member chain `node` sits in (`window.__TAURI_INTERNALS__.invoke`), for a message. */
+function memberChain(node: ts.Node): ts.Node {
+  let outer = node;
+  while (
+    ts.isPropertyAccessExpression(outer.parent) ||
+    ts.isElementAccessExpression(outer.parent) ||
+    ts.isParenthesizedExpression(outer.parent)
+  ) {
+    outer = outer.parent;
+  }
+  return outer;
+}
+
+/** The names `ui/src/ipc/`'s scripts pass to Tauri's `invoke` (commands) and `listen`/`once` (events). */
+function tsNames(root: string, paths: readonly string[]): { commands: Found; events: Found } {
+  const commands: Found = { names: new Map(), violations: [] };
+  const events: Found = { names: new Map(), violations: [] };
+  const { files, checker } = parseScripts(
+    paths.map((path) => ({ path, source: readRepoFile(root, path) ?? "" })),
+  );
+  const fromTauriModule = (node: ts.Expression): boolean =>
+    moduleOrigins(checker, node).some((origin) => origin.module.startsWith("@tauri-apps/"));
+  /** Whether a value is, or is reached from, a value an `@tauri-apps/*` module exports. */
+  const fromTauri = (node: ts.Expression, seen: ReadonlySet<ts.Node>): boolean => {
+    if (fromTauriModule(node)) return true;
+    const inner = withoutWrappers(node);
     if (
       ts.isCallExpression(inner) ||
       ts.isPropertyAccessExpression(inner) ||
       ts.isElementAccessExpression(inner) ||
-      ts.isParenthesizedExpression(inner) ||
-      ts.isAwaitExpression(inner) ||
-      ts.isNonNullExpression(inner) ||
-      ts.isAsExpression(inner)
+      ts.isAwaitExpression(inner)
     ) {
-      inner = inner.expression;
-    } else return undefined;
-  }
-}
-
-/** The names `paths` pass as the first argument to calls of Tauri's `callees`. */
-function tsNames(root: string, paths: readonly string[], callees: Callees): Found {
-  const names: Sites = new Map();
-  const violations: FailureDetails[] = [];
-  for (const path of paths) {
-    const { file, checker } = parseScript(path, readRepoFile(root, path) ?? "");
-    /** Whether `identifier` is bound to an `@tauri-apps/*` import, directly or through consts. */
-    const fromTauri = (identifier: ts.Identifier, seen: ReadonlySet<ts.Node>): boolean => {
-      if (importOf(checker, identifier)?.module.startsWith("@tauri-apps/") === true) return true;
-      const initializer = constInitializer(checker, identifier);
-      if (initializer === undefined || seen.has(initializer)) return false;
-      const next = rootIdentifier(initializer);
-      return next !== undefined && fromTauri(next, new Set([...seen, initializer]));
-    };
-    const isTauriCall = (callee: ts.Expression): boolean => {
-      if (ts.isIdentifier(callee)) {
-        const origin = importOf(checker, callee);
-        return origin !== undefined && callees.get(origin.name) === origin.module;
-      }
-      if (!ts.isPropertyAccessExpression(callee) || !callees.has(callee.name.text)) return false;
-      const receiver = callee.expression;
-      if (ts.isIdentifier(receiver)) {
-        const origin = importOf(checker, receiver);
-        if (origin?.name === "*") return callees.get(callee.name.text) === origin.module;
-      }
-      const start = rootIdentifier(receiver);
-      return start !== undefined && fromTauri(start, new Set());
-    };
-    const nameOf = (arg: ts.Expression | undefined): string | undefined => {
-      if (arg === undefined) return undefined;
-      if (ts.isStringLiteralLike(arg)) return arg.text;
-      const initializer = ts.isIdentifier(arg) ? constInitializer(checker, arg) : undefined;
-      return initializer !== undefined && ts.isStringLiteralLike(initializer)
-        ? initializer.text
+      return fromTauri(inner.expression, seen);
+    }
+    if (!ts.isIdentifier(inner)) return false;
+    const binding = bindingOf(checker, inner);
+    const initializer =
+      binding !== undefined &&
+      ts.isVariableDeclaration(binding.declaration) &&
+      (ts.getCombinedNodeFlags(binding.declaration) & ts.NodeFlags.Const) !== 0
+        ? binding.values[0]
         : undefined;
+    return (
+      initializer !== undefined &&
+      !seen.has(initializer) &&
+      fromTauri(initializer, new Set([...seen, initializer]))
+    );
+  };
+  /** Whether `callee` is one of Tauri's `callees`, or a same-named method of a Tauri value. */
+  const isTauriCall = (callee: ts.Expression, callees: Callees): boolean => {
+    const origins = moduleOrigins(checker, callee);
+    if (origins.length > 0) {
+      return origins.some((origin) => callees.get(origin.name) === origin.module);
+    }
+    const inner = withoutWrappers(callee);
+    const method = memberName(inner);
+    return (
+      method !== undefined &&
+      callees.has(method) &&
+      (ts.isPropertyAccessExpression(inner) || ts.isElementAccessExpression(inner)) &&
+      fromTauri(inner.expression, new Set())
+    );
+  };
+  const nameOf = (arg: ts.Expression | undefined): string | undefined => {
+    if (arg === undefined) return undefined;
+    if (ts.isStringLiteralLike(arg)) return arg.text;
+    const initializer = ts.isIdentifier(arg) ? constInitializer(checker, arg) : undefined;
+    return initializer !== undefined && ts.isStringLiteralLike(initializer)
+      ? initializer.text
+      : undefined;
+  };
+  for (const [path, file] of files) {
+    const siteOf = (node: ts.Node): string =>
+      `${path}:${String(file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1)}`;
+    const record = (found: Found, node: ts.CallExpression): void => {
+      const [arg] = node.arguments;
+      const name = nameOf(arg);
+      if (name === undefined) {
+        found.violations.push(
+          unparsed(
+            siteOf(node),
+            `the name passed to ${node.expression.getText(file)}(…) is \`${arg?.getText(file) ?? "missing"}\`, not a string literal or a const in scope`,
+            "each IPC name a string literal, or a `const` in scope holding one",
+          ),
+        );
+      } else addSite(found.names, name, siteOf(node));
     };
+    /** The internals nodes read as a direct `.invoke(…)` call; any other is a violation. */
+    const read = new Set<ts.Node>();
     const visit = (node: ts.Node): void => {
-      if (ts.isCallExpression(node) && isTauriCall(node.expression)) {
-        const site = `${path}:${String(file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1)}`;
-        const [arg] = node.arguments;
-        const name = nameOf(arg);
-        if (name === undefined) {
-          violations.push(
-            unparsed(
-              site,
-              `the name passed to ${node.expression.getText(file)}(…) is \`${arg?.getText(file) ?? "missing"}\`, not a string literal or a const in scope`,
-              "each IPC name a string literal, or a `const` in scope holding one",
-            ),
-          );
-        } else addSite(names, name, site);
+      if (erased(node)) return;
+      if (ts.isCallExpression(node)) {
+        const internals = internalsInvoke(node.expression);
+        if (internals !== undefined) {
+          read.add(internals);
+          record(commands, node);
+        } else if (isTauriCall(node.expression, COMMAND_CALLEES)) record(commands, node);
+        else if (isTauriCall(node.expression, EVENT_CALLEES)) record(events, node);
+      } else if (
+        (ts.isIdentifier(node) || ts.isStringLiteralLike(node)) &&
+        node.text === INTERNALS &&
+        !read.has(node)
+      ) {
+        commands.violations.push(
+          unparsed(
+            siteOf(node),
+            `\`${memberChain(node).getText(file)}\` reaches ${INTERNALS} other than by calling its invoke directly, so no name can be read from it`,
+            `Tauri reached through @tauri-apps/api's invoke, listen, or once, or \`window.${INTERNALS}.invoke("…")\` called directly`,
+            `call invoke from @tauri-apps/api/core in ${COMMANDS_TS} instead of reaching ${INTERNALS}`,
+          ),
+        );
       }
       ts.forEachChild(node, visit);
     };
     visit(file);
   }
-  return { names, violations };
+  return { commands, events };
 }
 
 /** How one side of the comparison is named in a message. */
@@ -414,7 +513,7 @@ function run(root: string): FailureDetails[] {
   const ipcFiles = scriptFiles(root, IPC_DIR);
   const violations: FailureDetails[] = [];
   const commands = rustCommands(files);
-  const invoked = tsNames(root, ipcFiles, COMMAND_CALLEES);
+  const { commands: invoked, events: heard } = tsNames(root, ipcFiles);
   if (commands === undefined) {
     violations.push(
       unparsed(
@@ -443,7 +542,6 @@ function run(root: string): FailureDetails[] {
   }
 
   const emitted = rustEvents(files);
-  const heard = tsNames(root, ipcFiles, EVENT_CALLEES);
   const eventProblems = [...emitted.violations, ...heard.violations];
   violations.push(...eventProblems);
   if (eventProblems.length === 0) {
