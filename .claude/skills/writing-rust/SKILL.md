@@ -148,7 +148,8 @@ formats. None of them opens a window.
   so Rust's `last_changed_at` is `lastChangedAt` on the other side. That JSON is
   contract: a field added to a stored type gets `#[serde(default)]` so older files still
   read, and serde's attributes are documented at https://serde.rs/attributes.html.
-- A type that crosses IPC also derives `ts_rs::TS` with `#[ts(export)]`; after changing
+- A type that crosses IPC also derives `ts_rs::TS` with
+  `#[cfg_attr(feature = "export-bindings", ts(export))]`; after changing
   one, run `just bindings` and commit `ui/src/ipc/generated/` with it. The rest of that
   path is `designing-ipc`.
 

@@ -56,7 +56,7 @@ pub trait CounterStore: Send + Sync {
 /// Why storage failed, as a code the UI can map to wording. A kind, not an error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub enum StorageErrorKind {
     /// The storage could not be read or written (missing permission, full disk, …).
     Unavailable,

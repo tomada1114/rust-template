@@ -16,7 +16,7 @@ In the sample, `crates/myapp-core/src/counter/mod.rs`:
 /// What the UI renders. The only counter type that crosses IPC.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub struct CounterView {
     pub value: i64,
     pub last_changed_at: Option<UnixMillis>,
@@ -35,7 +35,7 @@ An argument the UI sends is a DTO deriving `Deserialize` instead. In the sample,
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[cfg_attr(feature = "export-bindings", ts(export))]
 pub struct UiLogEntry {
     pub level: UiLogLevel,
     pub message: String,
@@ -53,10 +53,11 @@ so the expected JSON is written out by hand, not produced by serializing a value
 just bindings
 ```
 
-The recipe deletes `ui/src/ipc/generated/` and runs core's `export_bindings` tests,
-which ts-rs generates for each `#[ts(export)]` type
-(<https://docs.rs/ts-rs/latest/ts_rs/>, checked 2026-09-29). Then add the new type to
-`ui/src/ipc/types.ts`:
+The recipe (`scripts/bindings.ts`) runs core's `export_bindings` tests, the ones ts-rs
+generates for each type marked `ts(export)` and only the `export-bindings` feature
+compiles (<https://docs.rs/ts-rs/latest/ts_rs/>, checked 2026-09-29). They export into a
+fresh directory, which replaces `ui/src/ipc/generated/` only when the export succeeds.
+Then add the new type to `ui/src/ipc/types.ts`:
 
 ```ts
 export type { CounterView } from "./generated/CounterView";
