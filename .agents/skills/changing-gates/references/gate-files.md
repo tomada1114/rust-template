@@ -81,7 +81,11 @@ only what each job names.
 
 ## `lefthook.yml`
 
-- `skip: [merge, rebase]`: a merge or rebase replays commits that already passed.
+- `skip: [merge, rebase]` sits on the four style jobs only, never on the hook: the
+  commit that concludes a conflicted merge carries a resolution no hook has seen, so the
+  staged guard and the skills mirror run for it, while the style jobs, which CI reruns
+  over the whole tree, skip re-linting everything the other side changed.
+  `scripts/lefthook.test.ts` drives a real conflicted merge through the real lefthook.
 - `parallel: true`: every job is check-only, so none depends on another's output. A
   job that wrote files would break that and would need ordering; that is one more
   reason jobs never write.

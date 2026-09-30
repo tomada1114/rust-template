@@ -9,10 +9,14 @@
 # missing. `git commit --no-verify` skips every job below; CI runs them all again.
 
 pre-commit:
-  # A merge or rebase replays commits that already passed these checks.
-  skip:
-    - merge
-    - rebase
+  # The commit that concludes a conflicted merge, or a `git commit` at a rebase stop,
+  # carries a conflict resolution no hook has seen, so the hook runs for it (lefthook's
+  # `merge` state is MERGE_HEAD present, `rebase` a rebase in progress). Only the style jobs
+  # skip those states: the staged files then are everything the other side changed, which
+  # they would re-lint slowly, and CI reruns all four over the whole tree. The staged guard
+  # and the skills mirror never skip — no CI job reruns the guard over a pull request's
+  # diff, and a resolved skill conflict is where the mirror drifts. `git rebase --continue`
+  # commits a resolution without running pre-commit at all; see AGENTS.md's gaps.
   parallel: true
   jobs:
     # Secret-shaped paths and credential-shaped content in the staged blobs (not the
@@ -21,18 +25,22 @@ pre-commit:
       run: node scripts/check-staged.ts
 
     - name: rustfmt
+      skip: [merge, rebase]
       glob: "*.rs"
       run: rustfmt --check {staged_files}
 
     - name: prettier
+      skip: [merge, rebase]
       glob: "*.{ts,tsx,mts,cts,js,mjs,cjs,json,css,html,yml,yaml}"
       run: pnpm exec prettier --check --ignore-unknown {staged_files}
 
     - name: eslint
+      skip: [merge, rebase]
       glob: "*.{ts,tsx,mts,cts,js,mjs,cjs}"
       run: pnpm exec eslint --max-warnings 0 --no-warn-ignored {staged_files}
 
     - name: typos
+      skip: [merge, rebase]
       run: typos --force-exclude {staged_files}
 
     # .claude/skills/ must stay a byte-for-byte copy of .agents/skills/ (`just agents-sync`).
