@@ -100,6 +100,15 @@ describe("evaluateOn pull_request", () => {
     expect(evaluateOn("pull_request", "!github.event.pull_request.draft")).toEqual(UNKNOWN);
   });
 
+  it("takes the context paths a caller resolves, leaving the rest symbolic", () => {
+    const resolve = (path: string): PushValue | undefined =>
+      path === "matrix.os" ? lit("macos") : undefined;
+    expect(evaluateOn("pull_request", "Matrix.OS", resolve)).toEqual(lit("macos"));
+    expect(evaluateOn("pull_request", "matrix.os == 'macos'", resolve)).toEqual(lit(true));
+    expect(evaluateOn("pull_request", "matrix.arch", resolve)).toEqual(ctx("matrix.arch"));
+    expect(evaluateOn("pull_request", "github.event_name", resolve)).toEqual(lit("pull_request"));
+  });
+
   it("reads a name template for a pull request", () => {
     expect(
       templateOn("pull_request", "${{ github.event_name == 'pull_request' && 'PR' || 'Push' }}"),

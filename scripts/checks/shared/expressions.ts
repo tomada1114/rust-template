@@ -64,8 +64,16 @@ const literal = (value: string | number | boolean | null): ExpressionValue => ({
   value,
 });
 
-function contextOn(event: Event, path: string): ExpressionValue {
+/**
+ * What a caller knows about a context path (given lowercased) on the run it asks about,
+ * such as one matrix combination's `matrix.*` values, or undefined to leave it symbolic.
+ */
+export type Resolve = (path: string) => ExpressionValue | undefined;
+
+function contextOn(event: Event, path: string, resolve?: Resolve): ExpressionValue {
   const lower = path.toLowerCase();
+  const known = resolve?.(lower);
+  if (known !== undefined) return known;
   if (lower === "github.event_name") return literal(event);
   if (event === "push") {
     if (lower === "github.head_ref" || lower === "github.base_ref") return literal("");
@@ -79,7 +87,7 @@ function contextOn(event: Event, path: string): ExpressionValue {
 const PATH = /^[A-Za-z_][A-Za-z0-9_-]*(?:\.(?:[A-Za-z_][A-Za-z0-9_-]*|\*))*/;
 const NUMBER = /^-?\d+(?:\.\d+)?/;
 
-function tokenize(source: string, event: Event): Token[] | undefined {
+function tokenize(source: string, event: Event, resolve?: Resolve): Token[] | undefined {
   const tokens: Token[] = [];
   let rest = source.trim();
   while (rest !== "") {
@@ -118,7 +126,7 @@ function tokenize(source: string, event: Event): Token[] | undefined {
           ? literal(keyword)
           : word === "null"
             ? literal(null)
-            : contextOn(event, word),
+            : contextOn(event, word, resolve),
     });
   }
   return tokens;
@@ -225,9 +233,16 @@ function parse(tokens: readonly Token[], event: Event): ExpressionValue | undefi
   return value !== undefined && index === tokens.length ? value : undefined;
 }
 
-/** One expression's value on a run of `event`, or undefined when it cannot be read. */
-export function evaluateOn(event: Event, expression: string): ExpressionValue | undefined {
-  const tokens = tokenize(expression, event);
+/**
+ * One expression's value on a run of `event`, or undefined when it cannot be read. A
+ * `resolve` function supplies the context paths the caller knows beyond the event's own.
+ */
+export function evaluateOn(
+  event: Event,
+  expression: string,
+  resolve?: Resolve,
+): ExpressionValue | undefined {
+  const tokens = tokenize(expression, event, resolve);
   return tokens === undefined ? undefined : parse(tokens, event);
 }
 
