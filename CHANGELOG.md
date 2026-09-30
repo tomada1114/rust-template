@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A harness check (`scripts/checks/node-types-major.ts`, run by `just check-harness`)
+  fails with `ERR_CHECK_NODE_MAJOR_DIVERGED` when the `@types/node` major resolved in
+  `pnpm-lock.yaml` differs from `mise.toml`'s `node` major, so a Renovate or Dependabot
+  bump can no longer move one alone; `merging-dependency-prs` moves a Node major's two
+  sides together.
+- The pre-commit staged guard reads every staged blob through one `git cat-file --batch`
+  instead of one `git cat-file blob` per file, so a 1,000-file merge is judged in under a
+  second rather than about 20 s. The 256 MiB read cap now bounds all staged content
+  together, and a missing or unreadable blob still fails with `ERR_STAGED_READ_FAILED`.
 - A harness check (`scripts/checks/clippy-allow-invalid.ts`, run by `just check-harness`)
   fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` when any `clippy.toml` sets `allow-invalid`,
   the key that hides an unresolvable ban path from `scripts/clippy-guard.ts` and so lets
@@ -76,7 +85,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `counter-changed` events leave in the order the changes were saved.
 - A counter file this version cannot read can now be replaced with Reset from the error
   screen, and a failed load can be retried.
-
+- `.gitignore` ignores Python bytecode (`__pycache__/`, `*.pyc`), and `just agents-sync` and
+  `just agents-check` skip it in both skill trees, so running a skill's bundled Python tests
+  directly can no longer stage bytecode into a commit.
+- `just check-harness`'s UI literals check reports an unreadable directory or file under `ui/` as `ERR_CHECK_INPUT_UNREADABLE`, naming the path and its errno, instead of claiming `ui/src/` does not exist or failing with `ERR_INTERNAL_UNEXPECTED`; only a missing `ui/src/` is `ERR_CHECK_INPUT_MISSING`.
 - `just check-harness`'s UI literals check no longer reports a hex-looking fragment given to `href`, `xlinkHref`, `id`, `htmlFor`, or an `aria-*` JSX attribute (`<a href="#add">`) as a raw color; the same string in a style, a `fill`, or a binding is still flagged.
 - `no-issue-references` no longer reports an upstream project's `owner/repo#N` (such as
   `tauri-apps/tauri#1234`), which it now treats like the same issue's URL, as a source;

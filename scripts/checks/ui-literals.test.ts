@@ -6,7 +6,7 @@
  * to a non-style attribute, markup comments, a script that loads a file, a Sass line
  * comment). Each failing case copies it to a temp root and writes the offending files.
  */
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -23,7 +23,9 @@ const UNPARSED = "ERR_CHECK_UI_UNPARSED";
 const UNSUPPORTED = "ERR_CHECK_UI_UNSUPPORTED_FILE";
 
 const dirs: string[] = [];
+const locked: string[] = [];
 afterEach(() => {
+  for (const path of locked.splice(0)) chmodSync(path, 0o755);
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -49,6 +51,41 @@ describe("ui-literals", () => {
     const dir = mkdtempSync(join(tmpdir(), "ui-literals-"));
     dirs.push(dir);
     expect(codes(check.run(dir))).toEqual(["ERR_CHECK_INPUT_MISSING"]);
+  });
+
+  // Root ignores file modes, so a permission-less fixture reads fine there.
+  const asRoot = process.getuid?.() === 0;
+
+  it.skipIf(asRoot)(
+    "fails with the path and errno when a directory under ui/src/ is unreadable",
+    () => {
+      const dir = rootWith("ui/src/locked/a.css", ".a { color: var(--color-text); }");
+      chmodSync(join(dir, "ui/src/locked"), 0o000);
+      locked.push(join(dir, "ui/src/locked"));
+      const violations = check.run(dir);
+      expect(codes(violations)).toEqual(["ERR_CHECK_INPUT_UNREADABLE"]);
+      expect(violations[0]?.summary).toContain("ui/src/locked/");
+      expect(violations[0]?.actual).toBe("EACCES");
+    },
+  );
+
+  it.skipIf(asRoot)("fails with the path and errno when a file under ui/src/ is unreadable", () => {
+    const dir = rootWith("ui/src/a.css", ".a { color: var(--color-text); }");
+    chmodSync(join(dir, "ui/src/a.css"), 0o000);
+    locked.push(join(dir, "ui/src/a.css"));
+    const violations = check.run(dir);
+    expect(codes(violations)).toEqual(["ERR_CHECK_INPUT_UNREADABLE"]);
+    expect(violations[0]?.summary).toContain("ui/src/a.css");
+    expect(violations[0]?.actual).toBe("EACCES");
+  });
+
+  it.skipIf(asRoot)("fails as unreadable, not missing, when ui/src/ cannot be looked up", () => {
+    const dir = rootWith("ui/src/a.css", ".a { color: var(--color-text); }");
+    chmodSync(join(dir, "ui"), 0o000);
+    locked.push(join(dir, "ui"));
+    const violations = check.run(dir);
+    expect(codes(violations)).toEqual(["ERR_CHECK_INPUT_UNREADABLE"]);
+    expect(violations[0]?.actual).toBe("EACCES");
   });
 
   describe("in CSS", () => {

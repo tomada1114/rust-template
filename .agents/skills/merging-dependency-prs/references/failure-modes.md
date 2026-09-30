@@ -39,8 +39,10 @@ cargo step fails under `--locked` because `Cargo.lock` needs to change.
 **Cause:** a rebase or a hand-resolved conflict moved one file without the other. The
 bump itself is untested, not broken.
 
-**Fix:** take it through the combined branch (Step 4b), where the tool regenerates the
-lockfile. That branch's CI run is the first real signal for the new version.
+**Fix:** such a PR is eligible for the combined branch only, never landed alone, under
+the combined-branch bar in `SKILL.md` › "Step 3". Take it through the combined branch
+(Step 4b), where the tool regenerates the lockfile. That branch's CI run is the first
+real signal for the new version.
 
 ## F3: The cooldown refuses the version
 
@@ -98,7 +100,8 @@ to accommodate a version nobody has decided to accept, and never lower a floor.
 Not a CI failure. `BEHIND` means `main` moved; `DIRTY` means a real conflict. Comment
 `@dependabot rebase` once the approved plan lists it, or when an earlier approved
 merge moved `main` (`SKILL.md` › "Step 4a"); a PR that keeps conflicting, which is
-normal once two cargo or two npm PRs are open, goes into the combined branch.
+normal once two cargo or two npm PRs are open, goes into the combined branch under the
+combined-branch bar in `SKILL.md` › "Step 3", never landed alone.
 
 ## F8: A check that never reports
 
@@ -145,7 +148,7 @@ https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-3
 found one.
 
 **Fix:** hold it until it has; never pin a different version than the bot proposed,
-except the Tauri side the approved plan names under F11.
+except a side the approved plan names under F11 or F12.
 
 ## F11: One side of a Tauri pair
 
@@ -166,9 +169,9 @@ of a new Tauri minor, or of a plugin's new exact version. The harness refuses a 
 versions, and the build may too. This is not a regression: as in F2, the bump is
 untested until its other side joins it.
 
-**Fix:** such a PR is eligible for the combined branch only, never landed alone, with
-the relaxed merge state `SKILL.md` Step 3 gives; the combined branch's own PR lands only
-when `CLEAN` and all green.
+**Fix:** such a PR is eligible for the combined branch only, never landed alone, under
+the combined-branch bar in `SKILL.md` › "Step 3"; the combined branch's own PR lands
+only when `CLEAN` and all green.
 
 - If the survey prints `split across #<a> #<b>`, both PRs go into one combined branch
   (Step 4b). That branch's CI is the first real signal.
@@ -182,5 +185,35 @@ when `CLEAN` and all green.
 - Otherwise hold the PR until the other side's PR is open, then survey again.
 - Any other failing step, or any other code in the log, is diagnosed under its own entry
   and is never waved through as the split.
+
+## F12: One side of a Node major
+
+**Symptom:** a Renovate PR that moves `mise.toml`'s `node` to a new major, or a
+Dependabot PR that moves `@types/node` to one, fails only in these ways, and every other
+job and step passes:
+
+- `Repo Lint & Harness` fails at "Harness self-checks"; the only `FAIL` line is
+  `FAIL  node-types-major`, and the only code is `ERR_CHECK_NODE_MAJOR_DIVERGED`.
+- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at
+  `check-harness`, with the same `node-types-major` failure.
+
+**Cause:** `@types/node` stays on the Node major `mise.toml` runs, so the scripts
+type-check against the APIs of the Node that executes them, and
+`scripts/checks/node-types-major.ts` fails when the two majors differ. Renovate bumps
+`mise.toml` and Dependabot bumps `@types/node`, each in its own PR, and `tsc` usually
+passes on either major, so the check is the only thing that notices one moving alone.
+
+**Fix:** such a PR is eligible for the combined branch only, never landed alone, under
+the combined-branch bar in `SKILL.md` › "Step 3". The combined branch moves the other
+side by hand, named in the approved plan with its package, from, and to versions, and
+only to a version published at least 7 days ago:
+
+- For a `node` major, `pnpm add -D @types/node@^<major>` (pnpm's `minimumReleaseAge`
+  refuses a younger one, F3).
+- For an `@types/node` major, set `node` in `mise.toml` to an exact release of that
+  major, then `mise install` (F10 if it will not install here).
+
+With no such release of the other side yet, hold the PR. Read the Node release notes
+for the major either way (`review-checklist.md` › "Release notes").
 
 Where to read the log: the command at the top of this file.

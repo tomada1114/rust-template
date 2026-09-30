@@ -3,9 +3,8 @@ name: Label PR
 # Labels a pull request by its title's Conventional Commit type (scripts/label-pr.ts), for
 # the release-notes categories in .github/release.yml.
 #
-# The script runs from the base branch's commit, never the pull request's head (issue
-# #126): a pull request cannot change the code that runs with this workflow's write
-# token. A base commit that predates the script is skipped with a notice.
+# The script runs from the base branch's commit, never the pull request's head: a pull
+# request cannot change the code that runs with this workflow's write token. A base commit that predates the script is skipped with a notice.
 
 on:
   pull_request:

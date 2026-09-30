@@ -93,7 +93,9 @@
  *
  * Git work tree: not required.
  *
- * Errors: ERR_CHECK_INPUT_MISSING (no ui/src/), ERR_CHECK_UI_RAW_COLOR,
+ * Errors: ERR_CHECK_INPUT_MISSING (no ui/src/), ERR_CHECK_INPUT_UNREADABLE (ui/src/, or a
+ * directory or file the check walks, cannot be read: the path and its errno),
+ * ERR_CHECK_UI_RAW_COLOR,
  * ERR_CHECK_UI_FONT_FAMILY, ERR_CHECK_UI_PIXEL_FONT_SIZE, ERR_CHECK_UI_UNPARSED (a
  * markup tag, or an inline script's type, syntax, or missing `</script>`, it cannot
  * read), ERR_CHECK_UI_UNSUPPORTED_FILE (a file kind it does not parse).
@@ -132,11 +134,19 @@ const ENTRY_PAGE = /^ui\/[^/]+\.(?:html|htm|xhtml)$/;
  */
 const REFUSED_FILE = /\.(?:less|sass|sty(?:l|lus)|sss|htm|xhtml|vue|svelte|mdx|astro)$/;
 
+const errnoOf = (error: unknown): string =>
+  error instanceof Error && "code" in error && typeof error.code === "string"
+    ? error.code
+    : String(error);
+
+/** Whether the path is a directory; a stat failure other than a missing path rethrows. */
 const isDirectory = (path: string): boolean => {
   try {
     return statSync(path).isDirectory();
-  } catch {
-    return false;
+  } catch (error) {
+    const errno = errnoOf(error);
+    if (errno === "ENOENT" || errno === "ENOTDIR") return false;
+    throw error;
   }
 };
 
@@ -1194,18 +1204,41 @@ function kindOf(path: string): Kind | undefined {
   return path.startsWith(`${UI}/public/`) && PUBLIC_CSS_FILE.test(name) ? "css" : undefined;
 }
 
-function files(root: string, dir: string): string[] {
-  return readdirSync(join(root, dir), { withFileTypes: true })
+function unreadableInput(path: string, what: "directory" | "file", error: unknown): FailureDetails {
+  return {
+    code: "ERR_CHECK_INPUT_UNREADABLE",
+    summary: `${path} cannot be read`,
+    expected: `a readable ${what}, so nothing under ${UI}/ passes unjudged`,
+    actual: errnoOf(error),
+    next: `restore read permission on ${path} (ls -ld ${path}), then rerun just check-harness`,
+  };
+}
+
+function files(root: string, dir: string, failures: FailureDetails[]): string[] {
+  let entries;
+  try {
+    entries = readdirSync(join(root, dir), { withFileTypes: true });
+  } catch (error) {
+    failures.push(unreadableInput(`${dir}/`, "directory", error));
+    return [];
+  }
+  return entries
     .sort((a, b) => a.name.localeCompare(b.name))
     .flatMap((entry) => {
       const path = `${dir}/${entry.name}`;
-      if (entry.isDirectory()) return entry.name === "node_modules" ? [] : files(root, path);
+      if (entry.isDirectory()) {
+        return entry.name === "node_modules" ? [] : files(root, path, failures);
+      }
       return kindOf(path) === undefined ? [] : [path];
     });
 }
 
 /** Every file's findings to judge; the scripts, markup's inline ones included, read together. */
-function scanAll(root: string, paths: readonly string[]): (Scanned & { path: string })[] {
+function scanAll(
+  root: string,
+  paths: readonly string[],
+  failures: FailureDetails[],
+): (Scanned & { path: string })[] {
   const scripts: ScriptEntry[] = [];
   const scanned = paths.map((path): Scanned & { path: string } => {
     const kind = kindOf(path);
@@ -1214,7 +1247,13 @@ function scanAll(root: string, paths: readonly string[]): (Scanned & { path: str
       const next = `this check cannot read ${what} files: write the styles as CSS using the tokens (var(--…) from ${TOKENS}), and markup as .html or .tsx`;
       return { path, units: [], unreadable: [{ rule: "file", line: 1, what, next }] };
     }
-    const source = readFileSync(join(root, path), "utf8");
+    let source: string;
+    try {
+      source = readFileSync(join(root, path), "utf8");
+    } catch (error) {
+      failures.push(unreadableInput(path, "file", error));
+      return { path, units: [], unreadable: [] };
+    }
     if (kind === "css") return { path, ...scanCss(path, source) };
     if (kind === "markup") {
       const markup = scanMarkup(path, source);
@@ -1284,7 +1323,13 @@ const RULES: Readonly<
 };
 
 function run(root: string): FailureDetails[] {
-  if (!isDirectory(join(root, UI_SRC))) {
+  let present: boolean;
+  try {
+    present = isDirectory(join(root, UI_SRC));
+  } catch (error) {
+    return [unreadableInput(`${UI_SRC}/`, "directory", error)];
+  }
+  if (!present) {
     return [
       {
         code: "ERR_CHECK_INPUT_MISSING",
@@ -1295,7 +1340,8 @@ function run(root: string): FailureDetails[] {
       },
     ];
   }
-  const scanned = scanAll(root, files(root, UI));
+  const failures: FailureDetails[] = [];
+  const scanned = scanAll(root, files(root, UI, failures), failures);
   const direct = scanned.flatMap(({ path, units, unreadable }) => [
     ...unreadable.map(({ rule, line, what, next }): Located => ({
       code: rule,
@@ -1320,7 +1366,7 @@ function run(root: string): FailureDetails[] {
     ...direct,
     ...throughLocals(scanned.flatMap(({ path, units }) => units.flatMap((u) => held(path, u)))),
   ].sort((a, b) => (order.get(a.path) ?? 0) - (order.get(b.path) ?? 0) || a.line - b.line);
-  return located.map((finding): FailureDetails => {
+  const findings = located.map((finding): FailureDetails => {
     const rule = RULES[finding.code];
     const where = `${finding.path}:${String(finding.line)}`;
     return {
@@ -1337,6 +1383,7 @@ function run(root: string): FailureDetails[] {
       next: finding.next ?? rule.next,
     };
   });
+  return [...failures, ...findings];
 }
 
 export const check: Check = { name: "ui-literals", run };

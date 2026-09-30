@@ -27,6 +27,15 @@ describe("runCommand", () => {
     expect(result.stdout).toBe(`in:${REPO_ROOT}:env`);
   });
 
+  it("decodes output one character per byte under latin1", () => {
+    const result = runCommand(
+      process.execPath,
+      ["-e", "process.stdout.write(Buffer.from([0xc3, 0xa9, 0x0a]))"],
+      { encoding: "latin1" },
+    );
+    expect(result.stdout).toBe("Ã©\n");
+  });
+
   it("reports a command that cannot start as status null", () => {
     const result = runCommand("definitely-not-a-command-here", []);
     expect(result.status).toBeNull();

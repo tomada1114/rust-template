@@ -6,11 +6,12 @@ description: >
   github-actions bumps, and Renovate's mise.toml and rust-toolchain.toml bumps. Surveys
   them with scripts/survey-prs.ts, runs the security review (release notes, workflow
   permissions, maintainer changes, crates whose build.rs or proc-macro runs at build
-  time), keeps each tauri crate and its @tauri-apps/* npm package in step, holds a
-  Tauri major as a migration issue, asks the human for one approval of a listed batch,
-  then merges or builds one combined branch. Use when clearing a backlog of bump PRs,
-  when a bot PR fails CI after a clippy, ESLint, TypeScript, or Rust toolchain bump, or
-  when several dependency PRs contest Cargo.lock, pnpm-lock.yaml, or mise.toml.
+  time), keeps each tauri crate and its @tauri-apps/* npm package in step and
+  @types/node on mise.toml's Node major, holds a Tauri major as a migration issue, asks
+  the human for one approval of a listed batch, then merges or builds one combined
+  branch. Use when clearing a backlog of bump PRs, when a bot PR fails CI after a
+  clippy, ESLint, TypeScript, or Rust toolchain bump, or when several dependency PRs
+  contest Cargo.lock, pnpm-lock.yaml, or mise.toml.
 ---
 
 # Merging Dependency PRs
@@ -20,10 +21,9 @@ the approval gate, individual merges, the combined branch, and the cleanup. **Do
 own:** which bot bumps what and the 7-day cooldown (`.claude/rules/project.md` › "Tool
 Pinning", stated once there), or the `deps:`/`ci:` title prefixes the bots write
 (`commit-message` in `.github/dependabot.yml`, `commitMessagePrefix` in
-`.github/renovate.json`); adding a dependency
-that is not there yet, which needs a human's sign-off and its review record
-(`managing-dependencies`); the Release impact line a runtime bump's PR carries
-(`create-pr`).
+`.github/renovate.json`); adding a dependency that is not there yet, which needs a
+human's sign-off and its review record (`managing-dependencies`); the Release impact
+line a runtime bump's PR carries (`create-pr`).
 
 Branch names, commits, comments, and PR text are English and Conventional Commits.
 
@@ -34,13 +34,12 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 
 1. Do the whole survey and review first, writing nothing remote.
 2. Present the plan: the exact PR numbers to merge, which go individually and which into
-   a combined branch, which are held and why, every major bump named, every
-   `@dependabot rebase` comment and `gh run rerun` the plan already needs
-   (`references/failure-modes.md` F7-F9), and any issue the plan would file (a Tauri
-   major, below). A Tauri side moved by hand under F11 is named with its package, from,
-   and to versions.
-3. Get one explicit approval for that listed batch, then run it without asking per
-   merge.
+   a combined branch (and the failure mode admitting each one not `CLEAN` and green,
+   Step 3), which are held and why, every major bump named, every `@dependabot rebase`
+   comment and `gh run rerun` the plan already needs (`references/failure-modes.md`
+   F7-F9), and any issue the plan would file (a Tauri major, below). A side moved by
+   hand under F11 or F12 is named with its package, from, and to versions.
+3. Get one explicit approval for the listed batch, then run it without asking per merge.
 
 The approval covers only the listed PRs, only for this invocation. Of the rebase
 comments and reruns, it covers the ones it lists, and the rebase a PR in the batch needs
@@ -105,25 +104,34 @@ Dependabot opens the cargo and npm sides as separate PRs, so:
   approved plan; otherwise the PR is held (F11).
 - **A Tauri major (`3.x`) is never part of a batch.** Hold the PR and propose filing a
   migration issue for it (**REQUIRED:** `triaging-issues`), with the upstream migration
-  guide linked;
-  `Cargo.toml` pins `tauri = "2"` until a migration ADR moves it.
+  guide linked; `Cargo.toml` pins `tauri = "2"` until a migration ADR moves it.
+
+## The Node rule
+
+A Node major moves `node` in `mise.toml` and `@types/node` together (F12).
 
 ## Step 3: Choose the landing mode
 
-A PR is eligible only when every check passes, its merge state is `CLEAN`, and the review
-found nothing. One exception: a Tauri-family PR in a pair the survey prints as `split` or
-`MISMATCH` is eligible for the combined branch only, never landed alone, when every
-failing check on it is one F11 attributes to the version divergence, confirmed from the
-run log. For such a PR the merge state need only be not `DIRTY` (`UNSTABLE`, or
-`BLOCKED` only by those checks, is accepted); the review findings apply unchanged. The
-combined branch's own PR must be `CLEAN` with every check green before it lands.
+Every PR needs a review that found nothing, then meets one of two bars:
 
-- **Individually** when eligible PRs share no file: in practice the Actions PRs and a
-  lone mise or rust-toolchain PR.
-- **One combined branch** when two eligible PRs touch the same file (two cargo PRs both
-  rewrite `Cargo.lock`; npm PRs both rewrite `pnpm-lock.yaml`), when a Tauri pair needs
-  both sides, or when more than three are eligible and rebase-and-wait cycles would
-  dominate.
+- **The bar to land alone:** every check passes and the merge state is `CLEAN`. Nothing
+  else ever lands by itself; a PR that meets it may still join a combined branch.
+- **The combined-branch bar:** it misses that bar only where a failure mode blames its
+  merge or lockfile state, not its change. Every check passes or fails only where F2 (a
+  lockfile out of step with its manifest), F11 (one side of a Tauri pair the survey
+  prints as `split` or `MISMATCH`), or F12 (a lone Node side) says, confirmed from the
+  run log; and the merge state is `CLEAN`, `BEHIND` or `DIRTY` (F7), or `UNSTABLE` or
+  `BLOCKED` only by those checks. A pending, missing, or held check still holds it (F8,
+  F9). The combined branch's own PR lands only when `CLEAN` with every check green.
+
+Then land them:
+
+- **Individually** when PRs that meet the bar to land alone share no file: in practice
+  the Actions PRs and a lone mise or rust-toolchain PR.
+- **One combined branch** for every PR that meets only the combined-branch bar, when two
+  eligible PRs touch the same file (two cargo PRs both rewrite `Cargo.lock`; npm PRs
+  both rewrite `pnpm-lock.yaml`), when a Tauri pair needs both sides, or when more than
+  three are eligible and rebase-and-wait cycles would dominate.
 
 Mixed outcomes are fine; the plan says which PR goes which way.
 
@@ -154,7 +162,7 @@ a lockfile or by merging bot branches:
 - **cargo:** `cargo update -p <crate> --precise <version>` per crate the PRs moved.
   `Cargo.toml` changes only when a PR changed a requirement. Read the `Cargo.lock`
   diff: a crate no PR named that moved too is reverted, since only what the bots
-  proposed was reviewed, except the Tauri side the approved plan names under F11.
+  proposed was reviewed, except a side the approved plan names under F11 or F12.
 - **npm:** `pnpm add <package>@<range>` (`pnpm add -D` for a devDependency), keeping the
   range style `package.json` uses (a tilde range for the Tauri packages).
 - **mise:** edit the pin in `mise.toml`, then `mise install`, so the version exists for
