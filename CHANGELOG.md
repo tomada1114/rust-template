@@ -24,8 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   core must reach through a port: `std::fs::OpenOptions` and every `std::fs` free
   function, `std::net::{TcpStream, TcpListener, UdpSocket}`,
   `std::io::{stdin, stdout, stderr}`, `std::env`'s `args`, `args_os`, `vars`, `vars_os`,
-  `current_dir`, `set_current_dir`, `temp_dir`, `set_var`, and `remove_var`,
-  `std::thread::spawn`, and `std::process::exit`. Core code that calls one now fails
+  `current_dir`, `set_current_dir`, `current_exe`, `home_dir`, `temp_dir`, `set_var`, and
+  `remove_var`, `std::fs::DirBuilder`, `std::os::unix::fs::symlink`, `std::path::Path`'s
+  file-system queries (`exists`, `try_exists`, `metadata`, `symlink_metadata`,
+  `read_dir`, `read_link`, `canonicalize`, `is_file`, `is_dir`, `is_symlink`, reached
+  through a `PathBuf` too), `std::thread::spawn` and `std::thread::Builder::spawn`, and
+  `std::process::exit` and `abort`. `std::thread::scope` stays allowed, since its
+  threads are joined before it returns. Core code that calls a banned one now fails
   `just lint`; move the call behind a port, or into the shell or the CLI.
 - `vitest.config.ts` puts a coverage floor on a skill's bundled TypeScript scripts
   (`.agents/skills/*/scripts/**`, lines 85, functions 90, the same as `scripts/**`), so
