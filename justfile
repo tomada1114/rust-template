@@ -134,7 +134,11 @@ logs:
 
 # Follow the newest app log (never ends: a human's recipe)
 logs-follow:
-    tail -F "$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log | head -n 1)"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    newest="$(ls -t "{{ log_dir }}"/{{ log_prefix }}.*.log 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$newest" ]]; then echo "no {{ log_prefix }}.*.log files in {{ log_dir }}"; exit 0; fi
+    tail -F "$newest"
 
 # Reset the app's privacy (TCC) permissions so macOS asks again (a human's recipe)
 reset-permissions:

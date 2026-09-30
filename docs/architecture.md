@@ -152,11 +152,11 @@ only, it needs no capability entry; run from the UI, it needs a `shell:allow-exe
 ## Logging
 
 Every crate logs through the `tracing` macros; only the shell and the CLI install a
-subscriber (`myapp_platform::init_logging`). The app's files go
-to `~/Library/Logs/com.example.myapp/` and the helper's to its `cli/` subdirectory, one per
+subscriber (`myapp_platform::init_logging`). The app's files go to
+`~/Library/Logs/com.example.myapp/` and the helper's to its `cli/` subdirectory, one per
 day each, and the newest 14 of each are kept. Each writer has its own directory because
-retention counts every file whose name starts with the writer's prefix. The writer
-is synchronous: the volume is low, and Tauri exits through `process::exit`, which would
+retention counts every file whose name starts with the writer's prefix. The writer is
+synchronous: the volume is low, and Tauri exits through `process::exit`, which would
 drop a background writer's last lines. A debug build also writes to stderr. The UI sends
 its warnings and errors to the `log_from_ui` command through `ui/src/ipc/log.ts`. No log
 line carries user data. `just logs` prints the newest app file's last lines and exits.
@@ -246,10 +246,11 @@ one bumps `version`, and the reader keeps accepting the old version.
 
 **Log files**: `myapp.YYYY-MM-DD.log` from the app in `~/Library/Logs/com.example.myapp/`,
 and `myapp-cli.YYYY-MM-DD.log` from the helper in `~/Library/Logs/com.example.myapp/cli/`,
-dated in UTC, one per day, the newest 14 of each kept. Each line is `tracing-subscriber`'s plain text format: an
-RFC 3339 timestamp, the level, the target, the message, and its fields. The message
-wording is private, with one exception: the launch smoke looks for the app's
-`startup complete` line carrying `pid=<pid>`, so that line keeps its message and field.
+dated in UTC, one per day, the newest 14 of each kept. Each line is
+`tracing-subscriber`'s plain text format: an RFC 3339 timestamp, the level, the target,
+the message, and its fields. The message wording is private, with one exception: the
+launch smoke looks for the app's `startup complete` line carrying `pid=<pid>`, so that
+line keeps its message and field.
 
 **Private** is everything else: `pub(crate)` and private items, how an adapter talks to
 the OS behind its port, component structure, CSS, file and module layout, test helpers,

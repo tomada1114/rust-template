@@ -1,6 +1,7 @@
 //! `init_logging` writes to a dated file in the directory it is given and prunes only its
-//! own files there. Each test calls it once: a process has one global subscriber, and
-//! nextest runs each test alone.
+//! own files there. Each test installs the process-wide subscriber, so the file relies on
+//! nextest's process per test (`just` and CI use it); plain `cargo test` runs them in one
+//! process and fails with `AlreadyInitialised`.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -84,7 +85,6 @@ fn app_retention_keeps_14_and_never_counts_the_helpers_files() {
     let app = seed(&log_dir(home), "probe").unwrap();
     let cli = seed(&cli_log_dir(home), "probe-cli").unwrap();
     init_logging(&log_dir(home), "probe", false).unwrap();
-    tracing::info!("retention probe");
 
     let kept = log_names(&log_dir(home), "probe").unwrap();
     assert_eq!(kept.len(), 14, "{kept:?}");
@@ -101,7 +101,6 @@ fn helper_retention_keeps_14_and_never_touches_the_apps_files() {
     let app = seed(&log_dir(home), "probe").unwrap();
     let cli = seed(&cli_log_dir(home), "probe-cli").unwrap();
     init_logging(&cli_log_dir(home), "probe-cli", false).unwrap();
-    tracing::info!("retention probe");
 
     let kept = log_names(&cli_log_dir(home), "probe-cli").unwrap();
     assert_eq!(kept.len(), 14, "{kept:?}");
