@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it from the load to the save, so no save fails, no load reads half a file, and
   neither change is lost. A save also syncs the directory after the rename.
 
+- `just bootstrap` refuses, before it writes anything, the inputs that used to fail half
+  way or produce a broken app: a slug Cargo reserves (`build`, `deps`, …) or one whose
+  packages would share a dependency's name (`tauri`, `serde`, …), a work tree with
+  uncommitted or untracked changes (`ERR_BOOTSTRAP_DIRTY`), a malformed or `com.apple.`
+  bundle identifier, and any answer containing `myapp` or `tauri-template`. Answers pasted
+  in one go are each read, `--help` before `just install` fails with
+  `ERR_BOOTSTRAP_NO_DEPS`, and the usage no longer claims `just` drops a value's quotes.
+
 - Smoke mode (`MYAPP_SMOKE=1`) sets the `Prohibited` activation policy before the app
   finishes launching instead of after it has activated, and only the value `1` enables
   it. A startup error — no `HOME`, logging, the build, or a missing `main` window — now
