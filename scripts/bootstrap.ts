@@ -391,13 +391,14 @@ export const TEXT_EDITS: readonly TextEdit[] = [
   { file: "AGENTS.md", find: "`release-prep`, `bootstrap`)", replace: "`release-prep`)" },
   {
     file: "AGENTS.md",
-    find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), and the skills name exists;",
-    replace: "`docs/` (apart from the roadmap and the ADRs), and the skills name exists;",
+    find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists;",
+    replace:
+      "`docs/` (apart from the roadmap and the ADRs), the skills, and the issue forms name exists;",
   },
   {
     file: "AGENTS.md",
-    find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), or a skill;",
-    replace: "`docs/` (apart from the roadmap and the ADRs), or a skill;",
+    find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form;",
+    replace: "`docs/` (apart from the roadmap and the ADRs), a skill, or an issue form;",
   },
   {
     file: "AGENTS.md",
