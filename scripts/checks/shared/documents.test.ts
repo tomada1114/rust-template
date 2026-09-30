@@ -4,7 +4,13 @@ import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { isFailure, markdownFiles, repository } from "./documents.ts";
+import {
+  isFailure,
+  issueTemplates,
+  markdownFiles,
+  repository,
+  standingDocuments,
+} from "./documents.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -44,6 +50,54 @@ describe("markdownFiles", () => {
 
   it("lists nothing for a directory that does not exist", () => {
     expect(markdownFiles(tree([]), "docs")).toEqual([]);
+  });
+});
+
+describe("issueTemplates", () => {
+  it("lists the forms and Markdown templates GitHub reads, in code-unit order", () => {
+    const root = tree([
+      ".github/ISSUE_TEMPLATE/task.yml",
+      ".github/ISSUE_TEMPLATE/Bug.yaml",
+      ".github/ISSUE_TEMPLATE/config.yml",
+      ".github/ISSUE_TEMPLATE/legacy.md",
+      ".github/ISSUE_TEMPLATE/notes.txt",
+      ".github/ISSUE_TEMPLATE/drafts/old.yml",
+    ]);
+    expect(issueTemplates(root)).toEqual([
+      ".github/ISSUE_TEMPLATE/Bug.yaml",
+      ".github/ISSUE_TEMPLATE/config.yml",
+      ".github/ISSUE_TEMPLATE/legacy.md",
+      ".github/ISSUE_TEMPLATE/task.yml",
+    ]);
+  });
+
+  it("lists nothing when there is no issue-template directory", () => {
+    expect(issueTemplates(tree([]))).toEqual([]);
+  });
+});
+
+describe("standingDocuments", () => {
+  it("lists the guides, rules, sub-agents, docs, skills, and issue templates", () => {
+    const root = tree([
+      "README.md",
+      ".claude/rules/rust.md",
+      ".claude/agents/executor.md",
+      ".claude/skills/demo/SKILL.md",
+      "docs/guide.md",
+      "docs/architecture/roadmap.md",
+      ".agents/skills/demo/SKILL.md",
+      ".github/ISSUE_TEMPLATE/task.yml",
+      ".github/PULL_REQUEST_TEMPLATE.md",
+    ]);
+    expect(standingDocuments(root)).toEqual([
+      "AGENTS.md",
+      "CLAUDE.md",
+      ".claude/rules/rust.md",
+      ".claude/agents/executor.md",
+      "docs/guide.md",
+      ".agents/skills/demo/SKILL.md",
+      ".github/ISSUE_TEMPLATE/task.yml",
+    ]);
   });
 });
 
