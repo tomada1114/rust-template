@@ -17,3 +17,8 @@ extend-exclude = [
   # checked at their real path.
   ".claude/skills/",
 ]
+
+[default.extend-words]
+# The terminal UI crate's name, which typos otherwise reads as a misspelling of
+# "ratatouille".
+ratatui = "ratatui"
