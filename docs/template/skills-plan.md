@@ -3,7 +3,7 @@
 <!-- template-only: scripts/bootstrap removes docs/template/ from a generated app. -->
 
 The owner wants the reference templates' skills carried over substantially, rebuilt
-for Rust + Tauri rather than renamed. This page is the per-skill brief the
+for this stack rather than renamed. This page is the per-skill brief the
 implementation run works from. It extends [design.md](design.md) § D20.
 
 Sources, all read-only:
@@ -34,6 +34,57 @@ Sources, all read-only:
 
 Where a reader new to Rust would stall, the skill says why, not only what — the owner
 reviews the PRs these skills shape and does not yet read Rust fluently.
+
+## Target skill set after the CLI/TUI pivot (2026-10-01)
+
+The pivot in [design.md](design.md) (§1; D5, D8, D12, D18, D22) changes the stack every
+skill describes, so the set below supersedes the 26 skills that follow, which stay as the
+record of what each was ported from. The target is 23 skills.
+
+Deleted — they only served the GUI or distribution:
+
+| Skill | Why |
+|---|---|
+| `building-react-screens` | No React screen; `building-tuis` takes the screen work. |
+| `designing-ui` | No WebView design system or design-lock step (design § D23). |
+| `designing-ipc` | No IPC: subcommands and the TUI call core in-process (design § D4). |
+| `releasing-the-app` | No distribution; a tool is installed with `cargo install --path` (design § D18). |
+| `writing-typescript` | No TypeScript left: the UI is ratatui and the automation is `cargo xtask` (design § D12). |
+
+Added:
+
+| Skill | Covers |
+|---|---|
+| `designing-clis` | A subcommand end to end: the clap derive declaration, the thin handler that calls core and prints a view, stdout for output and stderr for error wording, an exit code per error kind, `--help` text, and the integration test that runs the built binary against a temp data directory (design § D5, D15). |
+| `building-tuis` | A ratatui screen: `draw` over a core view, `update` from a key event to the next state, the terminal restored on every exit path, the theme module, and testing with `TestBackend` and key events as values — never a real terminal (design § D8, D15, D22). |
+
+Rewritten for the new stack — the rest, each keeping its purpose with Tauri, `ui/`, Node,
+and release mechanics replaced by the binary crate, the TUI, `cargo xtask`, and
+`cargo install --path`:
+
+| Skill | What the rewrite changes |
+|---|---|
+| `authoring-skills` | Examples and the never-take-over rule extended to the terminal (design § D22). |
+| `smart-commit` | Only `Cargo.lock` travels with a manifest; no generated bindings or `pnpm-lock.yaml`. |
+| `create-pr` | Evidence is `just check` plus, for a TUI change only a real terminal shows, the human's run; no Release impact tied to a `.dmg`. |
+| `triaging-issues` | `path:line` examples use crate paths only. |
+| `shipping-issues` | Recipes and gates renamed; worktree and merge flow unchanged. |
+| `steering-the-roadmap` | Unchanged in substance. |
+| `merging-dependency-prs` | Ecosystems: cargo, github-actions, mise, rust-toolchain; ratatui and crossterm minors treated as migrations; the Tauri lockstep rule removed. |
+| `updating-docs` | Surfaces without `ui/`, TSDoc, or `docs/distribution.md`. |
+| `recording-architecture-decisions` | ADR triggers for a CLI/TUI tool: a new crate or port, persistence, a new dependency, a new target platform, distribution, `rust-version`, `unsafe`, a TCC permission. |
+| `changing-gates` | Gate files without ESLint, tsconfig, Vitest, Prettier, `tauri.conf.json`, capabilities, or entitlements; xtask's harness checks added. |
+| `writing-repo-scripts` | Automation as `cargo xtask` tasks: the failure contract, `GIT_*` isolation, fakes for child processes, fixture roots (design § D12). |
+| `managing-dependencies` | Crates only; no npm, pnpm, or Tauri plugins. |
+| `starting-an-app` | `cargo xtask bootstrap`; choosing CLI-only or CLI + TUI; deleting the sample; installing with `cargo install --path`; no design-lock or app-shape step. |
+| `writing-rust` | Adds clap and ratatui idioms a newcomer meets; drops Tauri. |
+| `tdd` | One language: core, then the subcommand or TUI layer, with `TestBackend` for a screen. |
+| `writing-tests` | Rust only: CLI integration tests, `TestBackend` buffer assertions, key events as values; no Testing Library or `mockIPC`. |
+| `placing-tests` | Where a CLI, TUI, or xtask test goes and which floor measures it; no `tauri::test` or Vitest projects. |
+| `designing-core-logic` | Views shared by a subcommand's output and a TUI frame; no IPC boundary. |
+| `designing-errors` | Variant to wording and exit code in the binary crate; `ERR_*` codes in xtask; no serialized codes for a UI. |
+| `integrating-system-apis` | macOS and Linux adapters behind `cfg(target_os)`, each with its contract suite. |
+| `running-the-app` | The smoke run and `just logs` as an agent's evidence; `myapp tui` only when the human asks (design § D22). |
 
 ## The skills (26)
 
