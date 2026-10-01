@@ -1,5 +1,6 @@
 //! The command-line contract, against the built `myapp` binary with `HOME` pointed at a
-//! temporary directory, so nothing here touches the real `~/Library`: data on stdout,
+//! temporary directory (and the XDG variables unset), so nothing here touches the real
+//! data or log directories: data on stdout,
 //! diagnostics on stderr; exit 0 on success, 1 on a runtime error, 2 on a usage error.
 
 use std::fs;
@@ -7,12 +8,22 @@ use std::io;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
+#[cfg(target_os = "macos")]
 const COUNTER_FILE: &str = "Library/Application Support/com.example.myapp/counter.json";
+#[cfg(target_os = "macos")]
 const LOG_DIR: &str = "Library/Logs/com.example.myapp";
+#[cfg(not(target_os = "macos"))]
+const COUNTER_FILE: &str = ".local/share/myapp/counter.json";
+#[cfg(not(target_os = "macos"))]
+const LOG_DIR: &str = ".local/state/myapp/logs";
 
 fn command(home: &Path, args: &[&str]) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_myapp"));
-    command.args(args).env("HOME", home);
+    command
+        .args(args)
+        .env("HOME", home)
+        .env_remove("XDG_DATA_HOME")
+        .env_remove("XDG_STATE_HOME");
     command
 }
 
@@ -202,12 +213,10 @@ fn each_run_logs_to_the_file_just_logs_reads() {
 #[test]
 fn an_unwritable_log_directory_does_not_stop_the_action() {
     let home = tempfile::tempdir().unwrap();
-    fs::create_dir_all(home.path().join("Library")).unwrap();
-    fs::write(
-        home.path().join("Library/Logs"),
-        "a file where a directory should be",
-    )
-    .unwrap();
+    let log_parent = home.path().join(LOG_DIR);
+    let log_parent = log_parent.parent().unwrap();
+    fs::create_dir_all(log_parent.parent().unwrap()).unwrap();
+    fs::write(log_parent, "a file where a directory should be").unwrap();
     let output = run(home.path(), &["counter", "show"]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert_eq!(stdout(&output), "0\n");
@@ -276,4 +285,21 @@ fn a_usage_error_touches_nothing() {
         Some(2)
     );
     assert_eq!(fs::read_dir(home.path()).unwrap().count(), 0);
+}
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn absolute_xdg_variables_move_the_data_and_log_directories() {
+    let home = tempfile::tempdir().unwrap();
+    let xdg = tempfile::tempdir().unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_myapp"));
+    command
+        .args(["counter", "increment"])
+        .env("HOME", home.path())
+        .env("XDG_DATA_HOME", xdg.path().join("data"))
+        .env("XDG_STATE_HOME", xdg.path().join("state"));
+    assert!(output(command).status.success());
+    assert!(xdg.path().join("data/myapp/counter.json").is_file());
+    assert!(xdg.path().join("state/myapp/logs").is_dir());
+    assert!(!home.path().join(COUNTER_FILE).exists());
 }

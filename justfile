@@ -8,15 +8,18 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 bundle_id := "com.example.myapp"
-log_dir := env("HOME", "") / "Library/Logs" / bundle_id
 log_prefix := "myapp"
+# Must match myapp-platform's paths.rs: ~/Library/Logs/<bundle_id> on macOS, and on Linux
+# $XDG_STATE_HOME/myapp/logs, an unset, empty, or relative XDG_STATE_HOME meaning ~/.local/state.
+xdg_state_home := env("XDG_STATE_HOME", "")
+log_dir := if os() == "macos" { env("HOME", "") / "Library/Logs" / bundle_id } else if xdg_state_home =~ '^/' { xdg_state_home / "myapp/logs" } else { env("HOME", "") / ".local/state/myapp/logs" }
 
 # List the recipes
 default:
     @just --list
 
 # Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
-check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-macos
+check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-platform
 
 # Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
 lint-repo:
@@ -79,8 +82,8 @@ test-core:
 test-fast filter:
     cargo nextest run --locked -p myapp-core {{ filter }}
 
-# Platform adapter and binary tests against the real macOS, needing no human
-test-macos:
+# Platform adapter and binary tests against the real OS (macOS or Linux), needing no human
+test-platform:
     cargo nextest run --locked -p myapp-platform -p myapp
 
 # The #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain (a human's recipe)

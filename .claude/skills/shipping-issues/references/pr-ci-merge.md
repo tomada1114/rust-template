@@ -146,7 +146,7 @@ Such a PR is opened and watched to green like any other, and then **not merged**
 one comment on it naming the recipe the human should run and what to paste, record
 `--event blocked --field issue=<n> --field reason=human-evidence`, and move on to the
 next issue; the step 10 report lists it first among what the human has to do. Green CI
-is not the go-ahead here, because CI never ran the part that decides. `just test-macos`
+is not the go-ahead here, because CI never ran the part that decides. `just test-platform`
 and `just logs`, which an agent may run, go in the Test Plan either way.
 
 ### Clearing `blocked: dependency`

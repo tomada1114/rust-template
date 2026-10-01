@@ -71,7 +71,7 @@ Do:
    command above. Report the exact command. For a performance task, re-run
    step 2's baseline under the same conditions and report both numbers under
    MEASURE. Never run a recipe that needs a human: `just test-local`,
-   `just logs-follow`. `just test-macos` and `just logs` are your evidence that
+   `just logs-follow`. `just test-platform` and `just logs` are your evidence that
    the change works. When the change is to an adapter under
    crates/myapp-platform/ that has an `#[ignore = "local machine: ..."]` test,
    say so under VERIFY: that evidence is the human's to produce.

@@ -9,7 +9,7 @@ description: >
   .test.ts or .test.tsx beside the source in the ui or scripts Vitest project
   (vitest.config.ts), and which coverage floor governs it (the llvm-cov floors in the
   justfile's test-core recipe, the per-glob thresholds in vitest.config.ts). Use when
-  adding a test file, choosing between just test-fast, just test-core, just test-macos,
+  adding a test file, choosing between just test-fast, just test-core, just test-platform,
   and just test-scripts, when a fake from myapp-test-support will not
   type-check inside core, or when a coverage floor fails.
 ---
@@ -31,11 +31,11 @@ fewest machines while still able to fail for the behavior:
 | A private detail of core | `#[cfg(test)] mod tests` at the bottom of the same file | `just test-fast <filter>`, `just test-core` | core's floors |
 | Core's public API, and anything using a fake | `crates/myapp-core/tests/<subject>.rs` | `just test-fast <filter>`, `just test-core` | core's floors |
 | A port's contract against the fake | the `<port>_contract` function in `crates/myapp-test-support/src/<port>.rs`, called from `crates/myapp-core/tests/contracts.rs` | `just test-core` | core's floors (the core code it drives) |
-| The same contract against the real adapter | `crates/myapp-platform/tests/contracts.rs` | `just test-core` (Linux-buildable) and `just test-macos` | none |
-| What one adapter does beyond the contract | `crates/myapp-platform/tests/<adapter>.rs` | `just test-core`, `just test-macos` | none |
+| The same contract against the real adapter | `crates/myapp-platform/tests/contracts.rs` | `just test-core` (Linux-buildable) and `just test-platform` | none |
+| What one adapter does beyond the contract | `crates/myapp-platform/tests/<adapter>.rs` | `just test-core`, `just test-platform` | none |
 | An adapter behavior that needs a GUI session, a TCC grant, or the Keychain | the same file, `#[ignore = "local machine: <what it needs>"]` | `just test-local`, a human's recipe | none |
-| A Tauri command, its error mapping, its event | `src-tauri/tests/commands.rs` | `just test-macos` | none |
-| A pure startup decision in the shell | `#[cfg(test)] mod tests` in that file (`src-tauri/src/startup.rs`) | `just test-macos` | none |
+| A Tauri command, its error mapping, its event | `src-tauri/tests/commands.rs` | `just test-platform` | none |
+| A pure startup decision in the shell | `#[cfg(test)] mod tests` in that file (`src-tauri/src/startup.rs`) | `just test-platform` | none |
 | The `myapp` binary's command line | `crates/myapp/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
 | The binary's wording for an error code | `#[cfg(test)] mod tests` in `crates/myapp/src/wording.rs`, one test per variant | `just test-core` | none |
 | A repository script | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor, and `scripts/lib/guard/**` for the staged guard |
@@ -96,7 +96,7 @@ only invite tests of glue.
 Command tests build the app with `with_commands(mock_builder())` and core's service
 over fakes, so they touch no disk and open no window. This repository builds the Tauri
 crate only on macOS (CI's Linux jobs never compile it), so they run in
-`just test-macos` and CI's macOS job, not in `just test-core`.
+`just test-platform` and CI's macOS job, not in `just test-core`.
 
 ## The UI and scripts: Vitest projects
 

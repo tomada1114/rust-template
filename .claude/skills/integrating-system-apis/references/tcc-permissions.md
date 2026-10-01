@@ -131,7 +131,7 @@ Asking once per iteration turns a five-minute check into an afternoon. Then read
 ## Tests that need a grant
 
 A test that needs a grant carries `#[ignore = "local machine: <grant> for <process>"]`,
-so `just test-macos` and CI report it as ignored and only `just test-local` (a human's
+so `just test-platform` and CI report it as ignored and only `just test-local` (a human's
 recipe) runs it.
 When the grant is missing the OS answers "no" rather than failing, so make the test's
 failure message name the grant and where to give it: a bare `false` reads as a broken

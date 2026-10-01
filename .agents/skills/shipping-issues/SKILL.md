@@ -58,7 +58,7 @@ A `blocked: design` issue ships only when named, or with `--include-design` (ste
   that needs approval to the end ([closing-out.md](references/closing-out.md)).
 - **Never take over the Mac.** No step or sub-agent runs a human's recipe
   (`just test-local`, and the rest `AGENTS.md` › "Never taking over the developer's Mac"
-  lists); `just test-macos` and `just logs` are the run's evidence.
+  lists); `just test-platform` and `just logs` are the run's evidence.
 - Every issue starts from, and every merge returns to, an up-to-date `main`.
 - **REQUIRED:** the reference a step links, read when that step starts: each step
   below is only the summary of its procedure.
