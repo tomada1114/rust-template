@@ -67,10 +67,10 @@ A `blocked: design` issue ships only when named, or with `--include-design` (ste
 
 Spawn by `subagent_type` (`executor`, `architect`, or `worker`, as
 [cost-discipline.md](references/cost-discipline.md) assigns each step), never a bare
-`model`, with the prompts in [delegation-templates.md](references/delegation-templates.md).
-A resume goes to the same agent by `SendMessage` while it is reachable. Codex CLI has
-neither ([delegation-templates.md](references/delegation-templates.md) cites why): run
-each such step inline with the same prompt as its brief.
+`model`, with the prompts in
+[delegation-templates.md](references/delegation-templates.md). A resume goes to the same
+agent by `SendMessage` while it is reachable. Codex CLI has neither (that file cites why):
+run each such step inline with the same prompt as its brief.
 
 Everything the run generates lives under `<runstate>`, never in a checkout; record
 events as they happen with `run_record.py` ([run-record.md](references/run-record.md)).
@@ -86,10 +86,10 @@ python3 .agents/skills/shipping-issues/scripts/plan.py --mode <all|single|N> \
 
 Read the block; do not re-derive it ([plan-output.md](references/plan-output.md),
 [ship-contract.md](references/ship-contract.md)). `preflight: BLOCKED` and
-`existing-worktrees: BLOCKED` stop the run; `tree: DIRTY` is a question to ask now. `verify-check:` is a guess to confirm: here the gate is
-`just check`, since `just test` skips lint, the harness, the macOS tests, the build, and
-the smoke. `needs-design:` spawns step 8b now; `stale-labels:` runs unasked;
-`labels: COMPLETE` skips step 2; `github: write=no` reports instead of writing.
+`existing-worktrees: BLOCKED` stop the run; ask about `tree: DIRTY` now. `verify-check:`
+is a guess to confirm: here the gate is `just check`, as `just test` skips lint, the
+harness, the macOS tests, build, and smoke. `needs-design:` spawns 8b now; `stale-labels:`
+runs unasked; `labels: COMPLETE` skips step 2; `github: write=no` only reports.
 
 ## 2. Label the unlabeled
 
