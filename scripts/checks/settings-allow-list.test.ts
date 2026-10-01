@@ -98,15 +98,18 @@ describe("settings-allow-list", () => {
 
   it("reports each recipe a partial wildcard reaches, and only those", () => {
     expect(admittedBy(["Bash(just l*)"])).toEqual([["logs-follow", "labels"]]);
+    expect(admittedBy(["Bash(just install*)"])).toEqual([["install-cli", "install"]]);
   });
 
-  it.each(["Bash(just install:*)", "Bash(just logs-follow)", "Bash(just test-local:*)"])(
-    "tells %s apart from its shorter neighbour",
-    (rule) => {
-      const recipe = /just ([a-z-]+)/.exec(rule)?.[1] ?? "";
-      expect(admittedBy([rule])).toEqual([[recipe]]);
-    },
-  );
+  it.each([
+    "Bash(just install:*)",
+    "Bash(just install-cli)",
+    "Bash(just logs-follow)",
+    "Bash(just test-local:*)",
+  ])("tells %s apart from its shorter neighbour", (rule) => {
+    const recipe = /just ([a-z-]+)/.exec(rule)?.[1] ?? "";
+    expect(admittedBy([rule])).toEqual([[recipe]]);
+  });
 
   it.each([
     "Bash(just runner)",

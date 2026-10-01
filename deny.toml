@@ -38,7 +38,7 @@ wildcards = "deny"
 allow-wildcard-paths = true
 deny = [
   # Only the binary wires the real adapters; core never does.
-  { crate = "myapp-platform", wrappers = ["myapp-cli"] },
+  { crate = "myapp-platform", wrappers = ["myapp"] },
 ]
 
 [sources]

@@ -2,8 +2,8 @@
 # `just --list` shows them all.
 #
 # Never taking over the developer's Mac: recipes a human starts on purpose (test-local,
-# logs-follow) are never part of `just check`, and an agent runs them only when the human
-# asks.
+# logs-follow, install-cli) are never part of `just check`, and an agent runs them only
+# when the human asks.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -73,19 +73,23 @@ test: test-core
 test-core:
     cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
     cargo test --doc --locked -p myapp-core
-    cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
+    cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
 
 # One core test or a group of them, fast: `just test-fast increment`
 test-fast filter:
     cargo nextest run --locked -p myapp-core {{ filter }}
 
-# Platform adapter and CLI tests against the real macOS, needing no human
+# Platform adapter and binary tests against the real macOS, needing no human
 test-macos:
-    cargo nextest run --locked -p myapp-platform -p myapp-cli
+    cargo nextest run --locked -p myapp-platform -p myapp
 
 # The #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain (a human's recipe)
 test-local:
     cargo nextest run --locked --workspace --run-ignored ignored-only --no-tests=pass
+
+# Install the myapp binary into ~/.cargo/bin from this checkout (writes outside the working tree: a human's recipe)
+install-cli:
+    cargo install --locked --path crates/myapp
 
 # Print the end of the newest app log and exit
 logs:

@@ -52,7 +52,7 @@ pub trait CounterStore: Send + Sync {
     }
 }
 
-/// Why storage failed, as a code the UI can map to wording. A kind, not an error.
+/// Why storage failed, as a code the binary maps to wording. A kind, not an error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StorageErrorKind {

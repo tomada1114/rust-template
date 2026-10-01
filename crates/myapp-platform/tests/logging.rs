@@ -8,7 +8,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use myapp_platform::{LoggingError, cli_log_dir, init_logging, log_dir};
+use myapp_platform::{LoggingError, init_logging, log_dir};
 
 #[test]
 fn writes_events_to_a_dated_file_with_the_prefix() {
@@ -79,32 +79,18 @@ fn log_names(dir: &Path, prefix: &str) -> io::Result<BTreeSet<String>> {
 
 // Counts only: on ext4 the seeded files share birth times, so which ones survive is arbitrary.
 #[test]
-fn app_retention_keeps_14_and_never_counts_the_helpers_files() {
+fn retention_keeps_14_and_never_counts_another_prefix_or_a_subdirectory() {
     let home = tempfile::tempdir().unwrap();
-    let home = home.path();
-    let app = seed(&log_dir(home), "probe").unwrap();
-    let cli = seed(&cli_log_dir(home), "probe-cli").unwrap();
-    init_logging(&log_dir(home), "probe", false).unwrap();
+    let dir = log_dir(home.path());
+    let own = seed(&dir, "probe").unwrap();
+    let other = seed(&dir, "other").unwrap();
+    let nested = seed(&dir.join("nested"), "probe").unwrap();
+    init_logging(&dir, "probe", false).unwrap();
 
-    let kept = log_names(&log_dir(home), "probe").unwrap();
+    let kept = log_names(&dir, "probe").unwrap();
     assert_eq!(kept.len(), 14, "{kept:?}");
-    assert_eq!(kept.intersection(&app).count(), 13, "{kept:?}");
-    assert_eq!(kept.difference(&app).count(), 1, "{kept:?}");
-    assert!(cli_log_dir(home).is_dir());
-    assert_eq!(log_names(&cli_log_dir(home), "probe-cli").unwrap(), cli);
-}
-
-#[test]
-fn helper_retention_keeps_14_and_never_touches_the_apps_files() {
-    let home = tempfile::tempdir().unwrap();
-    let home = home.path();
-    let app = seed(&log_dir(home), "probe").unwrap();
-    let cli = seed(&cli_log_dir(home), "probe-cli").unwrap();
-    init_logging(&cli_log_dir(home), "probe-cli", false).unwrap();
-
-    let kept = log_names(&cli_log_dir(home), "probe-cli").unwrap();
-    assert_eq!(kept.len(), 14, "{kept:?}");
-    assert_eq!(kept.intersection(&cli).count(), 13, "{kept:?}");
-    assert_eq!(kept.difference(&cli).count(), 1, "{kept:?}");
-    assert_eq!(log_names(&log_dir(home), "probe").unwrap(), app);
+    assert_eq!(kept.intersection(&own).count(), 13, "{kept:?}");
+    assert_eq!(kept.difference(&own).count(), 1, "{kept:?}");
+    assert_eq!(log_names(&dir, "other").unwrap(), other);
+    assert_eq!(log_names(&dir.join("nested"), "probe").unwrap(), nested);
 }

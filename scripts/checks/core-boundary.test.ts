@@ -29,7 +29,7 @@ const AGENTS_MD = [
   "",
   "- The core boundary is enforced three times, so removing one layer leaves the others:",
   "  core's `Cargo.toml` lists no tauri, OS, or platform crate; `deny.toml`'s `[bans]`",
-  "  `wrappers` let only `myapp-cli` depend on `myapp-platform`; and a harness check fails when core's",
+  "  `wrappers` let only `myapp` depend on `myapp-platform`; and a harness check fails when core's",
   "  normal and build dependency closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`,",
   "  `security-framework*`, or `myapp-platform`. Those lists change together.",
 ].join("\n");
@@ -279,15 +279,15 @@ describe("core-boundary", () => {
   describe("deny.toml's wrapper entries", () => {
     it("fails when myapp-platform may be a direct dependency of another crate", () => {
       const root = copyPass();
-      editFile(root, "deny.toml", '["myapp-cli"]', '["myapp-cli", "myapp-core"]');
+      editFile(root, "deny.toml", '["myapp"]', '["myapp", "myapp-core"]');
       const violations = fixtureCheck.run(root);
       expect(codes(violations)).toEqual(["ERR_CHECK_CORE_BOUNDARY_WRAPPERS"]);
       expect(text(violations)).toContain("myapp-core");
     });
 
-    it("fails when myapp-platform's entry loses myapp-cli", () => {
+    it("fails when myapp-platform's entry loses myapp", () => {
       const root = copyPass();
-      editFile(root, "deny.toml", '["myapp-cli"]', '["myapp-core"]');
+      editFile(root, "deny.toml", '["myapp"]', '["myapp-core"]');
       expect(codes(fixtureCheck.run(root))).toEqual(["ERR_CHECK_CORE_BOUNDARY_WRAPPERS"]);
     });
 
@@ -296,7 +296,7 @@ describe("core-boundary", () => {
       editFile(
         root,
         "deny.toml",
-        '{ crate = "myapp-platform", wrappers = ["myapp-cli"] },',
+        '{ crate = "myapp-platform", wrappers = ["myapp"] },',
         '"myapp-platform",',
       );
       const banned = fixtureCheck.run(root);

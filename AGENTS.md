@@ -23,9 +23,9 @@ keeping a second copy that goes stale.
 This is a macOS desktop app built from a strict template: a Rust core, a Tauri v2 shell,
 and a React + Vite + TypeScript screen, distributed as a `.dmg`. The Rust code is a
 Cargo workspace — the logic in `crates/myapp-core`, the OS adapters in
-`crates/myapp-platform`, fakes and contract suites in `crates/myapp-test-support`, a
-bundled helper executable in `crates/myapp-cli`, and the Tauri shell in `src-tauri/` —
-the screen lives in `ui/`, and repository automation is TypeScript under `scripts/`.
+`crates/myapp-platform`, fakes and contract suites in `crates/myapp-test-support`, and the
+`myapp` binary itself in `crates/myapp` — and repository automation is TypeScript under
+`scripts/`.
 Quality gates are on from day one: rustfmt, clippy `all` + `pedantic` with warnings as
 errors, `unsafe_code = "forbid"` in every crate, an 80% line and 80% function coverage
 floor on `myapp-core`, TypeScript `strict` with ESLint's `strictTypeChecked`, and Vitest
@@ -77,9 +77,10 @@ just clean         # Remove build output (target/, coverage/)
 just prune-temp    # Remove stale verify-bootstrap-* temp dirs and idle Claude Code scratchpads (--dry-run to list)
 just verify-bootstrap    # Bootstrap a scratch clone in a temp directory; fail on anything it leaves behind (template only)
 
-# A human's recipes — they need a logged-in Mac or never end; an agent runs them only when asked
+# A human's recipes — they need a logged-in Mac, never end, or write outside the checkout; an agent runs them only when asked
 just test-local        # The #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain
 just logs-follow       # Follow the newest app log (never ends)
+just install-cli       # Install the myapp binary into ~/.cargo/bin (cargo install --locked --path crates/myapp)
 
 # Writes to GitHub or rewrites the repository — a human's step
 just labels     # Create/update labels from .github/labels.yml (never deletes)
@@ -102,7 +103,7 @@ developer's Mac").
 | A test under `crates/myapp-core/tests/`, or a `#[cfg(test)]` module in core | `just test-core` |
 | An adapter under `crates/myapp-platform/` | `just test-macos` (its contract tests against the real adapter); an `#[ignore]`d test there is human-run — ask for `just test-local` output for the PR |
 | A fake or a contract function under `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-macos` (platform runs them against the real adapters) |
-| The helper under `crates/myapp-cli/` | `just test-core` (it runs the CLI's tests), then `just test-macos` |
+| The binary under `crates/myapp/`, or its error wording in `crates/myapp/src/wording.rs` | `just test-core` (it runs the binary's tests), then `just test-macos` |
 | Formatting of any Rust or TypeScript file | `just fmt`, or `just lint` to only check |
 | A clippy or ESLint finding that may be auto-fixable | `just fix`, then `just lint` for what still needs a hand edit |
 | Behavior only the running app shows (a log line) | `just test-macos` and `just logs` — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
@@ -136,43 +137,26 @@ crates/
 │                           #   paths) — translation only, outside the coverage floor
 ├── myapp-test-support/     # One fake per port + one `<port>_contract` function per port.
 │                           #   A [dev-dependencies] entry only; never ships
-└── myapp-cli/              # The helper executable bundled inside the .app (a sidecar), so
-                            #   launchd can run it without starting the GUI
-src-tauri/                  # Crate `myapp`: the Tauri shell and composition root. Builds the
-                            #   real adapters, hands them to core, and translates commands
-                            #   and events. Decides nothing
-├── src/                    # lib.rs (run(), with_commands), commands.rs, startup.rs
-├── tests/                  # tauri::test command tests against fakes
-├── tauri.conf.json         # Window, CSP, bundle and signing settings
-├── capabilities/           # Plugin permissions per window (core:default only)
-└── Entitlements.plist      # Hardened-runtime entitlements (sign-off to change)
-ui/                         # React + Vite + TypeScript (Vite's root)
-└── src/
-    ├── ipc/                # The only code that imports @tauri-apps/*: commands.ts,
-    │                       #   events.ts, errors.ts, log.ts, types.ts, testing.ts
-    │   └── generated/      # ts-rs output from core, committed, never hand-edited
-    ├── copy/               # Every user-facing string, and the error-code wording
-    ├── design/             # The design system: tokens.css, base.css, primitives
-    └── counter/            # The sample screen and its hook (a deletable illustration)
+└── myapp/                  # The `myapp` binary: the tool itself and the composition root.
+                            #   Builds the real adapters, hands them to core, and translates
+                            #   arguments to calls and results to stdout, stderr, and an exit
+                            #   code. Decides nothing; src/wording.rs holds every stderr sentence
 scripts/                    # Repository automation in TypeScript, run by Node directly
 ```
 
-- New logic goes in `myapp-core` with tests. The shell, the adapters, the CLI, and the
-  screen translate; a decision found in any of them belongs in core, where the coverage
-  floor sees it.
+- New logic goes in `myapp-core` with tests. The adapters and the binary translate; a
+  decision found in either belongs in core, where the coverage floor sees it.
 - The dependency direction is one-way: `myapp-platform` → `myapp-core`, and both ←
-  `myapp` (the shell) and `myapp-cli`. Core never depends on platform, tauri, or an OS
+  `myapp` (the binary). Core never depends on platform, tauri, or an OS
   binding crate; `myapp-test-support` is reached only through `[dev-dependencies]`.
-  The UI reaches Rust only through `ui/src/ipc/`.
 - A port is a synchronous `Send + Sync` trait core declares; `myapp-platform`
-  implements it; the shell constructs the real adapter and hands it to core; a test
-  hands core a fake from `myapp-test-support`. The shell calls a slow port on a
-  blocking thread (`tauri::async_runtime::spawn_blocking`), so core never meets async.
+  implements it; the binary constructs the real adapter and hands it to core; a test
+  hands core a fake from `myapp-test-support`. Core never meets async.
   The worked example is `CounterStore` / `JsonFileCounterStore` / `InMemoryCounterStore`
   and `Clock` / `SystemClock` / `FixedClock`.
 - The core boundary is enforced three times, so removing one layer leaves the others:
   core's `Cargo.toml` lists no tauri, OS, or platform crate; `deny.toml`'s `[bans]`
-  `wrappers` let only `myapp-cli` depend on `myapp-platform`; and a harness check fails
+  `wrappers` let only `myapp` depend on `myapp-platform`; and a harness check fails
   when core's normal and build dependency closure reaches `tauri*`, `wry`, `tao`,
   `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`. Those lists
   change together, and `just check-harness` fails when they differ.
@@ -197,14 +181,13 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   Core denies `clippy::wildcard_enum_match_arm`, so a `match` on a core enum names
   every variant.
 - Errors are one `thiserror` enum per port or core module carrying a typed code
-  (`#[serde(tag = "code")]`); the UI maps each code to wording in `ui/src/copy/`. Rust
-  never sends a user-facing sentence, and no error or log line carries user data.
-- The shell, the CLI, and `myapp-platform` log through the `tracing` macros; `myapp-core`
-  has no `tracing` dependency and logs nothing. Only the shell and the CLI install a
-  subscriber (`myapp_platform::init_logging`). Files go to
-  `~/Library/Logs/com.example.myapp/`, rotated daily, the last 14 kept; `just logs`
-  prints the newest. The UI forwards its warnings and errors through
-  `ui/src/ipc/log.ts` to the `log_from_ui` command.
+  (`#[serde(tag = "code")]`); the binary maps each code to wording in
+  `crates/myapp/src/wording.rs`, matched without a wildcard arm. Core never builds a
+  user-facing sentence, and no error or log line carries user data.
+- The binary and `myapp-platform` log through the `tracing` macros; `myapp-core` has no
+  `tracing` dependency and logs nothing. Only the binary installs a subscriber
+  (`myapp_platform::init_logging`). Files go to `~/Library/Logs/com.example.myapp/` as
+  `myapp.YYYY-MM-DD.log`, rotated daily, the last 14 kept; `just logs` prints the newest.
 - Every type that crosses IPC lives in core and derives `ts_rs::TS`, exported to
   `ui/src/ipc/generated/`. Only `ui/src/ipc/` imports those files or `@tauri-apps/*`;
   the rest of the UI imports types from `ui/src/ipc/types.ts` and calls the typed
@@ -218,8 +201,9 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   `withGlobalTauri: false`, and one capability granting only `core:default`. The app
   commands need no capability entry; a plugin does, and adding one is an ADR decision.
 - Four things are contract rather than private — core's public API, the bundle
-  identifier, the IPC command and event names with their payload shapes, and on-disk
-  file formats (`counter.json` carries a format version) — and each changes only as
+  identifier, the command line (subcommands, flags, output streams, and exit codes:
+  0 success, 1 a runtime error, 2 a usage error), and on-disk file formats
+  (`counter.json` carries a format version) — and each changes only as
   `docs/architecture.md` says.
 - `src-tauri/binaries/`, `src-tauri/gen/`, `target/`, `dist/`, and `coverage/` are
   build output: never edit or commit them.
@@ -416,7 +400,8 @@ Dock icon, or raise a permission, Keychain, or Gatekeeper prompt.
 
 - For evidence that a change works, use `just test-macos` and `just logs`. Never launch
   the app with `open`.
-- `just test-local` and `just logs-follow` are started by a human on purpose.
+- `just test-local`, `just logs-follow`, and `just install-cli` are started by a human on
+  purpose.
 - A test that needs a GUI session, a TCC grant, or the Keychain is
   `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`.
 - Never trigger an installer or a `sudo` prompt; report the command for the human to
@@ -519,13 +504,13 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | lefthook's pre-commit hook (`lefthook.yml`) | `git commit` | anyone who ran `just install` | check-only and fast, on the staged files: `rustfmt --check`, `prettier --check`, `eslint --max-warnings 0`, `typos`, and the staged guard. No clippy, compile, or test step — `just check` and CI run those. On the commit that concludes a conflicted merge, or one made at a rebase stop, the four style jobs skip (CI reruns them over the whole tree) and the staged guard and the skills mirror still run |
 | `scripts/check-staged.ts` (the hook's staged guard; rules in `scripts/lib/guard/`) | `git commit`, whatever is staged, including the commit that concludes a conflicted merge | anyone who ran `just install` | no secret-shaped path (`.env*`, `.envrc.*`, `secrets/`, signing material, SSH keys, `.claude/settings.local.json`) or credential-shaped content (private-key header, GitHub token, AWS keys, Anthropic or OpenAI API key, Slack token, Google API key, Stripe live key, and the rest `credentials.ts` lists) lands in a commit; judged from the index, so a partly staged file is judged as committed; staged deletions are never inspected |
 | `scripts/verify-hooks.ts` (`just install`'s last step, `just check`'s first) | `just install`, `just verify-hooks`, and `just check` | anyone who runs one | lefthook's pre-commit hook is installed in this checkout — skips under CI or the `ALLOW_MISSING_GIT_HOOKS` opt-out |
-| The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp-cli` depends on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
+| The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp` depends on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
 | `crates/myapp-core/clippy.toml`, core's `#![deny(clippy::wildcard_enum_match_arm)]`, `scripts/clippy-guard.ts` (every clippy run in `just lint` and CI goes through it), and `scripts/checks/clippy-allow-invalid.ts` | `just lint`, `just check`, and CI's clippy steps; the check in `just check-harness` and CI's `Repo Lint & Harness` job | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `std::os::unix::fs`'s `symlink`, `chown`, `fchown`, `lchown`, and `chroot`, `std::net`'s and `std::os::unix::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, the process and parent-process ids, `thread::available_parallelism`, `thread::spawn`, `thread::Builder::spawn`, `thread::sleep`, or `thread::park_timeout` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive; and every `path` in a `clippy.toml` names an item clippy resolves on that job's target — clippy only warns about one that does not, and `-D warnings` lets that pass, so the guard fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead of letting the ban silently do nothing, and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic in a `clippy.toml` (a deprecated or unknown key); and no `clippy.toml` sets `allow-invalid`, which would hide that warning from the guard, so the check fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` apart from its human-approved exception list (empty) |
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
 | ESLint's `no-console`, `no-restricted-properties`, and `switch-exhaustiveness-check` (`eslint.config.mjs`) | the hook, `just lint`, and CI's `Repo Lint & Harness` job | every author | no `console` (nor `window.console` or `globalThis.console`) outside `scripts/`; a `switch` over a union names every member and has no `default`; an unused disable directive is an error |
 | Coverage floors | `just test-core`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
 | The skills-mirror check (`just agents-check`; the hook runs `node scripts/sync-agents.ts --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
-| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
+| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
 | CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (tsc, ESLint, Prettier, typos, actionlint, script tests, harness checks), `macOS` (workspace clippy, `just test-macos`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 
@@ -574,10 +559,10 @@ removing or narrowing its bullet here:
   (this repository's rules: its `just` recipes, dependency changes), and for Codex CLI
   in a gitignored `.codex/rules/local.rules`. That choice shapes where a human is
   consulted rather than what is possible. A personal file should keep at `ask` the
-  recipes that need a human (`test-local`, `logs-follow`) and those that write to GitHub
-  or rewrite the repository (`bootstrap`, `labels`, `ruleset`). The same file is where
-  to register `scripts/format-edited-file.ts` as a `PostToolUse` hook on
-  `Edit|Write|MultiEdit`
+  recipes that need a human or write outside the checkout (`test-local`, `logs-follow`,
+  `install-cli`) and those that write to GitHub or rewrite the repository
+  (`bootstrap`, `labels`, `ruleset`). The same file is where to register
+  `scripts/format-edited-file.ts` as a `PostToolUse` hook on `Edit|Write|MultiEdit`
   (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- node scripts/format-edited-file.ts`), which
   formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod` child) or
   TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the
@@ -622,9 +607,9 @@ Before submitting a PR:
 - ALWAYS prefer editing an existing file to creating a new one
 - NEVER proactively create documentation files unless explicitly requested
 - NEVER lower a coverage floor or relax a lint to make a check pass
-- NEVER run a recipe that needs a human (`just test-local`, `just logs-follow`) unless
-  the human asked for it; `just test-macos` and `just logs` are the evidence an agent
-  gathers on its own
+- NEVER run a recipe that needs a human (`just test-local`, `just logs-follow`,
+  `just install-cli`) unless the human asked for it; `just test-macos` and `just logs`
+  are the evidence an agent gathers on its own
 - A comment carries only what the code cannot: a non-obvious why, a trap the next edit
   would spring, an external constraint. Default to none, and keep the rest to a line or
   two — restating the code, or narrating how it came to be, is what the code and git

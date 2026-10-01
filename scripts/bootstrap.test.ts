@@ -26,6 +26,7 @@ import {
   parseArgs,
   processTerminal,
   REMOVED_PATHS,
+  renamedCrate,
   runBootstrap,
   SITES,
   TEMPLATE_VALUES,
@@ -156,7 +157,8 @@ log_prefix := "myapp"
 
 # Build
 build:
-    cargo build -p myapp-cli
+    cargo build -p myapp
+    cargo install --locked --path crates/myapp
 
 # Turn the template into a new app: rename its placeholders and remove the template-only material (a human's step, run once)
 [positional-arguments]
@@ -412,6 +414,21 @@ describe("deriveNames", () => {
   });
 });
 
+describe("renamedCrate", () => {
+  it.each([
+    ["crates/myapp", "crates/tide-pool"],
+    ["crates/myapp/src/main.rs", "crates/tide-pool/src/main.rs"],
+    ["crates/myapp-core", "crates/tide-pool-core"],
+    ["crates/myapp-platform/src/paths.rs", "crates/tide-pool-platform/src/paths.rs"],
+  ])("moves %s to %s", (path, expected) => {
+    expect(renamedCrate(path, "tide-pool")).toBe(expected);
+  });
+
+  it.each(["crates/myappish", "justfile", "docs/crates/myapp"])("leaves %s alone", (path) => {
+    expect(renamedCrate(path, "tide-pool")).toBe(path);
+  });
+});
+
 describe("collectAnswers", () => {
   const log = (): void => undefined;
 
@@ -607,7 +624,7 @@ describe("runBootstrap", () => {
     const justfile = read(root, "justfile");
     expect(justfile).not.toContain("bootstrap");
     expect(justfile).toBe(
-      'bundle_id := "com.example.tide-pool"\nlog_prefix := "tide-pool"\n\n# Build\nbuild:\n    cargo build -p tide-pool-cli\n',
+      'bundle_id := "com.example.tide-pool"\nlog_prefix := "tide-pool"\n\n# Build\nbuild:\n    cargo build -p tide-pool\n    cargo install --locked --path crates/tide-pool\n',
     );
 
     for (const dir of CRATE_DIRS) {
@@ -616,7 +633,7 @@ describe("runBootstrap", () => {
     }
     for (const removed of REMOVED_PATHS) expect(existsSync(join(root, removed))).toBe(false);
     for (const edit of TEXT_EDITS) {
-      const file = edit.file.replace(/crates\/myapp-/, "crates/tide-pool-");
+      const file = renamedCrate(edit.file, "tide-pool");
       if (existsSync(join(root, file))) expect(read(root, file)).not.toContain(edit.find);
     }
 

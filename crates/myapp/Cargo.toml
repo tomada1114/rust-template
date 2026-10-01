@@ -1,6 +1,6 @@
 [package]
-name = "myapp-cli"
-description = "The helper executable bundled inside the app, which launchd (or a person) can run without starting the GUI."
+name = "myapp"
+description = "The command-line tool itself: the binary a person installs and runs."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
