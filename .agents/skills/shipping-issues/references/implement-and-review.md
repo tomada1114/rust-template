@@ -32,9 +32,9 @@ git switch <default_branch> && git pull --ff-only && git switch -c <branch>
 Then run the confirmed verification command (`just check` in this repository) **once,
 unmodified, on this branch**, redirected to `<runstate>/verify/<n>-baseline.log`. Read
 the exit code and the log's tail, never the full output. `just check` compiles the
-workspace and ends in `just smoke`'s release build, so it outlasts a foreground tool
-call: start it with `run_in_background` and wait for the completion notice under Claude
-Code, or give it a timeout that covers a full build under Codex CLI. The same holds for
+workspace and runs every test, so it outlasts a foreground tool call: start it with
+`run_in_background` and wait for the completion notice under Claude Code, or give it a
+timeout that covers a full build under Codex CLI. The same holds for
 `worktree_setup.sh --verify` below. Neither opens a window (`AGENTS.md` › "Never taking
 over the developer's Mac").
 

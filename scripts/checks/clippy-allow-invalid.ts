@@ -41,7 +41,7 @@ const SKIPPED_DIRS = new Set([".git", "node_modules", "target"]);
 
 /**
  * Entries allowed to carry `allow-invalid`, keyed `<clippy.toml path> <ban path>`
- * (e.g. `src-tauri/clippy.toml std::os::linux::fs::MetadataExt::st_dev`), each
+ * (e.g. `crates/<crate>/clippy.toml std::os::linux::fs::MetadataExt::st_dev`), each
  * with its reason. Adding one is weakening a gate (AGENTS.md › Security and human
  * approval): it needs a human's sign-off.
  */

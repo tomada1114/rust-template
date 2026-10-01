@@ -1,7 +1,6 @@
 //! The `CounterStore` port: where the counter lives between launches.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 use crate::time::UnixMillis;
 
@@ -54,9 +53,8 @@ pub trait CounterStore: Send + Sync {
 }
 
 /// Why storage failed, as a code the UI can map to wording. A kind, not an error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "export-bindings", ts(export))]
 pub enum StorageErrorKind {
     /// The storage could not be read or written (missing permission, full disk, …).
     Unavailable,

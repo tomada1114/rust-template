@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "The main window's permissions: Tauri's core defaults only. App commands need no entry here; a plugin's commands do, and adding one is an ADR decision.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
-}

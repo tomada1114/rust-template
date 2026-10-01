@@ -65,9 +65,6 @@ edges only appear on reading:
 - **Port-before-adapter** -- a port in `myapp-core` (a trait such as `Clock`) lands
   before the `myapp-platform` adapter, the fake in `myapp-test-support`, and the
   shell wiring in `src-tauri/src/` that use it.
-- **Generated-before-screen** -- a type that crosses IPC changes `ui/src/ipc/generated/`
-  through `just bindings`; the screen reading it lands after, and two branches that
-  both regenerate that directory conflict.
 - **Append-target collision** -- a changelog, release-notes file, decision log,
   or generated index that every PR appends to conflicts both-added even when
   the code paths are disjoint. Find such files once, before grouping (what did

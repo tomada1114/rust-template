@@ -21,9 +21,8 @@ description: >
 bootstrap, the Product section and roadmap as steps, the design-system-first rule, the
 app shape, the sandbox posture, the first ADRs, removing the sample, and the new
 repository's GitHub setup. **Does not own:** how a script is written
-(`writing-repo-scripts`); the design direction itself (`designing-ui`); what the
-roadmap says (`steering-the-roadmap`); how an ADR is written
-(`recording-architecture-decisions`); a system API or TCC permission
+(`writing-repo-scripts`); what the roadmap says (`steering-the-roadmap`); how an ADR is
+written (`recording-architecture-decisions`); a system API or TCC permission
 (`integrating-system-apis`); what a gate may contain (`changing-gates`); README's prose
 (`updating-docs`).
 
@@ -57,7 +56,7 @@ so this skill is where an app still finds them.
    from the Product section, with `steering-the-roadmap`. Nothing checks that page, so
    its `TODO:` lines stay until someone replaces them.
 6. **Verify and push**: `just check`, then commit the Product section and roadmap and
-   push both commits to `main`, which takes a direct push until step 11's ruleset.
+   push both commits to `main`, which takes a direct push until step 10's ruleset.
    Pushing is a remote write: a human's step, or an agent's with the owner's sign-off.
 7. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
    repository. Run it before the first issue is filed from a form, so every label the
@@ -70,28 +69,22 @@ so this skill is where an app still finds them.
    `AGENTS.md` › "GitHub settings a new repository must enable".
 9. **Replace the sample** with the app, in the order of the sections below: design
    system, app shape, sandbox posture, the first ADRs, then removing the sample.
-10. **Release secrets**, only for Developer ID signed and notarized releases
-    (`releasing-the-app`); without them releases are ad hoc.
-11. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
-    `just ruleset`, which applies `main.json` and the `release-tags` tag ruleset; the
-    `release` environment stays manual (`docs/distribution.md`). From then on every change
-    needs a pull request with the required checks green, so the ruleset must name only
-    jobs the app still runs. On a **private repository**, first **REQUIRED:**
-    [references/private-repository.md](references/private-repository.md).
+10. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
+    `just ruleset`, which applies `main.json` and the `release-tags` tag ruleset. From
+    then on every change needs a pull request with the required checks green, so the
+    ruleset must name only jobs the app still runs. On a **private repository**, first
+    **REQUIRED:** [references/private-repository.md](references/private-repository.md).
 
 ## Decide the design system first
 
 Before the app's first screen, decide its own design system, because every screen
 written against the template's neutral tokens is one to restyle later. Research the
 direction with the `refero-design` skill when the session has it (it is a user-level
-skill, not part of this repository, and nothing here depends on it); otherwise use
-`designing-ui`'s own research steps. Record the outcome as the app's design-lock ADR
-(`docs/architecture/adr/NNNN-design-lock.md`: direction, references, decision ledger),
-usually its first. Apply it by replacing values in `ui/src/design/tokens.css` and, where
-the direction needs it, the primitives, keeping every token's role name, never by
-styling a screen directly. The literal check and the contrast test hold for the app's
-tokens exactly as for the base, so `just test-ui` and `just check-harness` prove the
-replacement. **REQUIRED:** `designing-ui` for the lock's content and the token edits.
+skill, not part of this repository, and nothing here depends on it). Record the outcome
+as the app's design-lock ADR (`docs/architecture/adr/NNNN-design-lock.md`: direction,
+references, decision ledger), usually its first. Apply it by replacing values in
+`ui/src/design/tokens.css` and, where the direction needs it, the primitives, keeping
+every token's role name, never by styling a screen directly.
 
 ## Choose the app shape
 
@@ -105,9 +98,9 @@ the changes an agent shape needs, including keeping the smoke run invisible.
 
 ## Decide the sandbox posture
 
-The App Sandbox is off, Tauri's default (`docs/distribution.md` › "The App Sandbox is
-off"), so that an app can reach what the sandbox forbids, such as writing
-`~/Library/LaunchAgents` and running `launchctl` to manage launchd jobs. The sandbox
+The App Sandbox is off, Tauri's default, so that an app can reach what the sandbox
+forbids, such as writing `~/Library/LaunchAgents` and running `launchctl` to manage
+launchd jobs. The sandbox
 limits an app to the resources its entitlements request, and the Mac App Store requires
 it (https://developer.apple.com/documentation/security/app-sandbox, checked 2026-09-29),
 so judge by what the new app must reach: another app, global input, or files and system
@@ -137,10 +130,9 @@ top of it:
 - delete or rewrite what the skills under `.agents/skills/` give the counter as an
   example: the sample appears as its own "In the sample" sentences, parentheticals, code
   blocks, or a table column (`integrating-system-apis`), each of which can be deleted or
-  rewritten with the app's own names while the rule around it stands. Three files are
+  rewritten with the app's own names while the rule around it stands. Two files are
   the sample's worked examples throughout and are rewritten with the app's own first
-  command, use case, and tests rather than deleted:
-  `designing-ipc/references/adding-a-command.md`, `writing-tests/references/patterns.md`,
+  command, use case, and tests rather than deleted: `writing-tests/references/patterns.md`
   and `tdd/SKILL.md` Steps 1-3. Then run `just agents-sync`;
 - replace the core module and its tests in the same pull request that removes them, so
   the core coverage floor still measures real code.

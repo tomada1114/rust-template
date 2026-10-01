@@ -55,7 +55,7 @@ pub enum Gate {
 
 Refreshing, prompting at most once, and what `Blocked` renders are methods on the core
 type that owns the gate, each with a test against the fake (`designing-core-logic`,
-`tdd`). The view that crosses IPC is a DTO in core like any other (`designing-ipc`).
+`tdd`). The view that crosses IPC is a DTO in core like any other.
 
 ## The grant arrives with no callback
 
@@ -80,7 +80,7 @@ loop.
 A missing grant is a state the user can leave, so the app stays usable and says what is
 missing and how to fix it: name the permission as System Settings names it, and offer
 one action that gets the user there rather than a paragraph describing where to click.
-The wording lives in `ui/src/copy/` like any other (`building-react-screens`).
+The wording lives in `ui/src/copy/` like any other.
 
 ## Usage-description keys
 
@@ -108,8 +108,8 @@ is not. How an app that needs grants signs its local builds is that app's decisi
 an ADR (`docs/getting-started.md` › "Permissions (TCC)"); signing settings are a
 sign-off change (`AGENTS.md` › "Security and human approval"). After switching
 signing, or when System Settings shows an entry that grants nothing,
-`just reset-permissions` (a human's recipe) makes macOS forget this app's decisions, and
-only this app's, so the next launch asks again.
+`tccutil reset All com.example.myapp` (a human's step) makes macOS forget this app's
+decisions, and only this app's, so the next launch asks again.
 
 ## The human hand-off
 
@@ -122,7 +122,7 @@ developer's Mac"). Ask once, in one message, before the loop starts:
   responsible code, and for a tool run from Terminal that is Terminal
   (<https://developer.apple.com/forums/thread/760964>, checked 2026-09-29);
 - the order of the steps (build, run, grant, run again) and the recipe for each
-  (`just run` and `just test-local` are human recipes);
+  (`just test-local` is a human recipe);
 - what to send back: the `just test-local` output, and what the window showed.
 
 Asking once per iteration turns a five-minute check into an afternoon. Then read

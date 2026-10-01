@@ -98,7 +98,7 @@ in the pull request.
   the tool's stderr stays out of the error, since it can quote a path
   (`designing-errors`).
 - **The call blocks**, which is why the port is synchronous and the shell runs it with
-  `spawn_blocking` (`designing-ipc`).
+  `spawn_blocking`.
 - **A command that changes the Mac** (`launchctl bootstrap`, `defaults write`) is never
   run by a routine test: it would change the developer's own session. Its adapter test
   is `#[ignore = "local machine: …"]`, cleans up after itself, and runs in

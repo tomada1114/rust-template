@@ -198,8 +198,6 @@ absent, and `worktree_setup.sh` handles the first two:
   45 minutes before calling it a `TIMEOUT`. Sharing one `target/` through
   `CARGO_TARGET_DIR` is not the default: concurrent builds would wait on cargo's
   lock of that directory, giving back the time parallel mode exists to save.
-- **`src-tauri/binaries/`**, the sidecar helper `just sidecar` builds, is gitignored
-  and absent; the recipes that need it build it first, so nothing is copied.
 
 ## Failure modes that look like the issue's fault
 

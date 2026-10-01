@@ -1,28 +1,22 @@
 # Task runner. Every recipe is a thin call into cargo, pnpm, or scripts/.
 # `just --list` shows them all.
 #
-# Never taking over the developer's Mac: recipes that open the app (dev, run,
-# install-app) and recipes a human starts on purpose (test-local, reset-permissions,
+# Never taking over the developer's Mac: recipes a human starts on purpose (test-local,
 # logs-follow) are never part of `just check`, and an agent runs them only when the human
-# asks. Local builds make the app bundle only (`--bundles app`): building a disk image
-# drives Finder through AppleScript, so only the release workflow on a CI runner does it.
-# Recipes that build unset every APPLE_* variable, so a local build never signs as a
-# developer.
+# asks.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 bundle_id := "com.example.myapp"
-app_name := "MyApp"
 log_dir := env("HOME", "") / "Library/Logs" / bundle_id
 log_prefix := "myapp"
-no_signing := "env -u APPLE_CERTIFICATE -u APPLE_CERTIFICATE_PASSWORD -u APPLE_SIGNING_IDENTITY -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_ISSUER -u APPLE_API_KEY -u APPLE_API_KEY_PATH"
 
 # List the recipes
 default:
     @just --list
 
 # Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
-check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-macos build smoke
+check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-macos
 
 # Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
 lint-repo:
@@ -53,10 +47,6 @@ install:
 verify-hooks:
     node scripts/verify-hooks.ts
 
-# Run the app with hot reload (opens a window: a human's recipe, never part of `just check`)
-dev: sidecar
-    {{ no_signing }} pnpm tauri dev -- --locked
-
 # Format every Rust and TypeScript file
 fmt:
     cargo fmt --all
@@ -69,15 +59,15 @@ fix:
     pnpm format
 
 # Check formatting, lints, and types in both languages
-lint: sidecar
+lint:
     cargo fmt --all --check
     node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
     pnpm typecheck
     pnpm lint
     pnpm format:check
 
-# Every test that runs anywhere: the Rust core and the UI, each with its coverage floors
-test: test-core test-ui
+# Every test that runs anywhere: the Rust core with its coverage floors
+test: test-core
 
 # The Rust core with its coverage floors (lines 80, functions 80), its doctests, and the Linux-buildable crates' tests
 test-core:
@@ -85,42 +75,17 @@ test-core:
     cargo test --doc --locked -p myapp-core
     cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
 
-# UI tests with the ui/src coverage floors (lines 80, functions 80)
-test-ui:
-    pnpm test:ui
-
 # One core test or a group of them, fast: `just test-fast increment`
 test-fast filter:
     cargo nextest run --locked -p myapp-core {{ filter }}
 
-# Platform and shell tests that need macOS but no human (tauri::test commands, real adapters)
-test-macos: sidecar
-    cargo nextest run --locked -p myapp-platform -p myapp
+# Platform adapter and CLI tests against the real macOS, needing no human
+test-macos:
+    cargo nextest run --locked -p myapp-platform -p myapp-cli
 
 # The #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain (a human's recipe)
-test-local: sidecar
+test-local:
     cargo nextest run --locked --workspace --run-ignored ignored-only --no-tests=pass
-
-# Regenerate ui/src/ipc/generated/ from core's ts-rs types (commit the result; CI fails on drift)
-bindings:
-    node scripts/bindings.ts
-
-# Build the myapp-cli helper into src-tauri/binaries/ (Tauri's externalBin needs it before the Tauri crate compiles)
-sidecar *args:
-    node scripts/build-sidecar.ts {{ args }}
-
-# Build the debug app bundle (<cargo target dir>/debug/bundle/macos/); no disk image
-build: sidecar
-    {{ no_signing }} pnpm tauri build --debug --bundles app -- --locked
-
-# Build, quit any running copy, and open the debug app (shows a window: a human's recipe)
-run: build
-    -pkill -x myapp
-    app="$(node scripts/bundle-path.ts debug)" && open "$app"
-
-# The launch smoke: release bundle, signature, entitlements, bundled helper, and a windowless smoke-mode run
-smoke:
-    node scripts/smoke.ts
 
 # Print the end of the newest app log and exit
 logs:
@@ -139,19 +104,6 @@ logs-follow:
     if [[ -z "$newest" ]]; then echo "no {{ log_prefix }}.*.log files in {{ log_dir }}"; exit 0; fi
     tail -F "$newest"
 
-# Reset the app's privacy (TCC) permissions so macOS asks again (a human's recipe)
-reset-permissions:
-    tccutil reset All {{ bundle_id }}
-
-# Build the release app and copy it to ~/Applications, quitting an older copy first (a human's recipe)
-install-app:
-    {{ no_signing }} pnpm tauri build --bundles app -- --locked
-    node scripts/bundle-path.ts release >/dev/null
-    -pkill -x myapp
-    mkdir -p "$HOME/Applications"
-    rm -rf "$HOME/Applications/{{ app_name }}.app"
-    app="$(node scripts/bundle-path.ts release)" && cp -R "$app" "$HOME/Applications/"
-
 # Supply-chain checks for crates: advisories, licences, bans, sources
 deny:
     cargo deny --locked check
@@ -159,7 +111,7 @@ deny:
 # Remove build output
 clean:
     cargo clean
-    rm -rf dist coverage src-tauri/binaries
+    rm -rf coverage
 
 # Remove stale verify-bootstrap-* temp dirs and this checkout's idle Claude Code scratchpads: `just prune-temp --dry-run`
 prune-temp *args:
@@ -186,10 +138,6 @@ labels:
 # Create or update every ruleset in .github/rulesets/ (main, release-tags) by name; never deletes (repository admin; a human's step)
 ruleset:
     node scripts/apply-ruleset.ts
-
-# Bump the three version sites, refresh Cargo.lock, and roll CHANGELOG.md: `just release-prep 0.2.0`
-release-prep version *flags:
-    node scripts/release-prep.ts {{ flags }} {{ version }}
 
 # Turn the template into a new app: rename its placeholders and remove the template-only material (a human's step, run once)
 [positional-arguments]

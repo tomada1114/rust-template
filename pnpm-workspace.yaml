@@ -17,12 +17,6 @@ minimumReleaseAgeIgnoreMissingTime: false
 
 # Reject a dependency whose provenance level regressed from a previous version.
 trustPolicy: no-downgrade
-# One reviewed exception, pinned to the exact version: semver 6.3.1 (2022) predates npm
-# provenance, so it reads as a "downgrade" from semver 7's attested releases. It reaches
-# the tree only through eslint-plugin-react-hooks -> @babel/core, a dev-only lint path.
-# Recorded in docs/template/implementation-notes.md.
-trustPolicyExclude:
-  - semver@6.3.1
 # Re-verify trust metadata against the registry instead of trusting the lockfile.
 trustLockfile: false
 # Refuse transitive dependencies fetched from git or arbitrary tarball URLs.

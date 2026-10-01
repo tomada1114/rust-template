@@ -95,9 +95,9 @@ comment giving its reason.
 **REQUIRED:** `triaging-issues`, for every issue filed, parked, promoted, or closed below.
 
 - **A Now outcome's issues are all closed.** Check its "Done when" yourself with what
-  an agent may run: the recipe, `just smoke`, `just logs`. When only the window can show
-  it, ask the human to run `just run` (a human's recipe: it opens the app) and say what
-  they saw (`AGENTS.md` › "Never taking over the developer's Mac"). If it holds, remove
+  an agent may run: the recipe, `just test-macos`, `just logs`. When only a human can
+  show it, ask the human to run it and say what they saw (`AGENTS.md` › "Never taking
+  over the developer's Mac"). If it holds, remove
   the entry (`CHANGELOG.md` already records what shipped) and propose the next outcome
   to move up. If it does not, the missing work is a new issue under that outcome, filed
   through `triaging-issues`, and the entry stays.

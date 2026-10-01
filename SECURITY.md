@@ -46,10 +46,6 @@ replace this section with the commitments its own maintainers can keep.
 - `cargo deny` checks advisories, licences, bans, and sources over the dependency graph
   of the one shipped target, `aarch64-apple-darwin`. CodeQL, OSV-Scanner, OpenSSF
   Scorecard, and Dependency Review run in CI, and gitleaks scans the full history weekly.
-- A release is built on a GitHub-hosted runner, verified (`codesign`, entitlements, the
-  bundled helper's signature, the launch smoke) before upload, and published with a
-  `SHA256SUMS` file and a build-provenance attestation. See
-  [docs/distribution.md](docs/distribution.md).
 
 `main`'s intended protection is defined as code in
 [`.github/rulesets/main.json`](.github/rulesets/main.json) (pull requests required,

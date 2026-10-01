@@ -130,12 +130,11 @@ greps before committing; a pinned tool goes through `mise exec --`. A remote wri
 
 **Never taking over the developer's Mac.** Every step a skill tells an agent to run
 follows `AGENTS.md` › "Never taking over the developer's Mac": on its own an agent runs
-only what shows no window, takes no focus, and raises no prompt, with `just smoke` and
-`just logs` as its evidence. A human's recipe (`just dev`, `just run`,
-`just install-app`, `just test-local`, `just logs-follow`, `just reset-permissions`) is
-marked as one wherever a skill names it. A skill never has an agent `open` the app,
-script another app, build a `.dmg` locally, or start an installer or `sudo`; it hands
-the human the command instead.
+only what shows no window, takes no focus, and raises no prompt, with `just test-macos`
+and `just logs` as its evidence. A human's recipe (`just test-local`,
+`just logs-follow`) is marked as one wherever a skill names it. A skill never has an
+agent `open` the app, script another app, build a `.dmg` locally, or start an installer
+or `sudo`; it hands the human the command instead.
 
 **For a reader new to Rust.** The human reviewing the pull requests a skill shapes may
 not read Rust fluently yet. Where a Rust rule would stop that reader, the same or the

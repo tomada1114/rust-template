@@ -9,25 +9,25 @@
  *   node scripts/checks/product-section.ts [--root DIR]
  *
  * The section is the lines after a line that is exactly `## Product`, up to the next `## `
- * heading. The repository is the template while `src-tauri/tauri.conf.json`'s
- * `identifier` is still the template's placeholder bundle identifier, and an app once
- * the bootstrap has replaced it. In either, the section exists and names its
+ * heading. The repository is the template while the justfile's `bundle_id` is still the
+ * template's placeholder bundle identifier, and an app once the bootstrap has replaced
+ * it. In either, the section exists and names its
  * `Non-goals`; in the template it holds at least one `TODO:` (so filling it in here cannot
  * make the app-side rule vacuous for every app cut later); in an app it holds none. The
  * marker is `TODO:` with its colon, so prose about a to-do list is not mistaken for one.
  * No git work tree needed.
  *
- * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no AGENTS.md or tauri.conf.json),
- * ERR_CHECK_INPUT_UNREADABLE (tauri.conf.json is not JSON with a string `identifier`),
+ * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_MISSING (no AGENTS.md or justfile),
+ * ERR_CHECK_INPUT_UNREADABLE (the justfile assigns no `bundle_id := "…"`),
  * ERR_CHECK_PRODUCT_SECTION.
  */
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
 
-const CONF = "src-tauri/tauri.conf.json";
+const CONF = "justfile";
 // Split so the bootstrap's leftover-placeholder scan never finds the literal here: its
-// absence from tauri.conf.json is what tells this check the bootstrap has run.
+// absence from the justfile is what tells this check the bootstrap has run.
 const PLACEHOLDER_IDENTIFIER = ["com", "example", "my" + "app"].join(".");
 const MARKER = "TODO:";
 const FILL_IT =
@@ -54,25 +54,18 @@ function identifier(root: string): string | FailureDetails {
     return {
       code: "ERR_CHECK_INPUT_MISSING",
       summary: `${CONF} does not exist`,
-      expected: `${CONF}, whose identifier tells the template from an app`,
+      expected: `${CONF}, whose bundle_id tells the template from an app`,
       actual: "no such file",
       next: "run the check against the repository root (--root DIR)",
     };
   }
-  let conf: unknown;
-  try {
-    conf = JSON.parse(text);
-  } catch {
-    conf = undefined;
-  }
-  const value =
-    typeof conf === "object" && conf !== null && "identifier" in conf ? conf.identifier : undefined;
-  if (typeof value === "string") return value;
+  const value = /^bundle_id\s*:=\s*(["'])(.*?)\1\s*(?:#.*)?$/m.exec(text)?.[2];
+  if (value !== undefined) return value;
   return {
     code: "ERR_CHECK_INPUT_UNREADABLE",
-    summary: `${CONF} has no readable identifier`,
-    expected: `${CONF} to be JSON with a string \`identifier\``,
-    actual: conf === undefined ? "the file is not JSON" : "no string `identifier` key",
+    summary: `${CONF} has no readable bundle_id`,
+    expected: `${CONF} to assign \`bundle_id := "…"\` (either quote)`,
+    actual: "no such line",
     next: `fix ${CONF}`,
   };
 }
@@ -128,7 +121,7 @@ function run(root: string): FailureDetails[] {
       productViolation(
         "AGENTS.md's `## Product` section is filled in while the template's placeholders remain",
         mode,
-        `no \`${MARKER}\` marker, but ${CONF}'s identifier is still the template's placeholder`,
+        `no \`${MARKER}\` marker, but ${CONF}'s bundle_id is still the template's placeholder`,
         "restore the `TODO:` skeleton in the template: each app fills it in after the bootstrap, and this check then insists it does",
       ),
     );

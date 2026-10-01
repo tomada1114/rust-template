@@ -23,8 +23,7 @@ change at all. **Does not own:** adding a crate or npm package the config then g
 (`managing-dependencies`); how a script under `scripts/` is written
 (`writing-repo-scripts`); where a test goes and which coverage floor covers it
 (`placing-tests`); landing a bot's version bump (`merging-dependency-prs`); the label
-set (`triaging-issues`); a Tauri capability as part of adding a plugin
-(`designing-ipc`); lifting `unsafe_code = "forbid"` (`integrating-system-apis`).
+set (`triaging-issues`); lifting `unsafe_code = "forbid"` (`integrating-system-apis`).
 
 Never weaken a gate to make a check pass. That rule, and the list of what counts, live
 in `AGENTS.md` › "Security and human approval"; this skill neither restates nor relaxes
@@ -86,8 +85,7 @@ elsewhere, including this skill. Detail, traps, and the judgment each needs are 
   it by another route.
 - **The app's security posture**: `tauri.conf.json`'s `security` and `bundle.macOS`,
   `src-tauri/capabilities/`, and `src-tauri/Entitlements.plist` are sign-off changes
-  and ADR triggers; `just build` then `just smoke` prove the bundle still carries what
-  the files say.
+  and ADR triggers.
 - **Workflows and the ruleset**: SHA pins, least-privilege `permissions`, timeouts,
   `persist-credentials: false`, and a job `name:` that is a required context in
   `.github/rulesets/main.json`. Renaming a required job leaves every pull request
@@ -128,14 +126,11 @@ review. `paths.ts`'s list and `AGENTS.md`'s never-read list change together. Enf
 
 ## What no gate here sees
 
-`AGENTS.md` › "Enforcement layers" names the gaps and the reasons they stay open: a
-UI-to-Rust wiring mistake only the running app shows, the `#[ignore]`d tests only a human
-runs, `--no-verify` and the hook's other bypasses, a ruleset that may not be applied, and
-a new recipe that takes over the Mac. Add to that list the release path: `release.yml`
-runs only on a tag or a manual dispatch, so a change to it is proven by its `dry_run`
-(`releasing-the-app`), never by a pull request's checks. A gate proposed to close any gap
-is a real gate change and belongs in its pull request as one, with its "Enforcement
-layers" row updated or removed.
+`AGENTS.md` › "Enforcement layers" names the gaps and the reasons they stay open: the
+`#[ignore]`d tests only a human runs, `--no-verify` and the hook's other bypasses, a
+ruleset that may not be applied, and a new recipe that takes over the Mac. A gate
+proposed to close any gap is a real gate change and belongs in its pull request as one,
+with its "Enforcement layers" row updated or removed.
 
 ## Checking a gate change
 

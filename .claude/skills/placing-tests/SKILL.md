@@ -10,7 +10,7 @@ description: >
   (vitest.config.ts), and which coverage floor governs it (the llvm-cov floors in the
   justfile's test-core recipe, the per-glob thresholds in vitest.config.ts). Use when
   adding a test file, choosing between just test-fast, just test-core, just test-macos,
-  just test-ui, and just test-scripts, when a fake from myapp-test-support will not
+  and just test-scripts, when a fake from myapp-test-support will not
   type-check inside core, or when a coverage floor fails.
 ---
 
@@ -37,11 +37,9 @@ fewest machines while still able to fail for the behavior:
 | A Tauri command, its error mapping, its event | `src-tauri/tests/commands.rs` | `just test-macos` | none |
 | A pure startup decision in the shell | `#[cfg(test)] mod tests` in that file (`src-tauri/src/startup.rs`) | `just test-macos` | none |
 | The helper CLI | `crates/myapp-cli/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
-| A hook, a component, an IPC wrapper, copy | `ui/src/**/<name>.test.ts(x)`, beside the source | `just test-ui` | `ui/src/**` floor |
 | A repository script | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor, and `scripts/lib/guard/**` for the staged guard |
 | A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | `.agents/skills/*/scripts/**` floor |
 | A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/shipping-issues/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
-| What only the assembled app shows | no test file: `just smoke`, then the manual check | `just smoke`; `just run` + `just logs` by a human | none |
 
 A domain decision tested only in a row that no floor measures is in the wrong place:
 move it into core and test it there. The platform crate, the shell, and the CLI
@@ -119,8 +117,8 @@ production code never imports them. A script's data under test goes under
 `scripts/**/fixtures/`, which Vitest, coverage, ESLint, and `typos` all skip, so a
 fixture can be malformed on purpose.
 
-Iterate on one file with `pnpm exec vitest run --project ui <path>` (or
-`--project scripts`); `just test-ui` and `just test-scripts` add the floors.
+Iterate on one file with `pnpm exec vitest run --project scripts <path>`;
+`just test-scripts` adds the floors.
 
 ## Coverage floors
 

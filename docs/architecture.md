@@ -102,13 +102,6 @@ The moment one needs a decision, the decision moves into core behind the port.
 | one `pub const` per event name (`COUNTER_CHANGED`), emitted with `app.emit` | one typed `listen` per event in `ui/src/ipc/events.ts` |
 | every DTO lives in core and derives `ts_rs::TS` with `#[cfg_attr(feature = "export-bindings", ts(export))]` | `ui/src/ipc/generated/`, committed, never hand-edited; the rest of the UI imports from `ui/src/ipc/types.ts` |
 
-`just bindings` regenerates `ui/src/ipc/generated/`: it exports into a fresh directory
-with core's `export-bindings` feature and replaces the tracked one only once that
-succeeds, so no other test run rewrites it (`.cargo/config.toml` exports 64-bit integers
-as `number`). CI regenerates and fails on a diff. A harness check compares the names in
-`generate_handler!` with those `commands.ts` invokes, and the event constants with those
-`events.ts` listens to.
-
 A command decides nothing: it moves the work to a blocking thread, calls core, emits
 `counter-changed` after a change, in the order the changes were saved, and logs one
 line. `revision` counts the changes this app process has saved; the UI subscribes
@@ -126,10 +119,10 @@ behind a port whose callback the shell turns into the same event.
   built app: Tauri attaches the header when it serves the bundled assets over
   `tauri://` (tauri 2.11.6,
   <https://docs.rs/crate/tauri/2.11.6/source/src/protocol/tauri.rs>, checked
-  2026-09-30), and `just dev` loads `devUrl` (`http://localhost:1420`) from Vite with no
-  CSP, so a violation shows in a built app, never under `just dev`.
-  `app.security.devCsp` stays unset, because no setting makes `just dev` enforce a CSP
-  on the desktop: in dev the window loads `devUrl` directly, and Tauri applies `devCsp`
+  2026-09-30), and the dev server loads `devUrl` (`http://localhost:1420`) from Vite
+  with no CSP, so a violation shows in a built app, never in development.
+  `app.security.devCsp` stays unset, because no setting makes the dev server enforce a
+  CSP on the desktop: in dev the window loads `devUrl` directly, and Tauri applies `devCsp`
   (or `csp`) only to the assets it serves itself (`get_app_url` and `csp` in
   <https://docs.rs/crate/tauri/2.11.6/source/src/manager/mod.rs>, checked 2026-09-30).
   Try a CSP-sensitive change (a new asset origin, an inline style or script) in a built
@@ -148,12 +141,12 @@ behind a port whose callback the shell turns into the same event.
 
 ## The helper executable
 
-`crates/myapp-cli` builds `myapp-cli`, which `scripts/build-sidecar.ts` (`just sidecar`)
-copies to `src-tauri/binaries/myapp-cli-<target triple>` (gitignored). `tauri.conf.json`
+`crates/myapp-cli` builds `myapp-cli`, which a build step copies to
+`src-tauri/binaries/myapp-cli-<target triple>` (gitignored). `tauri.conf.json`
 lists it in `bundle.externalBin` and runs the build in `beforeDevCommand` and
 `beforeBuildCommand`, so every build ships a fresh helper at
-`MyApp.app/Contents/MacOS/myapp-cli`. Every recipe that compiles the Tauri crate depends
-on `just sidecar`, because `tauri-build` fails when an `externalBin` file is missing.
+`MyApp.app/Contents/MacOS/myapp-cli`. Every build of the Tauri crate needs the helper
+there first, because `tauri-build` fails when an `externalBin` file is missing.
 
 The GUI does not run the helper in the sample, so no shell plugin and no shell
 permission ship. An app whose GUI must run it spawns it from Rust with
@@ -203,14 +196,11 @@ phases:
 
 Any startup error — no `HOME`, logging, the build, a missing or unshowable main window —
 is logged, printed to stderr, and exits 1; none reaches Tauri's setup panic, which the
-release profile's `panic = "abort"` would turn into a crash. `just smoke` checks both
-sides: with `HOME` unset the executable must exit 1 with `HOME is not set`, and with it
-set it must exit 0 and log its `startup complete` line. The flag changes visibility and
-lifetime only, never behaviour: `startup_plan` and `smoke_requested`
+release profile's `panic = "abort"` would turn into a crash. The flag changes
+visibility and lifetime only, never behaviour: `startup_plan` and `smoke_requested`
 (`src-tauri/src/startup.rs`) are unit-tested, and `src-tauri/tests/startup.rs` runs
-`compose` and `finish_startup` under both plans on Tauri's mock runtime and compares
-the state and commands they leave. `just smoke` runs the built executable directly,
-never through `open`, which would activate the app.
+`compose` and `finish_startup` under both plans on Tauri's mock runtime and compares the
+state and commands they leave.
 
 ## Where new code goes
 
@@ -221,7 +211,7 @@ never through `open`, which would activate the app.
 | A command or an event | `src-tauri/src/commands.rs`, `with_commands`, and `ui/src/ipc/` | `src-tauri/tests/commands.rs` through `tauri::test` (`just test-macos`) and `ui/src/ipc/*.test.ts` |
 | A screen, a component, wording | `ui/src/`, built from `ui/src/design/`, wording in `ui/src/copy/` | Vitest and Testing Library, querying by role and accessible name |
 | A helper subcommand | `crates/myapp-cli` | `crates/myapp-cli/tests/` and the launch smoke |
-| Startup, windows, wiring | `src-tauri/src/lib.rs` (`compose`, `finish_startup`) | `src-tauri/tests/startup.rs` (`just test-macos`) and the launch smoke (`just smoke`) |
+| Startup, windows, wiring | `src-tauri/src/lib.rs` (`compose`, `finish_startup`) | `src-tauri/tests/startup.rs` (`just test-macos`) |
 
 ## What is contract and what is private
 
@@ -232,9 +222,9 @@ launchd job, or the user. These are contract; everything else is private.
 | Contract | What depends on it | What changing it requires |
 |---|---|---|
 | **Core's public API** — every `pub` item re-exported from `crates/myapp-core/src/lib.rs` (`Counter`, `CounterService`, `CounterView`, `CounterError`, `CounterStore`, `StoredCounter`, `StorageError`, `StorageErrorKind`, `Tuning`, `TuningError`, `Clock`, `UnixMillis`, `UiLogEntry`, `UiLogLevel`) | `myapp-platform`, `myapp-test-support`, `myapp-cli`, the shell, and their tests | Update every caller in the same pull request; the compiler finds them. A new port is an ADR. |
-| **The bundle identifier** — `com.example.myapp`: `identifier` in `src-tauri/tauri.conf.json`, `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the justfile, and `scripts/smoke.ts` | Everything macOS keys by it on a user's Mac: the data directory `~/Library/Application Support/com.example.myapp/`, the log directory `~/Library/Logs/com.example.myapp/`, and privacy (TCC) grants | Fixed once a build has left your machine: a new identifier is a new app to macOS, and the user's data and grants stay behind under the old one. Changing it is a human's decision, recorded as an ADR; the bootstrap sets it once. |
-| **IPC command and event names, and their payloads** — commands `get_counter`, `increment`, `decrement`, `reset`, `log_from_ui`; event `counter-changed`; the JSON shapes of `CounterView` (`{ value, lastChangedAt, revision }`), `CounterError`'s codes, and `UiLogEntry` (`{ level: "warn" \| "error", message }`) | The UI, which is built separately from the Rust side | Change both sides in one pull request; `just bindings`, the harness check, and the command tests catch a mismatch. |
-| **On-disk file formats** — see below | Files already on a user's disk; `just logs`, `just smoke`, and anyone reading the logs | A new version still reads the old format: a format version and a migration, with a test that reads a sample of the previous format. |
+| **The bundle identifier** — `com.example.myapp`: `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs` and `bundle_id` in the justfile | Everything macOS keys by it on a user's Mac: the data directory `~/Library/Application Support/com.example.myapp/`, the log directory `~/Library/Logs/com.example.myapp/`, and privacy (TCC) grants | Fixed once a build has left your machine: a new identifier is a new app to macOS, and the user's data and grants stay behind under the old one. Changing it is a human's decision, recorded as an ADR; the bootstrap sets it once. |
+| **IPC command and event names, and their payloads** — commands `get_counter`, `increment`, `decrement`, `reset`, `log_from_ui`; event `counter-changed`; the JSON shapes of `CounterView` (`{ value, lastChangedAt, revision }`), `CounterError`'s codes, and `UiLogEntry` (`{ level: "warn" \| "error", message }`) | The UI, which is built separately from the Rust side | Change both sides in one pull request. |
+| **On-disk file formats** — see below | Files already on a user's disk; `just logs` and anyone reading the logs | A new version still reads the old format: a format version and a migration, with a test that reads a sample of the previous format. |
 | **The helper's command line** — `myapp-cli counter show`, `myapp-cli counter increment`, `--help`, `--version`, and the exit codes (0 success, 1 the action failed, 2 a usage error) | A launchd job or script that runs the bundled helper | Keep the old form working, or treat the change as breaking and say so in `CHANGELOG.md`. |
 
 ### On-disk file formats

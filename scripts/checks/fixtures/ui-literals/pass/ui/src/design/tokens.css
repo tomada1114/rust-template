@@ -1,8 +1,0 @@
-/* ui-literals fixture: the one file that may hold raw values. */
-:root {
-  --palette-white: #ffffff;
-  --palette-red: rgb(215 0 21);
-  --color-text-danger: red;
-  --font-family-system: -apple-system, "SF Pro Text", system-ui, sans-serif;
-  --font-size-body: 13px;
-}

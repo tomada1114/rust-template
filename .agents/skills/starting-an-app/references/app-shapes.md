@@ -41,7 +41,7 @@ The changes, in order:
    `src-tauri/src/startup.rs`, with its arm in the `From` conversion to
    `tauri::ActivationPolicy`, and make the normal-launch branch of `startup_plan`
    return it and leave the window hidden. Leave the smoke branch alone: it is what keeps
-   `just smoke` from taking focus. Update the unit test that pins the normal-launch plan
+   a smoke run from taking focus. Update the unit test that pins the normal-launch plan
    to the new expectation. Adding the variant makes every `match` on the enum a compile
    error until it names the new case, which is the point: each place that decides by
    activation policy has to decide again.
@@ -63,9 +63,8 @@ The changes, in order:
 
 ## What can be checked, and by whom
 
-- `just smoke` and `just logs` stay an agent's evidence that the app starts and is
-  wired; they need no change beyond step 2's guard.
+- `just test-macos` and `just logs` stay an agent's evidence; they need no change
+  beyond step 2's guard.
 - The plan itself is unit-tested in `src-tauri` (`just test-macos`).
-- No gate sees the tray icon or its menu. The check is a human running `just run` (a
-  human's recipe: it opens the app) and `just logs`, with what they saw in the pull
-  request (`running-the-app`).
+- No gate sees the tray icon or its menu. The check is a human running the app and
+  `just logs`, with what they saw in the pull request (`running-the-app`).

@@ -1,6 +1,6 @@
 {
-  // Root config files only (vite, vitest, eslint). ui/ and scripts/ have their own
-  // tsconfig.json; typescript-eslint's project service picks the nearest one per file.
+  // Root config files only (vitest, eslint). scripts/ has its own tsconfig.json;
+  // typescript-eslint's project service picks the nearest one per file.
   "compilerOptions": {
     "target": "ES2024",
     "module": "NodeNext",
@@ -9,13 +9,11 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    // No enum, namespace, or parameter property here either, as in ui/ and scripts/.
+    // No enum, namespace, or parameter property here either, as in scripts/.
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "allowJs": true,
-    // eslint.config.mjs is linted with type information but not type-checked:
-    // eslint-plugin-react-hooks' published types do not match ESLint 10's Plugin type.
-    "checkJs": false,
+    "checkJs": true,
     "skipLibCheck": true,
     "noEmit": true
   },

@@ -56,6 +56,4 @@ request that changes it stops for a human and an ADR.
 
 A user-visible change adds its entry under `[Unreleased]` in the same pull request, in
 the Keep a Changelog section that fits (Added, Changed, Fixed, Removed, Security), in
-terms of what a user observes rather than which files moved. `just release-prep` later
-rolls `[Unreleased]` into a dated section; `releasing-the-app` owns that step and the
-version number itself.
+terms of what a user observes rather than which files moved.

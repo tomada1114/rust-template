@@ -50,7 +50,7 @@ body:
       label: How You Got the App
       options:
         - A release download (.dmg)
-        - A local build (just run, just install-app, or just dev)
+        - A local build (cargo install --path, or cargo run)
     validations:
       required: true
 

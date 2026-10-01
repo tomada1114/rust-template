@@ -32,9 +32,8 @@
         "strict_required_status_checks_policy": false,
         "required_status_checks": [
           { "context": "Rust Core", "integration_id": 15368 },
-          { "context": "Frontend", "integration_id": 15368 },
           { "context": "Repo Lint & Harness", "integration_id": 15368 },
-          { "context": "macOS Build & Smoke", "integration_id": 15368 },
+          { "context": "macOS", "integration_id": 15368 },
           { "context": "Template Bootstrap Smoke", "integration_id": 15368 },
           { "context": "Workflow Security Lint", "integration_id": 15368 },
           { "context": "Dependency Review", "integration_id": 15368 },

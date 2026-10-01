@@ -23,7 +23,7 @@ pub enum LoggingError {
 /// `<prefix>.<YYYY-MM-DD>.log` (dated in UTC) in `dir`, keeping the last
 /// [`LOG_FILES_KEPT`]; with `also_stderr`, every line goes to stderr too.
 ///
-/// Only the Tauri shell and the helper CLI call this; libraries only emit events. The
+/// Only the helper CLI calls this; libraries only emit events. The
 /// appender writes synchronously — no background worker whose last lines a
 /// `process::exit` could drop.
 ///

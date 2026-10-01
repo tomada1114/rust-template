@@ -51,69 +51,19 @@ jobs:
       - name: Format check
         run: cargo fmt --all --check
 
-      # Only the crates that need no WebKitGTK: the Tauri crate is built and linted on
-      # the macOS job. The guard fails on a clippy.toml path clippy cannot resolve, which
-      # `-D warnings` lets pass; this job resolves core's unix-only bans on Linux.
-      - name: Clippy (Linux-buildable crates)
-        run: node scripts/clippy-guard.ts cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings
+      # The guard fails on a clippy.toml path clippy cannot resolve, which `-D warnings`
+      # lets pass; this job resolves core's unix-only bans on Linux.
+      - name: Clippy (whole workspace)
+        run: node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Core tests with coverage floors, doctests, and the Linux-buildable crates' tests
         run: just test-core
-
-      - name: IPC bindings are up to date
-        run: |
-          just bindings
-          drift="$(git status --porcelain -- ui/src/ipc/generated)"
-          if [[ -n "$drift" ]]; then
-            printf '%s\n' "$drift"
-            echo "::error::ui/src/ipc/generated/ differs from core's types. Run \`just bindings\` and commit the result."
-            exit 1
-          fi
 
       - name: cargo deny
         run: cargo deny --locked check
 
       - name: cargo shear
         run: cargo shear --locked
-
-  frontend:
-    name: Frontend
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          install_args: node aqua:pnpm/pnpm just
-
-      - name: Locate the pnpm store
-        id: pnpm-store
-        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: ESLint
-        run: pnpm lint
-
-      - name: Prettier
-        run: pnpm format:check
-
-      - name: UI tests with coverage floors
-        run: just test-ui
 
   repo-lint:
     name: Repo Lint & Harness
@@ -142,6 +92,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The TypeScript gates over scripts/ and the root config files (`just lint`'s lines).
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier
+        run: pnpm format:check
+
       - name: Typos
         run: typos
 
@@ -161,9 +121,9 @@ jobs:
         run: just check-harness
 
   macos:
-    name: macOS Build & Smoke
+    name: macOS
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -173,38 +133,24 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node aqua:pnpm/pnpm just aqua:nextest-rs/nextest/cargo-nextest
+          install_args: node just aqua:nextest-rs/nextest/cargo-nextest
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # tauri-build fails when a bundle.externalBin file is missing, so the helper is
-      # built before anything compiles the Tauri crate.
-      - name: Build the sidecar helper
-        run: just sidecar
 
       - name: Clippy (whole workspace)
         run: node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      - name: macOS tests (tauri::test commands, real adapters)
+      - name: macOS tests (real adapters, the CLI)
         run: just test-macos
-
-      - name: Build the debug app bundle
-        run: just build
-
-      - name: Launch smoke (release bundle, signature, entitlements, sidecar, smoke mode)
-        run: just smoke
 
   bootstrap-smoke:
     # Template-only: scripts/bootstrap.ts removes this job, and its required context in
     # .github/rulesets/main.json, from every app it generates. A hyphenated
     # multi-word slug exercises every spelling the rename writes: tide-pool-core,
-    # tide_pool_lib, and TIDE_POOL_SMOKE.
+    # tide_pool, and TIDE_POOL. Nothing it runs needs macOS since the GUI left.
     name: Template Bootstrap Smoke
-    runs-on: macos-26
-    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:

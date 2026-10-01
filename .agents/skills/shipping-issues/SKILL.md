@@ -56,9 +56,9 @@ A `blocked: design` issue ships only when named, or with `--include-design` (ste
 - **Nothing waits on the user mid-run.** Never `rm`: `mv` into
   `<runstate>/holding/<n>/`, `git rm`, or `git checkout --`, and defer anything else
   that needs approval to the end ([closing-out.md](references/closing-out.md)).
-- **Never take over the Mac.** No step or sub-agent runs a human's recipe (`just run`,
-  `just test-local`, and the rest `AGENTS.md` › "Never taking over the developer's Mac"
-  lists); `just smoke` and `just logs` are the run's evidence.
+- **Never take over the Mac.** No step or sub-agent runs a human's recipe
+  (`just test-local`, and the rest `AGENTS.md` › "Never taking over the developer's Mac"
+  lists); `just test-macos` and `just logs` are the run's evidence.
 - Every issue starts from, and every merge returns to, an up-to-date `main`.
 - **REQUIRED:** the reference a step links, read when that step starts: each step
   below is only the summary of its procedure.
@@ -158,7 +158,7 @@ take its full 60 minutes), or in the foreground under 540 s, re-run on `TIMEOUT`
 
 ## 7. Merge and confirm the issue closed
 
-A PR that needs `just test-local` output or `just run` evidence is **held**, not merged:
+A PR that needs `just test-local` output is **held**, not merged:
 comment what the human should run, record `--event blocked`, and move on
 ([pr-ci-merge.md](references/pr-ci-merge.md), "Held for a human's evidence"). Otherwise
 run `land_pr.sh <pr> --issue <n>` and read `result:` and `issue:`

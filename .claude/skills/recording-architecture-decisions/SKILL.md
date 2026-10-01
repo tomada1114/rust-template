@@ -21,10 +21,9 @@ an ADR's shape, numbering, and statuses, amending versus superseding, keeping th
 true, and how a fact is written into any of it. **Does not own:** which other surface a
 change lands on, including `docs/architecture.md` and README's Design Philosophy
 (`updating-docs`); `docs/architecture/roadmap.md` (`steering-the-roadmap`); how each
-choice is made: the design lock (`designing-ui`), the app shape and sandbox posture
-(`starting-an-app`), a system API and its permission (`integrating-system-apis`), a
-dependency (`managing-dependencies`), a gate (`changing-gates`), a release path
-(`releasing-the-app`); the decisions themselves, which are the ADRs.
+choice is made: the app shape and sandbox posture (`starting-an-app`), a system API and
+its permission (`integrating-system-apis`), a dependency (`managing-dependencies`), a
+gate (`changing-gates`); the decisions themselves, which are the ADRs.
 
 ## What the tree is for
 
@@ -94,8 +93,8 @@ comment on `tauri` in `Cargo.toml`); here is why each one is expensive:
 - **The bundle identifier**, once a build has left the machine: macOS keys the app's
   data, logs, and privacy grants by it, so a new one is a new app to macOS.
 - **The design lock**: the app's own design direction, decided before its first screen.
-  `designing-ui` owns its content (direction, references, decision ledger); it is filed
-  here like any other ADR, usually as the app's first.
+  Its content is direction, references, and a decision ledger; it is filed here like
+  any other ADR, usually as the app's first.
 - **A CSS framework, a component library, or a state library**, which the template
   deliberately ships without.
 - **A new Tauri major.** `tauri` stays on `2` until a migration ADR moves it.

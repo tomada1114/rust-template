@@ -4,8 +4,8 @@ description: >
   Covers turning the working tree into Conventional Commits in this repository: the
   branch guard, the judgment the staged guard (scripts/check-staged.ts) cannot make,
   grouping changes into atomic commits, the files that must travel together (Cargo.lock
-  with a Cargo.toml, pnpm-lock.yaml with package.json, ui/src/ipc/generated/ with the
-  Rust type that produced it, .claude/skills/ with .agents/skills/), the commit types
+  with a Cargo.toml, pnpm-lock.yaml with package.json, .claude/skills/ with
+  .agents/skills/), the commit types
   check-pr-title.yml accepts, and recovering when lefthook's pre-commit hook refuses a
   commit (ERR_STAGED_BLOCKED_PATH, ERR_STAGED_CREDENTIAL_SHAPED, rustfmt, prettier,
   eslint, typos, skills mirror). Use when asked to commit, save changes, stage changes,
@@ -107,9 +107,6 @@ These always travel in one commit, whatever the grouping otherwise says:
   `pnpm-lock.yaml` with the `package.json` that moved it. A lockfile committed apart
   from its manifest is a commit that does not build (`cargo` fails under `--locked`, and
   `pnpm install --frozen-lockfile` refuses the mismatch).
-- **Generated IPC types with their source:** `ui/src/ipc/generated/` with the core type
-  deriving `ts_rs::TS` that produced it (`just bindings`); CI fails on a commit where
-  the two disagree.
 - **A skill and its mirror:** `.agents/skills/<name>/` with `.claude/skills/<name>/`
   after `just agents-sync`. The hook's skills-mirror job compares the two trees on
   disk, not what is staged, so it cannot catch a commit that stages only one side:

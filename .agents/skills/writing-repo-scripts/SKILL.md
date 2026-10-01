@@ -102,9 +102,7 @@ exists outside a checkout:
 
 - **Refuse**, with a named code, when the job is defined over the repository.
   `scripts/check-staged.ts` has no index to judge (`ERR_STAGED_NOT_A_REPO`);
-  `scripts/release-prep.ts` exists to check a clean work tree
-  (`ERR_RELEASE_NOT_A_REPO`); `scripts/verify-hooks.ts` checks this checkout's hook
-  (`ERR_HOOKS_NOT_A_REPO`).
+  `scripts/verify-hooks.ts` checks this checkout's hook (`ERR_HOOKS_NOT_A_REPO`).
 - **Skip with a one-line notice** when the question is meaningless there, and exit 0.
 - A harness check under `scripts/checks/` takes `--root <dir>` and needs no git to find
   its tree, which is what lets its test point it at a fixture per failure mode.
@@ -150,7 +148,7 @@ runs in Vitest's `scripts` project under `just test-scripts`.
 
 - **Call `main` with a context you build.** Collect `log` lines in an array and pass a
   `run` that records each call and answers from a table, as `scripts/sync-labels.test.ts`
-  does for `gh` and `scripts/build-sidecar.test.ts` for `cargo`. Assert on the recorded
+  does for `gh` and `scripts/clippy-guard.test.ts` for `cargo`. Assert on the recorded
   calls: that is how a test proves what would have been sent to GitHub without sending
   it.
 - **A throwaway repository per test.** `mkdtemp` under `os.tmpdir()`, `git init` with

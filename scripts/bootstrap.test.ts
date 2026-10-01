@@ -13,7 +13,6 @@ import { cpSync } from "node:fs";
 import { PassThrough } from "node:stream";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { parse as parseYaml } from "yaml";
 
 import {
   collectAnswers,
@@ -32,7 +31,6 @@ import {
   TEMPLATE_VALUES,
   TEXT_EDITS,
   validateField,
-  workflowEnvValues,
   type Answers,
   type Terminal,
 } from "./bootstrap.ts";
@@ -69,15 +67,6 @@ const FORM_SAMPLES: Record<string, string> = {
   owner: "[@tomada1114](https://github.com/tomada1114)",
 };
 
-const TAURI_CONF = `{
-  "productName": "MyApp",
-  "version": "0.4.2",
-  "identifier": "com.example.myapp",
-  "app": { "windows": [{ "label": "main", "title": "MyApp" }] },
-  "bundle": { "externalBin": ["binaries/myapp-cli"] }
-}
-`;
-
 const PACKAGE_JSON = `{
   "name": "myapp",
   "version": "0.4.2",
@@ -88,10 +77,10 @@ const PACKAGE_JSON = `{
 `;
 
 const CARGO_TOML = `[workspace]
-members = ["crates/*", "src-tauri"]
+members = ["crates/*"]
 
 [workspace.package]
-version = "0.4.2" # one of the three version sites
+version = "0.4.2" # one of the two version sites
 edition = "2024"
 
 [workspace.dependencies]
@@ -130,7 +119,7 @@ jobs:
     name: Rust Core
     runs-on: ubuntu-24.04
     steps:
-      - run: cargo clippy -p myapp-core
+      - run: cargo clippy --workspace
 
   bootstrap-smoke:
     # Template-only.
@@ -144,19 +133,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: zizmor .
-`;
-
-const RELEASE_YML = `name: Release
-
-jobs:
-  release:
-    name: Build, verify, and publish the dmg
-    runs-on: macos-26
-    env:
-      APP_NAME: "MyApp"
-      TARGET: aarch64-apple-darwin
-    steps:
-      - run: node scripts/smoke.ts --app "target/$TARGET/release/bundle/macos/$APP_NAME.app"
 `;
 
 const RULESET = `{
@@ -176,15 +152,11 @@ const RULESET = `{
 `;
 
 const JUSTFILE = `bundle_id := "com.example.myapp"
-app_name := "MyApp"
+log_prefix := "myapp"
 
 # Build
 build:
-    cargo build -p myapp
-
-# Bump the versions
-release-prep version *flags:
-    node scripts/release-prep.ts {{ flags }} {{ version }}
+    cargo build -p myapp-cli
 
 # Turn the template into a new app: rename its placeholders and remove the template-only material (a human's step, run once)
 [positional-arguments]
@@ -225,13 +197,11 @@ Everything about \`just bootstrap\`.
 
 /** Files whose content matters to a structured edit, and so is written in full. */
 const OVERRIDES: Record<string, string> = {
-  "src-tauri/tauri.conf.json": TAURI_CONF,
   "package.json": PACKAGE_JSON,
   "Cargo.toml": CARGO_TOML,
   "CHANGELOG.md": CHANGELOG,
   LICENSE,
   ".github/workflows/ci.yml": CI_YML,
-  ".github/workflows/release.yml": RELEASE_YML,
   ".github/rulesets/main.json": RULESET,
   justfile: JUSTFILE,
   "README.md": README,
@@ -572,12 +542,6 @@ describe("the site list", () => {
     }
   });
 
-  it("rewrites the display name in the release workflow, which packages <name>.app", () => {
-    expect(SITES.find((site) => site.file === ".github/workflows/release.yml")?.forms).toEqual([
-      "name",
-    ]);
-  });
-
   it("removes itself, its verifier, and the template's design notes", () => {
     expect(REMOVED_PATHS).toEqual(
       expect.arrayContaining([
@@ -598,14 +562,6 @@ describe("runBootstrap", () => {
     const { context: ctx, calls, lines } = context(root);
     runBootstrap(ctx, ANSWERS, { year: YEAR });
 
-    const tauri = JSON.parse(read(root, "src-tauri/tauri.conf.json")) as Record<string, unknown>;
-    expect(tauri).toEqual({
-      productName: "Tide Pool",
-      version: "0.1.0",
-      identifier: "com.example.tide-pool",
-      app: { windows: [{ label: "main", title: "Tide Pool" }] },
-      bundle: { externalBin: ["binaries/tide-pool-cli"] },
-    });
     expect(JSON.parse(read(root, "package.json"))).toEqual({
       name: "tide-pool",
       version: "0.1.0",
@@ -613,7 +569,7 @@ describe("runBootstrap", () => {
       author: "Ada Lovelace",
       license: "MIT",
     });
-    expect(read(root, "Cargo.toml")).toContain('version = "0.1.0" # one of the three');
+    expect(read(root, "Cargo.toml")).toContain('version = "0.1.0" # one of the two');
     expect(read(root, "Cargo.toml")).toContain(
       'tide-pool-core = { path = "crates/tide-pool-core" }',
     );
@@ -628,8 +584,8 @@ describe("runBootstrap", () => {
     const agents = read(root, "AGENTS.md");
     expect(agents).toContain("cargo test -p tide-pool-core && pkill -x tide-pool");
     expect(agents).toContain("use tide_pool_core::Counter; tide_pool_lib::run();");
-    expect(agents).toContain("TIDE_POOL_SMOKE=1");
     expect(agents).toContain("~/Library/Logs/com.example.tide-pool/");
+    expect(read(root, "docs/architecture.md")).toContain("TIDE_POOL_SMOKE=1");
     // The Product section's introduction holds no marker of its own in an app.
     expect(agents).not.toContain("**TODO:");
     expect(agents).toContain("fails while one still holds its `TODO` marker");
@@ -644,17 +600,14 @@ describe("runBootstrap", () => {
 
     const ci = read(root, ".github/workflows/ci.yml");
     expect(ci).not.toContain("bootstrap");
-    expect(ci).toContain("cargo clippy -p tide-pool-core\n\n  zizmor:\n");
-    const release = read(root, ".github/workflows/release.yml");
-    expect(release).toContain('APP_NAME: "Tide Pool"');
-    expect(workflowEnvValues(parseYaml(release), "APP_NAME")).toEqual(["Tide Pool"]);
+    expect(ci).toContain("cargo clippy --workspace\n\n  zizmor:\n");
     const ruleset = read(root, ".github/rulesets/main.json");
     expect(ruleset).not.toContain("Template Bootstrap Smoke");
     expect(() => JSON.parse(ruleset) as unknown).not.toThrow();
     const justfile = read(root, "justfile");
     expect(justfile).not.toContain("bootstrap");
     expect(justfile).toBe(
-      'bundle_id := "com.example.tide-pool"\napp_name := "Tide Pool"\n\n# Build\nbuild:\n    cargo build -p tide-pool\n\n# Bump the versions\nrelease-prep version *flags:\n    node scripts/release-prep.ts {{ flags }} {{ version }}\n',
+      'bundle_id := "com.example.tide-pool"\nlog_prefix := "tide-pool"\n\n# Build\nbuild:\n    cargo build -p tide-pool-cli\n',
     );
 
     for (const dir of CRATE_DIRS) {
@@ -680,7 +633,7 @@ describe("runBootstrap", () => {
     expect(calls[5]?.command).toBe(join(root, "node_modules", ".bin", "prettier"));
     const prettier = calls[5]?.args ?? [];
     expect(prettier.slice(0, 2)).toEqual(["--write", "--ignore-unknown"]);
-    expect(prettier).toContain("src-tauri/tauri.conf.json");
+    expect(prettier).toContain("package.json");
     expect(prettier).not.toContain("README.md");
     for (const call of calls) expect(call.options?.cwd).toBe(root);
 
@@ -703,7 +656,7 @@ describe("runBootstrap", () => {
 
   it("writes nothing when the tree is not the template", () => {
     const root = templateTree();
-    writeFileSync(join(root, "src-tauri/tauri.conf.json"), '{ "identifier": "com.acme.app" }\n');
+    writeFileSync(join(root, "justfile"), 'bundle_id := "com.acme.app"\n');
     const { context: ctx, calls } = context(root);
     expect(
       failure(() => {
@@ -847,38 +800,6 @@ describe("runBootstrap", () => {
     ).toMatch(/^ERR_BOOTSTRAP_FORMAT/);
   });
 
-  it("keeps the release workflow's APP_NAME a string for a name YAML would read as a number", () => {
-    for (const name of ["1.10", "Null", "1e3"]) {
-      const root = templateTree();
-      runBootstrap(context(root).context, { ...ANSWERS, name }, { year: YEAR });
-      const release: unknown = parseYaml(read(root, ".github/workflows/release.yml"));
-      expect(workflowEnvValues(release, "APP_NAME")).toEqual([name]);
-    }
-  });
-
-  it("writes nothing when the release workflow's APP_NAME would not read back as the name", () => {
-    for (const release of [
-      RELEASE_YML.replace('APP_NAME: "MyApp"', "APP_NAME: MyApp"),
-      RELEASE_YML.replace(
-        "    steps:\n",
-        '    steps:\n      - env:\n          APP_NAME: "Old MyApp"\n',
-      ),
-      `${RELEASE_YML}  broken: [\n`,
-    ]) {
-      const root = templateTree();
-      writeFileSync(join(root, ".github/workflows/release.yml"), release);
-      const before = read(root, "AGENTS.md");
-      const { context: ctx, calls } = context(root);
-      expect(
-        failure(() => {
-          runBootstrap(ctx, { ...ANSWERS, name: "1.10" }, { year: YEAR });
-        }),
-      ).toMatch(/^ERR_BOOTSTRAP_REWRITE: \.github\/workflows\/release\.yml/);
-      expect(read(root, "AGENTS.md")).toBe(before);
-      expect(calls).toEqual([]);
-    }
-  });
-
   it("warns about a placeholder in a file the site list does not name", () => {
     const root = templateTree();
     write(root, "docs/new-page.md", "Run MyApp.\n");
@@ -887,28 +808,6 @@ describe("runBootstrap", () => {
     );
     runBootstrap(ctx, ANSWERS, { year: YEAR });
     expect(lines.join("\n")).toContain("docs/new-page.md:1: Run MyApp.");
-  });
-});
-
-describe("workflowEnvValues", () => {
-  it("reads a key from the workflow's, each job's, and each step's env, and nothing else", () => {
-    const workflow: unknown = parseYaml(`env:
-  APP_NAME: top
-jobs:
-  build:
-    env:
-      APP_NAME: job
-    steps:
-      - env:
-          APP_NAME: step
-      - run: echo
-  publish:
-    runs-on: macos-26
-`);
-    expect(workflowEnvValues(workflow, "APP_NAME")).toEqual(["top", "job", "step"]);
-    expect(workflowEnvValues(workflow, "TARGET")).toEqual([]);
-    expect(workflowEnvValues("not a workflow", "APP_NAME")).toEqual([]);
-    expect(workflowEnvValues({ jobs: "none" }, "APP_NAME")).toEqual([]);
   });
 });
 

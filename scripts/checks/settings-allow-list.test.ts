@@ -16,10 +16,10 @@ const ROUTINE = [
   "Bash(just check)",
   "Bash(just test-fast:*)",
   "Bash(just logs)",
-  "Bash(just sidecar:*)",
+  "Bash(just agents-sync)",
   "Bash(gh pr view:*)",
   "Bash(gh api -X GET:*)",
-  "Read(./just run)",
+  "Read(./just labels)",
 ];
 
 function settings(allow: readonly unknown[]): string {
@@ -27,7 +27,7 @@ function settings(allow: readonly unknown[]): string {
     {
       permissions: {
         allow,
-        ask: ["Bash(just run)", "Bash(just labels)"],
+        ask: ["Bash(just test-local)", "Bash(just labels)"],
         deny: ["Bash(just bootstrap:*)", "Bash(git push --force:*)"],
       },
       hooks: { PostToolUse: [{ hooks: [{ type: "command", command: "just install" }] }] },
@@ -68,19 +68,19 @@ describe("settings-allow-list", () => {
   });
 
   it.each([
-    "Bash(just run)",
-    "Bash(just run:*)",
-    "Bash(just run *)",
-    "Bash(just run*)",
-    "Bash(just run --release)",
-    "Bash(mise exec -- just run)",
-    "Bash(* just run)",
-    "Bash(*just run*)",
-    "Bash(just --justfile justfile run)",
-    "Bash(just -v run)",
-    "Bash(just --dotenv-load --set x y run:*)",
+    "Bash(just labels)",
+    "Bash(just labels:*)",
+    "Bash(just labels *)",
+    "Bash(just labels*)",
+    "Bash(just labels --dry-run)",
+    "Bash(mise exec -- just labels)",
+    "Bash(* just labels)",
+    "Bash(*just labels*)",
+    "Bash(just --justfile justfile labels)",
+    "Bash(just -v labels)",
+    "Bash(just --dotenv-load --set x y labels:*)",
   ])("reports the spelling %s", (rule) => {
-    expect(admittedBy([rule])).toEqual([["run"]]);
+    expect(admittedBy([rule])).toEqual([["labels"]]);
   });
 
   it.each([
@@ -97,12 +97,10 @@ describe("settings-allow-list", () => {
   });
 
   it("reports each recipe a partial wildcard reaches, and only those", () => {
-    expect(admittedBy(["Bash(just r*)"])).toEqual([
-      ["run", "reset-permissions", "ruleset", "release-prep"],
-    ]);
+    expect(admittedBy(["Bash(just l*)"])).toEqual([["logs-follow", "labels"]]);
   });
 
-  it.each(["Bash(just install-app)", "Bash(just logs-follow)", "Bash(just test-local:*)"])(
+  it.each(["Bash(just install:*)", "Bash(just logs-follow)", "Bash(just test-local:*)"])(
     "tells %s apart from its shorter neighbour",
     (rule) => {
       const recipe = /just ([a-z-]+)/.exec(rule)?.[1] ?? "";
@@ -121,15 +119,15 @@ describe("settings-allow-list", () => {
   });
 
   it("reports the rule's line and one violation per rule", () => {
-    const content = settings([...ROUTINE, "Bash(just dev)", "Bash(just ruleset:*)"]);
+    const content = settings([...ROUTINE, "Bash(just install)", "Bash(just ruleset:*)"]);
     const violations = check.run(fixture(content));
     expect(violations.map((v) => v.code)).toEqual([
       "ERR_CHECK_ALLOW_HUMAN_RECIPE",
       "ERR_CHECK_ALLOW_HUMAN_RECIPE",
     ]);
-    const line = content.split("\n").findIndex((l) => l.includes('"Bash(just dev)"')) + 1;
+    const line = content.split("\n").findIndex((l) => l.includes('"Bash(just install)"')) + 1;
     expect(violations[0]?.summary).toBe(
-      `.claude/settings.json:${String(line)} allows "Bash(just dev)", which admits \`just dev\``,
+      `.claude/settings.json:${String(line)} allows "Bash(just install)", which admits \`just install\``,
     );
   });
 

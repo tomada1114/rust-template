@@ -1,12 +1,10 @@
 //! A log line the UI asks the shell to record (`log_from_ui`).
 
 use serde::Deserialize;
-use ts_rs::TS;
 
 /// How serious a UI log entry is. The UI forwards only warnings and errors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "export-bindings", ts(export))]
 pub enum UiLogLevel {
     /// Something unexpected that the UI recovered from.
     Warn,
@@ -16,9 +14,8 @@ pub enum UiLogLevel {
 
 /// One entry from the UI's `ipc/log.ts`. The message must carry no user data: it is
 /// written to the log file, on one line and cut to a bounded length.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "export-bindings", ts(export))]
 pub struct UiLogEntry {
     /// Severity.
     pub level: UiLogLevel,

@@ -1,6 +1,6 @@
 /**
  * A committed `.claude/settings.json`, if one is added, has an `allow` list that admits
- * none of the recipes that open the app, need a human, or write beyond the working tree
+ * none of the recipes that need a human or write beyond the working tree
  * (AGENTS.md › "Enforcement layers"), so adding one to `allow` fails here instead of
  * relying on review to notice it.
  *
@@ -8,11 +8,11 @@
  *
  * An `allow` rule admits a recipe when it names `just <recipe>` anywhere, with any global
  * flags (each with up to two values) between `just` and the recipe (so
- * `Bash(mise exec -- just run)` and `Bash(just --justfile justfile run)` count), or when
+ * `Bash(mise exec -- just labels)` and `Bash(just --justfile justfile labels)` count), or when
  * its pattern, matched the way Claude Code matches a Bash rule, covers one of the
  * candidate commands `just <recipe>`, `mise exec -- just <recipe>`, or `x just <recipe>`,
  * each also followed by an argument: a bare `Bash`, `Bash(*)`, `Bash(just:*)`,
- * `Bash(mise exec -- just:*)`, and `Bash(* just run)` all count. In a pattern `*` stands
+ * `Bash(mise exec -- just:*)`, and `Bash(* just labels)` all count. In a pattern `*` stands
  * for any text, a trailing `:*` is a trailing ` *`, and a trailing ` *` that is the only wildcard also
  * matches the bare command. Only `allow` is read: `ask` and `deny` are where these recipes
  * belong. `clean` and `prune-temp` are absent on purpose: they delete only build output and
@@ -25,18 +25,13 @@ import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
 
-/** The recipes AGENTS.md keeps out of `allow`: they open the app, need a human, or write beyond the tree. */
+/** The recipes AGENTS.md keeps out of `allow`: they need a human or write beyond the tree. */
 export const HUMAN_RECIPES = [
-  "dev",
-  "run",
-  "install-app",
   "test-local",
   "logs-follow",
-  "reset-permissions",
   "install",
   "labels",
   "ruleset",
-  "release-prep",
   "bootstrap",
 ] as const;
 
@@ -113,7 +108,7 @@ function run(root: string): FailureDetails[] {
     violations.push({
       code: "ERR_CHECK_ALLOW_HUMAN_RECIPE",
       summary: `${PATH}:${String(line)} allows ${JSON.stringify(rule)}, which admits ${named}`,
-      expected: `no \`allow\` rule in ${PATH} admitting a recipe that opens the app, needs a human, or writes beyond the working tree (${HUMAN_RECIPES.join(", ")})`,
+      expected: `no \`allow\` rule in ${PATH} admitting a recipe that needs a human or writes beyond the working tree (${HUMAN_RECIPES.join(", ")})`,
       actual: `the rule ${JSON.stringify(rule)} runs ${named} without a prompt`,
       next: `remove the rule from \`allow\` in ${PATH} (or narrow its wildcard) so the recipe stops for a human`,
     });

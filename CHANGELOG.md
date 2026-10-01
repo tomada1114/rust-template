@@ -111,6 +111,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   payload). Code that builds a `CounterView` literal or destructures one exhaustively
   must name it.
 
+### Removed
+
+- The GUI stack, as the template pivots to Rust command-line tools: the Tauri shell
+  (`src-tauri/`, with its `tauri.conf.json`, capabilities, `Entitlements.plist`, and
+  signing settings), the React screen and design system (`ui/`, `docs/design/`), the
+  `.dmg` release workflow and `docs/distribution.md`, the ts-rs derives and their
+  `.cargo/config.toml` settings, and the React, Vite, and `@tauri-apps/*` packages. The
+  recipes `dev`, `run`, `build`, `smoke`, `sidecar`, `bindings`, `test-ui`,
+  `install-app`, `reset-permissions`, and `release-prep` go with them, as do the scripts
+  only they ran, the `ipc-names`, `ui-literals`, `tauri-versions`, and `version-sites`
+  harness checks, and the `building-react-screens`, `designing-ui`, `designing-ipc`, and
+  `releasing-the-app` skills. `just check` no longer builds or smoke-tests an app bundle.
+- CI's `Frontend` job: its typecheck, ESLint, and Prettier steps now run in
+  `Repo Lint & Harness`. `macOS Build & Smoke` becomes `macOS` (the workspace clippy and
+  `just test-macos`), and `.github/rulesets/main.json` requires the new contexts.
+- The OSV-Scanner and Dependency Review ignores for advisories only Tauri brought in
+  (the five `unic-*` crates, `glib`, `proc-macro-error`), and `deny.toml`'s MPL-2.0
+  exceptions for Tauri's crates; no dependency needs them any more.
+
 ### Fixed
 
 - `just run` and `just install-app` find the app bundle under the target directory `cargo

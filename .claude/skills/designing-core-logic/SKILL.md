@@ -21,9 +21,9 @@ description: >
 reads, where a port is justified, where tunable numbers live, what its entry points and
 state transitions look like, what crosses IPC, and which patterns are not adopted.
 **Does not own:** the Rust idiom inside a function (`writing-rust`); error enums and
-codes (`designing-errors`); the command and its wrapper (`designing-ipc`); an adapter
-that talks to macOS (`integrating-system-apis`); the test-first loop (`tdd`); recording
-a decision to change any of this (`recording-architecture-decisions`).
+codes (`designing-errors`); an adapter that talks to macOS (`integrating-system-apis`);
+the test-first loop (`tdd`); recording a decision to change any of this
+(`recording-architecture-decisions`).
 
 ## Why this shape
 
@@ -152,8 +152,7 @@ reading the clock is banned, not representing time.
 - Input from the UI is a `Deserialize + TS` type declared in core, with enums rather
   than strings for closed sets, so a malformed payload is rejected before any code runs
   (`UiLogEntry`, whose `level` is `UiLogLevel`).
-- A failure crosses as a code, never a sentence (`designing-errors`). The command
-  wiring is `designing-ipc`.
+- A failure crosses as a code, never a sentence (`designing-errors`).
 
 ## Deliberately not adopted
 
@@ -171,7 +170,7 @@ naming the problem the current shape cannot solve (**REQUIRED:**
 | A DI container or service locator | `src-tauri/src/lib.rs` is the composition root; constructor arguments suffice |
 | Global mutable state (`static mut`, a lazily built singleton) | state lives in the service the shell holds in `tauri::State` |
 | An event bus or channels between core types | direct calls; the shell turns a change into a Tauri event |
-| A state-management library in the UI | one hook per Rust-owned model (`building-react-screens`) |
+| A state-management library in the UI | one hook per Rust-owned model |
 
 The reasoning behind this shape is in `README.md` › "Design Philosophy" (the sections on
 ports, synchronous ports, and the coverage floor).

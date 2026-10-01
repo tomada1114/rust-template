@@ -31,7 +31,6 @@ cd tauri-template
 mise trust     # approve mise.toml once (mise asks before using an untrusted config)
 just install   # pinned tools via mise, pnpm dependencies, lefthook's git hook
 just check     # everything a Mac can run without a human; opens no window
-just dev       # opens the app with hot reload (a window: run it when you want to see it)
 ```
 
 rustup installs the Rust toolchain `rust-toolchain.toml` names the first time `cargo`
@@ -94,10 +93,10 @@ names on both sides, so neither half can drift silently.
 ### Why is the helper a separate crate, bundled as a sidecar?
 
 A launchd job needs a small executable it can run without starting the GUI. `myapp-cli`
-shares core and platform with the app, is built into `src-tauri/binaries/` by
-`just sidecar`, and ships inside the `.app` through Tauri's `bundle.externalBin`. The
-launch smoke runs the bundled copy, which proves it was bundled and signed. The GUI does
-not spawn it, so no shell plugin or shell permission ships.
+shares core and platform with the app, is built into `src-tauri/binaries/`, and ships
+inside the `.app` through Tauri's `bundle.externalBin`. The launch smoke runs the
+bundled copy, which proves it was bundled and signed. The GUI does not spawn it, so no
+shell plugin or shell permission ships.
 
 ### Why is the sample app a counter?
 
@@ -174,9 +173,9 @@ Documentation that lists what is enforced goes stale, so the claims are checks i
 `just check-harness` runs `scripts/checks/`: every `just` recipe a document names exists;
 every workflow pins actions by SHA with a version comment, sets timeouts and job-level
 permissions, and never uses `pull_request_target`; the dependency cooldowns agree; each
-required status check names a real job; the boundary lists agree; the IPC names agree;
-every label an issue form or workflow applies is declared; and more — each check's
-header says what it asserts.
+required status check names a real job; the boundary lists agree; every label an issue
+form or workflow applies is declared; and more — each check's header says what it
+asserts.
 
 ### Why no end-to-end WebDriver tests?
 
@@ -187,7 +186,7 @@ tested where it lives — core with fakes, adapters with contract suites,
 commands through `tauri::test`'s mock runtime, the UI with Vitest and mocked IPC — and a
 launch smoke builds the release app and proves the real wiring starts. The gap that
 leaves, a UI-to-Rust wiring mistake only the running app shows, is named, and a pull
-request that could hit it carries `just run` and `just logs` evidence.
+request that could hit it carries `just logs` evidence.
 
 ### Why does most CI run on Ubuntu?
 
@@ -217,8 +216,7 @@ entitlements file; when the repository has all six Apple signing and notarizatio
 secrets, the release signs with Developer ID, notarizes, and staples — no workflow edit,
 and skipped steps are skipped by a condition, never by `continue-on-error`. A partial set
 fails the release before it builds rather than shipping ad hoc. Every release is
-verified before upload. See
-[docs/distribution.md](docs/distribution.md).
+verified before upload.
 
 <!-- template-only -->
 ### Why a bootstrap script?
@@ -261,8 +259,7 @@ window, activation policy `Prohibited`, the normal startup path, a `startup comp
 log line, exit 0. Local builds make the `.app` only, because building a `.dmg` drives
 Finder through AppleScript unless `CI=true`
 (<https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-bundler/src/bundle/macos/dmg/mod.rs>,
-checked 2026-09-28); only the release workflow builds one. `just dev`, `just run`, and
-`just install-app` open the app, and a human runs them on purpose.
+checked 2026-09-28); only the release workflow builds one.
 
 ### Why a neutral, macOS-native design system that an app replaces first?
 
@@ -273,7 +270,6 @@ that respects reduced-motion settings. Components reach values only through toke
 `ui/src/design/tokens.css`, and a test asserts every text and background pair meets WCAG
 contrast in both appearances. An app decides its own design system before its first
 screen and applies it by replacing token values, never by styling a screen directly.
-See [docs/design/design-system.md](docs/design/design-system.md).
 
 <!-- template-only -->
 ## Using This Template
@@ -298,7 +294,7 @@ See [docs/design/design-system.md](docs/design/design-system.md).
    `steering-the-roadmap` skill. Nothing checks that page, so its `TODO:` lines stay
    until you replace them.
 6. Verify the result with `just check`, commit the Product section and roadmap, and
-   push both commits to `main`. The ruleset is not on yet (step 11), so `main` still
+   push both commits to `main`. The ruleset is not on yet (step 10), so `main` still
    takes a direct push, and CI's first run checks the result.
 7. Create the label set on the new repository: `just labels` (the issue forms rely on
    the labels in `.github/labels.yml`). `.github/dependabot.yml` names its labels
@@ -314,12 +310,7 @@ See [docs/design/design-system.md](docs/design/design-system.md).
    `rust-toolchain.toml`.
 9. Replace the sample counter with your app, following the `starting-an-app` skill; it
    lists what to delete and has you decide the design system first.
-10. For Developer ID signed and notarized releases, add the secrets listed in
-    [docs/distribution.md](docs/distribution.md). Without them, releases are ad-hoc
-    signed. Before the first release, a repository admin also creates the `release`
-    environment (deployable only from the default branch and `v*` tags) and puts those
-    secrets on it, as "Repository settings the release needs" there describes.
-11. Repository admin only, once the bootstrap commit is on `main`: run `just ruleset`.
+10. Repository admin only, once the bootstrap commit is on `main`: run `just ruleset`.
     It applies every ruleset under `.github/rulesets/` — `main.json`, which protects
     `main`, and `release-tags.json`, which lets only an admin create, move, or delete a
     `v*` tag. From then on every change needs a pull request with the required checks
@@ -342,19 +333,11 @@ check:
    checked 2026-09-28), and `.github/workflows/scorecard.yml` (its results upload to
    code scanning). Keep any of them if your plan includes those features.
    `osv-scan.yml` needs neither and stays as the dependency-vulnerability check.
-2. In `.github/workflows/release.yml`, remove the build-provenance attestation step and
-   its `attestations: write` and `id-token: write` permissions (no other step uses
-   either) unless the repository is on GitHub Enterprise Cloud, the plan artifact
-   attestations need on a private repository
-   (<https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>,
-   checked 2026-09-29). The release itself still works, visible only to people with
-   access to the repository.
-3. In `.github/rulesets/main.json`, remove the `Dependency Review` entry from the
+2. In `.github/rulesets/main.json`, remove the `Dependency Review` entry from the
    required status checks. Rulesets on a private repository — the `main` branch
    ruleset and the `release-tags` tag ruleset `just ruleset` applies alike — need a
-   paid GitHub plan, and so does the `release` environment
-   ([docs/distribution.md](docs/distribution.md)).
-4. Run `just lint` and `just check-harness`, commit, and open a pull request: every
+   paid GitHub plan.
+3. Run `just lint` and `just check-harness`, commit, and open a pull request: every
    check it waits for is now one a job in the repository reports.
 <!-- /template-only -->
 
@@ -379,8 +362,6 @@ just logs         # the newest app log's last lines
 - [Architecture](docs/architecture.md)
 - [Architecture Decisions](docs/architecture/README.md) and the
   [Roadmap](docs/architecture/roadmap.md)
-- [Design System](docs/design/design-system.md)
-- [Distribution & Signing](docs/distribution.md)
 - [Contributing](CONTRIBUTING.md), [Security Policy](SECURITY.md),
   [Code of Conduct](CODE_OF_CONDUCT.md), [Changelog](CHANGELOG.md)
 <!-- template-only -->

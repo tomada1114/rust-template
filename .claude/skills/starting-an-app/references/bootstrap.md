@@ -28,10 +28,10 @@ Each value comes from its flag, else from a prompt on a terminal, else from its 
 
 | Value | Flag | Template placeholder | Where it shows up |
 |---|---|---|---|
-| Display name | `--name` | `MyApp` | `productName` and the window title in `tauri.conf.json`, the `.app` bundle name, README's title |
+| Display name | `--name` | `MyApp` | README's title, `package.json`'s description |
 | Slug | `--slug` | `myapp` | crate names (`myapp-core`), Rust identifiers (`myapp_core`), the environment variable prefix (`MYAPP_SMOKE`), binary and log file names |
-| Bundle identifier | `--bundle-id` | `com.example.myapp` | `identifier` in `tauri.conf.json`, `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the `justfile`, the data and log directories |
-| GitHub `owner/repo` | `--repo` | this template's repository | the README badges, `SECURITY.md`'s advisory link, the attestation example in `docs/distribution.md` |
+| Bundle identifier | `--bundle-id` | `com.example.myapp` | `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the `justfile`, the data and log directories |
+| GitHub `owner/repo` | `--repo` | this template's repository | the README badges and `SECURITY.md`'s advisory link |
 | Author | `--author` | the template's author | the metadata sites on the script's list |
 | Copyright holder | `--copyright` | the template's owner | `LICENSE` |
 
@@ -81,7 +81,7 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    README's first sentence, the checks' exclusion of `docs/template/`) rewritten; the
    template-only CI job, `Template Bootstrap Smoke`, removed with its required context
    in `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the app runs;
-   `CHANGELOG.md` reset to an empty `[Unreleased]` and the version at its three sites to
+   `CHANGELOG.md` reset to an empty `[Unreleased]` and the version at its two sites to
    `0.1.0`; the author written into `package.json` and the copyright line into
    `LICENSE`.
 3. Renames the crate directories under `crates/` to the new slug, and updates
@@ -96,8 +96,7 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
    to `main`, `just labels` (and `dependencies` added by hand to any Dependabot pull
    request opened earlier), the GitHub security settings and the Renovate GitHub App,
-   `just ruleset` (the `main` and `release-tags` rulesets), and the `release`
-   environment (`docs/distribution.md`).
+   and `just ruleset` (the `main` and `release-tags` rulesets).
 
 A failure from step 3 on leaves a half-rewritten clone; see "Running it, and running it
 again" below.

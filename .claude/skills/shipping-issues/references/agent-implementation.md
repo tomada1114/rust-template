@@ -70,13 +70,11 @@ Do:
 4. Add or update the tests that cover the change, and run the verification
    command above. Report the exact command. For a performance task, re-run
    step 2's baseline under the same conditions and report both numbers under
-   MEASURE. Never run a recipe that opens the app or needs a human: `just dev`,
-   `just run`, `just install-app`, `just test-local`, `just logs-follow`,
-   `just reset-permissions`. `just smoke` and `just logs` are your evidence that
-   the app starts and is wired. When the change is to an adapter under
-   crates/myapp-platform/ that has an `#[ignore = "local machine: ..."]` test, or
-   to wiring only the running app shows, say so under VERIFY: that evidence is
-   the human's to produce.
+   MEASURE. Never run a recipe that needs a human: `just test-local`,
+   `just logs-follow`. `just test-macos` and `just logs` are your evidence that
+   the change works. When the change is to an adapter under
+   crates/myapp-platform/ that has an `#[ignore = "local machine: ..."]` test,
+   say so under VERIFY: that evidence is the human's to produce.
 5. If the change is user-facing, add an entry to CHANGELOG.md under
    [Unreleased], in the section (Added / Changed / Fixed / ...) that fits.
 6. Commit in coherent increments, and push as soon as the first coherent
