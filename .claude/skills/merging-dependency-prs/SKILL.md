@@ -62,11 +62,10 @@ contest, whether the batch keeps each Tauri pair on one minor, and any Tauri maj
 `checks=PASSING` is an allow-list verdict: only `SUCCESS`, `NEUTRAL`, and `SKIPPED` pass,
 and any other conclusion, including one the script has never seen, is listed under
 `HELD`. An unknown CI state holds a PR; it is never waved through.
-
-Minor and patch bumps arrive grouped and majors one per PR (`.github/dependabot.yml`).
-For cargo and npm, the Tauri family arrives in its own group (`cargo-tauri`,
-`npm-tauri`) and everything else in `cargo-minor-and-patch` / `npm-minor-and-patch`.
-Dependabot counts a 0.x minor as a minor
+Minor and patch bumps arrive grouped and majors one per PR (`.github/dependabot.yml`). For
+cargo and npm, the Tauri family arrives in its own group (`cargo-tauri`, `npm-tauri`) and
+everything else in `cargo-minor-and-patch` / `npm-minor-and-patch`. Dependabot counts a
+0.x minor as a minor
 (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
 `groups` › `update-types`, checked 2026-09-30), so it rides in a group; the survey shows
 that row's level as `major` and marks the bump `(major)`: name it in the plan as a major
@@ -76,13 +75,10 @@ and read its release notes (review checklist). Read a grouped PR's diff in full:
 gh pr diff <number>
 gh pr checks <number>
 ```
-
-## Step 2: Review every PR before the plan
-
-**REQUIRED:** [references/review-checklist.md](references/review-checklist.md), run
-against each PR:
-release notes for every major and every 0.x minor, workflow permissions and SHA pins on
-an Actions bump, maintainer and source changes, supply-chain settings left alone, crates
+## Step 2: Review every PR before the plan **REQUIRED:**
+[references/review-checklist.md](references/review-checklist.md), run against each PR:
+release notes for every major and every 0.x minor, workflow permissions and SHA pins on an
+Actions bump, maintainer and source changes, supply-chain settings left alone, crates
 whose build-time code changed, and the Tauri rule below. A failing PR is diagnosed
 before it is judged: **REQUIRED:**
 [references/failure-modes.md](references/failure-modes.md).
