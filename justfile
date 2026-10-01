@@ -109,14 +109,14 @@ bindings:
 sidecar *args:
     node scripts/build-sidecar.ts {{ args }}
 
-# Build the debug app bundle (target/debug/bundle/macos/); no disk image
+# Build the debug app bundle (<cargo target dir>/debug/bundle/macos/); no disk image
 build: sidecar
     {{ no_signing }} pnpm tauri build --debug --bundles app -- --locked
 
 # Build, quit any running copy, and open the debug app (shows a window: a human's recipe)
 run: build
     -pkill -x myapp
-    open "target/debug/bundle/macos/{{ app_name }}.app"
+    app="$(node scripts/bundle-path.ts debug)" && open "$app"
 
 # The launch smoke: release bundle, signature, entitlements, bundled helper, and a windowless smoke-mode run
 smoke:
@@ -146,10 +146,11 @@ reset-permissions:
 # Build the release app and copy it to ~/Applications, quitting an older copy first (a human's recipe)
 install-app:
     {{ no_signing }} pnpm tauri build --bundles app -- --locked
+    node scripts/bundle-path.ts release >/dev/null
     -pkill -x myapp
     mkdir -p "$HOME/Applications"
     rm -rf "$HOME/Applications/{{ app_name }}.app"
-    cp -R "target/release/bundle/macos/{{ app_name }}.app" "$HOME/Applications/"
+    app="$(node scripts/bundle-path.ts release)" && cp -R "$app" "$HOME/Applications/"
 
 # Supply-chain checks for crates: advisories, licences, bans, sources
 deny:

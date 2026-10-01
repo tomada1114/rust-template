@@ -109,6 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `just run` and `just install-app` find the app bundle under the target directory `cargo
+  metadata` reports, through `scripts/bundle-path.ts`, so they work with `CARGO_TARGET_DIR`
+  or `build.target-dir` instead of assuming `./target`; a missing bundle stops the recipe
+  with `ERR_BUNDLE_MISSING`.
 - A counter that cannot be loaded no longer reads as a failed save: a `storage`/`unavailable`
   error now says "The counter could not be read or saved. Try again." wherever it appears.
 - The primary button keeps 3:1 contrast against the window and panel on hover and press in

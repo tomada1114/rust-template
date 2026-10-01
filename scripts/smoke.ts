@@ -21,12 +21,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import { APP_NAME, appBundlePath } from "./bundle-path.ts";
 import { cargoTargetDir } from "./lib/cargo.ts";
 import { ScriptError } from "./lib/fail.ts";
 import { runScript, type Run, type ScriptContext } from "./lib/script.ts";
 
 const BUNDLE_IDENTIFIER = "com.example.myapp";
-const APP_NAME = "MyApp";
 const EXECUTABLE = "myapp";
 const HELPER = "myapp-cli";
 const SMOKE_ENV = "MYAPP_SMOKE";
@@ -174,7 +174,7 @@ export function main(context: ScriptContext): void {
         "read the build output above, fix it, and rerun `just smoke`",
       );
     }
-    app = join(targetDir, "release", "bundle", "macos", `${APP_NAME}.app`);
+    app = appBundlePath(targetDir, "release");
   }
   if (app === undefined || !existsSync(app)) {
     fail(
