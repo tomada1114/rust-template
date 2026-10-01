@@ -27,7 +27,7 @@ export function describeCounterError(error: CounterError): string {
     case "storage":
       switch (error.kind) {
         case "unavailable":
-          return "The counter could not be saved. Check that the disk has space and try again.";
+          return "The counter could not be read or saved. Try again.";
         case "corrupt":
           return "The saved counter could not be read.";
       }
