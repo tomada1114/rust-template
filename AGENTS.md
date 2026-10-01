@@ -144,7 +144,8 @@ crates/
 └── myapp/                  # The `myapp` binary: the tool itself and the composition root.
                             #   Builds the real adapters, hands them to core, and translates
                             #   arguments to calls and results to stdout, stderr, and an exit
-                            #   code. Decides nothing; src/wording.rs holds every stderr sentence
+                            #   code. Decides nothing; src/wording.rs holds every stderr sentence,
+                            #   and src/tui/ the ratatui terminal loop and view for `myapp tui`
 xtask/                      # Repository automation in Rust, run as `cargo xtask <task>` (the
                             #   alias is in .cargo/config.toml); never shipped
 └── guard/                  # Crate `xtask-guard`: the staged guard's path and credential rules

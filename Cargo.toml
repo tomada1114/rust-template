@@ -15,6 +15,8 @@ myapp-core = { path = "crates/myapp-core" }
 myapp-platform = { path = "crates/myapp-platform" }
 myapp-test-support = { path = "crates/myapp-test-support" }
 clap = { version = "4.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+# Only the crossterm backend: the default widget set, macros, and layout cache go unused.
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 # The staged guard's credential shapes (xtask only), with its default features spelled
 # out: `unicode` makes `\s` and `(?i)` Unicode-aware, and `perf` (the lazy DFA, literal
 # search through aho-corasick and memchr) judges a 2 MiB staged file in under a second in

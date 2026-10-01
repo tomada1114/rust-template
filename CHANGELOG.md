@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
   names it for a new file or placeholder spelling. The recipe and that row are
   template-only: the bootstrap removes both.
+- `myapp tui` opens a full-screen counter view built on ratatui: the value, `+`/Up,
+  `-`/Down, and `r` to increment, decrement, and reset, `q`/Esc/Ctrl+C to quit, and an
+  error line when an action fails. It needs an interactive terminal (exit 1 otherwise),
+  logs only to the file while it runs, and restores the terminal on exit, on an error,
+  and on a panic.
 - `just install-cli` installs the `myapp` binary into `~/.cargo/bin`
   (`cargo install --locked --path crates/myapp`). It writes outside the checkout, so it
   is a human's recipe, kept out of any committed allow list like `just install`.

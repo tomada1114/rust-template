@@ -4,6 +4,7 @@
 //! Every part of it is a deletable illustration: `starting-an-app` lists what to remove
 //! when an app replaces the sample.
 
+pub mod screen;
 pub mod store;
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -11,6 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use serde::Serialize;
 
 use crate::time::{Clock, UnixMillis};
+pub use screen::{CounterScreen, ScreenAction, ScreenKey};
 pub use store::{CounterStore, StorageError, StorageErrorKind, StoredCounter};
 
 /// Tunables in one place (designing-core-logic). Built only by [`Tuning::new`] (or
