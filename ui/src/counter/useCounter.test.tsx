@@ -178,6 +178,7 @@ describe("useCounter", () => {
       expect(result.current.state).toEqual({
         status: "failed",
         error: { code: "storage", kind: "corrupt" },
+        errorCount: 0,
       });
     });
   });
@@ -189,7 +190,11 @@ describe("useCounter", () => {
     });
     const { result } = renderHook(() => useCounter());
     await waitFor(() => {
-      expect(result.current.state).toEqual({ status: "failed", error: "unexpected" });
+      expect(result.current.state).toEqual({
+        status: "failed",
+        error: "unexpected",
+        errorCount: 0,
+      });
     });
     await waitFor(() => {
       expect(calls).toContain("log_from_ui");
@@ -434,6 +439,7 @@ describe("useCounter", () => {
       expect(result.current.state).toEqual({
         status: "failed",
         error: { code: "storage", kind: "unavailable" },
+        errorCount: 0,
       });
     });
     act(() => {
@@ -499,6 +505,7 @@ describe("useCounter", () => {
     expect(result.current.state).toEqual({
       status: "failed",
       error: { code: "storage", kind: "unavailable" },
+      errorCount: 1,
     });
   });
 

@@ -25,7 +25,7 @@ export function CounterScreen() {
             {state.status === "loading" && <Text variant="secondary">{counterCopy.loading}</Text>}
             {state.status === "failed" && (
               <>
-                <Text variant="danger" role="alert">
+                <Text key={state.errorCount} variant="danger" role="alert">
                   {state.error === "unexpected"
                     ? counterCopy.loadFailed
                     : describeCounterError(state.error)}

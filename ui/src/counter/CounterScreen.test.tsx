@@ -110,6 +110,25 @@ describe("CounterScreen", () => {
     expect(calls).toContain("reset");
   });
 
+  it("mounts a new alert when Reset fails twice the same way on the error screen", async () => {
+    mockCommands({
+      get_counter: () => rejectWith({ code: "storage", kind: "corrupt" }),
+      reset: () => rejectWith({ code: "storage", kind: "corrupt" }),
+    });
+    render(<CounterScreen />);
+    const loadAlert = await screen.findByRole("alert");
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).not.toBe(loadAlert);
+    });
+    const first = screen.getByRole("alert");
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).not.toBe(first);
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("could not be read");
+  });
+
   it("offers only Retry when the counter is unavailable, and Retry loads it", async () => {
     let first = true;
     mockCommands({
