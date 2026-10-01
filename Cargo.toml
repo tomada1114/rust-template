@@ -14,7 +14,6 @@ publish = false
 myapp-core = { path = "crates/myapp-core" }
 myapp-platform = { path = "crates/myapp-platform" }
 myapp-test-support = { path = "crates/myapp-test-support" }
-xtask-guard = { path = "xtask/guard" }
 clap = { version = "4.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 # The staged guard's credential shapes (xtask only), with its default features spelled
 # out: `unicode` makes `\s` and `(?i)` Unicode-aware, and `perf` (the lazy DFA, literal

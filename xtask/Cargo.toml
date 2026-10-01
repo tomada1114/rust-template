@@ -9,7 +9,9 @@ publish = false
 
 [dependencies]
 serde_json = { workspace = true }
-xtask-guard = { workspace = true }
+# A path here, not in [workspace.dependencies]: the bootstrap check holds every path there
+# to a renamed template crate under crates/.
+xtask-guard = { path = "guard" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
