@@ -41,10 +41,12 @@ what was built; each entry says what the design said, what was done, and why.
 
 ## Decisions made during the run
 
-- **pnpm reaches `PATH` through corepack.** mise pins Node (which ships corepack in
-  the 24 line) and `package.json` pins pnpm once in `packageManager`, as D9 requires;
-  `just install` runs `corepack enable pnpm` so no second pnpm pin exists. CI uses
-  `pnpm/action-setup`, which reads the same field.
+- **pnpm reaches `PATH` through mise.** Node 25 stopped bundling corepack, so
+  `mise.toml` pins pnpm (`aqua:pnpm/pnpm`, a prebuilt binary) and CI installs it through
+  `jdx/mise-action`'s `install_args`. `package.json` keeps `packageManager`, which pnpm
+  itself reads, so pnpm is pinned twice — the one exception to D9 —
+  and `scripts/checks/pnpm-pin.ts` fails when the two differ; Renovate bumps both in one
+  grouped pull request.
 - **`trustPolicyExclude: semver@6.3.1`.** `eslint-plugin-react-hooks` 7 (required by
   D8) depends on `@babel/core`, which depends on `semver@6.3.1`, published before npm
   provenance existed; pnpm's `trustPolicy: no-downgrade` reads that as a downgrade from

@@ -25,7 +25,7 @@ clone runs `mise trust` first (<https://mise.jdx.dev/cli/trust.html>, checked
 1. checks for the Xcode Command Line Tools and, if they are missing, stops with the
    command to run (it never starts an installer);
 2. runs `mise install` for the pinned tools;
-3. enables pnpm through corepack and runs `pnpm install --frozen-lockfile`;
+3. runs `pnpm install --frozen-lockfile` with the pnpm mise installed;
 4. installs lefthook's pre-commit hook, and fails if it is not in place.
 
 The first `cargo` command installs the Rust toolchain `rust-toolchain.toml` pins.

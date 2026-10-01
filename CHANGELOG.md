@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Node runtime moves from 24 to 26: `mise.toml` pins Node 26.10.0, `package.json`'s
+  `engines.node` is `>=26`, and `@types/node` follows it to `^26.6.2`. Building from the
+  template now needs Node 26. Node 25 stopped bundling corepack, so pnpm now comes
+  from mise (`aqua:pnpm/pnpm`, at the version `packageManager` names) instead of
+  `corepack enable pnpm`; a harness check (`scripts/checks/pnpm-pin.ts`) fails with
+  `ERR_CHECK_PNPM_PIN_DIVERGED` when the two pins differ, and Renovate moves them in one
+  grouped pull request.
 - A harness check (`scripts/checks/node-types-major.ts`, run by `just check-harness`)
   fails with `ERR_CHECK_NODE_MAJOR_DIVERGED` when the `@types/node` major resolved in
   `pnpm-lock.yaml` differs from `mise.toml`'s `node` major, so a Renovate or Dependabot

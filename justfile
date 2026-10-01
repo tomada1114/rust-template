@@ -45,8 +45,7 @@ install:
         exit 1
     fi
     mise install
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable pnpm
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile
     lefthook install
     node scripts/verify-hooks.ts
 
