@@ -242,7 +242,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "crates/myapp-test-support/src/counter_store.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-test-support/src/lib.rs", forms: ["slug"] },
   { file: "deny.toml", forms: ["slug"] },
-  { file: "docs/architecture.md", forms: ["bundleId", "name", "slugSnake", "slug", "slugUpper"] },
+  { file: "docs/architecture.md", forms: ["bundleId", "slugSnake", "slug", "slugUpper"] },
   { file: "docs/getting-started.md", forms: ["bundleId", "slug"] },
   { file: "justfile", forms: ["bundleId", "slug"] },
   { file: "package.json", forms: ["name", "slug"] },
