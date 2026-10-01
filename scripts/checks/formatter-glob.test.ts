@@ -1,9 +1,10 @@
 /**
  * formatter-glob against a temp root holding a lefthook.yml whose prettier job's glob
- * names exactly the extensions PRETTIER_EXTENSIONS lists. Each failing case changes one
- * input; the file is written at run time, so lefthook never reads it as a config.
+ * names exactly the extensions the hook's PRETTIER_EXTENSIONS lists, and the hook's Rust
+ * source. Each failing case changes one input; the files are written at run time, so
+ * lefthook never reads one as a config.
  */
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,7 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { FailureDetails } from "../lib/fail.ts";
 import type { ScriptContext } from "../lib/script.ts";
-import { check, main } from "./formatter-glob.ts";
+import { check, hookExtensions, main } from "./formatter-glob.ts";
 
 const GLOB = '"*.{ts,tsx,mts,cts,js,mjs,cjs,json,css,html,yml,yaml}"';
 
@@ -25,15 +26,38 @@ const lefthook = (glob: string): string => `pre-commit:
       run: pnpm exec prettier --check {staged_files}
 `;
 
+const HOOK = "xtask/src/format_edited_file.rs";
+const EXTENSIONS = [
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".json",
+  ".css",
+  ".html",
+  ".yml",
+  ".yaml",
+];
+const hook = (extensions: readonly string[] = EXTENSIONS): string =>
+  `/// Formatted with Prettier.\npub(crate) const PRETTIER_EXTENSIONS: &[&str] = &[\n    ${extensions.map((e) => JSON.stringify(e)).join(", ")},\n];\n`;
+
 const dirs: string[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function root(text: string | undefined): string {
+/** A root with `text` as lefthook.yml and `source` as the hook (`null`: absent). */
+function root(text: string | undefined, source: string | null = hook()): string {
   const dir = mkdtempSync(join(tmpdir(), "formatter-glob-"));
   dirs.push(dir);
   if (text !== undefined) writeFileSync(join(dir, "lefthook.yml"), text);
+  if (source !== null) {
+    mkdirSync(join(dir, "xtask", "src"), { recursive: true });
+    writeFileSync(join(dir, HOOK), source);
+  }
   return dir;
 }
 
@@ -84,6 +108,30 @@ describe("formatter-glob", () => {
 
   it("fails when lefthook.yml is absent", () => {
     expect(codes(check.run(root(undefined)))).toEqual(["ERR_CHECK_INPUT_MISSING"]);
+  });
+
+  it("fails when the hook's source is absent", () => {
+    const violations = check.run(root(lefthook(GLOB), null));
+    expect(codes(violations)).toEqual(["ERR_CHECK_INPUT_MISSING"]);
+    expect(violations[0]?.summary).toBe(`${HOOK} does not exist`);
+  });
+
+  it("fails when the hook declares no PRETTIER_EXTENSIONS list", () => {
+    const violations = check.run(root(lefthook(GLOB), "const OTHER: &[&str] = &[];\n"));
+    expect(codes(violations)).toEqual(["ERR_CHECK_FORMATTER_GLOB_UNPARSED"]);
+    expect(violations[0]?.summary).toBe(`${HOOK} declares no PRETTIER_EXTENSIONS list`);
+  });
+
+  it("fails when the hook drops an extension the glob checks", () => {
+    const violations = check.run(root(lefthook(GLOB), hook(EXTENSIONS.slice(1))));
+    expect(codes(violations)).toEqual(["ERR_CHECK_FORMATTER_GLOB_DIVERGED"]);
+    expect(violations[0]?.actual).toBe(
+      "only in lefthook.yml: .ts; only in PRETTIER_EXTENSIONS: none",
+    );
+  });
+
+  it("reads every string literal of a list rustfmt spread over several lines", () => {
+    expect(hookExtensions(hook().replace(", ", ",\n    "))).toEqual(EXTENSIONS);
   });
 
   it("fails when lefthook.yml is not YAML", () => {

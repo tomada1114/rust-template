@@ -1,0 +1,4 @@
+# `cargo xtask <task>` runs the repository's automation (xtask/). --locked keeps the
+# build on Cargo.lock; --quiet keeps cargo's own progress lines out of a hook's output.
+[alias]
+xtask = "run --locked --quiet --package xtask --"

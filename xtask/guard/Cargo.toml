@@ -1,0 +1,14 @@
+[package]
+name = "xtask-guard"
+description = "The staged guard's rules: the paths and the credential shapes `cargo xtask check-staged` refuses to commit. Its own crate so it carries its own, higher coverage floor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+regex = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 /**
  * No `clippy.toml` sets `allow-invalid`. The key tells clippy to accept a
- * `disallowed-*` path it cannot resolve without a word, so `scripts/clippy-guard.ts`
+ * `disallowed-*` path it cannot resolve without a word, so `cargo xtask clippy-guard`
  * never sees the warning it turns into ERR_CLIPPY_BAN_UNRESOLVED and the ban silently
  * does nothing. Any value is refused, `false` included: it is the default, and a key
  * that only needs flipping to `true` is one edit from a no-op ban.
@@ -120,7 +120,7 @@ export function scan(root: string, exceptions: Readonly<Record<string, string>>)
         code: "ERR_CHECK_CLIPPY_ALLOW_INVALID",
         summary: `${file} sets ${hit.location}${hit.ban === undefined ? "" : ` on the ban of ${hit.ban}`}`,
         expected:
-          "no allow-invalid key in any clippy.toml: it hides the unresolved-path warning scripts/clippy-guard.ts fails on, so the ban can silently do nothing",
+          "no allow-invalid key in any clippy.toml: it hides the unresolved-path warning `cargo xtask clippy-guard` fails on, so the ban can silently do nothing",
         actual: `${file}: ${hit.location}`,
         next: `remove the key and correct the ban's path so \`just lint\` resolves it; an entry that genuinely needs the key goes in ${THIS}'s EXCEPTIONS with a human's sign-off (AGENTS.md › Security and human approval)`,
       });
