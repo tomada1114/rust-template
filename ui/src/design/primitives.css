@@ -13,15 +13,18 @@
   color: var(--color-control-text);
   font: inherit;
   font-weight: var(--font-weight-regular);
-  transition: filter var(--duration-fast) var(--easing-standard);
+  transition:
+    background-color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard);
 }
 
+/* State colors are tokens, never a filter: tokens.test.ts can only check what a token names. */
 .ui-button:hover:not(:disabled) {
-  filter: brightness(0.96);
+  background: var(--color-control-bg-hover);
 }
 
 .ui-button:active:not(:disabled) {
-  filter: brightness(0.9);
+  background: var(--color-control-bg-active);
 }
 
 .ui-button:disabled {
@@ -32,6 +35,16 @@
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-text-on-accent);
+}
+
+.ui-button--primary:hover:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+.ui-button--primary:active:not(:disabled) {
+  border-color: var(--color-accent-active);
+  background: var(--color-accent-active);
 }
 
 .ui-icon-button {
