@@ -101,6 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `counter-changed` events leave in the order the changes were saved.
 - A counter file this version cannot read can now be replaced with Reset from the error
   screen, and a failed load can be retried.
+- A repeated identical failure on the counter's error screen (Reset failing twice the same
+  way) is announced again by screen readers.
 - `.gitignore` ignores Python bytecode (`__pycache__/`, `*.pyc`), and `just agents-sync` and
   `just agents-check` skip it in both skill trees, so running a skill's bundled Python tests
   directly can no longer stage bytecode into a commit.
