@@ -38,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of one `git cat-file blob` per file, so a 1,000-file merge is judged in under a
   second rather than about 20 s. The 256 MiB read cap now bounds all staged content
   together, and a missing or unreadable blob still fails with `ERR_STAGED_READ_FAILED`.
+- A harness check (`scripts/checks/workflow-write-scopes.ts`, run by `just check-harness`)
+  fails with `ERR_CHECK_WORKFLOW_WRITE_RUNS_CODE` when a workflow job whose token holds a
+  write scope or `id-token: write` (its own `permissions`, the workflow's, or the default
+  token's) checks out the repository, runs `jdx/mise-action` or a local action, calls a
+  remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, so a later edit can no
+  longer give release.yml's `build` job a write scope or let `publish` run repository
+  code. The jobs that need both (CodeQL, Scorecard, and the PR labeller) are listed with
+  their reasons, and an entry that no longer applies fails with
+  `ERR_CHECK_WORKFLOW_WRITE_EXCEPTION_STALE`.
 - A harness check (`scripts/checks/clippy-allow-invalid.ts`, run by `just check-harness`)
   fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` when any `clippy.toml` sets `allow-invalid`,
   the key that hides an unresolvable ban path from `scripts/clippy-guard.ts` and so lets
