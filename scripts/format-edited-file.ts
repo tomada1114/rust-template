@@ -1,6 +1,8 @@
 /**
- * Formats the one file a Claude Code Edit/Write/MultiEdit just touched:
- * `.claude/settings.json`'s PostToolUse hook pipes its JSON payload in.
+ * Formats the one file a Claude Code Edit/Write/MultiEdit just touched. Meant to be
+ * registered as a PostToolUse hook in a personal settings file (`~/.claude/settings.json`
+ * or the gitignored `.claude/settings.local.json`; see AGENTS.md), which pipes its JSON
+ * payload in.
  *
  *   <hook JSON on stdin> | node scripts/format-edited-file.ts [--root DIR]
  *

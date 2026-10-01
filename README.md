@@ -230,15 +230,16 @@ proves it on every pull request by bootstrapping a fresh clone with a hyphenated
 multi-word name and running `just check` in the result.
 <!-- /template-only -->
 
-### Why AGENTS.md, skills, and committed agent settings?
+### Why AGENTS.md and skills, but no committed agent permissions?
 
 The repository is developed with coding agents, often unattended. `AGENTS.md` gives them
 the architecture, the gates, and the hard prohibitions; path-scoped rules under
 `.claude/rules/` and skills authored under `.agents/skills/` (mirrored by
-`just agents-sync`) carry the procedures. `.claude/settings.json` is committed so its
-deny list — no hook bypass, no force push, no `gh` read turned into a write or a
-browser window, no edit to the entitlements file — is reviewed in pull requests like
-any other file. The app itself calls no LLM.
+`just agents-sync`) carry the procedures. Which commands an agent runs without a prompt
+is each person's choice, so no `.claude/settings.json` is committed: permissions and the
+format-on-edit hook live in a user-level or gitignored local settings file, and the
+gates and `AGENTS.md`, not a permission list, are what bind every author. The app itself
+calls no LLM.
 
 ### Why an ADR tree that ships empty?
 

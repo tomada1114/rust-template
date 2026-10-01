@@ -84,16 +84,16 @@ Record the cleanup outcome (`--event cleanup ...`) and report anything it left
 ## Approval-gated commands
 
 The user's permission settings put some commands behind an approval prompt
-(`permissions.ask` in `settings.json` -- in practice the `rm -rf` family, and
-sometimes `wget` or a publish command). This skill runs unattended, so every
-such prompt raised mid-run parks the whole run until someone answers it, and
-several of them turn an unattended run into one the user has to sit through.
-The rule is not "never need approval" -- it is **ask once, at the end, for
-everything that could wait**. A prompted or denied command is never re-spelled
-to get past its prompt (another tool for the same job, a wrapper, another
-spelling): `AGENTS.md` › "Security and human approval" forbids that, and the
-prompt is how the human keeps the decision. Check each such command against
-three questions, in order:
+(`permissions.ask` in `~/.claude/settings.json` or `.claude/settings.local.json`
+-- in practice the `rm -rf` family, and sometimes `wget` or a publish command).
+This skill runs unattended, so every such prompt raised mid-run parks the whole
+run until someone answers it, and several of them turn an unattended run into
+one the user has to sit through. The rule is not "never need approval" -- it is
+**ask once, at the end, for everything that could wait**. A prompted or denied
+command is never re-spelled to get past its prompt (another tool for the same
+job, a wrapper, another spelling): `AGENTS.md` › "Security and human approval"
+forbids that, and the prompt is how the human keeps the decision. Check each
+such command against three questions, in order:
 
 1. **Is deleting really the step, or only getting it out of the way?** Getting
    it out of the way is a different action, not a re-spelled deletion: **`mv`

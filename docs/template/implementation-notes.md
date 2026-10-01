@@ -102,7 +102,8 @@ what was built; each entry says what the design said, what was done, and why.
 - `.claude/settings.json` denies `Edit(/src-tauri/Entitlements.plist)` only: an `Edit`
   rule covers every built-in file-editing tool, and a `Write(path)` rule is never consulted
   (Claude Code permissions docs, https://code.claude.com/docs/en/permissions, checked
-  2026-09-28).
+  2026-09-28). 2026-10-01: the committed settings file was removed (design.md D20); the
+  same single `Edit` deny is what a personal `.claude/settings.local.json` carries.
 
 - The sample builds no menu: it shows the default macOS menu Tauri installs when an app
   sets none (`designing-ui` has the source). An app that adds one builds it in Rust in

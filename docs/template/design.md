@@ -407,7 +407,8 @@ improvements from the triage:
 - no `#NNN` issue references in `AGENTS.md` or skills (issue #109);
 - `AGENTS.md` › Product is a `TODO:` skeleton while the template's placeholders remain,
   and has no `TODO:` once the bootstrap has run;
-- `.claude/settings.json` names only recipes the justfile defines.
+- `.claude/settings.json` names only recipes the justfile defines. (2026-10-01: the
+  committed file was removed, see D20; the check now applies only to one added later.)
 
 ### D15. Testing strategy — Owner (E2E), Designer (rest)
 
@@ -544,6 +545,16 @@ generated app, as macos-app-template's does.
 - `.claude/settings.json`: allow the read/build/test recipes and read-only `gh`; deny
   `--no-verify`, force pushes, and edits to `src-tauri/Entitlements.plist`; a PostToolUse
   hook that formats the one edited `.rs`/`.ts`/`.tsx` file.
+  **2026-10-01: removed.** The committed settings file is gone, as in ios-template and
+  nextjs-app-template: which commands an agent runs without a prompt, and the
+  format-on-edit hook, are each person's choice in `~/.claude/settings.json` (generic
+  rules: git, `gh`, the hook-bypass and force-push denies) or the gitignored
+  `.claude/settings.local.json` (this repository's recipes, dependency changes, the
+  `Entitlements.plist` edit deny), and Codex CLI's in a gitignored
+  `.codex/rules/local.rules`. A committed list imposed one person's trust level on every
+  clone of an app, and its deny list was a prompt policy rather than a gate; the gates
+  and `AGENTS.md` are what bind every author. The two harness checks that read the file
+  stay, for a repository that adds one back.
 - Skills: 26, authored under `.agents/skills/` and mirrored by `just agents-sync`,
   carried over substantially from the three source repositories and rebuilt for Rust +
   Tauri. The per-skill brief — sources, what changes, what is dropped and why, the rules
@@ -638,7 +649,7 @@ decides its own design system first, before its first screen.
 | macos-app-template | `.requiresLocalMachine` trait | Rust's `#[ignore = "…"]` plays the same role. |
 | typescript-template | npm publishing gates (pack, attw, OIDC trusted publishing, package smoke), TypeDoc, the universal-library profile, documented-snippet compilation | This template ships an app, not a package. |
 | typescript-template | `vitest related` and a whole-program typecheck in pre-commit; Prettier `--write` with re-stage | The #140 decision: the hook is check-only and fast; formatting is `just fmt` and the agent hook. |
-| typescript-template | shipping no `.claude/settings.json` | The design keeps macos-app-template's committed settings (D20): this repository's owner runs agents unattended in it, and the deny list is reviewed in PRs like any file. |
+| typescript-template | shipping no `.claude/settings.json` | The design keeps macos-app-template's committed settings (D20): this repository's owner runs agents unattended in it, and the deny list is reviewed in PRs like any file. 2026-10-01: reversed; the committed settings were removed after all (D20). |
 | both | Windows/Linux runners for the app | Distribution is macOS only; Linux runs only what does not need macOS. |
 
 ## 5. Steps only a human can take

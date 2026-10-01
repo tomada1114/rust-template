@@ -1,7 +1,7 @@
 /**
- * Every `just <recipe>` the documents name exists, and every recipe `.claude/settings.json`
- * permits exists, so a renamed or removed recipe cannot leave a document
- * pointing at nothing or a permission rule that can never match.
+ * Every `just <recipe>` the documents name exists, and every recipe a committed
+ * `.claude/settings.json`, if one is added, permits exists, so a renamed or removed recipe
+ * cannot leave a document pointing at nothing or a permission rule that can never match.
  *
  *   node scripts/checks/just-recipes-exist.ts [--root DIR]
  *
@@ -18,8 +18,8 @@
  * source text (a `>` or `|` block included); a form that does not parse fails the check.
  * A token is `just` not preceded by a name character, then a recipe name (a letter or
  * `_`, then letters, digits, `_`, `-`), so `just --list` and the placeholder
- * `just <recipe>` name nothing. From `.claude/settings.json`, each `permissions` rule of
- * the form `Bash(just <recipe>…)`; a hook's command is not a rule.
+ * `just <recipe>` name nothing. From a committed `.claude/settings.json`, each
+ * `permissions` rule of the form `Bash(just <recipe>…)`; a hook's command is not a rule.
  *
  * The recipes are parsed from the justfile's column-0 lines: each recipe header (with or
  * without parameters, `[private]` and `_`-prefixed ones included, since `just` still runs

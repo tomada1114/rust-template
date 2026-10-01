@@ -126,7 +126,7 @@ developer's Mac").
 | A script under `scripts/` (including `scripts/lib/`) | `just test-scripts`, then `just lint` |
 | `lefthook.yml` or `scripts/verify-hooks.ts` | `just test-scripts`, then `just verify-hooks` |
 | A harness check under `scripts/checks/` | `just test-scripts`, then `just check-harness` |
-| A `just` recipe name, a workflow's `uses:` or `permissions:`, a skill's frontmatter, the `## Product` section, `.claude/settings.json`'s `permissions`, core's forbidden-crate lists (`deny.toml`'s `wrappers`, the closure check), the gates `just check` or `ci.yml` runs, or a label an issue form, workflow, or bot config applies | `just check-harness` |
+| A `just` recipe name, a workflow's `uses:` or `permissions:`, a skill's frontmatter, the `## Product` section, a committed `.claude/settings.json`'s `permissions` (if one is added), core's forbidden-crate lists (`deny.toml`'s `wrappers`, the closure check), the gates `just check` or `ci.yml` runs, or a label an issue form, workflow, or bot config applies | `just check-harness` |
 | A skill under `.agents/skills/` | `just agents-sync`, then `just agents-check` and `just check-harness`; `just test-scripts` too when the skill ships scripts |
 | A workflow under `.github/workflows/` | `mise exec -- actionlint` and `mise exec -- zizmor .`, then `just check-harness` |
 | Markdown | `mise exec -- typos <file>` (the pre-commit hook and CI's `Repo Lint & Harness` job run it) |
@@ -361,9 +361,9 @@ commit guard agree (the guard also refuses `.claude/settings.local.json`, which 
 per-user settings rather than a secret, so reading it is fine and only committing it is
 not); if a task seems to need one, ask the human for the non-secret fact instead.
 
-Get a human's sign-off before acting on any of these. `.claude/settings.json` blocks a
-few of them for Claude Code (see "Enforcement layers"); for everything else this
-section is the rule itself, not a description of a check that enforces it.
+Get a human's sign-off before acting on any of these. This section is the rule itself,
+not a description of a check that enforces it: a personal permission file may stop a few
+of them on one host, but this repository ships none (see "Enforcement layers").
 
 - Touching `src-tauri/Entitlements.plist`, the signing settings in `tauri.conf.json`'s
   `bundle.macOS` (`signingIdentity`, `hardenedRuntime`, `entitlements`), or any signing,
@@ -371,10 +371,10 @@ section is the rule itself, not a description of a check that enforces it.
 - Relaxing the app's security posture: the CSP or `withGlobalTauri` in
   `tauri.conf.json`, or a permission added under `src-tauri/capabilities/`.
 - Creating or pushing a release tag.
-- Editing `.claude/settings.local.json`, or a user-level settings file such as
-  `~/.claude/settings.json`: an agent adding an `allow` rule there widens its own
-  permissions, and neither file is committed, so no review ever sees it. The committed
-  `.claude/settings.json` is reviewed in its pull request like any other file.
+- Editing a personal permission file — `.claude/settings.local.json`,
+  `~/.claude/settings.json`, or Codex rules under `.codex/` or `~/.codex/rules/` —
+  unless the owner asks for it in that session: it decides what an agent may run, so
+  changing it changes the agent's own limits, and no review ever sees it.
 - Adding a new crate or npm package — see the dependency policy in
   `.claude/rules/project.md`.
 - Weakening any gate: lowering a coverage floor (the `test-core` recipe,
@@ -392,7 +392,7 @@ section is the rule itself, not a description of a check that enforces it.
   - deleting an assertion, or loosening one until it passes
   - `continue-on-error` on a CI job or step, or `git commit --no-verify`
 - Working around a denied command. When a command is denied — by
-  `.claude/settings.json`, a hook, or a human — re-spelling it (`git -C . …`,
+  a permission file, a hook, or a human — re-spelling it (`git -C . …`,
   `bash -c '…'`, bundled short flags such as `-anm`, an alias or script wrapper) is
   forbidden. Stop and ask.
 - Any write to a remote: `git push`, `gh pr create`, or any other remote write that
@@ -433,9 +433,9 @@ stops and asks.
 
 The owner develops on the same Mac the checks run on, often while an agent iterates
 unattended. Nothing a routine check runs — `just check` and every recipe in it, the
-pre-commit hook, the agent's PostToolUse hook, and any step an agent runs to verify its
-own work — may show a window, take keyboard focus, move the pointer, add a Dock icon,
-or raise a permission, Keychain, or Gatekeeper prompt.
+pre-commit hook, a PostToolUse hook an agent registers, and any step an agent runs to
+verify its own work — may show a window, take keyboard focus, move the pointer, add a
+Dock icon, or raise a permission, Keychain, or Gatekeeper prompt.
 
 - For evidence that the app starts and is wired, use `just smoke` (it runs the built
   executable directly with `MYAPP_SMOKE=1`: no window, no Dock icon, no focus change)
@@ -461,7 +461,7 @@ Every local layer can be skipped, so these reach `main` only if CI or GitHub sto
   pre-commit hook and staged guard never run.
 - An edit made through GitHub's web UI or API, which touches no local hook.
 - A secret inside a file whose path and content pattern the guard does not know.
-- Any tool other than Claude Code: `.claude/settings.json` binds nothing else.
+- Any tool other than Claude Code: a Claude Code permission list binds nothing else.
 
 ### GitHub settings a new repository must enable
 
@@ -557,8 +557,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | Coverage floors | `just test-core`, `just test-ui`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `ui/src/` 80 / 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
 | The launch smoke (`scripts/smoke.ts`, `just smoke`) | `just check` and CI's `macOS Build & Smoke` job | every author | the release `.app` builds, is signed, carries `Entitlements.plist`'s entitlements, bundles a runnable `myapp-cli`, and starts windowless in smoke mode — store, clock, logging, and command registration wired — exiting 0 after logging `startup complete` |
 | The skills-mirror check (`just agents-check`; the hook runs `node scripts/sync-agents.ts --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
-| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; every `tauri` crate in `Cargo.lock` and the `@tauri-apps/api` and `@tauri-apps/cli` `pnpm-lock.yaml` resolves share one MAJOR.MINOR, and each `@tauri-apps/plugin-<x>` matches its `tauri-plugin-<x>` crate's version; the bundle identifier is one value in `tauri.conf.json`, `myapp-platform`'s `BUNDLE_IDENTIFIER`, and the justfile's `bundle_id`; the app version is one value in `Cargo.toml`'s `[workspace.package]`, `tauri.conf.json`, and `package.json`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; the IPC command and event lists agree; no raw color, `font-family`, or pixel font size outside `tokens.css`; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; `.claude/settings.json` names only recipes the justfile defines, and its `allow` admits none of the recipes the next row keeps out of it; and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
-| `.claude/settings.json` — its only two top-level keys, `permissions` and `hooks` | every tool call Claude Code makes in this checkout | Claude Code only — Codex CLI and a human read nothing here | the routine local loop runs without a prompt: the `just` recipes that read, format, lint, build, or test without opening a window or writing to GitHub, `clean` and `prune-temp` (they delete only build output and known-safe temporary directories, so an agent never needs a raw `rm -rf`), and read-only `gh` (`gh pr view`/`list`/`checks`/`diff`, `gh issue view`/`list`, `gh run view`/`list`/`watch`, `gh api -X GET`/`--method GET`). Deliberately absent from `allow`, so they still stop for a human: the recipes that open the app or need a human (`dev`, `run`, `install-app`, `test-local`, `logs-follow`, `reset-permissions`), the ones that write beyond the working tree (`install`, `labels`, `ruleset`, `release-prep`, `bootstrap`), `git push`, `gh pr create`, `gh pr merge`, and `gh issue create`; `scripts/checks/settings-allow-list.ts` fails when an `allow` rule, wildcards included, admits one of those recipes. `deny` refuses skipping the pre-commit hook, a force push, a `gh` read turned into a write or a browser window, and an edit to `src-tauri/Entitlements.plist` (an `Edit` rule covers every file-editing tool); JSON carries no comments, so read the deny list as groups — `git commit --no-verify`, `-n`, and the abbreviations git accepts (`--no-v*`); a `LEFTHOOK=`, `LEFTHOOK_EXCLUDE=`, `LEFTHOOK_BIN=`, or `LEFTHOOK_CONFIG=` assignment; `core.hooksPath` set through `git -c`, `git --config-env`, or `git config`; `--force`/`-f`, `--force-with-lease` with and without `=<ref>`, and a `+refspec` push; a second `-X`/`--method`, whatever its verb, after an allowed `gh api -X GET`/`--method GET`; and `--web`/`-w` on each allowed `gh` command that has it (`gh run list`'s `-w` is `--workflow`, and stays allowed) — each written in the leading, trailing, and mid-command position, where a pattern ending in `*` covers the last two at once. It is a prompt policy, not a boundary: a deny rule matches the command text Claude Code writes, so another spelling — `git -C . push --force`, `bash -c '…'`, a bundled short flag such as `git commit -anm "…"`, or `core.hookspath` in another case — is not stopped by it, and none of this constrains a human at a shell. `hooks` holds one `PostToolUse` hook, `scripts/format-edited-file.ts`, that formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod` child) or TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the pre-commit hook checks) file an `Edit`/`Write`/`MultiEdit` touched inside the checkout and reports a formatter failure back to the agent (exit 2) instead of hiding it — a convenience on this host only; the git hook and CI are the gate |
+| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; every `tauri` crate in `Cargo.lock` and the `@tauri-apps/api` and `@tauri-apps/cli` `pnpm-lock.yaml` resolves share one MAJOR.MINOR, and each `@tauri-apps/plugin-<x>` matches its `tauri-plugin-<x>` crate's version; the bundle identifier is one value in `tauri.conf.json`, `myapp-platform`'s `BUNDLE_IDENTIFIER`, and the justfile's `bundle_id`; the app version is one value in `Cargo.toml`'s `[workspace.package]`, `tauri.conf.json`, and `package.json`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; the IPC command and event lists agree; no raw color, `font-family`, or pixel font size outside `tokens.css`; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that open the app, need a human, or write beyond the working tree (`dev`, `run`, `install-app`, `test-local`, `logs-follow`, `reset-permissions`, `install`, `labels`, `ruleset`, `release-prep`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
 | CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, clippy on the Linux-buildable crates, core tests with floors, doctests, the bindings drift check, `cargo deny`, `cargo shear`), `Frontend` (tsc, ESLint, Prettier, UI tests with floors), `Repo Lint & Harness` (typos, actionlint, script tests, harness checks), `macOS Build & Smoke` (workspace clippy, `just test-macos`, `just build`, `just smoke`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 
@@ -585,8 +584,8 @@ removing or narrowing its bullet here:
   conflict without it, `git am` and `git am --continue` run pre-applypatch instead, and a
   merge git concludes itself (a clean one, or `-X ours`/`-X theirs`) runs
   pre-merge-commit, which `lefthook.yml` does not configure.
-  Nothing in this repository blocks these for every author. `.claude/settings.json`'s
-  `deny` list refuses the usual spellings on Claude Code alone, and only as written,
+  Nothing in this repository blocks these for every author: a personal permission
+  file's `deny` list can refuse the usual spellings on one host, and only as written,
   and `scripts/verify-hooks.ts` sees only that the hook file is lefthook's, not that
   its binary resolves or that no variable disables it. "Never bypass the hooks"
   therefore still holds as an instruction, and CI is the backstop — except for the
@@ -609,12 +608,25 @@ removing or narrowing its bullet here:
   that is visible only via `gh api repos/{owner}/{repo}/rulesets`. "Use this template"
   does not copy rulesets, so every repository created from this template still needs
   its own admin to run `just ruleset` once.
-- **Everything in `.claude/settings.json` applies to Claude Code only.** The
-  `PostToolUse` hook formats the file an agent edited on that one host; the git hook,
-  not this hook, is the real gate. The `permissions` block decides which commands that
-  host runs without stopping to ask, so it shapes where a human is consulted rather
-  than what is possible: Codex CLI, another agent, and a human at a shell are bound by
-  the instructions in this file and by the gates above, not by that file.
+- **This repository ships no Claude Code permission list.** There is no committed
+  `.claude/settings.json`: which commands run without a prompt is each person's own
+  choice, in their user-level `~/.claude/settings.json` (generic rules: git, `gh`, the
+  hook-bypass and force-push denies) or the gitignored `.claude/settings.local.json`
+  (this repository's rules: its `just` recipes, dependency changes, the
+  `src-tauri/Entitlements.plist` edit deny), and for Codex CLI in a gitignored
+  `.codex/rules/local.rules`. That choice shapes where a human is consulted rather than
+  what is possible. A personal file should keep at `ask` the recipes that open the app
+  or need a human (`dev`, `run`, `install-app`, `test-local`, `logs-follow`,
+  `reset-permissions`) and those that write to GitHub or rewrite the repository
+  (`labels`, `ruleset`, `release-prep`, `bootstrap`). The same file is where to register
+  `scripts/format-edited-file.ts` as a `PostToolUse` hook on `Edit|Write|MultiEdit`
+  (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- node scripts/format-edited-file.ts`),
+  which formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod`
+  child) or TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions
+  the pre-commit hook checks) file an edit touched inside the checkout and reports a
+  formatter failure back to the agent (exit 2) — a convenience on that host, not a
+  gate. Codex CLI, another agent, and a human at a shell are bound by the instructions
+  in this file and by the gates above.
 - **Nothing runs the `#[ignore]`d tests for you.** A CI runner has no logged-in GUI
   session and cannot be granted a TCC permission or reach a login Keychain, so a test
   that needs one is `#[ignore = "local machine: …"]` and is reported as ignored by
@@ -624,10 +636,10 @@ removing or narrowing its bullet here:
   runs, and review is what notices when it does not.
 - **Nothing mechanical keeps a routine check from taking over the Mac.** The rule in
   "Never taking over the developer's Mac" holds because every recipe in `just check`
-  was written to it and `.claude/settings.json` leaves the window-opening recipes out
-  of `allow` (a harness check keeps them out, and `deny` refuses `gh … --web`); a new
-  recipe or test that shows a window, takes focus, or raises a prompt is caught only
-  by review.
+  was written to it; whether an agent may start a window-opening recipe without a
+  prompt is decided in each person's own permission file, which no gate here reads. A
+  new recipe or test that shows a window, takes focus, or raises a prompt is caught
+  only by review.
 
 ## Review Checklist
 
