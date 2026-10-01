@@ -1,4 +1,4 @@
-# tauri-template: design
+# rust-template: design
 
 <!-- template-only: scripts/bootstrap removes docs/template/ from a generated app. -->
 
@@ -10,6 +10,17 @@ defers, and [skills-plan.md](skills-plan.md) is the per-skill brief.
 Each decision below lists the options, their trade-offs, and the choice. "Owner" marks a
 choice the owner made between presented options; "Designer" marks one the design session
 made and the owner accepted without change.
+
+**Amended 2026-10-01: the CLI/TUI pivot (owner, tracking issue #161).** The repository
+is renamed `rust-template` and stops being a template for Tauri macOS desktop apps. It
+becomes a template for the owner's own Rust command-line tools — plain CLIs and
+full-screen TUIs — on macOS and Linux. §1 is rewritten; D4, D5, D8, D12, D18, and D23 are
+superseded (each marked below, D4 and D23 also listed in §4); D6, D7, D15, D16, D19, and
+D22 are restated for the new stack. The other decisions keep their reasoning; where one
+still names the removed GUI stack (`src-tauri/`, `ui/`, Node, pnpm, ESLint, Prettier,
+Vitest, the `.dmg`, the sidecar), that detail goes with the stack, and the sibling
+sub-issues of the tracking issue rewrite the code, gates, and docs to match. Git history
+keeps the GUI stack.
 
 ## Contents
 
@@ -33,35 +44,46 @@ made and the owner accepted without change.
 | clippy | Rust's official linter (`cargo clippy`). |
 | rustfmt | Rust's official formatter (`cargo fmt`). |
 | `#[ignore]` | Marks a test that `cargo test` skips unless asked (`-- --ignored`); used here for tests that need a real logged-in Mac. |
-| command (Tauri) | A Rust function the web UI can call over IPC with `invoke("name", args)`. |
-| event (Tauri) | A message Rust pushes to the UI (`emit`), which the UI subscribes to with `listen`. |
-| capability (Tauri) | A JSON file under `src-tauri/capabilities/` granting a window permission to use plugin commands. |
-| sidecar | An extra executable bundled inside the `.app` (`bundle.externalBin`). |
+| clap | The command-line argument parser the binary's subcommands are declared with (its derive API). |
+| ratatui | The terminal UI library the `tui` subcommand draws with; it renders to a *backend*. |
+| `TestBackend` | ratatui's in-memory backend: a test draws a frame into a buffer and asserts on its cells, with no real terminal involved. |
+| raw mode / alternate screen | Terminal states a full-screen TUI enters (keys arrive unbuffered; a separate screen buffer is shown) and must leave on exit. |
+| `cargo xtask` | A convention: a workspace crate named `xtask`, run through a cargo alias, that holds the repository's automation in Rust. |
 
 ## 1. What this template is
 
-A public template for personal macOS desktop apps with a modest UI: a Rust core, a
-Tauri v2 shell, and a React + Vite + TypeScript screen, distributed as a `.dmg` from
-GitHub Releases or the owner's site. It is general-purpose; the first app cut from it is
-a launchd job manager (schedule jobs, see their results), so the frames that app needs —
-persisted state, an injected clock, pushing results from Rust to the screen, a bundled
-command-line helper that launchd can run — are part of the template, while nothing
-launchd-specific is.
+A public template for the owner's own Rust command-line tools: plain CLIs and full-screen
+terminal UIs, built and run on macOS and Linux. Every tool cut from it is one binary,
+`myapp`, whose clap subcommands do the work and whose `tui` subcommand opens a ratatui
+interface over the same core. The layering stays: logic and ports in `myapp-core`
+(coverage-gated, built and tested on Linux), OS adapters in `myapp-platform`, fakes and
+contract suites in `myapp-test-support`, and the binary crate as the composition root
+that parses arguments, wires the adapters, and translates. The counter sample stays as
+the deletable illustration, reachable from both a subcommand and the TUI.
 
-Settled before this document (owner decisions):
+Settled before this document (owner decisions; the 2026-10-01 pivot replaced the first
+set):
 
-- Tauri v2, React + Vite + TypeScript.
-- No LLM in the app (no AI SDK, nothing that calls a model). The development harness —
-  `AGENTS.md`, skills authored under `.agents/skills/` and mirrored to `.claude/skills/` —
-  is kept, as in the two reference templates.
-- macOS only; `.dmg`; GitHub Releases or the owner's site.
-- The Rust core's tests and lint run on Ubuntu runners; macOS runners only build, run the
-  launch smoke, and release.
-- Public repository `tomada1114/tauri-template`, with CI and supply-chain controls at the
-  level of macos-app-template.
+- **Targets:** macOS and Linux. The core's tests and lint run on Ubuntu runners; a macOS
+  runner builds and tests what touches the OS there.
+- **Shape:** one binary, `myapp`, with clap subcommands and a `tui` subcommand built on
+  ratatui. No GUI of any kind.
+- **Repository automation:** a Rust `cargo xtask` crate, not TypeScript under
+  `scripts/`. Node, pnpm, ESLint, Prettier, and Vitest leave the repository.
+- **Distribution:** none. No release workflow, signing, notarization, disk image,
+  Homebrew tap, or release artifacts; a tool is installed with
+  `cargo install --path` from its own checkout. Revisited only when a tool needs to reach
+  other people.
+- No LLM in the tool (no AI SDK, nothing that calls a model). The development harness —
+  `AGENTS.md`, skills authored under `.agents/skills/` and mirrored to `.claude/skills/`,
+  rules, sub-agents, gates, and harness checks — is kept and rewritten for the new stack;
+  skills that only served the GUI are deleted.
+- Public repository `tomada1114/rust-template` (renamed from `tauri-template`), with CI
+  and supply-chain controls at the level of macos-app-template.
 
-Non-goals: Windows, Linux, or mobile builds; the Mac App Store; an auto-updater; an
-in-app LLM; a component library or CSS framework; localization (see issue-triage #119).
+Non-goals: Windows; any GUI (a desktop window, a WebView, a menu-bar app); a release
+pipeline or release artifacts (signed binaries, a disk image, a Homebrew tap, an
+updater); crates.io publishing; an in-app LLM; localization (see issue-triage #119).
 
 ## 2. Verified facts this design rests on
 
@@ -197,103 +219,89 @@ approach) forbids `@tauri-apps/*` outside `ui/src/ipc/`, and forbids importing
 `ui/src/ipc/generated/` from anywhere but `ui/src/ipc/`. `no-console` outside
 `ui/src/ipc/log.ts` (which forwards to Rust) and `scripts/`.
 
-### D4. Types across IPC — Owner: ts-rs + a thin hand-written layer
+### D4. Types across IPC — superseded 2026-10-01
 
-Options: (a) `tauri-specta` pinned with `=` — generates types and typed command
-wrappers, best ergonomics, but v2 has been a release candidate for about three years;
-(b) `ts-rs` for types plus hand-written wrappers — stable semver, a little more typing;
-(c) hand-written types — drifts silently.
+There is no IPC: the subcommands and the TUI call core directly in one process, so
+`ts-rs`, the generated bindings, the hand-written wrappers, and the command/event drift
+check go with the GUI (§4). What remains of the decision is the rule that every value a
+front end shows is a core view type (`CounterView`), so a subcommand's output and a TUI
+frame read the same model.
 
-Choice: **(b)**.
+### D5. One binary with subcommands — Owner (2026-10-01; supersedes the bundled sidecar)
 
-- Every DTO that crosses IPC lives in core (so the Linux job, which never builds the
-  Tauri crate, regenerates all of them) and derives `ts_rs::TS` with `#[ts(export)]`; the
-  export directory is `ui/src/ipc/generated/`, committed; 64-bit integers are exported as
-  `number`. Only `ui/src/ipc/` imports the generated files; it re-exports the types the
-  rest of the UI needs from `ui/src/ipc/types.ts`.
-- `ui/src/ipc/commands.ts` holds one typed wrapper per command
-  (`export const increment = () => invoke<CounterView>("increment")`), and
-  `ui/src/ipc/events.ts` one typed `listen` per event.
-- Drift checks: `just bindings` regenerates; CI regenerates and fails on a diff; a
-  harness check compares the command names registered in `tauri::generate_handler![…]`
-  with those `commands.ts` invokes, and the event names Rust emits (a `pub const` per
-  event) with those `events.ts` listens to.
+Options: (a) a separate helper crate next to the app, as the sidecar was; (b) one binary,
+`myapp`, whose clap subcommands are the CLI and whose `tui` subcommand is the full-screen
+interface; (c) two binaries, a CLI and a TUI, sharing core and platform.
 
-### D5. The bundled helper executable — Owner: separate crate, bundled as a sidecar
+Choice: **(b)**. One install (`cargo install --path`) yields every entry point; the
+scheduler-friendly headless use the sidecar existed for is now simply a subcommand; and
+there is one composition root to wire adapters in.
 
-Options: (a) `myapp-cli` built separately and bundled with `bundle.externalBin`;
-(b) one executable with a headless subcommand; (c) a dev-only CLI, not bundled.
+- The binary crate parses arguments with clap's derive API, builds the real adapters,
+  and dispatches. A subcommand's handler is a thin translation: call core, print the view
+  or map the typed error to wording and an exit code. `tui` hands the same core and
+  adapters to the ratatui loop.
+- Output: a subcommand prints its result to stdout and its error wording to stderr, with
+  a non-zero exit code per error kind; a `--json` form of a view is added when a tool
+  needs machine-readable output, not by default.
+- The separate `myapp-cli` crate, `scripts/build-sidecar.ts`, `bundle.externalBin`, and
+  the `sidecar` recipe go with the GUI.
 
-Choice: **(a)**. launchd can then run a small binary inside the `.app` that shares core and
-platform with the GUI without starting it.
-
-- `scripts/build-sidecar.ts` builds `myapp-cli` for the target triple and copies it to
-  `src-tauri/binaries/myapp-cli-<triple>` (gitignored). `tauri.conf.json`'s
-  `beforeDevCommand` and `beforeBuildCommand` run it, so `just dev`, `just build`, and the
-  release all get a fresh helper. It has a Vitest test with `cargo` stubbed.
-- The sample helper: `myapp-cli counter show|increment`, reading and writing the same
-  store as the app, with `--help` and exit codes; the launch smoke runs the bundled copy
-  from inside the built `.app` to prove it was bundled and signed.
-- The GUI does not spawn the helper in the sample (so no `tauri-plugin-shell` and no
-  shell capability ships); `docs/architecture.md` shows how to add that when an app needs it.
-
-### D6. The sample app — Owner: counter + persistence + clock + event
+### D6. The sample app — Owner: counter + persistence + clock, restated 2026-10-01
 
 A counter whose rules live in core (`Counter` with a bounded range and
 `increment`/`decrement`/`reset`, returning a typed error at the bound), exercising every
-frame the template claims:
+frame the template claims, from both front ends:
 
 | Frame | In the sample |
 |---|---|
-| Port + adapter + contract | `CounterStore` port; `JsonFileCounterStore` in platform writes `counter.json` under the app data directory atomically (write to a temp file, rename); `InMemoryCounterStore` fake. |
-| Injected time | `Clock` port; `SystemClock` in platform; `FixedClock` fake. The view shows "last changed" from core's `CounterView { value, last_changed_at }`. |
-| Command | `get_counter`, `increment`, `decrement`, `reset`. |
-| Event | After any change, the shell emits `counter-changed` with the new `CounterView`; a second window, or the helper CLI changing the file, is reflected in the UI (the shell watches nothing in the sample; the event is emitted by the command path, and the doc says where a file watcher would go). |
-| Logging | Each command logs one `tracing` event; the UI forwards its errors through `log_from_ui`. |
-| Helper CLI | D5. |
-| Errors | `CounterError::{AtMaximum, AtMinimum, Storage { kind }}` (serialized as `{ "code": … }`); the UI maps codes to strings in `ui/src/copy/`. |
-| Accessibility | Glyph-only buttons carry `aria-label`s; tests query by role and name (issue #169). |
+| Port + adapter + contract | `CounterStore` port; `JsonFileCounterStore` in platform writes `counter.json` under the tool's data directory atomically (write to a temp file, rename); `InMemoryCounterStore` fake. |
+| Injected time | `Clock` port; `SystemClock` in platform; `FixedClock` fake. Both front ends show "last changed" from core's `CounterView { value, last_changed_at }`. |
+| Subcommands | `myapp counter show`, `increment`, `decrement`, `reset`, each printing the resulting view, with `--help` and an exit code per error kind. |
+| TUI | `myapp tui` shows the counter and changes it by key (the keys listed in a help line on screen); the state machine that turns a key into a core call is a plain function the tests drive without a terminal (D15). The TUI redraws after its own changes; it watches nothing, and the doc says where a file watcher would go when another process changing `counter.json` must show live. |
+| Logging | Each change logs one `tracing` event (D7). |
+| Errors | `CounterError::{AtMaximum, AtMinimum, Storage { kind }}`; the binary maps each variant to wording in one module, never in core. |
+| Accessibility | No meaning carried by color alone in the TUI; every action reachable from the keyboard and named in the help line. |
 
 Every part of the sample is a deletable illustration (issue #135): `starting-an-app`
 lists what to delete when replacing it.
 
-### D7. Logging — Designer
+### D7. Logging — Designer, restated 2026-10-01
 
-Options: (a) `tauri-plugin-log` — official, forwards webview logs, size-based rotation
-only; (b) `tracing` + `tracing-subscriber` + `tracing-appender` — daily rotation, one
-logging API across every crate, no plugin permission.
+Options: (a) `log` + `env_logger` to stderr; (b) `tracing` + `tracing-subscriber` +
+`tracing-appender` — daily rotation, one logging API across every crate.
 
-Choice: **(b)**. Core, platform, the CLI, and the shell log through the `tracing` macros;
-only the shell and the CLI install a subscriber. Files go to
-`~/Library/Logs/<identifier>/` (the path the Tauri docs give for the plugin, so the
-convention is the same), rotated daily, keeping the last 14 files; the CLI writes to
-the same directory under a different file prefix. The appender writes synchronously
-(no `non_blocking` worker): the volume is low, and Tauri exits through `process::exit`,
-which would drop a background writer's last lines. In debug builds the subscriber also
-writes to stderr. The UI's `ui/src/ipc/log.ts` sends `warn`/`error` to a `log_from_ui`
-command. `just logs` prints the newest file's last lines and exits; `just logs-follow`
-follows it for a human (it never ends, so an agent never runs it). `println!` is banned in core by clippy and
-discouraged elsewhere by `.claude/rules/rust.md`.
+Choice: **(b)**. Platform and the binary log through the `tracing` macros (core logs
+nothing); only the binary installs a subscriber (`myapp_platform::init_logging`). Files go
+to the platform's log location — `~/Library/Logs/<identifier>/` on macOS, under the XDG
+state directory (`$XDG_STATE_HOME`, default `~/.local/state`) on Linux — rotated daily,
+keeping the last 14 files. The appender writes synchronously (no `non_blocking` worker):
+the volume is low and a background writer can lose the last lines at exit.
 
-### D8. Frontend stack — Designer
+- **Never to the terminal while the TUI runs.** A log line written to stdout or stderr
+  while ratatui owns the screen corrupts the frame, so the subscriber writes only to the
+  file in the `tui` subcommand. A plain subcommand may also log to stderr in debug
+  builds; its stdout carries only the command's output, so it stays pipeable.
+- `just logs` prints the newest file's last lines and exits; `just logs-follow` follows
+  it for a human (it never ends, so an agent never runs it). `println!` is banned in core
+  by clippy and limited elsewhere to a subcommand's output by `.claude/rules/rust.md`.
 
-React 19, Vite 8 (`@vitejs/plugin-react`), TypeScript **6.0.x** (typescript-eslint does not
-support 7), ESLint 10 flat config with `typescript-eslint` `strictTypeChecked` +
-`stylisticTypeChecked` and `eslint-plugin-react-hooks`, Prettier, Vitest 5 with jsdom and
-Testing Library. tsconfig as typescript-template (`strict`, `noUncheckedIndexedAccess`,
-`exactOptionalPropertyTypes`, `verbatimModuleSyntax`, …). Plain CSS with design tokens as
-CSS custom properties, the system font stack, and `prefers-color-scheme` light/dark — no
-CSS framework or component library (either is an ADR decision for an app). State: React
-state + one hook per Rust-owned model that loads through `ipc/commands.ts` and updates
-from `ipc/events.ts`; no state library. pnpm's supply-chain policy in
-`pnpm-workspace.yaml` follows typescript-template (`minimumReleaseAge`, strict dependency
-builds with an allow-list, `verifyDepsBeforeRun`), with the release-age equal to the
-Dependabot cooldown (a harness check).
+### D8. Terminal UI stack — Owner (2026-10-01; supersedes the React frontend stack)
 
-Tauri security settings: a restrictive CSP (`default-src 'self'`; `connect-src ipc:
-http://ipc.localhost`; no remote origins), `withGlobalTauri: false`, one capability file
-granting only `core:default`. The isolation pattern is not enabled (the app loads no
-third-party frontend code); that is recorded in `docs/architecture.md`.
+ratatui for drawing, over its crossterm backend, which works on macOS and Linux. The UI
+is immediate-mode: one `draw(frame, &state)` function renders a core view, and one
+`update(state, event) -> state` function turns a key or a tick into a core call and the
+next state; the loop that reads real terminal events and enters raw mode and the
+alternate screen is a thin shell around them, kept small because no check runs it (D22).
+
+- The terminal is always restored — raw mode left, the alternate screen exited, the
+  cursor shown — on a normal exit, on an error returned up the loop, and on a panic (a
+  panic hook restores it before the message prints).
+- Styling uses ratatui's `Style` through one theme module, with the terminal's own
+  default colors as the base, so a tool reads in light and dark terminals alike; no color
+  carries meaning alone.
+- React, Vite, TypeScript, ESLint, Prettier, Vitest, the CSP, capabilities, and the
+  pnpm supply-chain settings go with the GUI.
 
 ### D9. Tool pinning — Designer
 
@@ -342,24 +350,28 @@ clippy, compile, or tests in the hook. `scripts/verify-hooks.ts` (`just install`
 step and `just check`'s first) fails if lefthook's hook is not installed, with the
 `ALLOW_MISSING_GIT_HOOKS` opt-out and a CI skip.
 
-### D12. Repository scripts in TypeScript — Designer
+### D12. Repository automation in `cargo xtask` — Owner (2026-10-01; supersedes TypeScript scripts)
 
-Options: (a) bash, as macos-app-template; (b) TypeScript run directly by Node's type
-stripping, as typescript-template's `.mjs`; (c) a Rust `xtask`.
+Options: (a) bash; (b) TypeScript run by Node, as before; (c) a Rust `xtask` crate.
 
-Choice: **(b)**. Node is already required for the UI; the scripts need real YAML, TOML, and
-JSON parsers (the `yaml` and `smol-toml` packages); Vitest tests them with fixtures; and a
-reader new to Rust can maintain them. Scripts are `scripts/*.ts` executed with `node`
-(no build step; erasable syntax only), share `scripts/lib/`, strip `GIT_*` from spawned
-git except where the staged guard deliberately inherits `GIT_INDEX_FILE`, and follow the
-failure contract: first stderr line `ERR_<STAGE>_<WHAT>: …`, then `Expected:`, `Actual:`,
-`Next:`, exit 1, never printing a secret. Every script has a test under
-`scripts/**/*.test.ts`. The TypeScript and JavaScript under `scripts/` and under
-`.agents/skills/*/scripts/` (every `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`,
-`.cjs` file, tested or not) is coverage-gated by typescript-template's per-glob floors.
-A skill's bundled scripts may keep their language when ported with their tests
-(`shipping-issues`' Python helpers and shell scripts); `just test-scripts` runs those
-suites (`unittest`, `shellcheck`) too, with no coverage floor.
+Choice: **(c)**. With the UI gone, Node would be kept only for the scripts; a Rust
+`xtask` needs no second toolchain, shares the workspace's lints and gates, and gives the
+owner one language to read. It is a workspace member named `xtask`, run through a cargo
+alias (`cargo xtask <task>`), never shipped, and outside core's coverage floor.
+
+- The rules the TypeScript scripts followed carry over: real parsers for structured files
+  (TOML, YAML, JSON crates, never a regex over YAML or TOML); `GIT_*` stripped from
+  spawned git, except where the staged guard deliberately inherits `GIT_INDEX_FILE`; the
+  failure contract — first stderr line `ERR_<STAGE>_<WHAT>: …`, then `Expected:`,
+  `Actual:`, `Next:`, exit 1, never printing a secret; refuse or skip outside a git work
+  tree as each task's header states; each harness check takes `--root` so its tests run
+  against a fixture tree.
+- Every task has tests that call it with fakes for its child processes and a temporary
+  directory, never the real checkout. Whether xtask carries a coverage floor of its own
+  is decided by the sub-issue that ports the scripts.
+- `just` recipes stay the entry points (D10); a recipe calls `cargo xtask …` where it
+  called `node scripts/….ts`. A skill's bundled scripts may keep their language when
+  ported with their tests (`shipping-issues`' Python and shell), as before.
 
 ### D13. Gates — Designer
 
@@ -410,56 +422,53 @@ improvements from the triage:
 - `.claude/settings.json` names only recipes the justfile defines. (2026-10-01: the
   committed file was removed, see D20; the check now applies only to one added later.)
 
-### D15. Testing strategy — Owner (E2E), Designer (rest)
+### D15. Testing strategy — Designer, restated 2026-10-01
 
-Options for end-to-end on macOS: (a) `tauri-plugin-webdriver` behind an `e2e` feature
-driving the real WKWebView; (b) mocks on both sides plus a launch smoke; (c) CrabNebula's
-paid driver. Owner chose **(b)**: no pre-1.0 in-app WebDriver server and no paid key.
+No test drives a real terminal (D22). Each layer is tested where it can be without one:
 
 | Layer | Tool | Runs on |
 |---|---|---|
 | Core logic | `#[test]` in `myapp-core`, fakes from test-support, contract suites | Linux (coverage floor) |
-| Adapters | contract suites against real adapters, temp dirs per test | macOS CI; `#[ignore]` ones via `just test-local` |
-| Commands | `tauri::test::mock_builder()` + `get_ipc_response` against fakes: argument decoding, error mapping, event emission | macOS CI (`just test-macos`) |
-| UI | Vitest + Testing Library + `mockIPC`/`shouldMockEvents`, queries by role and accessible name | Linux |
-| Wiring | launch smoke (D22): build the release `.app`, run its executable in smoke mode, assert it exits 0 and the day's log file gains the startup line (proving the store, clock, and logging were wired); run the bundled helper (`Contents/MacOS/myapp-cli --version`); check `codesign` and entitlements | `just check`, macOS CI, release |
+| Adapters | contract suites against real adapters, a temp directory per test | Linux and macOS CI; `#[ignore]` ones via `just test-local` |
+| Subcommands | integration tests that run the built `myapp` with a temp data directory and assert stdout, stderr, and the exit code per error kind; argument parsing checked with clap's `Command::debug_assert` | Linux and macOS CI |
+| TUI rendering | `draw` into ratatui's `TestBackend` and assert the buffer's cells (text and style) for each state: the normal view, an error, the bounds | Linux (with core) and macOS CI |
+| TUI behaviour | `update` driven with key events built as values, asserting the next state and the core calls a fake recorded | Linux and macOS CI |
+| Wiring | a smoke run of the built binary (D22): `myapp --version`, and a subcommand against a temp data directory, proving the store, clock, and logging were wired | `just check`, both CI runners |
 
-The gap this leaves — a UI-to-Rust wiring mistake that only the running app shows — is
-named in `AGENTS.md` › Enforcement layers, with `just run` + `just logs` as the manual
-check a PR carries evidence of (the `running-the-app` skill).
+The gap this leaves — the real terminal loop (raw mode, the alternate screen, resize,
+restoring the terminal on exit) — is named in `AGENTS.md` › Enforcement layers, with a
+human running `myapp tui` as the manual check a PR carries evidence of (the
+`running-the-app` skill).
 
 Rules for tests (issue #134) live in `.claude/rules/testing.md` and the `tdd` skill: an
 oracle independent of the implementation, the contract suite, an injected clock never a
 sleep, a temp directory per test, exhaustive matches, where each kind of test goes.
 
-### D16. CI — Designer
+### D16. CI — Designer, restated 2026-10-01
 
-Workflows (job names are the ruleset's required contexts):
+Workflows (job names are the ruleset's required contexts; changing them needs the owner
+to re-apply the ruleset):
 
 | Workflow | Job name | Runner | Does |
 |---|---|---|---|
-| `ci.yml` | `Rust Core` | ubuntu | fmt check; clippy on Linux-buildable crates; nextest + llvm-cov floors on core; doctests; regenerate bindings and fail on diff; `cargo deny check`; `cargo shear` |
-| `ci.yml` | `Frontend` | ubuntu | typecheck; ESLint; Prettier check; Vitest with floors |
-| `ci.yml` | `Repo Lint & Harness` | ubuntu | typos; actionlint; skills mirror; script tests; harness checks |
-| `ci.yml` | `macOS Build & Smoke` | macos-26 | workspace clippy `-D warnings`; `just test-macos`; `just build`; `just smoke` (release build, sidecar, codesign, entitlements) |
-| `ci.yml` | `Template Bootstrap Smoke` | macos-26 | template-only: copy the tree, run `scripts/verify-bootstrap.ts`, run the bootstrap non-interactively, then `just check` in the result |
+| `ci.yml` | `Rust Core` | ubuntu | fmt check; clippy `-D warnings` on the workspace; nextest + llvm-cov floors on core; doctests; the workspace's tests, the TUI's `TestBackend` tests included; `cargo deny check`; `cargo shear` |
+| `ci.yml` | `Repo Lint & Harness` | ubuntu | typos; actionlint; skills mirror; xtask's tests; harness checks |
+| `ci.yml` | a macOS job | macos-26 | workspace clippy `-D warnings`; the workspace's tests, platform adapters included; build; the smoke run |
+| `ci.yml` | `Template Bootstrap Smoke` | ubuntu | template-only: run the bootstrap verification, bootstrap a throwaway copy, then `just check` there |
 | `ci.yml` | `Workflow Security Lint` | ubuntu | zizmor |
 | `dependency-review.yml` | `Dependency Review` | ubuntu | license allow-list, severity gate |
 | `check-pr-title.yml` | `Validate PR title` | ubuntu | Conventional Commits |
-| `pr-label.yml` | — | ubuntu | `scripts/label-pr.ts` from the base SHA (issue #126) |
-| `codeql.yml` | — | ubuntu | languages `rust`, `javascript-typescript`, `actions`; push, weekly |
-| `osv-scan.yml` | — | ubuntu | Cargo.lock + pnpm-lock.yaml; PR + weekly |
+| `pr-label.yml` | — | ubuntu | the labeller from the base SHA (issue #126) |
+| `codeql.yml` | — | ubuntu | languages `rust` and `actions`; push, weekly |
+| `osv-scan.yml` | — | ubuntu | `Cargo.lock`; PR + weekly |
 | `scorecard.yml` | — | ubuntu | weekly |
 | `security-audit.yml` | — | ubuntu | weekly gitleaks over full history, pinned via mise (issue #138) |
-| `release.yml` | — | macos-26 | D18 |
 
-Every job: SHA-pinned actions with version comments, `persist-credentials: false`,
-job-level least-privilege `permissions`, `timeout-minutes`, `concurrency` keyed on the ref
-that cancels only pull-request runs. Tools come from `jdx/mise-action` (v4 line until v5,
-released on the design day, has settled); Rust builds are cached with
-`Swatinem/rust-cache` except in the release path (zizmor's cache-poisoning finding);
-pnpm's store is cached the same way. Every cargo command passes `--locked`; every pnpm
-install `--frozen-lockfile`.
+The `Frontend` job and `release.yml` go with the GUI and with distribution (D18). Every
+job: SHA-pinned actions with version comments, `persist-credentials: false`, job-level
+least-privilege `permissions`, `timeout-minutes`, `concurrency` keyed on the ref that
+cancels only pull-request runs. Tools come from `jdx/mise-action`; Rust builds are cached
+with `Swatinem/rust-cache`. Every cargo command passes `--locked`.
 
 ### D17. Supply chain — Designer
 
@@ -482,52 +491,39 @@ from `cargo tree --target aarch64-apple-darwin`, each entry with its reason and 
 when no fixed release exists may it be ignored, with its reason, a 90-day expiry, and a
 tracking issue. Every entry is recorded in the implementation notes.
 
-### D18. Release — Designer
+### D18. No distribution — Owner (2026-10-01; supersedes the `.dmg` release)
 
-- Trigger: a `v*` tag push (a human act), or `workflow_dispatch` with `dry_run: true`,
-  which builds and uploads the `.dmg` as a workflow artifact without creating a release —
-  the path the implementation run uses to prove the pipeline.
-- Steps: verify the tag equals the version in `Cargo.toml`/`tauri.conf.json`/`package.json`
-  (kept equal by `just release-prep` and a harness check); run the core and UI tests;
-  `pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg`.
-- Signing: `tauri.conf.json` sets `signingIdentity: "-"` (ad-hoc) and
-  `hardenedRuntime: true` with `src-tauri/Entitlements.plist`. When the `APPLE_CERTIFICATE`
-  secret exists, the job imports it into a temporary keychain and passes
-  `APPLE_SIGNING_IDENTITY`; when the notarization secrets exist too, Tauri notarizes and
-  staples. Without secrets, both steps are skipped by an `if:` on a step-level env check,
-  never by `continue-on-error`.
-- Verification before upload (issue #97): `codesign --verify --deep --strict`, `codesign -d
-  --entitlements -` compared with `Entitlements.plist`, the sidecar signed, the launch
-  smoke on the built app, and `spctl --assess` when Developer ID signed.
-- Publish: `SHA256SUMS`, `actions/attest-build-provenance`, `gh release create` with the
-  `.dmg`; release notes from `.github/release.yml` categories.
-- Architecture: Apple Silicon only (`aarch64-apple-darwin`); `minimumSystemVersion` 14.0.
-  A universal build is an ADR decision for an app that needs Intel.
-- App Sandbox: off, as Tauri's default. A launchd manager must write
-  `~/Library/LaunchAgents` and run `launchctl`, which the sandbox forbids; turning it on
-  is an ADR decision. `docs/distribution.md` explains Gatekeeper for an ad-hoc build
-  (Privacy & Security › Open Anyway, or `xattr -dr com.apple.quarantine`), and that a
-  locally built app (`just run`) is never quarantined.
+There is no release pipeline: no `release.yml`, no signing or notarization, no disk image,
+no Homebrew tap, no release artifacts, and no crates.io publishing. A tool is built and
+installed from its own checkout with `cargo install --path` on the binary crate, which
+needs no secret, no tag, and no CI. `CHANGELOG.md` and the version in `Cargo.toml` stay,
+so a tool still records what changed; a `v*` tag remains a human act if one is wanted.
 
-### D19. Bootstrap — Designer
+The entitlements file, the signing settings, the `APPLE_*` secrets, the `release`
+environment, and the release-tags ruleset's purpose of protecting release builds go with
+the GUI. Revisited — as an ADR in the app — only when a tool needs to reach other people.
 
-`scripts/bootstrap.ts` (typescript-template's shape, macos-app-template's scope): prompts
-or flags for display name (`MyApp`), slug (`myapp`, used for crate names and binaries),
-bundle identifier (`com.example.myapp`), GitHub `owner/repo`, author, and copyright
-holder. It rewrites an explicit list of placeholder sites (never a global replace),
-renames the crate directories, updates `Cargo.lock` offline, removes `<!-- template-only -->`
-blocks and `docs/template/`, resets `CHANGELOG.md` and the version to 0.1.0, deletes
-itself, then prints next steps — fill `AGENTS.md` › Product, fill
-`docs/architecture/roadmap.md` with `steering-the-roadmap` (issue #172), `just install`,
-`just labels`, `just ruleset`, the GitHub security settings. `scripts/verify-bootstrap.ts`
-bootstraps a temp copy and fails on any leftover placeholder or template-only marker, a
-dangling skill reference, or a mismatch between names; CI's `Template Bootstrap Smoke`
-(a macOS job with `timeout-minutes: 60`) runs it, then bootstraps a fresh `git clone`
-with a hyphenated multi-word slug (so the hyphen, underscore, and upper-case forms are
-all exercised), asserts `just check-harness` fails with the Product-section code — the
-check must fire on an unfilled app — then writes a stub Product section in that copy and
-runs `just check` there. The bootstrap removes this job and its ruleset context from the
-generated app, as macos-app-template's does.
+### D19. Bootstrap — Designer, restated 2026-10-01
+
+The bootstrap is an xtask (`cargo xtask bootstrap`, D12), with macos-app-template's
+scope: prompts or flags for display name (`MyApp`), slug (`myapp`, used for crate names
+and the binary), identifier (`com.example.myapp`, which keys the data and log
+directories on macOS), GitHub `owner/repo`, author, and copyright holder. It rewrites an
+explicit list of placeholder sites (never a global replace), renames the crate
+directories, updates `Cargo.lock` offline, removes `<!-- template-only -->` blocks and
+`docs/template/`, resets `CHANGELOG.md` and the version to 0.1.0, removes itself, then
+prints next steps — fill `AGENTS.md` › Product, fill `docs/architecture/roadmap.md` with
+`steering-the-roadmap` (issue #172), `just install`, `just labels`, `just ruleset`, the
+GitHub security settings.
+
+A verification task bootstraps a temporary copy and fails on any leftover placeholder or
+template-only marker, a dangling skill reference, or a mismatch between names. CI's
+`Template Bootstrap Smoke` runs it, then bootstraps a fresh `git clone` with a hyphenated
+multi-word slug (so the hyphen, underscore, and upper-case forms are all exercised),
+asserts the harness check fails with the Product-section code — the check must fire on
+an unfilled app — then writes a stub Product section in that copy and runs `just check`
+there. It no longer needs a macOS runner. The bootstrap removes this job and its ruleset
+context from the generated app.
 
 ### D20. Agent harness — Designer
 
@@ -571,86 +567,63 @@ identifier, IPC command/event names, on-disk file formats), `docs/distribution.m
 `docs/architecture/adr/template.md`, `docs/architecture/roadmap.md` (skeleton),
 `.github/` issue forms, PR template, `labels.yml`, `release.yml`.
 
-### D22. Never taking over the developer's Mac — Owner
+### D22. Never taking over the developer's machine or terminal — Owner, restated 2026-10-01
 
-The owner develops on the same Mac the checks run on, often while an unattended agent
-iterates. Owner's words (2026-09-28): a visible app is acceptable when a verification
-genuinely needs it, but running the tests must never interrupt their work — unit tests,
-mocks, and headless runs come first. So nothing a routine check runs — `just check` and every recipe in it, the
-pre-commit hook, the agent's PostToolUse hook, and any step an agent runs to verify its
-own work — may show a window, take keyboard focus, move the pointer, add a Dock icon, or
-raise a permission, Keychain, or Gatekeeper prompt.
+The owner develops on the same machine the checks run on, often while an unattended
+agent iterates in a terminal next to their own. Owner's words (2026-09-28): running the
+tests must never interrupt their work — unit tests, fakes, and headless runs come first.
+So nothing a routine check runs — `just check` and every recipe in it, the pre-commit
+hook, the agent's PostToolUse hook, and any step an agent runs to verify its own work —
+may show a window, take keyboard focus, move the pointer, or raise a permission,
+Keychain, or Gatekeeper prompt; and, now that the template's UI is a terminal one, none
+may take over a terminal:
 
-- **Smoke mode.** When the app starts with `MYAPP_SMOKE=1` (renamed by the bootstrap), the
-  shell sets the activation policy to `Prohibited` before any window exists, creates the
-  main window hidden, completes the normal startup path (store, clock, logging, command
-  registration), writes a `startup complete` log line, and exits 0; any startup error
-  exits non-zero. `just smoke` runs the built executable directly (not `open`, which
-  activates the app). The flag changes visibility and lifetime only, never behaviour, and
-  a Rust test asserts that. The implementation run confirms on this Mac that a smoke run
-  leaves the frontmost application unchanged; if `Prohibited` cannot keep focus, it falls
-  back to `Accessory` plus a hidden window and records the deviation.
-- **Human-only tests.** A test that needs a GUI session, a TCC grant, or the Keychain is
-  `#[ignore]`d and runs only in `just test-local`, which a human starts on purpose. The
-  sample has none.
-- **Visible on request only.** `just dev`, `just run`, and `just install-app` open the
-  app; they are never part of `just check`, and the `running-the-app` skill tells an agent
-  to prefer smoke mode and `just logs` for evidence, opening the app only when the human
-  asks. `just test-local`, `just reset-permissions`, and `just logs-follow` are likewise
-  human-started only.
-- **No disk image locally.** Building a `.dmg` drives Finder through AppleScript unless
-  the build runs under CI, so every local recipe builds with `--bundles app`; only the
-  release workflow on a CI runner builds the `.dmg`.
-- **No tool installs prompts.** `just install` needs no `sudo` and opens no installer;
-  a missing Xcode Command Line Tools is reported with the command to run, not triggered.
+- **No real terminal in a check.** No check enables raw mode, enters the alternate
+  screen, reads a key from a real terminal, or depends on being attached to a TTY. TUI
+  rendering is tested against ratatui's `TestBackend`, and TUI behaviour by feeding key
+  events as values to the `update` function (D8, D15). A check never runs `myapp tui`.
+- **Headless smoke.** The smoke run executes the built binary non-interactively —
+  `--version` and a subcommand against a temporary data directory — with stdin not a
+  terminal, asserts the exit code and that the log file gained its line, and leaves
+  nothing behind outside its temp directory.
+- **Interactive on request only.** `myapp tui` and the recipes that run the tool for a
+  human are never part of `just check`; the `running-the-app` skill tells an agent to use
+  the tests and the smoke run for evidence, and to ask the human to run the TUI when a
+  change only the real terminal shows needs eyes on it. `just test-local` and
+  `just logs-follow` are likewise human-started only.
+- **Human-only tests.** A test that needs a GUI session, a TCC grant, the Keychain, or a
+  real terminal is `#[ignore = "local machine: <what it needs>"]` and runs only in
+  `just test-local`. The sample has none.
+- **No tool installs prompts.** `just install` needs no `sudo` and opens no installer; a
+  missing system tool is reported with the command to run, not triggered.
 
-### D23. The base design system, and choosing an app's own — Owner
+### D23. The base design system — superseded 2026-10-01
 
-The template ships a working, deliberately neutral design system, and an app cut from it
-decides its own design system first, before its first screen.
-
-- **The base: macOS-native and neutral.** Grounded in Apple's Human Interface Guidelines
-  so an app that never runs design research still looks like a Mac app: the system font
-  stack and a type scale mirroring macOS text styles, semantic color tokens with light and
-  dark values (`prefers-color-scheme`), the user's accent color through `accent-color`
-  and an accent token, a spacing and radius scale, motion durations that collapse under
-  `prefers-reduced-motion`. It lives in `ui/src/design/`: `tokens.css` (primitive values,
-  then the semantic tokens components use), `base.css`, and a handful of primitives the
-  sample uses (`Button`, `IconButton`, `Stack`, `Panel`, `Text`). `docs/design/design-system.md`
-  lists every token with its role and each primitive's recipe.
-- **Enforced, not only documented.** A harness check fails on a raw color literal
-  (hex, `rgb()`, `hsl()`, named colors), a `font-family`, or a pixel font size anywhere in
-  `ui/src/` outside `tokens.css`; components reach values only through `var(--…)`. A
-  Vitest test parses `tokens.css` and asserts every semantic token has a dark value and
-  every text/background pair the design system declares meets WCAG contrast (4.5:1 for
-  body text, 3:1 for large text and UI components) in both appearances.
-- **An app chooses its own first.** `starting-an-app`'s first design step, before any
-  screen work: decide the app's design system with the `refero-design` skill when the
-  session has it (research-first: Refero styles, then screens, a reference lock, and a
-  decision ledger), otherwise with `designing-ui`'s own research steps. The outcome is
-  recorded as the app's design-lock ADR (`docs/architecture/adr/NNNN-design-lock.md`:
-  direction, references, decision ledger) and applied by replacing `tokens.css` values
-  and, where the direction needs it, the primitives — never by styling a screen directly.
-  The contrast test and the literal check hold for the app's tokens exactly as for the
-  base. `refero-design` is named as optional because it is a user-level skill, not part
-  of this repository; the template never depends on it to build or pass its checks.
-- **Ownership.** `designing-ui` owns the design-lock mechanics and the craft rules;
-  `building-react-screens` owns using the primitives and tokens on a screen.
+Removed with the GUI (§4): the CSS tokens, primitives, design-system document, literal
+check, contrast test, and the design-lock ADR step all served the WebView. A TUI's
+styling is D8's one theme module over the terminal's own colors; an app that wants a
+distinctive look records it as an ADR like any other decision.
 
 ## 4. What was not carried over, and why
 
 | From | Mechanism | Why not |
 |---|---|---|
 | macos-app-template | XcodeGen, `project.yml`, `.xcode-version`, the `select-xcode` action, SwiftLint, SwiftFormat, Swift Testing, `LaunchUITests` | Swift/Xcode-specific; Cargo, clippy, rustfmt, and the launch smoke take their places. |
-| macos-app-template | `docs/adding-ios.md` | macOS only. |
-| macos-app-template | bash as the scripts' language and `scripts/tests/lib.sh` | D12: TypeScript with real parsers and Vitest. |
+| macos-app-template | `docs/adding-ios.md` | No mobile targets. |
+| macos-app-template | bash as the scripts' language and `scripts/tests/lib.sh` | D12: Rust in `cargo xtask`, with real parsers and Rust tests. |
 | macos-app-template | `.githooks/` + `core.hooksPath` | D11: lefthook for a polyglot repository; the verify-hooks idea is kept. |
 | macos-app-template | `just logs` via `log stream` | Logs go to rotated files (D7); `just logs` tails them. |
 | macos-app-template | `.requiresLocalMachine` trait | Rust's `#[ignore = "…"]` plays the same role. |
-| typescript-template | npm publishing gates (pack, attw, OIDC trusted publishing, package smoke), TypeDoc, the universal-library profile, documented-snippet compilation | This template ships an app, not a package. |
+| typescript-template | npm publishing gates (pack, attw, OIDC trusted publishing, package smoke), TypeDoc, the universal-library profile, documented-snippet compilation | This template builds tools, not packages; nothing is published. |
 | typescript-template | `vitest related` and a whole-program typecheck in pre-commit; Prettier `--write` with re-stage | The #140 decision: the hook is check-only and fast; formatting is `just fmt` and the agent hook. |
 | typescript-template | shipping no `.claude/settings.json` | The design keeps macos-app-template's committed settings (D20): this repository's owner runs agents unattended in it, and the deny list is reviewed in PRs like any file. 2026-10-01: reversed; the committed settings were removed after all (D20). |
-| both | Windows/Linux runners for the app | Distribution is macOS only; Linux runs only what does not need macOS. |
+| both | Windows runners | Windows is a non-goal (§1); macOS and Linux are the targets. |
+| this template (pivot, 2026-10-01) | D4: `ts-rs` bindings, `ui/src/ipc/`, the command/event drift check | No IPC: one process, subcommands and the TUI call core directly. |
+| this template (pivot, 2026-10-01) | D5: the `myapp-cli` sidecar and `bundle.externalBin` | One binary with subcommands (new D5). |
+| this template (pivot, 2026-10-01) | D8: React, Vite, TypeScript, ESLint, Prettier, Vitest, the CSP and capabilities | No GUI; ratatui (new D8). |
+| this template (pivot, 2026-10-01) | D12: TypeScript scripts under `scripts/`, Node, pnpm | `cargo xtask` (new D12). |
+| this template (pivot, 2026-10-01) | D18: the `.dmg` release, signing, notarization, `Entitlements.plist`, `release.yml` | No distribution; `cargo install --path` (new D18). |
+| this template (pivot, 2026-10-01) | D23: the CSS design system, its checks, and the design-lock step | No WebView to style; a TUI theme module (D8). |
 
 ## 5. Steps only a human can take
 
@@ -661,18 +634,19 @@ Done in the design session, before the implementation run:
   alerts and security updates;
 - repository merge settings (squash only, delete branch on merge).
 
-Left to a human after the implementation run: pushing a `v*` release tag; adding Apple
-signing and notarization secrets; the `#[ignore]`d `just test-local` run; filling the
-Product section in an app cut from the template.
+Left to a human after the implementation run: the `#[ignore]`d `just test-local` run;
+running `myapp tui` in a real terminal when a change only it shows needs eyes on it;
+re-applying the rulesets with `just ruleset` when the required CI jobs change; filling
+the Product section in an app cut from the template.
 
 ## 6. Known risks
 
-- Tauri 3 is in alpha: a Dependabot major bump will arrive; the `merging-dependency-prs`
-  skill treats it as a migration, not a bump.
-- `tauri::test` is marked unstable; command tests may need edits on a Tauri minor.
-- ts-rs output formatting can change across versions, producing a bindings diff on a bump;
-  the drift check makes it visible.
-- macOS runner queues are slower than Ubuntu's; CI keeps macOS to one job per PR plus the
-  bootstrap smoke.
+- ratatui and crossterm are pre-1.0: a minor bump can change the API; the
+  `merging-dependency-prs` skill treats such a bump as a migration, and the
+  `TestBackend` tests make a rendering change visible.
+- The real terminal loop is untested by any gate (D15, D22); keeping it thin is the
+  mitigation, and the terminal-restore path is the part most worth a human's run.
+- macOS runner queues are slower than Ubuntu's; CI keeps macOS to one job per PR.
 - CodeQL's Rust support maturity was not confirmed; if the `rust` language fails on the
-  runner, the run records it and keeps `javascript-typescript` and `actions`.
+  runner, the run records it and keeps `actions`.
+- The 2026-09-28 risks about Tauri 3, `tauri::test`, and `ts-rs` output went with the GUI.
