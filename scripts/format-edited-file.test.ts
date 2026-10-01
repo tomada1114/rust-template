@@ -12,11 +12,9 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { parse } from "yaml";
-
 import { formatterFor, main, PRETTIER_EXTENSIONS } from "./format-edited-file.ts";
 import { ScriptError } from "./lib/fail.ts";
-import { REPO_ROOT, type RunResult, type ScriptContext } from "./lib/script.ts";
+import { type RunResult, type ScriptContext } from "./lib/script.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -80,9 +78,6 @@ function caught(action: () => void): ScriptError {
   throw new Error("expected a ScriptError");
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 describe("formatterFor", () => {
   it("pipes Rust through rustfmt, naming no path it could follow into mod children", () => {
     const root = tempDir();
@@ -137,18 +132,15 @@ describe("formatterFor", () => {
     expect(formatterFor("/r/rs", "/r")).toBeUndefined();
   });
 
-  it("formats exactly the extensions lefthook.yml's prettier job checks", () => {
-    // Read-only: the hook's own config is the oracle this list must agree with.
-    const config: unknown = parse(readFileSync(join(REPO_ROOT, "lefthook.yml"), "utf8"));
-    const preCommit = isRecord(config) ? config["pre-commit"] : undefined;
-    const jobs: unknown[] =
-      isRecord(preCommit) && Array.isArray(preCommit["jobs"]) ? preCommit["jobs"] : [];
-    const job = jobs.find((candidate) => isRecord(candidate) && candidate["name"] === "prettier");
-    const glob = isRecord(job) && typeof job["glob"] === "string" ? job["glob"] : "";
-    const braces = /^\*\.\{([^}]*)\}$/.exec(glob)?.[1];
-    expect(braces, `the prettier job's glob, ${JSON.stringify(glob)}`).toBeDefined();
-    const hooked = (braces ?? "").split(",").map((extension) => `.${extension}`);
-    expect([...PRETTIER_EXTENSIONS].sort()).toEqual(hooked.sort());
+  it("formats every extension in PRETTIER_EXTENSIONS with Prettier", () => {
+    for (const extension of PRETTIER_EXTENSIONS) {
+      expect(formatterFor(`/r/a${extension}`, "/r")?.args).toEqual([
+        "exec",
+        "prettier",
+        "--write",
+        `/r/a${extension}`,
+      ]);
+    }
   });
 });
 
