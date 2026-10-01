@@ -560,10 +560,9 @@ removing or narrowing its bullet here:
   in a gitignored `.codex/rules/local.rules`. That choice shapes where a human is
   consulted rather than what is possible. A personal file should keep at `ask` the
   recipes that need a human or write outside the checkout (`test-local`, `logs-follow`,
-  `install-cli`) and those that write to GitHub
-  or rewrite the repository (`bootstrap`, `labels`, `ruleset`). The same file is where
-  to register `scripts/format-edited-file.ts` as a `PostToolUse` hook on
-  `Edit|Write|MultiEdit`
+  `install-cli`) and those that write to GitHub or rewrite the repository
+  (`bootstrap`, `labels`, `ruleset`). The same file is where to register
+  `scripts/format-edited-file.ts` as a `PostToolUse` hook on `Edit|Write|MultiEdit`
   (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- node scripts/format-edited-file.ts`), which
   formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod` child) or
   TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the
@@ -609,9 +608,8 @@ Before submitting a PR:
 - NEVER proactively create documentation files unless explicitly requested
 - NEVER lower a coverage floor or relax a lint to make a check pass
 - NEVER run a recipe that needs a human (`just test-local`, `just logs-follow`,
-  `just install-cli`) unless
-  the human asked for it; `just test-macos` and `just logs` are the evidence an agent
-  gathers on its own
+  `just install-cli`) unless the human asked for it; `just test-macos` and `just logs`
+  are the evidence an agent gathers on its own
 - A comment carries only what the code cannot: a non-obvious why, a trap the next edit
   would spring, an external constraint. Default to none, and keep the rest to a line or
   two — restating the code, or narrating how it came to be, is what the code and git
