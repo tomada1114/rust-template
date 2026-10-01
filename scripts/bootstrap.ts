@@ -227,6 +227,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "crates/myapp-core/src/lib.rs", forms: ["slug"] },
   { file: "crates/myapp-core/src/log.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-core/tests/contracts.rs", forms: ["slugSnake", "slug"] },
+  { file: "crates/myapp-core/tests/counter_screen.rs", forms: ["slugSnake", "slug"] },
   { file: "crates/myapp-core/tests/counter_service.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-core/tests/serialization.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-platform/Cargo.toml", forms: ["slug"] },
