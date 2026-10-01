@@ -10,7 +10,8 @@ description: >
   or GIT_INDEX_FILE; gitEnv, stagedGuardEnv), writing a ScriptError with an
   ERR_<STAGE>_<WHAT> code and Expected/Actual/Next lines, erasableSyntaxOnly or a .ts
   import extension fails, stubbing git, gh, or cargo in a test through the context's
-  run function, or a scripts/ coverage floor fails.
+  run function, or a scripts/ coverage floor fails; and the same contract in a
+  cargo xtask task (xtask/src/, its Context, git_env, ScriptError, just test-xtask).
 ---
 
 # Writing Repository Scripts
@@ -26,6 +27,26 @@ joins (`placing-tests`); a new package the script would import
 The rules themselves live once, in `AGENTS.md` › "Repository scripts": read it first.
 This skill carries the reasons behind them and worked examples from the tree; it does
 not restate the list, so the two cannot drift.
+
+## A task in `cargo xtask`
+
+The developer-loop automation has moved to Rust: `xtask/src/<task>.rs`, dispatched by
+name from `xtask/src/main.rs` and run as `cargo xtask <task>` (the alias in
+`.cargo/config.toml`). The contract below carries over one for one, and the Rust
+spellings are:
+
+- `main(context: &Context<'_>) -> TaskResult`, where `Context` (`xtask/src/context.rs`)
+  holds argv, env, root, a `run` function, a logger, and stdin. A unit test builds one
+  with `test_support::Fake` (`Fake::at(root).argv(…).env(…).run(&fake).task(main)`), and
+  a run of the built binary in `xtask/tests/` sets `CARGO_MANIFEST_DIR` to a temporary
+  directory's `xtask/`, which is how the binary finds its root under `cargo run`.
+- `git_env` and `staged_guard_env` (`xtask/src/git_env.rs`) for spawned git.
+- `ScriptError::new(code, summary, expected, actual, next)` (`xtask/src/fail.rs`),
+  `.with_exit_code(2)` for a Claude Code hook, and `ScriptError::unexpected` for an I/O
+  error no code names (`ERR_INTERNAL_UNEXPECTED`).
+- Its tests live in the task's `#[cfg(test)] mod tests`; `just test-xtask` holds the
+  crate to lines 85 and functions 90, and the staged guard's rules (`xtask/guard/`) to
+  lines 90 and functions 100.
 
 ## Why TypeScript, run by Node directly
 
@@ -91,9 +112,10 @@ every `GIT_*` variable:
 context.run("git", ["status", "--porcelain"], { cwd: context.root, env: gitEnv(context.env) });
 ```
 
-The one exception is the staged guard, `scripts/check-staged.ts`: it **is** the
+The one exception is the staged guard, `cargo xtask check-staged`: it **is** the
 pre-commit check and must judge the index actually being committed, so it uses
-`stagedGuardEnv(env)`, which keeps `GIT_INDEX_FILE` and drops the rest.
+`staged_guard_env(env)` (`stagedGuardEnv` in TypeScript), which keeps `GIT_INDEX_FILE`
+and drops the rest.
 
 ## Outside a git work tree: refuse or skip
 
@@ -101,8 +123,8 @@ Every header says which, and the choice follows from whether the script's questi
 exists outside a checkout:
 
 - **Refuse**, with a named code, when the job is defined over the repository.
-  `scripts/check-staged.ts` has no index to judge (`ERR_STAGED_NOT_A_REPO`);
-  `scripts/verify-hooks.ts` checks this checkout's hook (`ERR_HOOKS_NOT_A_REPO`).
+  `cargo xtask check-staged` has no index to judge (`ERR_STAGED_NOT_A_REPO`);
+  `cargo xtask verify-hooks` checks this checkout's hook (`ERR_HOOKS_NOT_A_REPO`).
 - **Skip with a one-line notice** when the question is meaningless there, and exit 0.
 - A harness check under `scripts/checks/` takes `--root <dir>` and needs no git to find
   its tree, which is what lets its test point it at a fixture per failure mode.
@@ -117,9 +139,9 @@ guard names a path and a rule, never the text). Throw a `ScriptError`
 other exception into `ERR_INTERNAL_UNEXPECTED`. The exit code is 1, or 2 for a Claude
 Code `PostToolUse` hook, the code whose stderr is shown to the agent
 (https://code.claude.com/docs/en/hooks, checked 2026-09-29;
-`scripts/format-edited-file.ts`). List every code in the header.
+`cargo xtask format-edited-file`). List every code in the header.
 
-`scripts/verify-hooks.ts` in a clone where `just install` never ran (the checkout's
+`cargo xtask verify-hooks` in a clone where `just install` never ran (the checkout's
 absolute path shortened to `<repo>`):
 
 ```text
@@ -148,11 +170,12 @@ runs in Vitest's `scripts` project under `just test-scripts`.
 
 - **Call `main` with a context you build.** Collect `log` lines in an array and pass a
   `run` that records each call and answers from a table, as `scripts/sync-labels.test.ts`
-  does for `gh` and `scripts/clippy-guard.test.ts` for `cargo`. Assert on the recorded
+  does for `gh` and `xtask/src/clippy_guard.rs`'s tests for `cargo`. Assert on the recorded
   calls: that is how a test proves what would have been sent to GitHub without sending
   it.
 - **A throwaway repository per test.** `mkdtemp` under `os.tmpdir()`, `git init` with
-  `gitEnv(process.env)`, removed in `afterEach` (`scripts/verify-hooks.test.ts`). Never
+  `gitEnv(process.env)`, removed in `afterEach` (`scripts/checks/ruleset-contexts.test.ts`;
+  `xtask/src/verify_hooks.rs`'s tests in Rust). Never
   read or write the real checkout, and never a fixed shared path: Vitest runs files in
   parallel, and two tests on one path race.
 - **Assert the code, not the prose**: `expect(error).toMatch(/^ERR_HOOKS_NOT_INSTALLED/)`.
@@ -162,8 +185,7 @@ runs in Vitest's `scripts` project under `just test-scripts`.
   push protection. Say so in the test's header comment.
 
 Enforced by: `vitest.config.ts` "thresholds" (`scripts/**` and a skill's
-`.agents/skills/*/scripts/**` lines 85, functions 90; `scripts/lib/guard/**` lines 90,
-functions 100). An untested new file counts as 0%, so
+`.agents/skills/*/scripts/**` lines 85, functions 90). An untested new file counts as 0%, so
 it pulls the tree's number down from the moment it exists.
 
 ## Adding a script

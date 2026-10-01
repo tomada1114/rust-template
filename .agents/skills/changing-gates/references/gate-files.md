@@ -38,7 +38,7 @@ current values.
   `std::os::unix` path on another target) is only a configuration warning, which
   `-D warnings` does not turn into an error, so the ban would silently do nothing.
   `just lint` and CI's clippy steps therefore run clippy through
-  `scripts/clippy-guard.ts`, which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on such a path,
+  `cargo xtask clippy-guard`, which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on such a path,
   and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic located in a `clippy.toml`
   (a deprecated key, which clippy also only warns about, or an unknown one). Clippy's
   suggested `allow-invalid = true` hides the warning, which makes it weakening a gate;
@@ -112,10 +112,12 @@ only what each job names.
   reason jobs never write.
 - The staged guard has no `glob`: it must see every staged path whatever its extension.
   Adding a glob narrows it without anything reporting the gap.
-- `just verify-hooks` (`scripts/verify-hooks.ts`) fails at `just install` and
+- `just verify-hooks` (`cargo xtask verify-hooks`) fails at `just install` and
   `just check` time when the hook is not installed; `ALLOW_MISSING_GIT_HOOKS=1` is the
-  one opt-out, and CI is skipped. Its test (`scripts/verify-hooks.test.ts`) pins that
+  one opt-out, and CI is skipped. Its tests (`xtask/src/verify_hooks.rs`) pin that
   behaviour.
+- The hook's xtask jobs run `cargo xtask`, which builds the xtask crate from the working
+  tree: a commit made while `xtask/` does not compile is refused until it does.
 
 ## `eslint.config.mjs`
 
@@ -160,8 +162,9 @@ for every file in that tree.
 ## `vitest.config.ts`
 
 - `thresholds` are per glob (`ui/src/**` 80/80, `scripts/**` 85/90,
-  `.agents/skills/*/scripts/**` 85/90, `scripts/lib/guard/**` 90/100) so one tree
-  cannot subsidise another.
+  `.agents/skills/*/scripts/**` 85/90) so one tree cannot subsidise another. The staged
+  guard's rules left this file with the port to Rust: their floor (lines 90, functions
+  100) is the `test-xtask` recipe's.
 - `coverage.include` counts every source file, tested or not, so a new untested file
   shows as 0% rather than disappearing. Each `exclude` entry that takes source code out
   carries a reason; a new one is weakening unless the file holds nothing to decide
@@ -194,7 +197,9 @@ on that mirror.
 
 ## The `justfile` recipes that are gates
 
-`test-core` carries the core floor flags, `lint` runs clippy with `-D warnings`, and
+`test-core` carries the core floor flags, `test-xtask` the xtask floors (lines 85 and
+functions 90 over `xtask` and `xtask-guard`, then lines 90 and functions 100 over
+`xtask/guard/` alone, from one test run), `lint` runs clippy with `-D warnings`, and
 `check` lists the local gate. Recipe names are contract
 for `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, the skills, and a committed
 `.claude/settings.json` if one is added, all of which `just check-harness` reads.

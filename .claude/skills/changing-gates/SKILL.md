@@ -4,8 +4,8 @@ description: >
   Covers editing a file that enforces rather than implements: Cargo.toml's
   [workspace.lints], clippy.toml and crates/myapp-core/clippy.toml, rustfmt.toml,
   deny.toml, osv-scanner.toml, rust-toolchain.toml, mise.toml, lefthook.yml,
-  scripts/check-staged.ts and scripts/lib/guard/, eslint.config.mjs, tsconfig*.json,
-  vitest.config.ts thresholds, .prettierrc.json and .prettierignore, typos.toml,
+  xtask/src/check_staged.rs and xtask/guard/, eslint.config.mjs, tsconfig*.json,
+  vitest.config.ts thresholds, the test-xtask recipe's floors, .prettierrc.json and .prettierignore, typos.toml,
   tauri.conf.json's security and bundle.macOS, src-tauri/capabilities/,
   src-tauri/Entitlements.plist, the test-core recipe's floors, .github/workflows/*.yml,
   and .github/rulesets/main.json. Use when a lint, a ban, a floor, a pin, an ignore
@@ -111,18 +111,22 @@ commit: try it against an ordinary commit before trusting it to catch a bad one.
 
 ## The staged guard
 
-`scripts/check-staged.ts` judges each staged path with `scripts/lib/guard/paths.ts`,
-then, only if the path passes, the staged blob with `scripts/lib/guard/credentials.ts`.
+`cargo xtask check-staged` (`xtask/src/check_staged.rs`) judges each staged path with
+`xtask/guard/src/paths.rs`, then, only if the path passes, the staged blob with
+`xtask/guard/src/credentials.rs`.
 It names the path and the rule, never the matched text, and never inspects a staged
 deletion (a deletion cannot add a secret, and blocking one would block the commit that
 removes a secret). A new pattern starts from a real false negative and lands with a
 test case whose secret-shaped value is assembled at runtime, so no committed file,
 including the test, is itself secret-shaped. Removing a pattern is weakening a gate.
 What the guard deliberately does not block, and why (a public certificate, a `.key`
-that may be a Keynote document, a bare `.envrc`), is listed in `paths.ts`'s header; no
+that may be a Keynote document, a bare `.envrc`), is listed in `paths.rs`'s header; no
 entropy heuristic, since whether a commit *should* contain what it contains stays in
-review. `paths.ts`'s list and `AGENTS.md`'s never-read list change together. Enforced by:
-`vitest.config.ts` "scripts/lib/guard/**" (lines 90, functions 100).
+review. `paths.rs`'s list and `AGENTS.md`'s never-read list change together. The `regex`
+crate has no look-around, so a rule that would need one says it another way
+(`credentials.rs`'s header shows how). Enforced by: the `test-xtask` recipe's second
+`cargo llvm-cov report` line (the guard's rules in `xtask/guard/`: lines 90, functions
+100), and `xtask/tests/lefthook.rs`, which runs the real hook.
 
 ## What no gate here sees
 

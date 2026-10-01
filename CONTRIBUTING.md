@@ -31,9 +31,11 @@ just install   # mise install, pnpm install --frozen-lockfile, lefthook install,
 just fmt            # format every Rust and TypeScript file
 just fix            # formatters plus ESLint's automatic fixes
 just lint           # rustfmt check, workspace clippy -D warnings, tsc, ESLint, Prettier check
-just test           # test-core, with its coverage floors
+just test           # test-core and test-xtask, with their coverage floors
 just test-core      # core: nextest under llvm-cov (lines 80, functions 80), doctests,
                     #   and the other Linux-buildable crates' tests
+just test-xtask     # xtask's tests under llvm-cov (lines 85, functions 90; the staged
+                    #   guard's rules in xtask/guard/ lines 90, functions 100)
 just test-fast increment   # one core test or a group of them, no coverage
 just test-macos     # platform adapters and the CLI against the real macOS, macOS only
 just test-scripts   # Vitest over scripts/ and skills' scripts with their floors, plus
@@ -64,13 +66,14 @@ Each recipe is a thin call; the justfile is the reference. The main ones:
 
 ```bash
 mise install && pnpm install --frozen-lockfile && lefthook install
-node scripts/verify-hooks.ts                     # just verify-hooks
+cargo xtask verify-hooks                         # just verify-hooks
 cargo fmt --all --check                          # part of just lint
-node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
 pnpm typecheck && pnpm lint && pnpm format:check
 cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
 cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
+cargo llvm-cov nextest --locked --no-report -p xtask -p xtask-guard  # just test-xtask (its floors: the recipe's report lines)
 pnpm test:scripts                                # just test-scripts (plus Python tests, shellcheck)
 cargo nextest run --locked -p myapp-platform -p myapp-cli   # just test-macos
 cargo deny --locked check                        # just deny
@@ -84,7 +87,7 @@ cargo deny --locked check                        # just deny
 | Access to the OS or the filesystem | an adapter in `crates/myapp-platform` behind a port core declares, plus a fake and a contract function in `crates/myapp-test-support` |
 | A command or an event | `src-tauri/src/commands.rs` and `lib.rs`'s handler list, and the matching wrapper in `ui/src/ipc/commands.ts` or `events.ts` |
 | A screen or a component | `ui/src/`, using the primitives and tokens in `ui/src/design/`; user-facing wording in `ui/src/copy/` |
-| Repository automation | `scripts/*.ts`, with a test beside it |
+| Repository automation | a task in `xtask/src/` (run as `cargo xtask <task>`), with its tests beside it; `scripts/*.ts` only for what is not yet ported |
 
 [docs/architecture.md](docs/architecture.md) explains the layers and what is contract.
 A new crate or npm package needs a reason and a maintainer's sign-off.

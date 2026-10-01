@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Repository automation starts moving to Rust: a `cargo xtask` crate (`xtask/`, with
+  the staged guard's rules in `xtask/guard/`) and a `.cargo/config.toml` alias replace
+  `scripts/check-staged.ts`, `verify-hooks.ts`, `format-edited-file.ts`,
+  `clippy-guard.ts`, `sync-agents.ts`, and `prune-temp.ts`, keeping their behaviour and
+  `ERR_*` codes. `lefthook.yml`, the justfile, and CI call `cargo xtask`; the new
+  `just test-xtask` (part of `just test` and `just check`) holds xtask to lines 85 /
+  functions 90 and the guard's rules to lines 90 / functions 100. A personal
+  `PostToolUse` format hook now runs
+  `cd "$CLAUDE_PROJECT_DIR" && mise exec -- cargo xtask format-edited-file`. The `regex`
+  crate is added for the guard's credential patterns.
 - The committed `.claude/settings.json` is removed: Claude Code permissions and the
   format-on-edit hook now live in each person's user-level `~/.claude/settings.json` or
   the gitignored `.claude/settings.local.json`, and Codex CLI's personal rules in a

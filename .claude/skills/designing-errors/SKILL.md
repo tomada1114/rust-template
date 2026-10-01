@@ -163,14 +163,18 @@ sample, `describe` in `crates/myapp-cli/src/main.rs`). Adding it for the CLI's `
 new dependency (`managing-dependencies`), and it stays out of core, platform, and the
 shell.
 
-## Codes in `scripts/`
+## Codes in `xtask/` and `scripts/`
 
-A repository script fails with a `ScriptError` (`scripts/lib/fail.ts`) whose `code` is
+A repository task or script fails with a `ScriptError` (`xtask/src/fail.rs` for a
+`cargo xtask` task, `scripts/lib/fail.ts` for a script not yet ported) whose `code` is
 `ERR_<STAGE>_<WHAT>`: the stage is the script (`ERR_SMOKE_*`, `ERR_AGENTS_*`,
-`ERR_RELEASE_*`), so the code alone says which script to read, and the rest names the
-failure, not the function (`ERR_SMOKE_CODESIGN`, not `ERR_SMOKE_VERIFY_FAILED`). Reuse the
-script's existing stage before inventing one. A test asserts `details.code`, never the
-summary. The report's shape and exit codes are `writing-repo-scripts`'.
+`ERR_RELEASE_*`), so the code alone says which task or script to read, and the rest
+names the failure, not the function (`ERR_SMOKE_CODESIGN`, not
+`ERR_SMOKE_VERIFY_FAILED`). Reuse the existing stage before inventing one. A test asserts
+`details.code` (in Rust, `error.details.code`), never the summary. An error a task did
+not expect (an I/O failure, say) is `ScriptError::unexpected`, reported as
+`ERR_INTERNAL_UNEXPECTED`. The report's shape and exit codes are
+`writing-repo-scripts`'.
 
 ## Changing a code
 

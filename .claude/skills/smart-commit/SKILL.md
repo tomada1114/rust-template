@@ -2,7 +2,7 @@
 name: smart-commit
 description: >
   Covers turning the working tree into Conventional Commits in this repository: the
-  branch guard, the judgment the staged guard (scripts/check-staged.ts) cannot make,
+  branch guard, the judgment the staged guard (cargo xtask check-staged) cannot make,
   grouping changes into atomic commits, the files that must travel together (Cargo.lock
   with a Cargo.toml, pnpm-lock.yaml with package.json, .claude/skills/ with
   .agents/skills/), the commit types
@@ -16,7 +16,7 @@ description: >
 
 **Owns:** staging, grouping, and writing the commits for work already done, and pushing
 them when asked. **Does not own:** the pull request (`create-pr`); what the staged guard
-blocks (`scripts/lib/guard/`, stated once in `AGENTS.md` › "Security and human
+blocks (`xtask/guard/`, stated once in `AGENTS.md` › "Security and human
 approval"); changing a hook or a gate (`changing-gates`).
 
 Every commit message is English.
@@ -56,8 +56,8 @@ candidate.
 
 The mechanical list (secret-shaped paths such as `.env*`, `secrets/`, signing material,
 SSH keys, `.claude/settings.local.json`, and credential-shaped content such as a private
-key block or a GitHub token) lives in `scripts/lib/guard/paths.ts` and
-`scripts/lib/guard/credentials.ts`; the pre-commit hook's staged guard enforces it.
+key block or a GitHub token) lives in `xtask/guard/src/paths.rs` and
+`xtask/guard/src/credentials.rs`; the pre-commit hook's staged guard enforces it.
 Enforced by: `lefthook.yml` "staged guard". Never keep a second copy of that list, and
 never read a secret-shaped file to check it.
 
