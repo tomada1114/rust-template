@@ -220,6 +220,8 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "clippy.toml", forms: ["slug"] },
   { file: "crates/myapp/Cargo.toml", forms: ["slug"] },
   { file: "crates/myapp/src/main.rs", forms: ["slugSnake", "slug"] },
+  { file: "crates/myapp/src/tui/mod.rs", forms: ["slugSnake", "slug"] },
+  { file: "crates/myapp/src/tui/view.rs", forms: ["slugSnake"] },
   { file: "crates/myapp/src/wording.rs", forms: ["slugSnake", "slug"] },
   { file: "crates/myapp/tests/cli.rs", forms: ["bundleId", "slug"] },
   { file: "crates/myapp-core/Cargo.toml", forms: ["name", "slug"] },

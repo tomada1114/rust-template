@@ -148,6 +148,16 @@ checkout, so it is a human's recipe. The command-line contract, which
 - **`--version`** prints `myapp <version>`, the workspace version from `Cargo.toml`'s
   `[workspace.package]`.
 
+`myapp tui` is the full-screen view of the same counter, drawn with ratatui over its
+crossterm backend (reached only as `ratatui::crossterm`). The screen's state and what a
+key does are core's `CounterScreen`, `ScreenAction`, and `ScreenKey`, tested against the
+fakes; `crates/myapp/src/tui/` only enters and leaves the terminal, translates its key
+events, and draws (`view.rs`, tested against ratatui's `TestBackend`). It refuses with
+exit 1 unless standard input and standard output are both a terminal, logs to the file
+only while it owns the screen, and restores the terminal — raw mode off, the main screen
+back, the cursor shown — on a normal exit, on an error, and from a panic hook. No check
+runs the loop itself; a human running `myapp tui` is its test.
+
 ## Logging
 
 The binary and `myapp-platform` log through the `tracing` macros; `myapp-core` has no

@@ -140,7 +140,8 @@ crates/
 └── myapp/                  # The `myapp` binary: the tool itself and the composition root.
                             #   Builds the real adapters, hands them to core, and translates
                             #   arguments to calls and results to stdout, stderr, and an exit
-                            #   code. Decides nothing; src/wording.rs holds every stderr sentence
+                            #   code. Decides nothing; src/wording.rs holds every stderr sentence,
+                            #   and src/tui/ the ratatui terminal loop and view for `myapp tui`
 scripts/                    # Repository automation in TypeScript, run by Node directly
 ```
 

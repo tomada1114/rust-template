@@ -22,13 +22,14 @@ confidence-threshold = 0.93
 # Permissive licences only (.claude/rules/project.md): the ones the crates use today
 # (cargo deny warns on an allowed licence nothing uses). dependency-review.yml's
 # allow-licenses is this list plus the permissive licences npm packages use (0BSD,
-# BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT-0, Zlib); a crate that needs one of those
-# is added here in the same PR.
+# BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT-0); a crate that needs one of those is
+# added here in the same PR.
 allow = [
   "Apache-2.0",
   "MIT",
   "Unicode-3.0",
   "Unlicense",
+  "Zlib",
 ]
 
 [bans]

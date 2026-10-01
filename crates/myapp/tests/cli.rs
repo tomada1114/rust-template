@@ -219,6 +219,32 @@ fn an_unwritable_log_directory_does_not_stop_the_action() {
 }
 
 #[test]
+fn tui_without_a_terminal_fails_with_exit_code_1_and_touches_nothing() {
+    let home = tempfile::tempdir().unwrap();
+    // Neither end is a terminal, as in a script or CI: the screen must refuse before it
+    // enters raw mode, reads a key, or opens the counter file or the log.
+    let mut command = command(home.path(), &["tui"]);
+    command.stdin(Stdio::null());
+    assert_runtime_error(
+        &output(command),
+        "tui needs an interactive terminal on standard input and standard output",
+    );
+    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn help_lists_the_tui_subcommand() {
+    let home = tempfile::tempdir().unwrap();
+    let output = run(home.path(), &["--help"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        stdout(&output).contains("tui") && stdout(&output).contains("counter"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
 fn version_prints_the_workspace_version_on_stdout() {
     let home = tempfile::tempdir().unwrap();
     let output = run(home.path(), &["--version"]);

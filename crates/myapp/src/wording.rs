@@ -1,6 +1,7 @@
-//! Every sentence `myapp` writes to stderr. Core reports a failure as a code and never as
-//! a sentence, so the wording for each code lives here, in one place, and each `match`
-//! names every variant: a new core variant does not compile until it has its words.
+//! Every sentence `myapp` writes to stderr, and the error wording its `tui` screen shows.
+//! Core reports a failure as a code and never as a sentence, so the wording for each code
+//! lives here, in one place, and each `match` names every variant: a new core variant does
+//! not compile until it has its words.
 
 use myapp_core::{CounterError, StorageErrorKind};
 
@@ -14,7 +15,16 @@ pub const LOGGING_UNAVAILABLE: &str = "logging is unavailable for this run";
 /// descriptor); a change the action made is already saved.
 pub const STDOUT_UNAVAILABLE: &str = "the result could not be written to standard output";
 
-/// The wording for a failed counter action.
+/// Printed when `tui` runs without a terminal on standard input and standard output (in a
+/// pipe, a script, or a CI job); nothing was touched.
+pub const TERMINAL_MISSING: &str =
+    "tui needs an interactive terminal on standard input and standard output";
+
+/// Printed after the terminal was restored, when it could not be entered, read, drawn to,
+/// or restored; a change made before that is already saved.
+pub const TERMINAL_FAILED: &str = "the terminal could not be used";
+
+/// The wording for a failed counter action, on stderr and on the `tui` screen's error line.
 pub fn counter_error(error: CounterError) -> &'static str {
     match error {
         CounterError::AtMaximum => "the counter is already at its maximum",
