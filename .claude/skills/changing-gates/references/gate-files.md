@@ -188,8 +188,9 @@ on that mirror.
 - `bundle.macOS` holds `minimumSystemVersion`, `hardenedRuntime`, `signingIdentity`
   (`"-"`, ad hoc), and `entitlements`. `Entitlements.plist` ships empty.
 - Every one of these is a sign-off change (`AGENTS.md` › "Security and human
-  approval") and an ADR trigger. `.claude/settings.json` denies Claude Code an edit to
-  `Entitlements.plist`; that binds one tool, and the rule binds every author.
+  approval") and an ADR trigger. A personal Claude Code settings file may deny an edit
+  to `Entitlements.plist`; that binds one tool on one host, and the rule binds every
+  author.
 - After a change, `just build` then `just smoke`: the smoke checks the signature, that
   the bundle's entitlements equal the file, and that the app still starts.
 
@@ -198,8 +199,8 @@ on that mirror.
 `test-core` carries the core floor flags, `lint` runs clippy with `-D warnings`, and
 `check` lists the local gate. The building recipes unset every `APPLE_*` variable
 (`no_signing`) so a local build never signs as a developer. Recipe names are contract
-for `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, the skills, and `.claude/settings.json`,
-all of which `just check-harness` reads.
+for `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, the skills, and a committed
+`.claude/settings.json` if one is added, all of which `just check-harness` reads.
 
 ## `.github/workflows/*.yml`
 

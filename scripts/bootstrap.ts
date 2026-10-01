@@ -405,6 +405,11 @@ export const TEXT_EDITS: readonly TextEdit[] = [
   { file: "AGENTS.md", find: "`release-prep`, `bootstrap`)", replace: "`release-prep`)" },
   {
     file: "AGENTS.md",
+    find: "(`bootstrap`, `labels`, `ruleset`, `release-prep`)",
+    replace: "(`labels`, `ruleset`, `release-prep`)",
+  },
+  {
+    file: "AGENTS.md",
     find: "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists;",
     replace:
       "`docs/` (apart from the roadmap and the ADRs), the skills, and the issue forms name exists;",

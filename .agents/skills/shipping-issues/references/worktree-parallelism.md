@@ -69,15 +69,16 @@ A session that starts in the main checkout and edits a worktree under `<runstate
 keeps the main checkout as its primary working directory, so some of Claude Code's
 conveniences do not follow the worktree:
 
-- a `/path` rule in the project's `.claude/settings.json` resolves against the session's
-  primary working directory (<https://code.claude.com/docs/en/permissions>, checked
-  2026-09-30), so the `Edit(/src-tauri/Entitlements.plist)` deny names the main
-  checkout's copy of that file, not the worktree's;
+- a `/path` rule in a personal `.claude/settings.local.json` resolves against the
+  session's primary working directory (<https://code.claude.com/docs/en/permissions>,
+  checked 2026-09-30), so an `Edit(/src-tauri/Entitlements.plist)` deny there names the
+  main checkout's copy of that file, not the worktree's;
 - Claude has access to files in the directory it was launched in, and to directories
   added to the session (same page, "Working directories"), so an edit under
   `<runstate>` may stop for a permission prompt mid-run;
-- the `PostToolUse` formatter (`scripts/format-edited-file.ts`) runs from
-  `$CLAUDE_PROJECT_DIR`, the main checkout, and does nothing for a file outside it;
+- the `PostToolUse` formatter (`scripts/format-edited-file.ts`), when a personal
+  settings file registers it as `AGENTS.md` describes, runs from `$CLAUDE_PROJECT_DIR`,
+  the main checkout, and does nothing for a file outside it;
 - the path-scoped `.claude/rules/` are documented as loading for the project's own
   files (<https://code.claude.com/docs/en/memory>, checked 2026-09-30), and nothing there
   says they load for a file under `<runstate>`.

@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The committed `.claude/settings.json` is removed: Claude Code permissions and the
+  format-on-edit hook now live in each person's user-level `~/.claude/settings.json` or
+  the gitignored `.claude/settings.local.json`, and Codex CLI's personal rules in a
+  gitignored `.codex/rules/local.rules` (see `AGENTS.md`).
 - `just ruleset` now creates or updates every ruleset under `.github/rulesets/`, the
   `release-tags` tag ruleset as well as `main`, each by its own name, and never deletes
   one; the setup steps in `AGENTS.md`, `README.md`, and the bootstrap's next steps name

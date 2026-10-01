@@ -45,7 +45,7 @@ green.
 |---|---|
 | Adding a path to an ignore list (`typos.toml`, `.prettierignore`, ESLint's `globalIgnores`, `deny.toml`, `osv-scanner.toml`) | That path leaves the gate for good, and nothing reports it again. The one deliberate entry shared by the lists is the generated `.claude/skills/` mirror, and a harness check keeps the lists agreeing on it. |
 | `continue-on-error` on a CI job or step | The job reports success whatever the step did. A step that must not run without a secret is skipped by an `if:` on a step-level condition instead. |
-| `git commit --no-verify` | Skips every pre-commit job, the staged secret guard included, which no CI job reruns. `.claude/settings.json` denies its usual spellings for Claude Code only; the rule binds every author. |
+| `git commit --no-verify` | Skips every pre-commit job, the staged secret guard included, which no CI job reruns. A personal permission file may deny its usual spellings on one host; the rule binds every author. |
 | Widening a workflow's `permissions:` | A compromised step can do more with the token. |
 | Removing a required context from `.github/rulesets/main.json` | A pull request can merge without that check. |
 | Re-spelling a denied command (`git -C . …`, `bash -c '…'`, a bundled short flag) | Routes around a human's or a config's refusal. Stop and ask. |

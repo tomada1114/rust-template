@@ -14,8 +14,8 @@ skill does not re-run these checks itself; it reacts to the one that failed.
 3. Re-stage exactly the files you fixed: `git add <file>`.
 4. Commit again, same message.
 
-Never `git commit --no-verify` or `-n`: `.claude/settings.json` denies both, and
-`AGENTS.md` › "Security and human approval" forbids them for every author. Never
+Never `git commit --no-verify` or `-n`: `AGENTS.md` › "Security and human approval"
+forbids them for every author, whatever a personal permission file allows. Never
 `--amend` a commit someone else made to fold a fix in.
 
 ## Each job

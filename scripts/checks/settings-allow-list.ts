@@ -1,7 +1,8 @@
 /**
- * `.claude/settings.json`'s `allow` list admits none of the recipes that open the app,
- * need a human, or write beyond the working tree (AGENTS.md › "Enforcement layers"), so
- * adding one to `allow` fails here instead of relying on review to notice it.
+ * A committed `.claude/settings.json`, if one is added, has an `allow` list that admits
+ * none of the recipes that open the app, need a human, or write beyond the working tree
+ * (AGENTS.md › "Enforcement layers"), so adding one to `allow` fails here instead of
+ * relying on review to notice it.
  *
  *   node scripts/checks/settings-allow-list.ts [--root DIR]
  *

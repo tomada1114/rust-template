@@ -29,6 +29,8 @@ __pycache__/
 # Claude Code: personal overrides and agent worktrees stay local
 .claude/settings.local.json
 .claude/worktrees/
+# Codex CLI: personal project rules stay local; the rest of .codex/ is shared config
+/.codex/rules/local.rules
 
 # Environment variables
 .env
