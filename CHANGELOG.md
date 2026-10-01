@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The primary button keeps 3:1 contrast against the window and panel on hover and press in
+  dark mode: button states now use `--color-accent-hover`/`--color-accent-active` and
+  `--color-control-bg-hover`/`--color-control-bg-active` instead of a `brightness()` filter
+  the contrast check could not see.
 - Counter views no longer arrive out of order: the screen keeps the newest one, and
   `counter-changed` events leave in the order the changes were saved.
 - A counter file this version cannot read can now be replaced with Reset from the error
