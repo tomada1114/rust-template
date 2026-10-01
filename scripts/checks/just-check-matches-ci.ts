@@ -29,7 +29,7 @@
  *     verbatim (so `lint`'s lines, split across CI's jobs, count), or its body is empty
  *     (its dependencies are gates themselves), or it is in EXCEPTIONS.localOnly;
  *   - every CI step is a gate: a step that calls `just` calls only gates (or
- *     EXCEPTIONS.ciOnlyRecipes; its other lines are glue, such as the bindings diff),
+ *     EXCEPTIONS.ciOnlyRecipes; its other lines are glue, such as a diff of what it wrote),
  *     and each line of a step that calls no recipe is a gate's command verbatim or in
  *     EXCEPTIONS.ciOnlyCommands.
  *   An exception that no longer applies (a localOnly recipe `just check` stopped
@@ -83,17 +83,12 @@ export const EXCEPTIONS: Exceptions = {
       "asserts lefthook's pre-commit hook is installed in this checkout; a CI checkout has none and nobody commits there (the script skips when CI is set)",
     fmt: "rewrites files; CI checks the same formatting read-only through `just lint`'s `cargo fmt --all --check` and `pnpm format:check` lines, which this check matches verbatim",
   },
-  ciOnlyRecipes: {
-    bindings:
-      "regenerates ui/src/ipc/generated/ (it writes files); CI runs it and diffs the result to catch a commit that forgot `just bindings`, while a developer runs it and commits the output",
-  },
+  ciOnlyRecipes: {},
   ciOnlyCommands: {
     'echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"':
       "hands the pnpm store path to actions/cache: CI plumbing with no local meaning",
     "pnpm install --frozen-lockfile":
       "dependency install: `just install` runs it once on a developer's Mac, not on every `just check`",
-    "node scripts/clippy-guard.ts cargo clippy --locked -p myapp-core -p myapp-test-support -p myapp-platform -p myapp-cli --all-targets -- -D warnings":
-      "the Linux job lints only the crates that build without WebKitGTK; the macOS job runs `just lint`'s whole-workspace clippy line verbatim",
     "cargo deny --locked check":
       "`just deny`: fetches the RustSec advisory database over the network, so it stays out of the offline local gate; AGENTS.md › Validating a change runs it when a manifest or lockfile changes",
     "cargo shear --locked":

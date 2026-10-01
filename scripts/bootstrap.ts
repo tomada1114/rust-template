@@ -13,7 +13,7 @@
  *   `verify-bootstrap` recipes and every mention of them, and the skill reference that only
  *   describes this script, and rewrites the passages outside those blocks that describe
  *   the template (TEXT_EDITS);
- * - resets CHANGELOG.md to an empty [Unreleased] and the three version sites to 0.1.0,
+ * - resets CHANGELOG.md to an empty [Unreleased] and the two version sites to 0.1.0,
  *   writes the author into package.json and the copyright line into LICENSE;
  * - formats what it rewrote (`cargo fmt --all`, Prettier), deletes itself and
  *   scripts/verify-bootstrap.ts, and prints the next steps.
@@ -162,15 +162,12 @@ const FORMS: readonly (readonly [Form, RegExp, (answers: Answers, names: Names) 
 
 /** The skill files carrying a placeholder; each is listed for both skill trees. */
 const SKILL_SITES: readonly (readonly [string, readonly Form[]])[] = [
-  ["building-react-screens/SKILL.md", ["slug"]],
   ["changing-gates/SKILL.md", ["slug"]],
   ["changing-gates/references/gate-files.md", ["slug"]],
   ["changing-gates/references/weakening.md", ["slug"]],
   ["create-pr/SKILL.md", ["slug"]],
   ["designing-core-logic/SKILL.md", ["slug"]],
   ["designing-errors/SKILL.md", ["slug"]],
-  ["designing-ipc/SKILL.md", ["slug"]],
-  ["designing-ipc/references/adding-a-command.md", ["slugSnake", "slug"]],
   ["integrating-system-apis/SKILL.md", ["slug"]],
   ["integrating-system-apis/references/unsafe-and-ffi.md", ["slug"]],
   ["managing-dependencies/SKILL.md", ["slug"]],
@@ -213,7 +210,6 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: ".github/ISSUE_TEMPLATE/config.yml", forms: ["repo"] },
   { file: ".github/PULL_REQUEST_TEMPLATE.md", forms: ["slug"] },
   { file: ".github/workflows/ci.yml", forms: ["slug"] },
-  { file: ".github/workflows/release.yml", forms: ["name"] },
   { file: "AGENTS.md", forms: ["bundleId", "slugSnake", "slug", "slugUpper"] },
   { file: "CODE_OF_CONDUCT.md", forms: ["owner"] },
   { file: "CONTRIBUTING.md", forms: ["slug"] },
@@ -245,13 +241,9 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "crates/myapp-test-support/src/lib.rs", forms: ["slug"] },
   { file: "deny.toml", forms: ["slug"] },
   { file: "docs/architecture.md", forms: ["bundleId", "name", "slugSnake", "slug", "slugUpper"] },
-  { file: "docs/distribution.md", forms: ["repo", "name", "slug"] },
   { file: "docs/getting-started.md", forms: ["bundleId", "slug"] },
-  { file: "justfile", forms: ["bundleId", "name", "slug"] },
+  { file: "justfile", forms: ["bundleId", "slug"] },
   { file: "package.json", forms: ["name", "slug"] },
-  { file: "scripts/bindings.ts", forms: ["slug"] },
-  { file: "scripts/build-sidecar.test.ts", forms: ["slug"] },
-  { file: "scripts/build-sidecar.ts", forms: ["slug"] },
   { file: "scripts/checks/bundle-identifier.test.ts", forms: ["bundleId", "name", "slug"] },
   { file: "scripts/checks/bundle-identifier.ts", forms: ["slug"] },
   { file: "scripts/checks/core-boundary.test.ts", forms: ["slug"] },
@@ -261,23 +253,8 @@ const REPOSITORY_SITES: readonly Site[] = [
     file: "scripts/checks/fixtures/core-boundary/pass/metadata.json",
     forms: ["slugSnake", "slug"],
   },
-  { file: "scripts/bundle-path.test.ts", forms: ["name"] },
-  { file: "scripts/bundle-path.ts", forms: ["name"] },
   { file: "scripts/checks/just-check-matches-ci.ts", forms: ["slug"] },
   { file: "scripts/checks/no-issue-references.test.ts", forms: ["repo"] },
-  { file: "scripts/checks/tauri-versions.test.ts", forms: ["slug"] },
-  { file: "scripts/checks/version-sites.test.ts", forms: ["name", "slug"] },
-  { file: "scripts/smoke.test.ts", forms: ["bundleId", "name", "slugSnake", "slug", "slugUpper"] },
-  { file: "scripts/smoke.ts", forms: ["bundleId", "name", "slug", "slugUpper"] },
-  { file: "src-tauri/Cargo.toml", forms: ["slugSnake", "slug"] },
-  { file: "src-tauri/src/commands.rs", forms: ["slugSnake"] },
-  { file: "src-tauri/src/lib.rs", forms: ["slugSnake", "slug", "slugUpper"] },
-  { file: "src-tauri/src/main.rs", forms: ["slugSnake"] },
-  { file: "src-tauri/src/startup.rs", forms: ["slugUpper"] },
-  { file: "src-tauri/tauri.conf.json", forms: ["bundleId", "name", "slug"] },
-  { file: "src-tauri/tests/commands.rs", forms: ["slugSnake"] },
-  { file: "src-tauri/tests/startup.rs", forms: ["slugSnake"] },
-  { file: "ui/index.html", forms: ["name"] },
 ];
 
 export const SITES: readonly Site[] = [
@@ -568,11 +545,6 @@ export const TEXT_EDITS: readonly TextEdit[] = [
     find: "# Every entry expires after 90 days and is recorded in docs/template/implementation-notes.md.\n",
     replace: "# Every entry expires after 90 days.\n",
   },
-  {
-    file: "pnpm-workspace.yaml",
-    find: "# Recorded in docs/template/implementation-notes.md.\n",
-    replace: "",
-  },
 ];
 
 /** Files carrying `<!-- template-only -->` … `<!-- /template-only -->` blocks. */
@@ -605,7 +577,6 @@ export const UPSTREAM_REFERENCES: readonly (readonly [string, string])[] = [
 ];
 
 const CI_FILE = ".github/workflows/ci.yml";
-const RELEASE_FILE = ".github/workflows/release.yml";
 const CI_JOB_KEY = "  bootstrap-smoke:";
 const RULESET_FILE = ".github/rulesets/main.json";
 export const SMOKE_JOB_NAME = "Template Bootstrap Smoke";
@@ -622,6 +593,7 @@ const JUSTFILE_VERIFY_RECIPE = `
 verify-bootstrap *args:
     node scripts/verify-bootstrap.ts {{ args }}
 `;
+const JUSTFILE_BUNDLE_ID = /^bundle_id\s*:=\s*(["'])(.*?)\1\s*(?:#.*)?$/m;
 const CARGO_VERSION = /^(\[workspace\.package\][^[]*?^version\s*=\s*")([^"]*)(")/m;
 const JSON_VERSION = /("version"\s*:\s*")[^"]*(")/;
 const LICENSE_LINE = /^Copyright \(c\) \d{4} tomada1114$/gm;
@@ -1114,44 +1086,6 @@ function property(value: unknown, key: string): unknown {
     : undefined;
 }
 
-/** Every value `key` takes in a workflow's `env` maps: the workflow's, each job's, each step's. */
-export function workflowEnvValues(workflow: unknown, key: string): unknown[] {
-  const jobs = property(workflow, "jobs");
-  const scopes = [
-    workflow,
-    ...(typeof jobs === "object" && jobs !== null ? Object.values(jobs) : []).flatMap(
-      (job: unknown) => {
-        const steps = property(job, "steps");
-        return [job, ...(Array.isArray(steps) ? (steps as unknown[]) : [])];
-      },
-    ),
-  ];
-  return scopes
-    .map((scope) => property(property(scope, "env"), key))
-    .filter((value) => value !== undefined);
-}
-
-/**
- * The release workflow finds the built `<name>.app` and its dmg through APP_NAME, so after
- * the rewrite it must read back as the display name itself — a string, not the number or
- * null an unquoted name such as `1.10` or `Null` would become.
- */
-function assertReleaseAppName(text: string, name: string): void {
-  let workflow: unknown;
-  try {
-    workflow = parseYaml(text);
-  } catch (error: unknown) {
-    throw rewriteFailed(RELEASE_FILE, error instanceof Error ? error.message : String(error));
-  }
-  const values = workflowEnvValues(workflow, "APP_NAME");
-  if (values.length === 0 || values.some((value) => value !== name)) {
-    throw rewriteFailed(
-      RELEASE_FILE,
-      `APP_NAME reads as ${JSON.stringify(values)} after the edit, not ${JSON.stringify(name)}; quote the value in the template`,
-    );
-  }
-}
-
 function removeRulesetContext(text: string): string {
   const result = replaceOnce(
     RULESET_FILE,
@@ -1239,7 +1173,6 @@ function structuredEdits(answers: Answers, year: number): readonly (readonly [st
   return [
     ["CHANGELOG.md", resetChangelog],
     ["Cargo.toml", resetCargoVersion],
-    ["src-tauri/tauri.conf.json", (text) => resetJsonVersion("src-tauri/tauri.conf.json", text)],
     [
       "package.json",
       (text) =>
@@ -1309,7 +1242,6 @@ function plan(root: string, answers: Answers, year: number): Plan {
     }
     writes.set(site.file, current);
   }
-  assertReleaseAppName(text(RELEASE_FILE), answers.name);
 
   const pattern = leftoverPattern(tokensFor(answers));
   if (pattern !== undefined) {
@@ -1332,10 +1264,9 @@ function plan(root: string, answers: Answers, year: number): Plan {
 }
 
 function assertTemplate(root: string): void {
-  const conf = join(root, "src-tauri", "tauri.conf.json");
-  let identifier: unknown;
+  let identifier: string | undefined;
   try {
-    identifier = (JSON.parse(readFileSync(conf, "utf8")) as { identifier?: unknown }).identifier;
+    identifier = JUSTFILE_BUNDLE_ID.exec(readFileSync(join(root, "justfile"), "utf8"))?.[2];
   } catch {
     identifier = undefined;
   }
@@ -1344,7 +1275,7 @@ function assertTemplate(root: string): void {
     throw new ScriptError({
       code: "ERR_BOOTSTRAP_NOT_TEMPLATE",
       summary: `${root} is not an un-bootstrapped copy of the template`,
-      expected: `identifier "${TEMPLATE_VALUES.bundleId}" in src-tauri/tauri.conf.json and ${CRATE_DIRS.join(", ")}`,
+      expected: `bundle_id "${TEMPLATE_VALUES.bundleId}" in the justfile and ${CRATE_DIRS.join(", ")}`,
       actual: `identifier ${JSON.stringify(identifier ?? null)}${missingCrates.length > 0 ? `; missing ${missingCrates.join(", ")}` : ""}`,
       next: "the bootstrap runs once, on a fresh clone of a repository created from the template; it has nothing to do here",
     });
@@ -1558,8 +1489,6 @@ export function runBootstrap(
     "  7. Once the bootstrap commit is on main: just ruleset (a repository admin's step). It",
     "     applies every .github/rulesets/*.json: the main branch ruleset and the release-tags",
     "     tag ruleset.",
-    "  8. Before the first release, a repository admin creates the `release` environment and",
-    '     puts the APPLE_* secrets on it: docs/distribution.md, "Repository settings the release needs".',
   ]) {
     log(line);
   }

@@ -2,9 +2,9 @@
  * No workflow job whose token holds a write scope runs repository code. A job's token
  * is what a compromised dependency, build script, or `mise.toml` tool would act with, so
  * a job that writes (a release, a label, a SARIF upload, an OIDC token) must not also
- * put the repository's code on the runner and run it. release.yml keeps every write
- * scope in `publish`, which downloads the build job's verified artifact instead of
- * checking out; this check keeps it, and every other workflow, that way.
+ * put the repository's code on the runner and run it. A release workflow keeps every
+ * write scope in a publish job that downloads the build job's verified artifact instead
+ * of checking out; this check keeps every workflow that way.
  *
  *   node scripts/checks/workflow-write-scopes.ts [--root DIR]
  *
@@ -218,7 +218,7 @@ function jobHits(workflow: Workflow, id: string, job: Record<string, unknown>): 
 const RUNS_CODE = {
   code: "ERR_CHECK_WORKFLOW_WRITE_RUNS_CODE",
   expected: `no job holding a write scope or \`id-token: write\` (its own \`permissions\`, or the workflow's it inherits) checks out the repository, runs jdx/mise-action or a local action, calls a remote reusable workflow, or runs pnpm, cargo, or just, outside EXCEPTIONS in ${THIS}`,
-  next: "move the write scopes into a job that runs none of these (release.yml's `publish` downloads the verified artifact instead of checking out); if the job genuinely needs both, add an EXCEPTIONS entry with its reason, which is weakening a gate and needs a human's sign-off",
+  next: "move the write scopes into a job that runs none of these (a publish job downloads the build job's verified artifact instead of checking out); if the job genuinely needs both, add an EXCEPTIONS entry with its reason, which is weakening a gate and needs a human's sign-off",
 };
 
 /** What the scan knows about each job, keyed `<workflow path> <job id>`. */

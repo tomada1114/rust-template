@@ -1,8 +1,8 @@
 /**
  * Content-shaped commit rules: text that must never land in a tracked file. The
  * union of macos-app-template's scripts/guard/credentials.sh and
- * typescript-template's scripts/lib/guard/credentials.mjs, plus the signing secrets
- * release.yml and docs/distribution.md name: a `*_PASSWORD` assignment, and the base64
+ * typescript-template's scripts/lib/guard/credentials.mjs, plus the macOS signing
+ * secrets a release pipeline names: a `*_PASSWORD` assignment, and the base64
  * `.p12` in `APPLE_CERTIFICATE` (or any base64 PKCS#12, recognised by its version-3
  * header).
  *
@@ -15,7 +15,7 @@
  * Deliberately NOT matched: Stripe test keys (they reach test mode only); a bare
  * 40-character AWS secret, which counts only right after an `aws_secret_access_key`
  * assignment; a `password` whose value is a `$VAR` or `${{ … }}` reference, a
- * masked `***`, or shorter than six characters — the release workflow names its
+ * masked `***`, or shorter than six characters — a release workflow names its
  * secrets that way — or whose key is camelCase code (`confirmPassword = …`); an
  * `.npmrc` `_authToken` that is a `${VAR}` reference; Slack's documented webhook
  * placeholder (an all-zero `T0…/B0…/` path followed by `X`s); and a public

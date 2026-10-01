@@ -5,12 +5,8 @@ extend-exclude = [
   "pnpm-lock.yaml",
   # Build output, matching .gitignore.
   "target/",
-  "dist/",
   "coverage/",
   "node_modules/",
-  "src-tauri/gen/",
-  "src-tauri/binaries/",
-  "src-tauri/icons/",
   # Data under test: a fixture misspelled on purpose is the point of the fixture.
   "scripts/**/fixtures/",
   # Generated mirror of .agents/skills/ (`just agents-sync`); the real files are

@@ -9,7 +9,6 @@ pub mod store;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde::Serialize;
-use ts_rs::TS;
 
 use crate::time::{Clock, UnixMillis};
 pub use store::{CounterStore, StorageError, StorageErrorKind, StoredCounter};
@@ -135,9 +134,8 @@ impl Counter {
 }
 
 /// What the UI renders. The only counter type that crosses IPC.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "export-bindings", ts(export))]
 pub struct CounterView {
     /// The current value.
     pub value: i64,
@@ -151,9 +149,8 @@ pub struct CounterView {
 
 /// A failed counter action. Serialized with a `code` tag (`{ "code": "atMaximum" }`);
 /// the UI owns the wording (`ui/src/copy/`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, Serialize)]
 #[serde(tag = "code", rename_all = "camelCase")]
-#[cfg_attr(feature = "export-bindings", ts(export))]
 pub enum CounterError {
     /// Already at the highest value; nothing changed.
     #[error("the counter is at its maximum")]

@@ -33,7 +33,7 @@ function write(root: string, path: string, content: string): void {
 /** An app as the bootstrap should leave it, for VERIFY_ANSWERS. */
 const GENERATED: Record<string, string> = {
   "Cargo.toml": `[workspace]
-members = ["crates/*", "src-tauri"]
+members = ["crates/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -49,22 +49,7 @@ tide-pool-test-support = { path = "crates/tide-pool-test-support" }
   "crates/tide-pool-test-support/Cargo.toml": '[package]\nname = "tide-pool-test-support"\n',
   "crates/tide-pool-platform/src/paths.rs":
     'pub const BUNDLE_IDENTIFIER: &str = "com.example.tide-pool";\n',
-  "src-tauri/Cargo.toml": '[package]\nname = "tide-pool"\n\n[lib]\nname = "tide_pool_lib"\n',
-  "src-tauri/src/startup.rs": 'pub const SMOKE_ENV: &str = "TIDE_POOL_SMOKE";\n',
-  "src-tauri/src/lib.rs": 'pub const LOG_FILE_PREFIX: &str = "tide-pool";\n',
-  "src-tauri/tauri.conf.json": `{
-  "productName": "Tide Pool",
-  "version": "0.1.0",
-  "identifier": "com.example.tide-pool",
-  "app": { "windows": [{ "title": "Tide Pool" }] },
-  "bundle": { "externalBin": ["binaries/tide-pool-cli"] }
-}
-`,
   "Cargo.lock": `version = 4
-
-[[package]]
-name = "tide-pool"
-version = "0.1.0"
 
 [[package]]
 name = "tide-pool-cli"
@@ -85,7 +70,6 @@ version = "0.1.0"
   "package.json":
     '{ "name": "tide-pool", "version": "0.1.0", "author": "Ada Lovelace", "license": "MIT" }\n',
   justfile: `bundle_id := "com.example.tide-pool"
-app_name := "Tide Pool"
 set shell := ["bash", "-c"]
 
 # Everything
@@ -95,28 +79,18 @@ check: lint
 lint:
     cargo clippy
 
-release-prep version *flags:
-    node scripts/release-prep.ts {{ flags }} {{ version }}
-`,
-  "scripts/bundle-path.ts": `export const APP_NAME = "Tide Pool";
-`,
-  "scripts/smoke.ts": `const BUNDLE_IDENTIFIER = "com.example.tide-pool";
-const EXECUTABLE = "tide-pool";
-const HELPER = "tide-pool-cli";
-const SMOKE_ENV = "TIDE_POOL_SMOKE";
-const LOG_PREFIX = "tide-pool";
+labels:
+    node scripts/sync-labels.ts
 `,
   LICENSE: "MIT License\n\nCopyright (c) 2031 Ada Lovelace\n",
   "CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n",
   "README.md":
     "# Tide Pool\n\nSee [the guide](docs/guide.md#start) and [the site](https://example.com).\n",
-  "docs/guide.md": "Run `just check`, then `just release-prep 0.2.0`.\n",
+  "docs/guide.md": "Run `just check`, then `just labels`.\n",
   ".agents/skills/example/SKILL.md":
     "---\nname: example\n---\n\nRead [the reference](references/more.md).\n\n```bash\njust lint\n```\n",
   ".agents/skills/example/references/more.md": "More.\n",
   ".github/workflows/ci.yml": "jobs:\n  lint:\n    name: Lint\n",
-  ".github/workflows/release.yml":
-    'jobs:\n  release:\n    env:\n      APP_NAME: "Tide Pool"\n    steps:\n      - run: echo "$APP_NAME.app"\n',
   ".github/rulesets/main.json": '{ "rules": [{ "context": "Lint" }] }\n',
   "osv-scanner.toml": "# Tracking issue: https://github.com/tomada1114/tauri-template/issues/3\n",
   "AGENTS.md": `# Project Guide
@@ -283,28 +257,9 @@ describe("assertGenerated", () => {
   });
 
   it.each([
-    [
-      "src-tauri/tauri.conf.json",
-      '"identifier": "com.example.tide-pool"',
-      '"identifier": "com.example.other"',
-    ],
-    ["src-tauri/tauri.conf.json", '"title": "Tide Pool"', '"title": "Tide"'],
-    ["src-tauri/tauri.conf.json", "binaries/tide-pool-cli", "binaries/tide_pool-cli"],
-    ["src-tauri/tauri.conf.json", '"version": "0.1.0"', '"version": "0.4.0"'],
     ["crates/tide-pool-platform/src/paths.rs", "com.example.tide-pool", "com.example.tidepool"],
-    ["justfile", 'app_name := "Tide Pool"', 'app_name := "TidePool"'],
-    [".github/workflows/release.yml", 'APP_NAME: "Tide Pool"', 'APP_NAME: "TidePool"'],
-    [".github/workflows/release.yml", 'APP_NAME: "Tide Pool"', 'TARGET: "Tide Pool"'],
-    [
-      ".github/workflows/release.yml",
-      "    steps:\n",
-      '    steps:\n      - env:\n          APP_NAME: "Other"\n',
-    ],
-    ["scripts/smoke.ts", '"TIDE_POOL_SMOKE"', '"TIDE-POOL_SMOKE"'],
-    ["src-tauri/src/startup.rs", "TIDE_POOL_SMOKE", "TIDEPOOL_SMOKE"],
-    ["src-tauri/src/lib.rs", '"tide-pool"', '"tide_pool"'],
-    ["src-tauri/Cargo.toml", 'name = "tide_pool_lib"', 'name = "tide-pool_lib"'],
-    ["src-tauri/Cargo.toml", 'name = "tide-pool"', 'name = "tidepool"'],
+    ["justfile", 'bundle_id := "com.example.tide-pool"', 'bundle_id := "com.example.tidepool"'],
+    ["Cargo.toml", 'members = ["crates/*"]', 'members = ["crates/tide-pool-core"]'],
     ["crates/tide-pool-core/Cargo.toml", 'name = "tide-pool-core"', 'name = "tide-core"'],
     ["Cargo.toml", '"crates/tide-pool-core"', '"crates/tide-core"'],
     ["Cargo.toml", 'version = "0.1.0"', 'version = "0.2.0"'],
@@ -330,7 +285,7 @@ describe("assertGenerated", () => {
     write(root, "crates/stray/Cargo.toml", '[package]\nname = "stray"\n');
     expect(codes(root)).toContain("ERR_VERIFY_BOOTSTRAP_NAME_MISMATCH");
     root = generatedTree();
-    write(root, "src-tauri/tauri.conf.json", "{ not json");
+    write(root, "package.json", "{ not json");
     write(root, "Cargo.toml", "[[[");
     expect(codes(root)).toContain("ERR_VERIFY_BOOTSTRAP_NAME_MISMATCH");
   });

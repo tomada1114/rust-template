@@ -1,8 +1,7 @@
 /**
- * bundle-identifier against temp roots holding the three sites below, which agree on
+ * bundle-identifier against temp roots holding the two sites below, which agree on
  * `com.example.myapp`. The files are written at run time rather than committed under
- * fixtures/, so no tool that looks for a `tauri.conf.json` or a `justfile` in the tree
- * ever finds a fixture's.
+ * fixtures/, so no tool that looks for a `justfile` in the tree ever finds a fixture's.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,12 +12,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { FailureDetails } from "../lib/fail.ts";
 import { check } from "./bundle-identifier.ts";
 
-const CONF = "src-tauri/tauri.conf.json";
 const PATHS = "crates/myapp-platform/src/paths.rs";
 const JUSTFILE = "justfile";
 
 const PASSING: Readonly<Record<string, string>> = {
-  [CONF]: '{\n  "productName": "MyApp",\n  "identifier": "com.example.myapp"\n}\n',
   [PATHS]: [
     "//! Where the app keeps its files.",
     "",
@@ -57,17 +54,8 @@ const replaced = (path: string, from: string, to: string): Record<string, string
 });
 
 describe("bundle-identifier", () => {
-  it("passes when tauri.conf.json, paths.rs, and the justfile agree", () => {
+  it("passes when paths.rs and the justfile agree", () => {
     expect(check.run(rootWith())).toEqual([]);
-  });
-
-  it("fails when tauri.conf.json's identifier differs", () => {
-    const violations = check.run(
-      rootWith(replaced(CONF, "com.example.myapp", "com.example.other")),
-    );
-    expect(codes(violations)).toEqual(["ERR_CHECK_BUNDLE_ID_DIVERGED"]);
-    expect(violations[0]?.actual).toContain(`${CONF}: com.example.other`);
-    expect(violations[0]?.actual).toContain(`${PATHS}: com.example.myapp`);
   });
 
   it("fails when BUNDLE_IDENTIFIER differs", () => {
@@ -75,6 +63,8 @@ describe("bundle-identifier", () => {
       rootWith(replaced(PATHS, '"com.example.myapp"', '"com.example.app"')),
     );
     expect(codes(violations)).toEqual(["ERR_CHECK_BUNDLE_ID_DIVERGED"]);
+    expect(violations[0]?.actual).toContain(`${PATHS}: com.example.app`);
+    expect(violations[0]?.actual).toContain(`${JUSTFILE}: com.example.myapp`);
   });
 
   it("fails when the justfile's bundle_id differs", () => {
@@ -88,9 +78,6 @@ describe("bundle-identifier", () => {
   });
 
   it.each([
-    [CONF, '{ "productName": "MyApp" }'],
-    [CONF, "{ not json"],
-    [CONF, '{ "identifier": 7 }'],
     [PATHS, 'pub const BUNDLE_ID: &str = "com.example.myapp";\n'],
     [JUSTFILE, 'bundle := "com.example.myapp"\n'],
   ])("fails when %s holds no readable identifier: %s", (path, text) => {
@@ -99,7 +86,7 @@ describe("bundle-identifier", () => {
     expect(violations[0]?.summary).toContain(path);
   });
 
-  it.each([[CONF], [PATHS], [JUSTFILE]])("fails when %s is missing", (path) => {
+  it.each([[PATHS], [JUSTFILE]])("fails when %s is missing", (path) => {
     expect(codes(check.run(rootWith({ [path]: undefined })))).toEqual(["ERR_CHECK_INPUT_MISSING"]);
   });
 });

@@ -1,7 +1,7 @@
 // The TypeScript rules the skills and .claude/rules/typescript.md say a gate enforces,
-// probed against the real eslint.config.mjs, tsconfig.json, and ui/tsconfig.json: each case is code the
-// gate must refuse, beside the code it must still accept. Linting reads the checkout and
-// writes nothing; the tsc probe writes only to a temp directory.
+// probed against the real eslint.config.mjs, tsconfig.json, and scripts/tsconfig.json: each
+// case is code the gate must refuse, beside the code it must still accept. Linting reads the
+// checkout and writes nothing; the tsc probe writes only to a temp directory.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,15 +12,10 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "..");
 
-// Existing files, so the project service types the probe with ui/tsconfig.json; the
-// probe text replaces their content for the lint only.
-const SCREEN = "ui/src/counter/useCounter.ts";
-const SCREEN_TEST = "ui/src/counter/useCounter.test.tsx";
-const IPC = "ui/src/ipc/commands.ts";
-const IPC_TEST = "ui/src/ipc/commands.test.ts";
-const IPC_TESTING = "ui/src/ipc/testing.ts";
-const LOG_FORWARDER = "ui/src/ipc/log.ts";
-const TEST_SETUP = "ui/src/test/setup.ts";
+// Existing files, so the project service types each probe with the tsconfig.json that
+// covers it; the probe text replaces their content for the lint only.
+const SCRIPT = "scripts/lib/fail.ts";
+const ROOT_CONFIG = "vitest.config.ts";
 
 const eslint = new ESLint({ cwd: ROOT });
 
@@ -30,14 +25,14 @@ async function lint(file: string, code: string): Promise<(string | null)[]> {
   return results.flatMap((result) => result.messages.map((message) => message.ruleId));
 }
 
-// The first lint loads the ui/ TypeScript program and every plugin: seconds alone, but
-// past the per-test budget when the whole suite competes for the CPU under coverage.
-// Paying it here keeps each case's own timeout about that case.
+// The first lint loads a TypeScript program and every plugin: seconds alone, but past the
+// per-test budget when the whole suite competes for the CPU under coverage. Paying it
+// here keeps each case's own timeout about that case.
 beforeAll(async () => {
-  await lint(SCREEN, "export {};\n");
+  await lint(SCRIPT, "export {};\n");
 }, 300_000);
 
-const KIND = 'import type { StorageErrorKind } from "../ipc/types";\n';
+const KIND = 'type StorageErrorKind = "corrupt" | "unavailable";\n';
 
 describe("switch-exhaustiveness-check", () => {
   it("refuses a default that hides a missing union member", async () => {
@@ -50,7 +45,7 @@ describe("switch-exhaustiveness-check", () => {
   }
 }
 `;
-    expect(await lint(SCREEN, code)).toEqual(["@typescript-eslint/switch-exhaustiveness-check"]);
+    expect(await lint(SCRIPT, code)).toEqual(["@typescript-eslint/switch-exhaustiveness-check"]);
   });
 
   it("refuses a default on a switch that already names every member", async () => {
@@ -65,7 +60,7 @@ describe("switch-exhaustiveness-check", () => {
   }
 }
 `;
-    expect(await lint(SCREEN, code)).toEqual(["@typescript-eslint/switch-exhaustiveness-check"]);
+    expect(await lint(SCRIPT, code)).toEqual(["@typescript-eslint/switch-exhaustiveness-check"]);
   });
 
   it("accepts every member and no default, and a default over a plain string", async () => {
@@ -86,76 +81,30 @@ export function g(s: string): number {
   }
 }
 `;
-    expect(await lint(SCREEN, code)).toEqual([]);
+    expect(await lint(SCRIPT, code)).toEqual([]);
   });
 });
 
-describe("the IPC import boundary", () => {
-  const dynamic = (specifier: string): string =>
-    `export async function load(): Promise<unknown> {\n  return import("${specifier}");\n}\n`;
-
-  it.each([
-    ["@tauri-apps/api/window", SCREEN],
-    ["../ipc/generated/CounterError", SCREEN],
-    ["../ipc/testing", SCREEN],
-    ["./testing", IPC],
-    ["@tauri-apps/api/mocks", IPC],
-    ["@tauri-apps/api/mocks", LOG_FORWARDER],
-    ["@tauri-apps/api/core", SCREEN_TEST],
-    ["../ipc/generated/CounterError", SCREEN_TEST],
-  ])("refuses a dynamic import of %s from %s", async (specifier, file) => {
-    expect(await lint(file, dynamic(specifier))).toEqual(["no-restricted-syntax"]);
-  });
-
-  it("refuses a dynamic import whose specifier is not a string literal", async () => {
-    const code =
-      "export async function load(name: string): Promise<unknown> {\n  return import(name);\n}\n";
-    expect(await lint(SCREEN, code)).toEqual(["no-restricted-syntax"]);
-  });
-
-  it.each([
-    ['export { mockCommands } from "../ipc/testing";\n', SCREEN],
-    ['export { mockCommands } from "./testing";\n', IPC],
-    ['export { mockIPC } from "@tauri-apps/api/mocks";\n', IPC],
-    [
-      'import { clearMocks } from "@tauri-apps/api/mocks";\nexport const reset = clearMocks;\n',
-      IPC,
-    ],
-    ['export { invoke } from "@tauri-apps/api/core";\n', SCREEN],
-    ['export type { CounterError } from "../ipc/generated/CounterError";\n', SCREEN],
-  ])("refuses the static import %j in %s", async (code, file) => {
-    expect(await lint(file, code)).toEqual(["no-restricted-imports"]);
-  });
-
-  it.each([
-    [dynamic("@tauri-apps/api/window"), IPC],
-    [dynamic("./generated/CounterError"), IPC],
-    [dynamic("./testing"), IPC_TEST],
-    ['export { clearMocks, mockIPC } from "@tauri-apps/api/mocks";\n', IPC_TESTING],
-    [dynamic("@tauri-apps/api/mocks"), IPC_TESTING],
-    ['export { mockIPC } from "@tauri-apps/api/mocks";\n', IPC_TEST],
-    [dynamic("@tauri-apps/api/mocks"), IPC_TEST],
-    ['export { mockCommands } from "../ipc/testing";\n', SCREEN_TEST],
-    ['export { resetIpcMocks } from "../ipc/testing";\n', TEST_SETUP],
-  ])("accepts %j in %s", async (code, file) => {
-    expect(await lint(file, code)).toEqual([]);
-  });
-});
-
-describe("console outside ui/src/ipc/log.ts", () => {
+describe("console outside scripts/", () => {
   it.each(["window", "globalThis", "self"])("refuses %s.console", async (object) => {
     const code = `export function f(): void {\n  ${object}.console.log("x");\n}\n`;
-    expect(await lint(SCREEN, code)).toEqual(["no-restricted-properties"]);
+    expect(await lint(ROOT_CONFIG, code)).toEqual(["no-restricted-properties"]);
   });
 
-  it("accepts window.console in the log forwarder", async () => {
-    const code = 'export function f(): void {\n  window.console.error("x");\n}\n';
-    expect(await lint(LOG_FORWARDER, code)).toEqual([]);
+  it("refuses the bare console", async () => {
+    const code = 'export function f(): void {\n  console.log("x");\n}\n';
+    expect(await lint(ROOT_CONFIG, code)).toEqual(["no-console"]);
+  });
+
+  it("accepts console in a repository script", async () => {
+    const code =
+      'export function f(): void {\n  console.log("x");\n  globalThis.console.log("y");\n}\n';
+    expect(await lint(SCRIPT, code)).toEqual([]);
   });
 });
 
-// The root config covers vite.config.ts and vitest.config.ts; ui/ and scripts/ have their own.
-describe.each(["tsconfig.json", "ui/tsconfig.json"])("%s", (config) => {
+// The root config covers vitest.config.ts; scripts/ has its own.
+describe.each(["tsconfig.json", "scripts/tsconfig.json"])("%s", (config) => {
   const dirs: string[] = [];
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });

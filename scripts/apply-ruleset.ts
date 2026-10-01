@@ -17,8 +17,8 @@
  * file is validated before the first gh call, so a malformed one applies nothing.
  * `gh` comes from the caller's PATH and must already be authenticated. Rulesets on a
  * private repository need a paid plan; that refusal is ERR_RULESET_PLAN_UNSUPPORTED
- * rather than a raw 403. The `release` environment is not a ruleset and stays a
- * manual step (docs/distribution.md).
+ * rather than a raw 403. A deployment environment is not a ruleset and stays a manual
+ * step.
  *
  * Errors: ERR_RULESET_FILE_MISSING, ERR_RULESET_FILE_INVALID, ERR_RULESET_GH_MISSING,
  * ERR_RULESET_PLAN_UNSUPPORTED, ERR_RULESET_FORBIDDEN.

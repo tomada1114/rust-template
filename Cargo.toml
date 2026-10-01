@@ -1,11 +1,11 @@
 [workspace]
-members = ["crates/*", "src-tauri"]
+members = ["crates/*"]
 resolver = "3" # explicit: a virtual manifest has no edition to infer it from
 
 [workspace.package]
-version = "0.1.0" # one of the three version sites, kept equal by `just release-prep`
+version = "0.1.0"
 edition = "2024"
-rust-version = "1.90" # tauri 2's MSRV; raise it deliberately, through an ADR
+rust-version = "1.90" # raise it deliberately, through an ADR
 license = "MIT"
 publish = false
 
@@ -22,9 +22,6 @@ thiserror = "2"
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std", "ansi"] }
-tauri = "2" # never 3.x until a migration ADR; the crate and @tauri-apps/* move together
-tauri-build = "2"
-ts-rs = "12"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -36,8 +33,8 @@ pedantic = { level = "warn", priority = -1 }
 unwrap_used = "warn"
 expect_used = "warn"
 
-# create-tauri-app's release profile. It lives here because Cargo ignores a
-# `[profile]` table in a workspace member's manifest.
+# The release profile lives here because Cargo ignores a `[profile]` table in a
+# workspace member's manifest.
 [profile.release]
 codegen-units = 1
 lto = true

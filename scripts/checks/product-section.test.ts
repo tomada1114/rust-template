@@ -52,18 +52,18 @@ docs/architecture/.
 );
 
 const conf = (identifier: string): string =>
-  `${JSON.stringify({ productName: "Widget", identifier }, null, 2)}\n`;
+  `set shell := ["bash", "-euo", "pipefail", "-c"]\n\nbundle_id := "${identifier}"\n`;
 
 function write(root: string, path: string, content: string): void {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), content);
 }
 
-function fixture(agents: string | undefined, tauriConf: string | undefined): string {
+function fixture(agents: string | undefined, justfile: string | undefined): string {
   const root = mkdtempSync(join(tmpdir(), "product-section-"));
   dirs.push(root);
   if (agents !== undefined) write(root, "AGENTS.md", agents);
-  if (tauriConf !== undefined) write(root, "src-tauri/tauri.conf.json", tauriConf);
+  if (justfile !== undefined) write(root, "justfile", justfile);
   return root;
 }
 
@@ -108,10 +108,8 @@ describe("product-section", () => {
   it.each([
     ["the template", TEMPLATE],
     ["an app", APP],
-  ])("fails in %s when there is no Product section", (_label, tauriConf) => {
-    const violations = check.run(
-      fixture(FILLED.replace("## Product\n", "## Purpose\n"), tauriConf),
-    );
+  ])("fails in %s when there is no Product section", (_label, justfile) => {
+    const violations = check.run(fixture(FILLED.replace("## Product\n", "## Purpose\n"), justfile));
     expect(violations.map((v) => v.code)).toEqual(["ERR_CHECK_PRODUCT_SECTION"]);
     expect(violations[0]?.actual).toContain("no `## Product` heading");
   });
@@ -126,15 +124,15 @@ describe("product-section", () => {
 
   it.each([
     ["AGENTS.md", undefined, TEMPLATE],
-    ["tauri.conf.json", SKELETON, undefined],
-  ])("fails with ERR_CHECK_INPUT_MISSING without %s", (_label, agents, tauriConf) => {
-    expect(codes(fixture(agents, tauriConf))).toEqual(["ERR_CHECK_INPUT_MISSING"]);
+    ["justfile", SKELETON, undefined],
+  ])("fails with ERR_CHECK_INPUT_MISSING without %s", (_label, agents, justfile) => {
+    expect(codes(fixture(agents, justfile))).toEqual(["ERR_CHECK_INPUT_MISSING"]);
   });
 
   it.each([
-    ["not JSON", "{ nope"],
-    ["without an identifier", '{ "productName": "x" }'],
-  ])("fails with ERR_CHECK_INPUT_UNREADABLE on a tauri.conf.json %s", (_label, text) => {
+    ["without a bundle_id", 'log_prefix := "x"\n'],
+    ["with an unquoted bundle_id", "bundle_id := com.example.x\n"],
+  ])("fails with ERR_CHECK_INPUT_UNREADABLE on a justfile %s", (_label, text) => {
     expect(codes(fixture(SKELETON, text))).toEqual(["ERR_CHECK_INPUT_UNREADABLE"]);
   });
 

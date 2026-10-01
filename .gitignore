@@ -3,17 +3,9 @@ target/
 
 # Node
 node_modules/
-dist/
 coverage/
 *.tsbuildinfo
 .eslintcache
-
-# Tauri: the sidecar helper is built into place by `just sidecar` (scripts/build-sidecar.ts)
-src-tauri/binaries/
-src-tauri/gen/
-
-# Disk images are built only by the release workflow on a CI runner
-*.dmg
 
 # IDE
 .vscode/

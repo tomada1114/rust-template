@@ -12,9 +12,8 @@
  *    workspace crate: test-only code never ships.
  * 3. The crates AGENTS.md's boundary sentence names ("… normal and build dependency closure
  *    reaches `a`, `b`, or `c`.") equal {@link FORBIDDEN_IN_CORE}, and `deny.toml`'s
- *    `[bans] deny` wrapper entries are the boundary's: `tauri` → `myapp` only,
- *    `myapp-platform` → `myapp` and `myapp-cli` only, and every `tauri-plugin-*` a
- *    workspace crate depends on has an entry with `myapp` as its only wrapper.
+ *    `[bans] deny` wrapper entries are the boundary's: `myapp-platform` → `myapp-cli`
+ *    only.
  *
  *   node scripts/checks/core-boundary.ts [--root DIR]
  *
@@ -51,13 +50,10 @@ export const FORBIDDEN_IN_CORE: readonly string[] = [
 
 const CORE = "myapp-core";
 const TEST_SUPPORT = "myapp-test-support";
-const PLUGIN_PREFIX = "tauri-plugin-";
 /** The boundary's direct-edge rule: the only crates that may depend on each of these directly. */
 const WRAPPERS: ReadonlyMap<string, readonly string[]> = new Map([
-  ["tauri", ["myapp"]],
-  ["myapp-platform", ["myapp", "myapp-cli"]],
+  ["myapp-platform", ["myapp-cli"]],
 ]);
-const PLUGIN_WRAPPERS: readonly string[] = ["myapp"];
 const METADATA_ARGS = ["metadata", "--format-version", "1", "--locked", "--offline"];
 const METADATA_COMMAND = `cargo ${METADATA_ARGS.join(" ")}`;
 /** The workspace's metadata is several MB; spawnSync's default buffer is 1 MiB. */
@@ -360,7 +356,7 @@ function denyEntries(text: string): Map<string, readonly string[] | undefined> |
   return entries;
 }
 
-function wrapperViolations(root: string, metadata: CargoMetadata | undefined): FailureDetails[] {
+function wrapperViolations(root: string): FailureDetails[] {
   const text = readRepoFile(root, "deny.toml");
   if (text === undefined)
     return [inputMissing("deny.toml", "its [bans] wrappers are core's direct-edge rule")];
@@ -374,19 +370,8 @@ function wrapperViolations(root: string, metadata: CargoMetadata | undefined): F
       ),
     ];
   }
-  const members = new Set(metadata?.workspaceMembers ?? []);
-  const plugins = new Set(
-    (metadata?.packages ?? [])
-      .filter((pkg) => members.has(pkg.id))
-      .flatMap((pkg) => pkg.dependencies.map((dep) => dep.name))
-      .filter((name) => name.startsWith(PLUGIN_PREFIX)),
-  );
-  for (const name of entries.keys()) if (name.startsWith(PLUGIN_PREFIX)) plugins.add(name);
-  const required = new Map(WRAPPERS);
-  for (const plugin of [...plugins].sort()) required.set(plugin, PLUGIN_WRAPPERS);
-
   const violations: FailureDetails[] = [];
-  for (const [crate, wrappers] of required) {
+  for (const [crate, wrappers] of WRAPPERS) {
     const found = entries.get(crate);
     const want = [...wrappers].sort();
     const have = found === undefined ? undefined : [...found].sort();
@@ -416,7 +401,7 @@ export function makeCheck(load: (root: string) => MetadataResult): Check {
         ...(metadata === undefined ? [] : closureViolations(metadata)),
         ...(metadata === undefined ? [] : testSupportViolations(metadata)),
         ...agentsViolations(root),
-        ...wrapperViolations(root, metadata),
+        ...wrapperViolations(root),
       ];
     },
   };

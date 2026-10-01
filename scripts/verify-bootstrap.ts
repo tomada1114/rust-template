@@ -20,11 +20,10 @@
  * - no dangling reference in a Markdown file (a skill included): a relative link to a
  *   missing file, a path the bootstrap removed, or `just <recipe>` for a recipe the
  *   justfile does not define;
- * - the names agree: the bundle identifier, display name, slug spellings, and version in
- *   tauri.conf.json, paths.rs, the justfile, scripts/smoke.ts, scripts/bundle-path.ts, startup.rs, lib.rs,
- *   release.yml's APP_NAME, package.json, LICENSE, and CHANGELOG.md; the crate
- *   directories, their package names, the workspace members and dependencies, and
- *   Cargo.lock; every Rust crate and library name a valid identifier.
+ * - the names agree: the bundle identifier, slug spellings, and version in paths.rs, the
+ *   justfile, Cargo.toml, package.json, LICENSE, and CHANGELOG.md; the crate directories,
+ *   their package names, the workspace members and dependencies, and Cargo.lock; every
+ *   Rust crate name a valid identifier.
  *
  *   node scripts/verify-bootstrap.ts [--keep]     (or `just verify-bootstrap [--keep]`)
  *
@@ -61,7 +60,6 @@ import { tmpdir } from "node:os";
 import { dirname, join, normalize, relative } from "node:path";
 
 import { parse as parseToml } from "smol-toml";
-import { parse as parseYaml } from "yaml";
 
 import { check as productSection } from "./checks/product-section.ts";
 import {
@@ -70,7 +68,6 @@ import {
   findLeftovers,
   REMOVED_PATHS,
   SMOKE_JOB_NAME,
-  workflowEnvValues,
   type Answers,
 } from "./bootstrap.ts";
 import { formatFailure, ScriptError, type FailureDetails } from "./lib/fail.ts";
@@ -88,8 +85,7 @@ export const VERIFY_ANSWERS: Answers = {
 };
 
 /** Directories a scan skips: version control, dependencies, and build output. */
-const SKIPPED_DIRS = new Set(["node_modules", ".git", "target", "dist", "coverage"]);
-const SKIPPED_PATHS = new Set(["src-tauri/gen", "src-tauri/binaries"]);
+const SKIPPED_DIRS = new Set(["node_modules", ".git", "target", "coverage"]);
 const FIRST_VERSION = "0.1.0";
 const MARKER_LINE = /^\s*<!--\s*\/?template-only\b/;
 const RUST_IDENT = /^[a-z][a-z0-9_]*$/;
@@ -100,7 +96,7 @@ function listFiles(root: string, dir = ""): string[] {
   for (const entry of readdirSync(join(root, dir), { withFileTypes: true })) {
     const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIRS.has(entry.name) && !SKIPPED_PATHS.has(path)) {
+      if (!SKIPPED_DIRS.has(entry.name)) {
         files.push(...listFiles(root, path));
       }
     } else if (entry.isFile()) {
@@ -274,9 +270,9 @@ function productViolation(actual: string): FailureDetails {
 
 function productSectionBehaviour(root: string): FailureDetails[] {
   const agents = readText(root, "AGENTS.md");
-  const conf = readText(root, "src-tauri/tauri.conf.json");
-  if (agents === undefined || conf === undefined) {
-    return [productViolation("no AGENTS.md or src-tauri/tauri.conf.json in the generated app")];
+  const justfile = readText(root, "justfile");
+  if (agents === undefined || justfile === undefined) {
+    return [productViolation("no AGENTS.md or justfile in the generated app")];
   }
   const unfilled = productSection.run(root);
   if (unfilled.length === 0) {
@@ -299,9 +295,8 @@ function productSectionBehaviour(root: string): FailureDetails[] {
   }
   const filledRoot = mkdtempSync(join(tmpdir(), "verify-bootstrap-product-"));
   try {
-    mkdirSync(join(filledRoot, "src-tauri"));
     writeFileSync(join(filledRoot, "AGENTS.md"), fillProductBullets(agents));
-    writeFileSync(join(filledRoot, "src-tauri", "tauri.conf.json"), conf);
+    writeFileSync(join(filledRoot, "justfile"), justfile);
     const filled = productSection.run(filledRoot);
     return filled.length === 0
       ? []
@@ -408,64 +403,21 @@ const quoted = (text: string | undefined, pattern: RegExp): string | undefined =
 function nameMismatches(root: string, answers: Answers): FailureDetails[] {
   const names = deriveNames(answers);
   const text = (path: string): string | undefined => readText(root, path);
-  const tauri = parsed(text("src-tauri/tauri.conf.json"), JSON.parse);
   const pkg = parsed(text("package.json"), JSON.parse);
   const cargo = parsed(text("Cargo.toml"), parseToml);
-  const shell = parsed(text("src-tauri/Cargo.toml"), parseToml);
   const lock = parsed(text("Cargo.lock"), parseToml);
   const crateDirs = CRATE_DIRS.map((dir) =>
     dir.replace(/^crates\/myapp-/, `crates/${names.slug}-`),
   );
-  const smoke = text("scripts/smoke.ts");
-  const bundlePath = text("scripts/bundle-path.ts");
   const justfile = text("justfile");
-  const releaseNames = workflowEnvValues(
-    parsed(text(".github/workflows/release.yml"), parseYaml),
-    "APP_NAME",
-  );
 
   const expectations: (readonly [string, unknown, unknown])[] = [
-    ["tauri.conf.json productName", at(tauri, ["productName"]), answers.name],
-    ["tauri.conf.json identifier", at(tauri, ["identifier"]), answers.bundleId],
-    ["tauri.conf.json version", at(tauri, ["version"]), FIRST_VERSION],
-    ["tauri.conf.json main window title", at(tauri, ["app", "windows", 0, "title"]), answers.name],
-    [
-      "tauri.conf.json externalBin",
-      at(tauri, ["bundle", "externalBin", 0]),
-      `binaries/${names.slug}-cli`,
-    ],
     [
       "paths.rs BUNDLE_IDENTIFIER",
       quoted(text(`${crateDirs[2] ?? ""}/src/paths.rs`), /BUNDLE_IDENTIFIER: &str = "([^"]*)"/),
       answers.bundleId,
     ],
     ["justfile bundle_id", quoted(justfile, /^bundle_id := "([^"]*)"/m), answers.bundleId],
-    ["justfile app_name", quoted(justfile, /^app_name := "([^"]*)"/m), answers.name],
-    [
-      "smoke.ts BUNDLE_IDENTIFIER",
-      quoted(smoke, /BUNDLE_IDENTIFIER = "([^"]*)"/),
-      answers.bundleId,
-    ],
-    ["bundle-path.ts APP_NAME", quoted(bundlePath, /APP_NAME = "([^"]*)"/), answers.name],
-    ...(releaseNames.length === 0 ? [undefined] : releaseNames).map(
-      (value) => ["release.yml APP_NAME", value, answers.name] as const,
-    ),
-    ["smoke.ts EXECUTABLE", quoted(smoke, /EXECUTABLE = "([^"]*)"/), names.slug],
-    ["smoke.ts HELPER", quoted(smoke, /HELPER = "([^"]*)"/), `${names.slug}-cli`],
-    ["smoke.ts SMOKE_ENV", quoted(smoke, /SMOKE_ENV = "([^"]*)"/), `${names.slugUpper}_SMOKE`],
-    ["smoke.ts LOG_PREFIX", quoted(smoke, /LOG_PREFIX = "([^"]*)"/), names.slug],
-    [
-      "startup.rs SMOKE_ENV",
-      quoted(text("src-tauri/src/startup.rs"), /SMOKE_ENV: &str = "([^"]*)"/),
-      `${names.slugUpper}_SMOKE`,
-    ],
-    [
-      "lib.rs LOG_FILE_PREFIX",
-      quoted(text("src-tauri/src/lib.rs"), /LOG_FILE_PREFIX: &str = "([^"]*)"/),
-      names.slug,
-    ],
-    ["src-tauri package name", at(shell, ["package", "name"]), names.slug],
-    ["src-tauri lib name", at(shell, ["lib", "name"]), `${names.slugSnake}_lib`],
     [
       "Cargo.toml [workspace.package] version",
       at(cargo, ["workspace", "package", "version"]),
@@ -502,9 +454,9 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
   for (const dir of present)
     if (!crateDirs.includes(dir)) found.push(`${dir}: not a renamed template crate`);
   const members = at(cargo, ["workspace", "members"]);
-  if (!Array.isArray(members) || !members.includes("crates/*") || !members.includes("src-tauri")) {
+  if (!Array.isArray(members) || !members.includes("crates/*")) {
     found.push(
-      `Cargo.toml workspace.members: ${JSON.stringify(members ?? null)} (expected crates/* and src-tauri)`,
+      `Cargo.toml workspace.members: ${JSON.stringify(members ?? null)} (expected crates/*)`,
     );
   }
   const packages = new Set(
@@ -512,7 +464,7 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
       (entry) => at(entry, ["name"]),
     ),
   );
-  const crateNames = [names.slug, ...crateDirs.map((dir) => dir.slice("crates/".length))];
+  const crateNames = crateDirs.map((dir) => dir.slice("crates/".length));
   for (const dir of crateDirs) {
     const name = at(parsed(text(`${dir}/Cargo.toml`), parseToml), ["package", "name"]);
     if (name !== dir.slice("crates/".length)) {
@@ -524,8 +476,6 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
       found.push(`${name}: not a valid Rust crate name`);
     if (!packages.has(name)) found.push(`Cargo.lock: no package ${name}`);
   }
-  if (!RUST_IDENT.test(`${names.slugSnake}_lib`))
-    found.push(`${names.slugSnake}_lib: not a valid Rust identifier`);
   const dependencies = at(cargo, ["workspace", "dependencies"]);
   for (const [key, spec] of Object.entries(
     typeof dependencies === "object" && dependencies !== null ? dependencies : {},

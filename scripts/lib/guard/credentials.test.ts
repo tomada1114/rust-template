@@ -33,7 +33,7 @@ describe("credentialCategory", () => {
     ["npm-auth-token", join("//registry.npmjs.org/:_auth", "Token=", "abc")],
     ["password", join("pass", "word = ", "hunter2hunter2")],
     ["password", join("PASS", "WORD: 's3cretvalue'")],
-    // The names release.yml and docs/distribution.md give this template's own secrets.
+    // The names a macOS release pipeline gives its signing secrets.
     ["password", join("APPLE_PASS", "WORD=", "abcd-efgh-ijkl-mnop")],
     ["password", join("export APPLE_CERTIFICATE_PASS", 'WORD="', "FakeFake123", '"')],
     ["password", join('{"pass', 'word": "', "FakeFake123", '"}')],
