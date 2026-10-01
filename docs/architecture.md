@@ -192,11 +192,11 @@ state and commands they leave.
 | You are adding… | It goes in… | Tested by… |
 |---|---|---|
 | A rule, a state change, a DTO the UI renders | `crates/myapp-core` | unit tests and `crates/myapp-core/tests/` (coverage-gated, Linux) |
-| Access to the OS or the filesystem | an adapter in `crates/myapp-platform`, behind a port in core, with a fake and a contract function in `crates/myapp-test-support` | the contract against the fake (core) and against the adapter (`just test-macos`, or `just test-local` when a human is needed) |
-| A command or an event | `src-tauri/src/commands.rs`, `with_commands`, and `ui/src/ipc/` | `src-tauri/tests/commands.rs` through `tauri::test` (`just test-macos`) and `ui/src/ipc/*.test.ts` |
+| Access to the OS or the filesystem | an adapter in `crates/myapp-platform`, behind a port in core, with a fake and a contract function in `crates/myapp-test-support` | the contract against the fake (core) and against the adapter (`just test-platform`, or `just test-local` when a human is needed) |
+| A command or an event | `src-tauri/src/commands.rs`, `with_commands`, and `ui/src/ipc/` | `src-tauri/tests/commands.rs` through `tauri::test` (`just test-platform`) and `ui/src/ipc/*.test.ts` |
 | A screen, a component, wording | `ui/src/`, built from `ui/src/design/`, wording in `ui/src/copy/` | Vitest and Testing Library, querying by role and accessible name |
 | A subcommand, or the wording for a new error code | `crates/myapp` (wording in `src/wording.rs`) | `crates/myapp/tests/cli.rs` (the built binary, a temporary `HOME`) and a test per variant in `wording.rs` |
-| Startup, windows, wiring | `src-tauri/src/lib.rs` (`compose`, `finish_startup`) | `src-tauri/tests/startup.rs` (`just test-macos`) |
+| Startup, windows, wiring | `src-tauri/src/lib.rs` (`compose`, `finish_startup`) | `src-tauri/tests/startup.rs` (`just test-platform`) |
 
 ## What is contract and what is private
 

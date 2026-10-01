@@ -35,7 +35,7 @@ just test           # test-core, with its coverage floors
 just test-core      # core: nextest under llvm-cov (lines 80, functions 80), doctests,
                     #   and the other Linux-buildable crates' tests
 just test-fast increment   # one core test or a group of them, no coverage
-just test-macos     # platform adapters and the CLI against the real macOS, macOS only
+just test-platform  # platform adapters and the CLI against the real OS (macOS or Linux)
 just test-scripts   # Vitest over scripts/ and skills' scripts with their floors, plus
                     #   the bundled Python tests and shellcheck
 just check-harness  # the harness's checks about itself (scripts/checks/)
@@ -45,7 +45,7 @@ just check          # the local gate, in CI's order; its steps are listed below
 ```
 
 `just check` runs verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test →
-test-macos. It opens no window, takes no focus, and raises no prompt.
+test-platform. It opens no window, takes no focus, and raises no prompt.
 
 These recipes are for a human and are never part of `just check`; an agent runs them
 only when you ask:
@@ -72,7 +72,7 @@ cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under
 cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
 pnpm test:scripts                                # just test-scripts (plus Python tests, shellcheck)
-cargo nextest run --locked -p myapp-platform -p myapp   # just test-macos
+cargo nextest run --locked -p myapp-platform -p myapp   # just test-platform
 cargo deny --locked check                        # just deny
 ```
 

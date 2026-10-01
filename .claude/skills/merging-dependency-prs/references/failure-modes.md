@@ -86,7 +86,7 @@ bump fixes is a reason to land it sooner. Never add an `ignore` entry to pass.
 
 ## F6: A test, a floor, or the smoke fails
 
-**Symptom:** lint passes; `just test-core` or `just test-macos` fails, or a coverage
+**Symptom:** lint passes; `just test-core` or `just test-platform` fails, or a coverage
 floor is missed.
 
 **Fix:** a real signal. Read the failure, reproduce with the narrowest recipe

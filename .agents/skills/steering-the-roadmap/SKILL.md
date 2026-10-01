@@ -95,7 +95,7 @@ comment giving its reason.
 **REQUIRED:** `triaging-issues`, for every issue filed, parked, promoted, or closed below.
 
 - **A Now outcome's issues are all closed.** Check its "Done when" yourself with what
-  an agent may run: the recipe, `just test-macos`, `just logs`. When only a human can
+  an agent may run: the recipe, `just test-platform`, `just logs`. When only a human can
   show it, ask the human to run it and say what they saw (`AGENTS.md` › "Never taking
   over the developer's Mac"). If it holds, remove
   the entry (`CHANGELOG.md` already records what shipped) and propose the next outcome

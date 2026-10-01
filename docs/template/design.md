@@ -322,7 +322,7 @@ Recipes, each a thin call into cargo, pnpm, or `scripts/`:
 
 `install` (mise install, `pnpm install --frozen-lockfile`, lefthook install,
 verify-hooks), `dev` (`tauri dev`), `fmt`, `fix`, `lint`, `test` (`test-core` + `test-ui`),
-`test-core` (core with its coverage floors, and doctests), `test-ui` (Vitest with its floors), `test-fast <filter>`, `test-macos` (platform and shell
+`test-core` (core with its coverage floors, and doctests), `test-ui` (Vitest with its floors), `test-fast <filter>`, `test-platform` (platform and shell
 tests that need macOS but no human), `test-local` (`#[ignore]`d tests), `test-scripts`,
 `check-harness`, `bindings`, `build` (debug `.app`), `run` (build, quit any running
 instance, launch), `smoke` (release `.app` launch smoke), `sidecar` (build the helper into
@@ -334,7 +334,7 @@ and copy it to `~/Applications`, replacing an older copy only after quitting it 
 personal app is used from a local build, which Gatekeeper never quarantines).
 
 `just check` runs everything a developer's Mac can run without a human:
-verify-hooks → fmt → lint → test-scripts → check-harness → test → test-macos → build →
+verify-hooks → fmt → lint → test-scripts → check-harness → test → test-platform → build →
 smoke. A harness check keeps it equal to CI's steps apart from a reasoned exception list
 (macos-app-template's `just-check-matches-ci`).
 

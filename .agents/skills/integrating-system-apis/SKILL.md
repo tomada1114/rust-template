@@ -45,6 +45,25 @@ object, no raw pointer, and no `objc2` retained object: translate inside the ada
 and return plain data. Every decision (when to ask for a grant, what a blocked state
 shows, what a result means) is core's, tested with the fake; a new port is an ADR.
 
+## Which OS each adapter supports
+
+`myapp-platform` builds and runs its tests on macOS and Linux: `just test-platform` runs
+in CI's `Rust Core` (Linux) and `macOS` jobs.
+
+| Adapter or function | macOS | Linux |
+|---|---|---|
+| `JsonFileCounterStore`, `SystemClock`, `init_logging` | yes | yes |
+| `app_data_dir`, `counter_file` | `~/Library/Application Support/<bundle id>` | `$XDG_DATA_HOME/myapp`, default `~/.local/share/myapp` |
+| `log_dir` | `~/Library/Logs/<bundle id>` | `$XDG_STATE_HOME/myapp/logs`, default `~/.local/state/myapp/logs` |
+
+The Linux paths follow the XDG Base Directory Specification
+(<https://specifications.freedesktop.org/basedir-spec/latest/>, checked 2026-10-01): an
+unset, empty, or relative variable takes the default. Each mapping is a pure function
+of the home directory and the variable's value (`macos_log_dir`, `xdg_log_dir`, and
+their data-directory pairs), unit-tested on any host; only the selection is
+`cfg(target_os)`. An adapter that is macOS-only says so here and sits behind
+`#[cfg(target_os = "macos")]`.
+
 ## Choosing the mechanism
 
 Take the first that answers the question. Each step down costs more: a binding crate,
@@ -143,7 +162,7 @@ grant an ad-hoc rebuild loses, `Info.plist` usage keys, and the human hand-off.
 | Question | Answered by |
 |---|---|
 | What the app decides with the OS's answer (blocked, ready, when to prompt) | core tests against the fake, on Linux, inside the coverage floor (`just test-core`) |
-| Whether the adapter keeps the port's promises where no grant is needed | the contract test against the real adapter (`just test-macos`) |
+| Whether the adapter keeps the port's promises where no grant is needed | the contract test against the real adapter (`just test-platform`) |
 | Whether it does so with a grant, a GUI session, or a change to the Mac | `#[ignore = "local machine: <what it needs>"]`, run by a human with `just test-local`, output pasted in the pull request |
 | Whether the whole grant flow works | a human, by hand (`running-the-app`) |
 

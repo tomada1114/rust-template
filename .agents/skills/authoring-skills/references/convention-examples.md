@@ -111,7 +111,7 @@ version or absent.
 
 ## Never taking over the developer's Mac
 
-Write: "For evidence that the change works, run `just test-macos`, then `just logs`.
+Write: "For evidence that the change works, run `just test-platform`, then `just logs`.
 When only a logged-in Mac can show it, ask the human to run `just test-local` (a human's
 recipe: it may raise a Keychain or privacy prompt) and put its output in the pull
 request."
