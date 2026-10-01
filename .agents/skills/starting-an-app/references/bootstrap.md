@@ -121,10 +121,13 @@ again" below.
   fills in only the Product section's four bullets, and runs `just check` there. It
   runs on every pull request, so the bootstrap cannot rot unnoticed.
 - The generated tree, not this checkout, is what a bootstrap change is tested against.
-  Build the temporary copy from the tracked files (`git ls-files`), never the working
-  directory, so ignored build output (`target/`, `node_modules/`) cannot change a
-  verdict; and a test that survives the bootstrap never asserts a literal that is only
-  true before it runs.
+  `scripts/verify-bootstrap.ts` builds the temporary copy with `git clone` of this
+  checkout, then lays over it every file changed since `HEAD` (`git diff --name-only
+  HEAD`, deletions included) and every untracked file git does not ignore (`git
+  ls-files --others --exclude-standard`), so an edit is verified before it is
+  committed while ignored build output (`target/`, `dist/`) cannot change a verdict;
+  only the installed `node_modules/` is linked in. A test that survives the bootstrap
+  never asserts a literal that is only true before it runs.
 - A change to the script, to a placeholder site, or to any file the script rewrites is
   proven by `just verify-bootstrap` and `just test-scripts` locally, and by that job; a
   new mention of the app's name in a file the list does not cover fails the leftover

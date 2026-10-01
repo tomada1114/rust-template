@@ -76,6 +76,10 @@ durations become `0ms` under `prefers-reduced-motion: reduce`.
 | `Text` | Text in a style: `largeTitle`, `title`, `body`, `secondary`, `danger`; `as` picks the element, `role` makes it a live `status` or `alert`, and `labelledBy` names it after another element (a status after its heading). |
 
 A screen uses these and the tokens, never a literal value (`building-react-screens`).
+The harness literal check (`just check-harness`) enforces only part of that: it fails on a
+raw color, a `font-family`, or a pixel font size outside `tokens.css`. A literal spacing
+value or dimension passes it — the sample's `max-width: 360px` in
+`ui/src/counter/CounterScreen.css` is one — so review holds the rest.
 
 ## How it is enforced
 
