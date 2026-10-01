@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pnpm-lock.yaml` differs from `mise.toml`'s `node` major, so a Renovate or Dependabot
   bump can no longer move one alone; `merging-dependency-prs` moves a Node major's two
   sides together.
+- A harness check (`scripts/checks/formatter-glob.ts`, run by `just check-harness`)
+  fails with `ERR_CHECK_FORMATTER_GLOB_DIVERGED` when the Claude Code edit hook's
+  Prettier extensions differ from `lefthook.yml`'s prettier job glob; the unit test that
+  read the real checkout's `lefthook.yml` for this is gone.
 - The pre-commit staged guard reads every staged blob through one `git cat-file --batch`
   instead of one `git cat-file blob` per file, so a 1,000-file merge is judged in under a
   second rather than about 20 s. The 256 MiB read cap now bounds all staged content
