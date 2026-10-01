@@ -320,7 +320,7 @@ tests that need macOS but no human), `test-local` (`#[ignore]`d tests), `test-sc
 instance, launch), `smoke` (release `.app` launch smoke), `sidecar` (build the helper into
 `src-tauri/binaries/`; every recipe that compiles the Tauri crate depends on it, because
 `tauri-build` fails when an `externalBin` file is missing), `logs`, `logs-follow`,
-`reset-permissions`, `check`, `agents-sync`, `agents-check`, `deny`, `clean`, `labels`,
+`reset-permissions`, `check`, `agents-sync`, `agents-check`, `deny`, `clean`, `prune-temp`, `labels`,
 `ruleset`, `release-prep <version>`, `bootstrap`, `install-app` (build the release `.app`
 and copy it to `~/Applications`, replacing an older copy only after quitting it — a
 personal app is used from a local build, which Gatekeeper never quarantines).
