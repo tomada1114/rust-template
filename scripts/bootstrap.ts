@@ -1548,7 +1548,11 @@ export function runBootstrap(
     "  6. Turn on the GitHub security settings: secret scanning and push protection, private",
     "     vulnerability reporting, Dependabot alerts and security updates. Install the Renovate",
     "     GitHub App on the repository: without it nothing bumps mise.toml or rust-toolchain.toml.",
-    "  7. Once the bootstrap commit is on main: just ruleset (a repository admin's step).",
+    "  7. Once the bootstrap commit is on main: just ruleset (a repository admin's step). It",
+    "     applies every .github/rulesets/*.json: the main branch ruleset and the release-tags",
+    "     tag ruleset.",
+    "  8. Before the first release, a repository admin creates the `release` environment and",
+    '     puts the APPLE_* secrets on it: docs/distribution.md, "Repository settings the release needs".',
   ]) {
     log(line);
   }

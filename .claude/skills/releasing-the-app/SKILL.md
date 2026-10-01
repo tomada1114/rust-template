@@ -42,7 +42,7 @@ skill is the order of work and the decisions around it; it does not copy that pa
   adds or changes any `APPLE_*` secret. An agent never reads, prints, or asks for a
   secret's value; it names the secret and where it goes.
 - **A repository admin**, once, configures the `release` environment, moves the
-  `APPLE_*` secrets onto it, and applies the `release-tags` ruleset
+  `APPLE_*` secrets onto it, and applies the `release-tags` ruleset with `just ruleset`
   (`docs/distribution.md` › "Repository settings the release needs"). Only an admin can
   then push a `v*` tag.
 - No `.dmg` is built locally, by anyone's routine: building one drives Finder through

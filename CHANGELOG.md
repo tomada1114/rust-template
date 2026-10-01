@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `just ruleset` now creates or updates every ruleset under `.github/rulesets/`, the
+  `release-tags` tag ruleset as well as `main`, each by its own name, and never deletes
+  one; the setup steps in `AGENTS.md`, `README.md`, and the bootstrap's next steps name
+  the tag ruleset and the manual `release` environment.
+
 - The Node runtime moves from 24 to 26: `mise.toml` pins Node 26.10.0, `package.json`'s
   `engines.node` is `>=26`, and `@types/node` follows it to `^26.6.2`. Building from the
   template now needs Node 26. Node 25 stopped bundling corepack, so pnpm now comes

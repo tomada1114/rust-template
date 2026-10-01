@@ -315,10 +315,14 @@ See [docs/design/design-system.md](docs/design/design-system.md).
    lists what to delete and has you decide the design system first.
 10. For Developer ID signed and notarized releases, add the secrets listed in
     [docs/distribution.md](docs/distribution.md). Without them, releases are ad-hoc
-    signed.
-11. Repository admin only, once the bootstrap commit is on `main`: protect it with
-    `just ruleset` (`.github/rulesets/main.json`). From then on every change needs a
-    pull request with the required checks green.
+    signed. Before the first release, a repository admin also creates the `release`
+    environment (deployable only from the default branch and `v*` tags) and puts those
+    secrets on it, as "Repository settings the release needs" there describes.
+11. Repository admin only, once the bootstrap commit is on `main`: run `just ruleset`.
+    It applies every ruleset under `.github/rulesets/` — `main.json`, which protects
+    `main`, and `release-tags.json`, which lets only an admin create, move, or delete a
+    `v*` tag. From then on every change needs a pull request with the required checks
+    green.
 
 ### A private repository
 
@@ -345,8 +349,10 @@ check:
    checked 2026-09-29). The release itself still works, visible only to people with
    access to the repository.
 3. In `.github/rulesets/main.json`, remove the `Dependency Review` entry from the
-   required status checks. Branch rulesets on a private repository need a paid GitHub
-   plan.
+   required status checks. Rulesets on a private repository — the `main` branch
+   ruleset and the `release-tags` tag ruleset `just ruleset` applies alike — need a
+   paid GitHub plan, and so does the `release` environment
+   ([docs/distribution.md](docs/distribution.md)).
 4. Run `just lint` and `just check-harness`, commit, and open a pull request: every
    check it waits for is now one a job in the repository reports.
 <!-- /template-only -->

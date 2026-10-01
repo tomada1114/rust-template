@@ -73,7 +73,8 @@ so this skill is where an app still finds them.
 10. **Release secrets**, only for Developer ID signed and notarized releases
     (`releasing-the-app`); without them releases are ad hoc.
 11. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
-    `just ruleset`. From then on every change needs a pull request with the required
+    `just ruleset`, which applies `main.json` and the `release-tags` tag ruleset; the
+    `release` environment stays manual (`docs/distribution.md`). From then on every change needs a pull request with the required
     checks green, so the ruleset must name only jobs the app still runs. On a **private
     repository**, first **REQUIRED:**
     [references/private-repository.md](references/private-repository.md).
