@@ -21,7 +21,7 @@
  *   missing file, a path the bootstrap removed, or `just <recipe>` for a recipe the
  *   justfile does not define;
  * - the names agree: the bundle identifier, display name, slug spellings, and version in
- *   tauri.conf.json, paths.rs, the justfile, scripts/smoke.ts, startup.rs, lib.rs,
+ *   tauri.conf.json, paths.rs, the justfile, scripts/smoke.ts, scripts/bundle-path.ts, startup.rs, lib.rs,
  *   release.yml's APP_NAME, package.json, LICENSE, and CHANGELOG.md; the crate
  *   directories, their package names, the workspace members and dependencies, and
  *   Cargo.lock; every Rust crate and library name a valid identifier.
@@ -417,6 +417,7 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
     dir.replace(/^crates\/myapp-/, `crates/${names.slug}-`),
   );
   const smoke = text("scripts/smoke.ts");
+  const bundlePath = text("scripts/bundle-path.ts");
   const justfile = text("justfile");
   const releaseNames = workflowEnvValues(
     parsed(text(".github/workflows/release.yml"), parseYaml),
@@ -445,7 +446,7 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
       quoted(smoke, /BUNDLE_IDENTIFIER = "([^"]*)"/),
       answers.bundleId,
     ],
-    ["smoke.ts APP_NAME", quoted(smoke, /APP_NAME = "([^"]*)"/), answers.name],
+    ["bundle-path.ts APP_NAME", quoted(bundlePath, /APP_NAME = "([^"]*)"/), answers.name],
     ...(releaseNames.length === 0 ? [undefined] : releaseNames).map(
       (value) => ["release.yml APP_NAME", value, answers.name] as const,
     ),

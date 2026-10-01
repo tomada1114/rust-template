@@ -98,8 +98,9 @@ lint:
 release-prep version *flags:
     node scripts/release-prep.ts {{ flags }} {{ version }}
 `,
+  "scripts/bundle-path.ts": `export const APP_NAME = "Tide Pool";
+`,
   "scripts/smoke.ts": `const BUNDLE_IDENTIFIER = "com.example.tide-pool";
-const APP_NAME = "Tide Pool";
 const EXECUTABLE = "tide-pool";
 const HELPER = "tide-pool-cli";
 const SMOKE_ENV = "TIDE_POOL_SMOKE";
