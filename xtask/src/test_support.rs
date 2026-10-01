@@ -6,11 +6,10 @@ use std::path::Path;
 
 use tempfile::TempDir;
 
+use crate::Task;
 use crate::context::{Context, Env, Run, RunOptions, process_env, run_command};
 use crate::fail::{ScriptError, TaskResult};
 use crate::git_env::git_env;
-
-use crate::Task;
 
 /// What one run of a task did: its result and every line it logged.
 pub(crate) struct Outcome {

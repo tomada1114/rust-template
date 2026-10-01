@@ -84,7 +84,7 @@ fn skip_csi(chars: &mut Chars<'_>) {
     chars.next_if(|next| ('\u{40}'..='\u{7e}').contains(next));
 }
 
-/// An OSC sequence, up to and including its BEL or `ESC \\` terminator.
+/// An OSC sequence, up to and including its BEL or `ESC \` terminator.
 fn skip_osc(chars: &mut Chars<'_>) {
     while let Some(next) = chars.next() {
         if next == '\u{7}' || (next == '\u{1b}' && chars.next_if_eq(&'\\').is_some()) {
