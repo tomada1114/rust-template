@@ -62,6 +62,7 @@ contest, whether the batch keeps each Tauri pair on one minor, and any Tauri maj
 `checks=PASSING` is an allow-list verdict: only `SUCCESS`, `NEUTRAL`, and `SKIPPED` pass,
 and any other conclusion, including one the script has never seen, is listed under
 `HELD`. An unknown CI state holds a PR; it is never waved through.
+
 Minor and patch bumps arrive grouped and majors one per PR (`.github/dependabot.yml`). For
 cargo and npm, the Tauri family arrives in its own group (`cargo-tauri`, `npm-tauri`) and
 everything else in `cargo-minor-and-patch` / `npm-minor-and-patch`. Dependabot counts a
@@ -75,12 +76,14 @@ and read its release notes (review checklist). Read a grouped PR's diff in full:
 gh pr diff <number>
 gh pr checks <number>
 ```
-## Step 2: Review every PR before the plan **REQUIRED:**
-[references/review-checklist.md](references/review-checklist.md), run against each PR:
-release notes for every major and every 0.x minor, workflow permissions and SHA pins on an
-Actions bump, maintainer and source changes, supply-chain settings left alone, crates
-whose build-time code changed, and the Tauri rule below. A failing PR is diagnosed
-before it is judged: **REQUIRED:**
+
+## Step 2: Review every PR before the plan
+
+**REQUIRED:** [references/review-checklist.md](references/review-checklist.md), run
+against each PR: release notes for every major and every 0.x minor, workflow permissions
+and SHA pins on an Actions bump, maintainer and source changes, supply-chain settings left
+alone, crates whose build-time code changed, and the Tauri rule below. A failing PR is
+diagnosed before it is judged: **REQUIRED:**
 [references/failure-modes.md](references/failure-modes.md).
 
 ## The Tauri rule
@@ -140,8 +143,7 @@ In ascending PR number, one at a time. After each merge the rest go `BEHIND`: co
 `@dependabot rebase` (or tick the rebase box Renovate puts in its PR body), then
 re-check after the rebase. The approval covers that rebase, because an approved merge
 caused it ("The approval gate"); a rebase or rerun for any other reason that the plan
-did not list needs a fresh approval. Never merge on a check result older than the PR's
-last push.
+did not list needs a fresh approval. Never merge on checks older than the PR's last push.
 
 ```bash
 gh pr checks <number>
@@ -203,8 +205,7 @@ gh pr close <number> --comment "Superseded by #<combined-number>." --delete-bran
 - A Tauri major, or a Tauri pair that cannot be brought back in step.
 - Anything the review checklist marks as held for the human.
 
-Never `--admin`, `--no-verify`, or a force push; never unpin a SHA-pinned Action to make
-a bump apply.
+Never `--admin`, `--no-verify`, a force push, or unpinning a SHA-pinned Action for a bump.
 
 ## Report
 
