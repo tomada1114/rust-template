@@ -109,6 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A counter that cannot be loaded no longer reads as a failed save: a `storage`/`unavailable`
+  error now says "The counter could not be read or saved. Try again." wherever it appears.
 - The primary button keeps 3:1 contrast against the window and panel on hover and press in
   dark mode: button states now use `--color-accent-hover`/`--color-accent-active` and
   `--color-control-bg-hover`/`--color-control-bg-active` instead of a `brightness()` filter

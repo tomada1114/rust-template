@@ -10,8 +10,8 @@ describe("describeCounterError", () => {
     expect(describeCounterError({ code: "atMinimum" })).toBe(
       "The counter is already at its lowest value.",
     );
-    expect(describeCounterError({ code: "storage", kind: "unavailable" })).toMatch(
-      /could not be saved/,
+    expect(describeCounterError({ code: "storage", kind: "unavailable" })).toBe(
+      "The counter could not be read or saved. Try again.",
     );
     expect(describeCounterError({ code: "storage", kind: "corrupt" })).toBe(
       "The saved counter could not be read.",
