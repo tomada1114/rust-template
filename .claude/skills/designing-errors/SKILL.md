@@ -160,8 +160,9 @@ panic kills the whole app at once, with no error for the UI and no line in the l
 
 `anyhow` is not used: every crate here is a library or a composition root with a typed
 error, and the helper CLI maps core's error to its own stderr line and exit code (in the
-sample, `describe` in `crates/myapp-cli/src/main.rs`). Adding it for the CLI's `main` is a new
-dependency (`managing-dependencies`), and it stays out of core, platform, and the shell.
+sample, `describe` in `crates/myapp-cli/src/main.rs`). Adding it for the CLI's `main` is a
+new dependency (`managing-dependencies`), and it stays out of core, platform, and the
+shell.
 
 ## Codes in `scripts/`
 

@@ -54,9 +54,14 @@ In the sample, `ui/src/counter/CounterScreen.tsx` renders over
   `{ status: "loading" } | { status: "failed"; error } | { status: "ready"; view; error }`.
   A `switch` or a `status ===` check then narrows it, and a state the component forgot
   is a type error rather than a blank screen.
-- **Load once, in an effect, and follow the event.** The effect calls the load wrapper,
-  subscribes with the event wrapper, and on cleanup sets an `active` flag to false and
-  calls the unlisten function. `main.tsx` renders in React's `StrictMode`, which runs
+- **Subscribe, then load, in an effect, and keep the newest view.** The effect
+  subscribes with the event wrapper and calls the load wrapper only once the
+  subscription resolves (or failed, which is logged), so a change saved between the
+  load and the subscription is not missed. A view can then arrive from the load, the
+  event, and an action's reply in any order, so the hook keeps the one with the highest
+  `revision` and drops an older one. On cleanup it sets an `active` flag to false and
+  calls the unlisten function (or calls it at once, if the subscription resolves after
+  cleanup). `main.tsx` renders in React's `StrictMode`, which runs
   one extra setup and cleanup of every effect in development
   (<https://react.dev/reference/react/StrictMode>, checked 2026-09-29), so a cleanup
   that leaks shows up under `just dev` (a human's recipe) as a duplicate listener rather
@@ -105,8 +110,8 @@ Every screen renders each state, and a test reaches each one:
   glyph-only control is an `IconButton`, whose `label` prop is required and becomes the
   `aria-label` while the glyph is `aria-hidden`. A region is named by its heading
   (`Panel as="section" labelledBy=…`).
-- **State changes are announced:** the value in `role="status"` (a `Text` with `as="output"`
-  in the sample), an error in `role="alert"`.
+- **State changes are announced:** the value in `role="status"` (a `Text` with
+  `as="output"` in the sample), an error in `role="alert"`.
 - **Keyboard:** every action is a native `button` (the primitives are), so Tab reaches it
   and Enter or Space presses it. Never a clickable `div`. The focus ring comes from
   `base.css`; never remove an outline to tidy a control. Once the app has its own menu,

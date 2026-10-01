@@ -44,4 +44,5 @@ checks that every required context names a job), commit, and open a pull request
 check it waits for is now one a job reports. Then a repository admin runs `just ruleset`.
 If the plan does not allow rulesets on a private repository, the script stops with
 `ERR_RULESET_PLAN_UNSUPPORTED` rather than a raw HTTP error, and `main` and the `v*`
-tags (`release-tags.json`) stay unprotected until the plan changes: say so to the owner rather than working around it.
+tags (`release-tags.json`) stay unprotected until the plan changes: say so to the owner
+rather than working around it.

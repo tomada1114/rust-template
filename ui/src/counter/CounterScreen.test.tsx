@@ -140,6 +140,9 @@ describe("CounterScreen", () => {
     });
     render(<CounterScreen />);
     const retry = await screen.findByRole("button", { name: "Retry" });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("The counter could not be read or saved. Try again.");
+    expect(alert).not.toHaveTextContent("could not be saved");
     expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
     await userEvent.click(retry);
     expect(await screen.findByRole("status")).toHaveTextContent("3");

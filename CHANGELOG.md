@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one; the setup steps in `AGENTS.md`, `README.md`, and the bootstrap's next steps name
   the tag ruleset and the manual `release` environment.
 
+- `just prune-temp` removes stale `verify-bootstrap-*` temp directories and this
+  checkout's idle Claude Code scratchpads (`--dry-run` lists them), and
+  `.claude/settings.json` now allows it and `just clean` without a prompt.
 - The Node runtime moves from 24 to 26: `mise.toml` pins Node 26.10.0, `package.json`'s
   `engines.node` is `>=26`, and `@types/node` follows it to `^26.6.2`. Building from the
   template now needs Node 26. Node 25 stopped bundling corepack, so pnpm now comes
@@ -110,6 +113,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata` reports, through `scripts/bundle-path.ts`, so they work with `CARGO_TARGET_DIR`
   or `build.target-dir` instead of assuming `./target`; a missing bundle stops the recipe
   with `ERR_BUNDLE_MISSING`.
+- A counter that cannot be loaded no longer reads as a failed save: a `storage`/`unavailable`
+  error now says "The counter could not be read or saved. Try again." wherever it appears.
 - The primary button keeps 3:1 contrast against the window and panel on hover and press in
   dark mode: button states now use `--color-accent-hover`/`--color-accent-active` and
   `--color-control-bg-hover`/`--color-control-bg-active` instead of a `brightness()` filter

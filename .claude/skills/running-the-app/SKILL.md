@@ -103,14 +103,13 @@ ps -o pid=,lstart=,command= -p <pid>        # its start time and executable path
 stat -f '%Sm %N' "$(node scripts/bundle-path.ts debug)/Contents/MacOS/myapp"
 ```
 
-Two things must hold: the executable path is this checkout's
-debug bundle — `node scripts/bundle-path.ts debug` prints it, under the target directory
-`cargo metadata` reports (`./target` unless `CARGO_TARGET_DIR` or `build.target-dir` moves
-it) — and the process started after the binary's
-modification time. The day's log then has a `startup complete` line with the same `pid`
-and `smoke=false`. `just run` quits running copies with `pkill -x myapp`, which matches
-by process name, so it also quits a copy started from another worktree; say so when
-asking a human who works in several.
+Two things must hold: the executable path is this checkout's debug bundle — `node
+scripts/bundle-path.ts debug` prints it, under the target directory `cargo metadata`
+reports (`./target` unless `CARGO_TARGET_DIR` or `build.target-dir` moves it) — and the
+process started after the binary's modification time. The day's log then has a `startup
+complete` line with the same `pid` and `smoke=false`. `just run` quits running copies with
+`pkill -x myapp`, which matches by process name, so it also quits a copy started from
+another worktree; say so when asking a human who works in several.
 
 ## The WebView inspector
 
@@ -148,5 +147,6 @@ command, not a paraphrase, and paste:
 
 Redact before pasting: a signing identity, a Team ID, a certificate name, a personal
 name, or a home directory path (`ps` and `stat` print `/Users/<name>/…`), and say that
-you did. A pull request here, or in an app cut from this template, may be public. Leave nothing behind: remove
-any scratch `HOME`, and check `git status --porcelain` shows only the change.
+you did. A pull request here, or in an app cut from this template, may be public. Leave
+nothing behind: remove any scratch `HOME`, and check `git status --porcelain` shows only
+the change.

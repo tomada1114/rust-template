@@ -64,9 +64,9 @@ comes back. Nothing in the app was called. Two answers, in this order:
 
 1. **Re-check when the window gains focus.** Returning to the app is the one signal
    that follows a change in System Settings. Tauri reports it as
-   `WindowEvent::Focused(true)` (<https://docs.rs/tauri/latest/tauri/enum.WindowEvent.html>,
-   checked 2026-09-29); the shell handles the event by calling core's refresh and
-   emitting the new view.
+   `WindowEvent::Focused(true)`
+   (<https://docs.rs/tauri/latest/tauri/enum.WindowEvent.html>, checked 2026-09-29); the
+   shell handles the event by calling core's refresh and emitting the new view.
 2. **Poll only while blocked and visible,** about once a second, and stop the moment
    the answer turns true. It covers a grant given without leaving the app, and costs
    nothing while ready.
@@ -100,7 +100,8 @@ code signature, and an ad-hoc signature changes with every build, so each rebuil
 like a different app and the grant given a minute ago no longer applies. Apple's DTS
 recommends a stable signing identity for day-to-day work with TCC
 (<https://developer.apple.com/forums/thread/730043>, checked 2026-09-29; the mechanism is
-the designated requirement, <https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements>).
+the designated requirement,
+<https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements>).
 
 This is the reason an agent debugging a TCC feature concludes the code is broken when it
 is not. How an app that needs grants signs its local builds is that app's decision, in

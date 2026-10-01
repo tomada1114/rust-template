@@ -117,9 +117,9 @@ open. The language itself is the TypeScript handbook
   `considerDefaultExhaustiveForUnions: false` (a `default` does not stand in for a
   missing member) and `allowDefaultCaseForExhaustiveSwitch: false` (a `default` beside
   every member is refused), because a `default` would silently answer for a member
-  added later. A `switch` over a plain `string` may still have one. In the sample, `describeCounterError` in `ui/src/copy/counter.ts`
-  switches on `code`, then on `kind`, with no `default`; a new code from Rust fails
-  `tsc` there until it has wording.
+  added later. A `switch` over a plain `string` may still have one. In the sample,
+  `describeCounterError` in `ui/src/copy/counter.ts` switches on `code`, then on `kind`,
+  with no `default`; a new code from Rust fails `tsc` there until it has wording.
 
 ## Strictness flags to work with, not around
 
@@ -136,7 +136,8 @@ open. The language itself is the TypeScript handbook
 - No `enum`, no `namespace`, and no parameter property. `scripts/tsconfig.json`,
   `ui/tsconfig.json`, and the root `tsconfig.json` reject them at `tsc`
   (`erasableSyntaxOnly`): Node strips `scripts/` types without compiling, and a
-  string-literal union is what ts-rs generates from a Rust enum anyway. In the sample, `StorageErrorKind` is `"unavailable" | "corrupt"`.
+  string-literal union is what ts-rs generates from a Rust enum anyway. In the sample,
+  `StorageErrorKind` is `"unavailable" | "corrupt"`.
 
 ## Function boundaries
 

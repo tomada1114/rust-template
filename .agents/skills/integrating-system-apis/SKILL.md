@@ -76,8 +76,9 @@ among it using accessibility APIs in assistive apps, sending Apple Events to arb
 apps, and reading or changing another app's preferences
 (<https://developer.apple.com/documentation/security/protecting-user-data-with-app-sandbox>,
 checked 2026-09-29; the same page makes the sandbox an App Store requirement), so an
-adapter that needs one keeps the app out of both for as long as it ships. Turning the sandbox on is a human's ADR decision
-(`starting-an-app`); name the adapter's effect on it in the pull request.
+adapter that needs one keeps the app out of both for as long as it ships. Turning the
+sandbox on is a human's ADR decision (`starting-an-app`); name the adapter's effect on it
+in the pull request.
 
 ## A system command, done right
 

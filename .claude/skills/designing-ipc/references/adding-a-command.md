@@ -20,6 +20,8 @@ In the sample, `crates/myapp-core/src/counter/mod.rs`:
 pub struct CounterView {
     pub value: i64,
     pub last_changed_at: Option<UnixMillis>,
+    /// Of two views from one app process, the higher revision is the newer.
+    pub revision: u64,
 }
 
 impl CounterService {
@@ -73,13 +75,33 @@ successful change, and logs one line. In the sample, `src-tauri/src/commands.rs`
 
 ```rust
 async fn on_blocking_thread(
+    work: impl FnOnce() -> Result<CounterView, CounterError> + Send + 'static,
+) -> Result<CounterView, CounterError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|_| CounterError::Storage { kind: StorageErrorKind::Unavailable })?
+}
+
+async fn change<R: Runtime>(
+    command: &'static str,
     state: &State<'_, AppState>,
+    app: &AppHandle<R>,
     action: fn(&CounterService) -> Result<CounterView, CounterError>,
 ) -> Result<CounterView, CounterError> {
     let service = Arc::clone(&state.counter);
-    tauri::async_runtime::spawn_blocking(move || action(&service))
-        .await
-        .map_err(|_| CounterError::Storage { kind: StorageErrorKind::Unavailable })?
+    let announcing = Arc::clone(&state.announcing);
+    let app = app.clone();
+    let result = on_blocking_thread(move || {
+        let _order = announcing.lock().unwrap_or_else(PoisonError::into_inner);
+        let result = action(&service);
+        if let Ok(view) = &result {
+            announce(&app, view);
+        }
+        result
+    })
+    .await;
+    log_outcome(command, &result);
+    result
 }
 
 #[tauri::command]
@@ -91,21 +113,23 @@ pub async fn increment<R: Runtime>(
 }
 ```
 
-`change` calls `on_blocking_thread`, logs the outcome, and on success calls
-`announce`, which emits `COUNTER_CHANGED`. A read-only command skips the emit
-(`get_counter`).
+`on_blocking_thread` takes a closure that owns what it touches, so each caller clones
+its `Arc`s first. `change` holds `AppState`'s `announcing` lock across the use case and
+its `announce` (the `COUNTER_CHANGED` emit): without it two changes could save in one
+order and emit in the other, and every window would end on the older view. The lock
+guards `()`, so a poisoned one is still safe to take. A read-only command skips the lock
+and the emit: `get_counter` is `on_blocking_thread(move || service.view())`.
 
-A command whose use case takes an argument cannot hand it to `on_blocking_thread` or
-`change`. Their `action` is a function pointer (`fn(&CounterService) -> …`), and a
-closure that captures the argument is not one: for a hypothetical use case
-`set_to(value)`, passing `move |service| service.set_to(value)` fails with E0308,
-mismatched types, whose note says a closure coerces to `fn` only when it captures
-nothing (<https://doc.rust-lang.org/error_codes/E0308.html>). Either widen the helper to
-a generic `F: FnOnce(&CounterService) -> Result<CounterView, CounterError> + Send +
-'static`, so the closure moves in only the argument and the helper keeps cloning the
-`Arc`, or call `tauri::async_runtime::spawn_blocking` in that command directly, with a
-`move` closure that owns the argument and its own `Arc::clone(&state.counter)`. Either
-way the closure runs on another thread, so it owns everything it touches.
+A command whose use case takes an argument passes its own closure to
+`on_blocking_thread`, but cannot hand it to `change`. Its `action` is a function
+pointer (`fn(&CounterService) -> …`), and a closure that captures the argument is not
+one: for a hypothetical use case `set_to(value)`, passing
+`move |service| service.set_to(value)` fails with E0308, mismatched types, whose note
+says a closure coerces to `fn` only when it captures nothing
+(<https://doc.rust-lang.org/error_codes/E0308.html>). Widen `change` to a generic
+`F: FnOnce(&CounterService) -> Result<CounterView, CounterError> + Send + 'static`, so
+the closure moves in only the argument and `change` keeps cloning the `Arc`s and taking
+the lock. The closure runs on another thread, so it owns everything it touches.
 
 A command that takes an argument names it as the UI will (camelCase on the wire):
 
@@ -167,8 +191,8 @@ and returns the unlisten promise.
 ## 6. The command test
 
 `src-tauri/tests/commands.rs` builds the app on Tauri's mock runtime with the real
-handler list and fakes for the ports, then invokes by name and compares JSON. `tauri::test`
-is behind the crate's `test` feature and marked unstable
+handler list and fakes for the ports, then invokes by name and compares JSON.
+`tauri::test` is behind the crate's `test` feature and marked unstable
 (<https://docs.rs/tauri/latest/tauri/test/index.html>, checked 2026-09-29), so a Tauri
 minor bump may need edits here; `src-tauri/Cargo.toml` enables the feature for
 dev-dependencies only.

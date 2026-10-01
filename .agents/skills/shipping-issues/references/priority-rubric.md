@@ -93,9 +93,9 @@ recur:
 - **Umbrella / epic** -- an issue whose body is a checklist of other issues is
   not implementable. Labelled `tracking` (or `epic`), `issue_digest.py` drops it
   before ranking and reports it on a `tracking:` line; unlabelled, it is this
-  judgement call on every run -- so label it. Its tier is not wrong, so leave it: never select it, ship
-  its highest-priority child instead. Same for an issue that is really five
-  issues -- report it as `NEEDS-CLARIFICATION`, do not demote it to hide it.
+  judgement call on every run -- so label it. Its tier is not wrong, so leave it: never
+  select it, ship its highest-priority child instead. Same for an issue that is really
+  five issues -- report it as `NEEDS-CLARIFICATION`, do not demote it to hide it.
   Tiers answer "how much does this matter", not "can I ship it"; readiness is
   the other axis, and it lives in the dependency-triage reference.
 - **Cheap unblock beats expensive damage** -- when the top two are close, prefer

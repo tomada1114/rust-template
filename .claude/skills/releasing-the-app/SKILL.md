@@ -103,11 +103,12 @@ reviewable diff. It refuses, each with a code and a `Next:` line:
 - three sites that already disagree (`ERR_RELEASE_VERSIONS_DIFFER`): fix that in its
   own commit first;
 - a missing or empty `[Unreleased]` (`ERR_RELEASE_CHANGELOG_MISSING`,
-  `ERR_RELEASE_CHANGELOG_EMPTY`), and a `cargo update` that fails (`ERR_RELEASE_LOCKFILE`).
+  `ERR_RELEASE_CHANGELOG_EMPTY`), and a `cargo update` that fails
+  (`ERR_RELEASE_LOCKFILE`).
 
 Why three sites: Cargo, Tauri's bundle, and pnpm each read their own, and the release
-workflow's preflight refuses a tag that differs from any of them, but only after the tag is pushed.
-The script checks the same agreement while it is still cheap.
+workflow's preflight refuses a tag that differs from any of them, but only after the tag
+is pushed. The script checks the same agreement while it is still cheap.
 
 ## 4. The release pull request
 
@@ -190,8 +191,8 @@ use.
 The workflow fails before upload unless the built app passes: `codesign --verify --deep
 --strict`, its entitlements equal `src-tauri/Entitlements.plist` key for key and value
 for value, the bundled helper is signed and runs, the launch smoke passes on it, and,
-for Developer ID only, `spctl --assess` accepts it. An agent's local evidence for all but the last is `just smoke`,
-which runs them on a local release `.app` without a window.
+for Developer ID only, `spctl --assess` accepts it. An agent's local evidence for all but
+the last is `just smoke`, which runs them on a local release `.app` without a window.
 
 A downloaded release is checked with `shasum -a 256 -c SHA256SUMS` and
 `gh attestation verify` (`docs/distribution.md` › "Verifying a build"). Opening one is a

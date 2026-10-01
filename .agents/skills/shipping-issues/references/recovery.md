@@ -177,8 +177,8 @@ is actually in the tree: an untracked build or package-manager cache in the repo
 root can fail the baseline on its own -- here a stale `target/` or `node_modules/`
 built by an earlier toolchain or at another path. Seen in practice
 in another repository: a package-manager store holding a unix socket, which a
-test helper that copies untracked files hit with a bare `ENOTSUP`. This is why the dirty-tree question is asked at plan time,
-before the baseline, rather than after it.
+test helper that copies untracked files hit with a bare `ENOTSUP`. This is why the
+dirty-tree question is asked at plan time, before the baseline, rather than after it.
 
 Once "not worktree-viable" is concluded, remove that worktree (`git worktree
 remove --force <path> && git worktree prune`) and record the verdict so later

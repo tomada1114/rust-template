@@ -37,9 +37,9 @@ main checkout in serial mode, that issue's worktree
 working directory** -- that invariant is what makes parallel mode safe, and
 filling `{workdir}` with the main checkout for two concurrent runs breaks it
 silently rather than loudly. `{holding_dir}` is `<runstate>/holding/<n>/` for
-that issue -- create it (`mkdir -p`) before spawning. The read-only templates are the exception, and
-only because they write nothing: the review fallback and the design agent read
-a checkout others are working in without disturbing it. Everything downstream
+that issue -- create it (`mkdir -p`) before spawning. The read-only templates are the
+exception, and only because they write nothing: the review fallback and the design agent
+read a checkout others are working in without disturbing it. Everything downstream
 of implementation still runs one PR at a time in the parent.
 
 **Every spawn names a tier.** Pass the tier from `.claude/agents/` as the
@@ -47,8 +47,8 @@ of implementation still runs one PR at a time in the parent.
 which keeps the model but loses the tier's effort and instructions. Which step
 takes which tier, and why: `cost-discipline.md`.
 Codex CLI has neither these tiers nor `SendMessage`: it reads custom agents from
-`~/.codex/agents/` and `.codex/agents/`, not `.claude/agents/`, and steers a subagent through requests made in the main
-session rather than a `SendMessage` tool
+`~/.codex/agents/` and `.codex/agents/`, not `.claude/agents/`, and steers a subagent
+through requests made in the main session rather than a `SendMessage` tool
 (https://learn.chatgpt.com/docs/agent-configuration/subagents, checked
 2026-09-29; `SendMessage` is Claude Code's,
 https://code.claude.com/docs/en/tools-reference, checked 2026-09-29). Under

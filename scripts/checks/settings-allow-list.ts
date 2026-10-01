@@ -14,7 +14,8 @@
  * `Bash(mise exec -- just:*)`, and `Bash(* just run)` all count. In a pattern `*` stands
  * for any text, a trailing `:*` is a trailing ` *`, and a trailing ` *` that is the only wildcard also
  * matches the bare command. Only `allow` is read: `ask` and `deny` are where these recipes
- * belong. The file is optional. No git work tree needed.
+ * belong. `clean` and `prune-temp` are absent on purpose: they delete only build output and
+ * known-safe temporary directories. The file is optional. No git work tree needed.
  *
  * Errors: ERR_CHECK_USAGE, ERR_CHECK_INPUT_UNREADABLE (`.claude/settings.json` is not
  * JSON), ERR_CHECK_ALLOW_HUMAN_RECIPE (an `allow` rule admits one of the recipes).
@@ -32,7 +33,6 @@ export const HUMAN_RECIPES = [
   "logs-follow",
   "reset-permissions",
   "install",
-  "clean",
   "labels",
   "ruleset",
   "release-prep",

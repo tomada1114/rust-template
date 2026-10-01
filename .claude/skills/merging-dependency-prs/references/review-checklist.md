@@ -10,10 +10,11 @@ and passes the tests, not that it is the version anyone meant to trust.
   (the survey already reports a 0.x minor as `major`: below 1.0.0 a minor release is
   allowed to break, and Cargo's and npm's caret ranges treat it that way). Dependabot's
   `update-types` counts a 0.x minor as a minor
-  (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference, `groups` › `update-types`, checked 2026-09-30), so it arrives inside a
-  `*-minor-and-patch` group, and the survey marks that bump `(major)`. Note removed
-  APIs, a raised minimum Rust version (`rust-version` in `Cargo.toml` is `1.90`, and
-  raising it is an ADR decision), a raised Node engine, and new lints.
+  (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
+  `groups` › `update-types`, checked 2026-09-30), so it arrives inside a
+  `*-minor-and-patch` group, and the survey marks that bump `(major)`. Note removed APIs,
+  a raised minimum Rust version (`rust-version` in `Cargo.toml` is `1.90`, and raising it
+  is an ADR decision), a raised Node engine, and new lints.
 - Where to find them: the PR body's release-notes section, or
   `gh release view <tag> --repo <owner>/<repo>`.
 
