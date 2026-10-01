@@ -46,8 +46,8 @@ formats. None of them opens a window.
 - A struct owns its fields (`String`, not `&str`). A reference inside a struct gives the
   struct a lifetime parameter that spreads to every type and function that holds it.
 - A closure that runs on another thread must own what it uses (`move`), so clone the
-  `Arc` first. In the sample, `on_blocking_thread` in `src-tauri/src/commands.rs` does
-  `Arc::clone(&state.counter)` before `spawn_blocking(move || …)`; borrowing
+  `Arc` first. In the sample, `get_counter` in `src-tauri/src/commands.rs` does
+  `Arc::clone(&state.counter)` before `on_blocking_thread(move || …)`; borrowing
   `state` there fails to compile, because the thread may outlive the borrow.
 - Share a port or a service between threads with `Arc<T>`; change data behind `&self`
   with a `Mutex`. `Rc` and `RefCell` are for one thread only, and a port must be
