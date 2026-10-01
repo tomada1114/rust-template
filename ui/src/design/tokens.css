@@ -20,22 +20,30 @@
   --palette-white: #ffffff;
   --palette-gray-50: #f5f5f7;
   --palette-gray-100: #e8e8ed;
+  --palette-gray-150: #dcdce1;
+  --palette-gray-200: #d1d1d6;
   --palette-gray-500: #6e6e73;
   --palette-gray-450: #86868b;
   --palette-gray-900: #1d1d1f;
   --palette-blue-600: #0062cc;
+  --palette-blue-700: #0058b8;
+  --palette-blue-800: #004ea3;
   --palette-red-600: #d70015;
 
   /* Primitives: dark */
   --palette-gray-dark-950: #1e1e1e;
   --palette-gray-dark-900: #2a2a2c;
   --palette-gray-dark-800: #3a3a3c;
+  --palette-gray-dark-750: #444446;
+  --palette-gray-dark-700: #4e4e50;
   --palette-gray-dark-400: #8e8e93;
   --palette-gray-dark-300: #a1a1a6;
   --palette-gray-dark-100: #e5e5ea;
   --palette-gray-dark-50: #f5f5f7;
   --palette-blue-dark-500: #3d8bfd;
   --palette-blue-dark-600: #3173d8;
+  --palette-blue-dark-vivid: #2b6fe6;
+  --palette-blue-dark-muted: #3a72c8;
   --palette-red-dark-400: #ff6961;
 
   /* Semantic colors: light */
@@ -45,8 +53,12 @@
   --color-text-secondary: var(--palette-gray-500);
   --color-text-danger: var(--palette-red-600);
   --color-accent: var(--palette-blue-600);
+  --color-accent-hover: var(--palette-blue-700);
+  --color-accent-active: var(--palette-blue-800);
   --color-text-on-accent: var(--palette-white);
   --color-control-bg: var(--palette-gray-100);
+  --color-control-bg-hover: var(--palette-gray-150);
+  --color-control-bg-active: var(--palette-gray-200);
   --color-control-text: var(--palette-gray-900);
   --color-control-border: var(--palette-gray-450);
   --color-panel-border: var(--palette-gray-100);
@@ -98,8 +110,13 @@
     --color-text-secondary: var(--palette-gray-dark-300);
     --color-text-danger: var(--palette-red-dark-400);
     --color-accent: var(--palette-blue-dark-600);
+    /* Dark fills sit between 3:1 on the panel and 4.5:1 under white, so states shift chroma, not lightness. */
+    --color-accent-hover: var(--palette-blue-dark-vivid);
+    --color-accent-active: var(--palette-blue-dark-muted);
     --color-text-on-accent: var(--palette-white);
     --color-control-bg: var(--palette-gray-dark-800);
+    --color-control-bg-hover: var(--palette-gray-dark-750);
+    --color-control-bg-active: var(--palette-gray-dark-700);
     --color-control-text: var(--palette-gray-dark-100);
     --color-control-border: var(--palette-gray-dark-400);
     --color-panel-border: var(--palette-gray-dark-800);

@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `just ruleset` now creates or updates every ruleset under `.github/rulesets/`, the
+  `release-tags` tag ruleset as well as `main`, each by its own name, and never deletes
+  one; the setup steps in `AGENTS.md`, `README.md`, and the bootstrap's next steps name
+  the tag ruleset and the manual `release` environment.
+
 - `just prune-temp` removes stale `verify-bootstrap-*` temp directories and this
   checkout's idle Claude Code scratchpads (`--dry-run` lists them), and
   `.claude/settings.json` now allows it and `just clean` without a prompt.
@@ -104,6 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The primary button keeps 3:1 contrast against the window and panel on hover and press in
+  dark mode: button states now use `--color-accent-hover`/`--color-accent-active` and
+  `--color-control-bg-hover`/`--color-control-bg-active` instead of a `brightness()` filter
+  the contrast check could not see.
 - Counter views no longer arrive out of order: the screen keeps the newest one, and
   `counter-changed` events leave in the order the changes were saved.
 - A counter file this version cannot read can now be replaced with Reset from the error

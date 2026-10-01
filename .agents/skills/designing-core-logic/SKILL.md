@@ -142,7 +142,10 @@ reading the clock is banned, not representing time.
   derives `Serialize` and `ts_rs::TS` with
   `#[cfg_attr(feature = "export-bindings", ts(export))]` and
   `#[serde(rename_all = "camelCase")]`. In the sample, `CounterView { value,
-  last_changed_at }` is the only counter type that crosses; `Counter` itself does not.
+  last_changed_at, revision }` is the only counter type that crosses; `Counter` itself
+  does not. `revision` counts the saves the service has made (raised only after a save
+  succeeds), so a UI that receives views out of order, from a command's reply and from
+  the event, keeps the one with the higher revision; it is not stored.
 - What goes to disk is its own type (in the sample, `StoredCounter`), separate from the
   view, so the file format and the IPC shape can change independently. Both are
   contract (`docs/architecture.md` › "What is contract and what is private").
