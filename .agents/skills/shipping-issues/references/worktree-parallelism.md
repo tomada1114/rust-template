@@ -25,8 +25,9 @@ This file is about whether the *repository* can support it at all, and how.
 
 The long pole in shipping an issue is the implementation run, and those runs
 are independent when the issues are. Two of them in two worktrees finish in
-roughly the time one takes, once each worktree's cold build is paid for. Everything after that -- PR, CI, merge -- is
-either serialized by GitHub or serialized on purpose, and stays that way.
+roughly the time one takes, once each worktree's cold build is paid for. Everything after
+that -- PR, CI, merge -- is either serialized by GitHub or serialized on purpose, and
+stays that way.
 
 So the honest accounting is: parallel mode compresses the implementation wait
 and nothing else. It buys that by paying, per issue, one dependency install

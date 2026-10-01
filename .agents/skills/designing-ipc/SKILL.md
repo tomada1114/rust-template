@@ -38,8 +38,9 @@ repository's shape on top of it.
 
 ## Adding a command, in order
 
-Each step names its check. [references/adding-a-command.md](references/adding-a-command.md)
-has the code for every step, taken from the sample.
+Each step names its check.
+[references/adding-a-command.md](references/adding-a-command.md) has the code for every
+step, taken from the sample.
 
 1. **Core function and DTO** in `myapp-core`, test first (`tdd`). Everything the UI
    receives or sends is a type in core deriving `Serialize` (or `Deserialize` for an
@@ -83,10 +84,10 @@ has the code for every step, taken from the sample.
   and a plain `fn` command on the main thread, and an async command whose argument is
   borrowed, as `State<'_, …>` is, has to return a `Result`: the page's other remedy,
   an owned argument, does not exist for state
-  (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29). So anything that touches I/O is `async` and returns `Result`;
-  only a command that does no slow work and cannot fail may be a plain `fn`. Writing a
-  log line is I/O too: `log_from_ui` takes an owned argument, so it is `async` without
-  a `Result` and writes on a blocking thread.
+  (<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29). So anything that
+  touches I/O is `async` and returns `Result`; only a command that does no slow work and
+  cannot fail may be a plain `fn`. Writing a log line is I/O too: `log_from_ui` takes an
+  owned argument, so it is `async` without a `Result` and writes on a blocking thread.
 - **A slow port runs on a blocking thread.** Core is synchronous by design (no async to
   learn), so the command moves the call with `tauri::async_runtime::spawn_blocking`.
   The closure must own what it uses (`'static`: it may outlive the borrow of `State`),

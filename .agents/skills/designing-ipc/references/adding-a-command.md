@@ -191,8 +191,8 @@ and returns the unlisten promise.
 ## 6. The command test
 
 `src-tauri/tests/commands.rs` builds the app on Tauri's mock runtime with the real
-handler list and fakes for the ports, then invokes by name and compares JSON. `tauri::test`
-is behind the crate's `test` feature and marked unstable
+handler list and fakes for the ports, then invokes by name and compares JSON.
+`tauri::test` is behind the crate's `test` feature and marked unstable
 (<https://docs.rs/tauri/latest/tauri/test/index.html>, checked 2026-09-29), so a Tauri
 minor bump may need edits here; `src-tauri/Cargo.toml` enables the feature for
 dev-dependencies only.

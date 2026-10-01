@@ -66,8 +66,9 @@ decides on top of them and links the HIG for the rest.
   uses is a row in `ui/src/design/contrast-pairs.ts`, and the test checks it in both
   appearances against `MINIMUM_RATIO`: 4.5:1 for body text, 3:1 for large text and UI
   parts. The HIG asks for at least 4.5:1 and 7:1 where it can, especially for small
-  text on custom colors (<https://developer.apple.com/design/human-interface-guidelines/dark-mode>,
-  checked 2026-09-29). The test name prints each measured ratio in `just test-ui`.
+  text on custom colors
+  (<https://developer.apple.com/design/human-interface-guidelines/dark-mode>, checked
+  2026-09-29). The test name prints each measured ratio in `just test-ui`.
 - Motion is optional decoration and never the only signal
   (<https://developer.apple.com/design/human-interface-guidelines/motion>, checked
   2026-09-29). Transitions use `--duration-fast`/`--duration-base` and
@@ -122,9 +123,9 @@ ellipsis (…). The strings live in `ui/src/copy/`.
 `docs/design/design-system.md` says what each token and primitive means; read it rather
 than a copy here.
 
-- **Two layers.** `--palette-*` holds raw values; semantic tokens (`--color-*`, `--font-*`,
-  `--space-*`, `--radius-*`, `--duration-*`) name a role and point at a palette value.
-  Components use semantic tokens only.
+- **Two layers.** `--palette-*` holds raw values; semantic tokens (`--color-*`,
+  `--font-*`, `--space-*`, `--radius-*`, `--duration-*`) name a role and point at a
+  palette value. Components use semantic tokens only.
 - **An app replaces values, never role names.** Every component already names the
   roles, so a new direction is a new set of values in `tokens.css` (and, where the
   direction needs it, new primitive styles), and no screen changes.

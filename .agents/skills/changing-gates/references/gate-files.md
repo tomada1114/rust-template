@@ -37,10 +37,10 @@ current values.
 - A `path` clippy cannot resolve (a typo, an item a Rust release renamed or moved, a
   `std::os::unix` path on another target) is only a configuration warning, which
   `-D warnings` does not turn into an error, so the ban would silently do nothing.
-  `just lint` and CI's clippy steps therefore run clippy through `scripts/clippy-guard.ts`,
-  which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on such a path, and with
-  `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic located in a `clippy.toml` (a
-  deprecated key, which clippy also only warns about, or an unknown one). Clippy's
+  `just lint` and CI's clippy steps therefore run clippy through
+  `scripts/clippy-guard.ts`, which fails with `ERR_CLIPPY_BAN_UNRESOLVED` on such a path,
+  and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic located in a `clippy.toml`
+  (a deprecated key, which clippy also only warns about, or an unknown one). Clippy's
   suggested `allow-invalid = true` hides the warning, which makes it weakening a gate;
   fix the path instead. `scripts/checks/clippy-allow-invalid.ts` (`just check-harness`)
   fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` on the key in any `clippy.toml`; an entry
@@ -81,11 +81,11 @@ Each tool is pinned exactly once — Rust in `rust-toolchain.toml` (rustup reads
 `mise.toml` lists no `rust` tool), Node and every CLI tool in `mise.toml` — except pnpm,
 pinned in `mise.toml` (`aqua:pnpm/pnpm`, which installs it) and in `packageManager`
 (which pnpm reads) at one version: `scripts/checks/pnpm-pin.ts` fails with
-`ERR_CHECK_PNPM_PIN_DIVERGED` when they differ. Never `latest`, never a range, and prefer the prebuilt-binary backends
-over `cargo:`, which compiles from source. Renovate opens the bumps for the first two
-after its 7-day minimum release age; its `enabledManagers` in `.github/renovate.json`
-are `mise`, `rust-toolchain`, and `npm` limited by `packageRules` to the
-`packageManager` field, with both pnpm pins in one `pnpm` group; every other
+`ERR_CHECK_PNPM_PIN_DIVERGED` when they differ. Never `latest`, never a range, and prefer
+the prebuilt-binary backends over `cargo:`, which compiles from source. Renovate opens the
+bumps for the first two after its 7-day minimum release age; its `enabledManagers` in
+`.github/renovate.json` are `mise`, `rust-toolchain`, and `npm` limited by `packageRules`
+to the `packageManager` field, with both pnpm pins in one `pnpm` group; every other
 `package.json` dependency is Dependabot's `npm` ecosystem (`.github/dependabot.yml`).
 `package.json`'s `@types/node` stays on the major of `mise.toml`'s `node`, so the
 scripts type-check against the Node that runs them: `scripts/checks/node-types-major.ts`

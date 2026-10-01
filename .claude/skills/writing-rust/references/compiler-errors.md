@@ -47,8 +47,9 @@ points at, typically a reference to a local stored in something that lives longe
 
 ## Types and traits
 
-**E0277, a trait bound is not satisfied** (https://doc.rust-lang.org/error_codes/E0277.html).
-A type is used where a trait it does not implement is required. The common cases here:
+**E0277, a trait bound is not satisfied**
+(https://doc.rust-lang.org/error_codes/E0277.html). A type is used where a trait it does
+not implement is required. The common cases here:
 
 - `… cannot be shared between threads safely` / `… cannot be sent between threads
   safely`: something inside is not `Sync` or `Send`. Replace `Rc` with `Arc` and
@@ -89,8 +90,8 @@ variants no match can name (`std::io::ErrorKind`, E0658), test the value with `=
 `just lint` runs `node scripts/clippy-guard.ts cargo clippy --workspace --all-targets
 --locked -- -D warnings` with `all` and `pedantic` on, so every warning fails, and the
 guard also fails on a `clippy.toml` entry clippy cannot resolve or read
-(`ERR_CLIPPY_BAN_UNRESOLVED`, `ERR_CLIPPY_CONFIG_INVALID`). Each finding names its lint; look it up
-in the lint list (https://rust-lang.github.io/rust-clippy/master/index.html).
+(`ERR_CLIPPY_BAN_UNRESOLVED`, `ERR_CLIPPY_CONFIG_INVALID`). Each finding names its lint;
+look it up in the lint list (https://rust-lang.github.io/rust-clippy/master/index.html).
 
 | Lint | What it wants | The fix here |
 |---|---|---|

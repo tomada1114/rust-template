@@ -165,8 +165,8 @@ passes:
   refusing the crate and npm packages on different versions.
 
 **Cause:** Dependabot updates cargo and npm in separate PRs, so each PR carries one side
-of a new Tauri minor, or of a plugin's new exact version. The harness refuses a pair on two
-versions, and the build may too. This is not a regression: as in F2, the bump is
+of a new Tauri minor, or of a plugin's new exact version. The harness refuses a pair on
+two versions, and the build may too. This is not a regression: as in F2, the bump is
 untested until its other side joins it.
 
 **Fix:** such a PR is eligible for the combined branch only, never landed alone, under

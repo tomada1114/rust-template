@@ -83,5 +83,6 @@ LABEL: cleared | left-on
 invent a product decision, and its `OPEN-QUESTION` is what the step 10 report
 puts in front of the user. `LABEL: left-on` with `VERDICT: DECIDED` means only
 the `--clear-design` write failed: re-run `apply_priority_labels.py
---clear-design {n}` from this session before treating the issue as ready. `APPROACH` is the only part worth reading closely in this context -- the
-full design lives on the issue, where the implementer will read it.
+--clear-design {n}` from this session before treating the issue as ready. `APPROACH` is
+the only part worth reading closely in this context -- the full design lives on the issue,
+where the implementer will read it.
