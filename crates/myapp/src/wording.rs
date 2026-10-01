@@ -10,6 +10,10 @@ pub const HOME_MISSING: &str = "HOME is not set, so the counter file cannot be f
 /// Printed when the log directory cannot be used; the action still runs.
 pub const LOGGING_UNAVAILABLE: &str = "logging is unavailable for this run";
 
+/// Printed when the result cannot be written to stdout (a closed pipe, an unwritable
+/// descriptor); a change the action made is already saved.
+pub const STDOUT_UNAVAILABLE: &str = "the result could not be written to standard output";
+
 /// The wording for a failed counter action.
 pub fn counter_error(error: CounterError) -> &'static str {
     match error {

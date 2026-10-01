@@ -11,6 +11,7 @@
 
 mod wording;
 
+use std::io::Write;
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -79,7 +80,12 @@ fn main() -> ExitCode {
     match result {
         Ok(view) => {
             tracing::info!(?action, value = view.value, "counter action succeeded");
-            println!("{}", render(&view));
+            // `println!` would panic (an abort in release) when stdout is closed or
+            // unwritable, as in `myapp counter show | true`.
+            if writeln!(std::io::stdout().lock(), "{}", render(&view)).is_err() {
+                eprintln!("error: {}", wording::STDOUT_UNAVAILABLE);
+                return ExitCode::FAILURE;
+            }
             ExitCode::SUCCESS
         }
         Err(error) => {

@@ -5,7 +5,7 @@
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 const COUNTER_FILE: &str = "Library/Application Support/com.example.myapp/counter.json";
 const LOG_DIR: &str = "Library/Logs/com.example.myapp";
@@ -76,6 +76,21 @@ fn show_prints_the_saved_value() {
     let output = run(home.path(), &["counter", "show"]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert_eq!(stdout(&output), "41\n");
+}
+
+#[test]
+fn a_closed_stdout_pipe_is_a_runtime_error_not_a_panic() {
+    let home = tempfile::tempdir().unwrap();
+    // The read end is dropped before the child starts, so its first write fails with
+    // EPIPE deterministically, as in `myapp counter increment | true` once `true` exited.
+    let (reader, writer) = io::pipe().unwrap();
+    drop(reader);
+    let mut command = command(home.path(), &["counter", "increment"]);
+    command.stdout(Stdio::from(writer));
+    assert_runtime_error(
+        &output(command),
+        "the result could not be written to standard output",
+    );
 }
 
 #[test]
