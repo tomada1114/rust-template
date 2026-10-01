@@ -30,8 +30,12 @@ Everything lives in `ui/src/design/`:
 | `--color-text-secondary` | Supporting text ("Last changed …"). |
 | `--color-text-danger` | Error messages. |
 | `--color-accent` | The primary action's fill and boundary; 3:1 against both surfaces, 4.5:1 under `--color-text-on-accent`. A fixed stand-in for the system accent (see below). Dark value `#3173d8`. |
-| `--color-text-on-accent` | Text on `--color-accent`. |
+| `--color-accent-hover` | The primary button's fill and boundary on hover; the same 3:1 and 4.5:1 as `--color-accent`. Darker in light (`#0058b8`); in dark (`#2b6fe6`) more saturated rather than lighter, since a dark fill has no room between 3:1 on the panel and 4.5:1 under white. |
+| `--color-accent-active` | The primary button's fill and boundary while pressed; same targets. Light `#004ea3`, dark `#3a72c8` (duller). |
+| `--color-text-on-accent` | Text on `--color-accent` and its state fills. |
 | `--color-control-bg` | A secondary button's fill. |
+| `--color-control-bg-hover` | A secondary button's fill on hover (darker in light, lighter in dark). |
+| `--color-control-bg-active` | A secondary button's fill while pressed. Button states use these tokens, never a CSS `filter`, which the contrast check cannot see. |
 | `--color-control-text` | A secondary button's label. |
 | `--color-control-border` | A control's boundary (3:1 against the panel, WCAG 1.4.11). |
 | `--color-panel-border` | A panel's decorative edge (not a contrast pair: the panel is itself a surface). |
@@ -72,6 +76,10 @@ durations become `0ms` under `prefers-reduced-motion: reduce`.
 | `Text` | Text in a style: `largeTitle`, `title`, `body`, `secondary`, `danger`; `as` picks the element, `role` makes it a live `status` or `alert`, and `labelledBy` names it after another element (a status after its heading). |
 
 A screen uses these and the tokens, never a literal value (`building-react-screens`).
+The harness literal check (`just check-harness`) enforces only part of that: it fails on a
+raw color, a `font-family`, or a pixel font size outside `tokens.css`. A literal spacing
+value or dimension passes it — the sample's `max-width: 360px` in
+`ui/src/counter/CounterScreen.css` is one — so review holds the rest.
 
 ## How it is enforced
 

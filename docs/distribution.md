@@ -166,18 +166,10 @@ A repository admin applies these once. Each is a remote write that needs sign-of
    repository-level copy; that is a human's step on release secrets.
 
 3. **The tag ruleset**, `.github/rulesets/release-tags.json`: only a repository admin may
-   create, move, or delete a `v*` tag. Apply it once:
-
-   ```bash
-   gh api --method POST "repos/$REPO/rulesets" --input .github/rulesets/release-tags.json
-   ```
-
-   To update it later, get its id and send the file again:
-
-   ```bash
-   gh api "repos/$REPO/rulesets?includes_parents=false" --jq '.[] | select(.name == "release-tags") | .id'
-   gh api --method PUT "repos/$REPO/rulesets/<id>" --input .github/rulesets/release-tags.json
-   ```
+   create, move, or delete a `v*` tag. `just ruleset` applies it together with
+   `main.json`: it creates each ruleset under `.github/rulesets/` that is missing and
+   updates one that already exists, matched by its `name` and `target`, and never
+   deletes one. Run it again after changing the file.
 
    Unlike `main.json`, which has no bypass actor so that nobody skips the pull request,
    this ruleset has one: the repository admin role (`actor_id` 5 with `RepositoryRole`;
