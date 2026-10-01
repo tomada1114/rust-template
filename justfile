@@ -1,4 +1,4 @@
-# Task runner. Every recipe is a thin call into cargo, pnpm, or scripts/.
+# Task runner. Every recipe is a thin call into cargo (`cargo xtask` included), pnpm, or scripts/.
 # `just --list` shows them all.
 #
 # Never taking over the developer's Mac: recipes a human starts on purpose (test-local,
@@ -44,11 +44,11 @@ install:
     mise install
     pnpm install --frozen-lockfile
     lefthook install
-    node scripts/verify-hooks.ts
+    cargo xtask verify-hooks
 
 # Fail when lefthook's pre-commit hook is not installed (ALLOW_MISSING_GIT_HOOKS=1 opts out)
 verify-hooks:
-    node scripts/verify-hooks.ts
+    cargo xtask verify-hooks
 
 # Format every Rust and TypeScript file
 fmt:
@@ -64,19 +64,25 @@ fix:
 # Check formatting, lints, and types in both languages
 lint:
     cargo fmt --all --check
-    node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
+    cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
     pnpm typecheck
     pnpm lint
     pnpm format:check
 
-# Every test that runs anywhere: the Rust core with its coverage floors
-test: test-core
+# Every test that runs anywhere: the Rust core and the xtask crate, each with its coverage floors
+test: test-core test-xtask
 
 # The Rust core with its coverage floors (lines 80, functions 80), its doctests, and the Linux-buildable crates' tests
 test-core:
     cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
     cargo test --doc --locked -p myapp-core
     cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
+
+# The xtask crate with its coverage floors: lines 85, functions 90 over xtask and its guard; the guard's rules alone (xtask/guard/) lines 90, functions 100
+test-xtask:
+    cargo llvm-cov nextest --locked --no-report -p xtask -p xtask-guard
+    cargo llvm-cov report --locked -p xtask -p xtask-guard --fail-under-lines 85 --fail-under-functions 90
+    cargo llvm-cov report --locked -p xtask -p xtask-guard --ignore-filename-regex '/xtask/src/' --fail-under-lines 90 --fail-under-functions 100
 
 # One core test or a group of them, fast: `just test-fast increment`
 test-fast filter:
@@ -122,9 +128,9 @@ clean:
 
 # Remove stale verify-bootstrap-* temp dirs and this checkout's idle Claude Code scratchpads: `just prune-temp --dry-run`
 prune-temp *args:
-    node scripts/prune-temp.ts {{ args }}
+    cargo xtask prune-temp {{ args }}
 
-# Repository script tests with the scripts/** coverage floors (85/90; scripts/lib/guard/** 90/100), plus shipping-issues' bundled Python suite and shellcheck
+# Repository script tests with the scripts/** coverage floors (85/90), plus shipping-issues' bundled Python suite and shellcheck
 test-scripts:
     pnpm test:scripts
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agents/skills/shipping-issues/scripts/tests -t .agents/skills/shipping-issues/scripts/tests -p 'test_*.py'
@@ -132,11 +138,11 @@ test-scripts:
 
 # Regenerate .claude/skills/ as a byte-for-byte copy of .agents/skills/
 agents-sync:
-    node scripts/sync-agents.ts
+    cargo xtask sync-agents
 
 # Fail when .claude/skills/ differs from .agents/skills/, listing each path (writes nothing)
 agents-check:
-    node scripts/sync-agents.ts --check
+    cargo xtask sync-agents --check
 
 # Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
 labels:

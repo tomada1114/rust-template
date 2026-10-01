@@ -38,7 +38,8 @@ fewest machines while still able to fail for the behavior:
 | A pure startup decision in the shell | `#[cfg(test)] mod tests` in that file (`src-tauri/src/startup.rs`) | `just test-platform` | none |
 | The `myapp` binary's command line | `crates/myapp/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
 | The binary's wording for an error code | `#[cfg(test)] mod tests` in `crates/myapp/src/wording.rs`, one test per variant | `just test-core` | none |
-| A repository script | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor, and `scripts/lib/guard/**` for the staged guard |
+| A repository task in `xtask/` | `#[cfg(test)] mod tests` in the task's file, with fakes for its child processes; a run of the built binary in `xtask/tests/` (`CARGO_BIN_EXE_xtask`, with a temporary directory as its root) | `just test-xtask` | `xtask` 85/90, and `xtask/guard/` 90/100 for the staged guard's rules |
+| A repository script not yet ported | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor |
 | A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | `.agents/skills/*/scripts/**` floor |
 | A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/shipping-issues/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
 

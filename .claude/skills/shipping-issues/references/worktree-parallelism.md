@@ -76,7 +76,7 @@ conveniences do not follow the worktree:
 - Claude has access to files in the directory it was launched in, and to directories
   added to the session (same page, "Working directories"), so an edit under
   `<runstate>` may stop for a permission prompt mid-run;
-- the `PostToolUse` formatter (`scripts/format-edited-file.ts`), when a personal
+- the `PostToolUse` formatter (`cargo xtask format-edited-file`), when a personal
   settings file registers it as `AGENTS.md` describes, runs from `$CLAUDE_PROJECT_DIR`,
   the main checkout, and does nothing for a file outside it;
 - the path-scoped `.claude/rules/` are documented as loading for the project's own

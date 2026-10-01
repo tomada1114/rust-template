@@ -42,13 +42,11 @@ export default defineConfig({
       // Per-glob floors, never one combined number, so one tree cannot subsidise
       // another (typescript-template's pattern).
       thresholds: {
-        // Every repository script; scripts/lib/guard/** also counts here.
+        // Every repository script. The staged guard's rules moved to xtask/guard/, which
+        // `just test-xtask` holds to lines 90, functions 100.
         "scripts/**": { lines: 85, functions: 90 },
         // A skill's bundled TypeScript scripts, at the same floor as scripts/**.
         ".agents/skills/*/scripts/**": { lines: 85, functions: 90 },
-        // The credential and path rules of the staged guard: the most security-critical
-        // code in the repository, so a higher floor.
-        "scripts/lib/guard/**": { lines: 90, functions: 100 },
       },
     },
   },

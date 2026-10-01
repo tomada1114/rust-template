@@ -54,7 +54,7 @@ jobs:
       # The guard fails on a clippy.toml path clippy cannot resolve, which `-D warnings`
       # lets pass; this job resolves core's unix-only bans on Linux.
       - name: Clippy (whole workspace)
-        run: node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Core tests with coverage floors, doctests, and the Linux-buildable crates' tests
         run: just test-core
@@ -79,9 +79,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # Rust comes from rust-toolchain.toml through the runner's rustup: `cargo xtask` runs
+      # the skills mirror and xtask's tests.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node aqua:pnpm/pnpm just typos actionlint shellcheck lefthook
+          install_args: node aqua:pnpm/pnpm just typos actionlint shellcheck lefthook github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Locate the pnpm store
         id: pnpm-store
@@ -120,6 +124,10 @@ jobs:
       - name: Script tests with coverage floors
         run: just test-scripts
 
+      # lefthook (installed above) runs the real pre-commit hook in xtask/tests/lefthook.rs.
+      - name: xtask tests with coverage floors
+        run: just test-xtask
+
       - name: Harness self-checks
         run: just check-harness
 
@@ -141,7 +149,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Clippy (whole workspace)
-        run: node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Platform tests (real adapters, the CLI) on macOS
         run: just test-platform

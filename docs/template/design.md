@@ -367,8 +367,12 @@ alias (`cargo xtask <task>`), never shipped, and outside core's coverage floor.
   tree as each task's header states; each harness check takes `--root` so its tests run
   against a fixture tree.
 - Every task has tests that call it with fakes for its child processes and a temporary
-  directory, never the real checkout. Whether xtask carries a coverage floor of its own
-  is decided by the sub-issue that ports the scripts.
+  directory, never the real checkout. xtask carries floors of its own, at the
+  TypeScript scripts' values: `just test-xtask` runs its tests once under cargo-llvm-cov
+  and fails below lines 85 / functions 90 over `xtask` with `xtask-guard`, and below
+  lines 90 / functions 100 over the staged guard's rules, which live in their own crate
+  (`xtask/guard/`, package `xtask-guard`) so that per-module floor has a file set of
+  its own.
 - `just` recipes stay the entry points (D10); a recipe calls `cargo xtask …` where it
   called `node scripts/….ts`. A skill's bundled scripts may keep their language when
   ported with their tests (`shipping-issues`' Python and shell), as before.

@@ -80,7 +80,7 @@ export interface Exceptions {
 export const EXCEPTIONS: Exceptions = {
   localOnly: {
     "verify-hooks":
-      "asserts lefthook's pre-commit hook is installed in this checkout; a CI checkout has none and nobody commits there (the script skips when CI is set)",
+      "asserts lefthook's pre-commit hook is installed in this checkout; a CI checkout has none and nobody commits there (`cargo xtask verify-hooks` skips when CI is set)",
     fmt: "rewrites files; CI checks the same formatting read-only through `just lint`'s `cargo fmt --all --check` and `pnpm format:check` lines, which this check matches verbatim",
   },
   ciOnlyRecipes: {},
