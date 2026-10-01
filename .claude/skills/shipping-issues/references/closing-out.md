@@ -162,8 +162,8 @@ omitting one is a defect, not a stylistic choice.
 
 - **Any issue left open behind a merged PR.** This is the failure mode the skill
   exists to prevent; it can never be implied, only stated.
-- **Every PR held for a human's evidence**, with the recipe to run (`just test-local`,
-  or `just run` then `just logs`) and what to paste. Its issue stays open until the
+- **Every PR held for a human's evidence**, with the recipe to run (`just test-local`)
+  and what to paste. Its issue stays open until the
   human does, and the PR merges only after that (`pr-ci-merge.md`).
 - **How each merged PR was reviewed** -- the local `/code-review` pass (effort
   used, findings, what was fixed vs. rejected) or the fallback agent -- and any

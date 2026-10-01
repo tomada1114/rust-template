@@ -82,7 +82,7 @@ Write:
 - "Codex CLI scans `.agents/skills` from the working directory up to the repository root
   (https://learn.chatgpt.com/docs/build-skills, checked 2026-09-29)."
 - "`ActivationPolicy::Prohibited` keeps focus during a smoke run: observed on this Mac
-  with `lsappinfo front` during `just smoke`, 2026-09-28."
+  with `lsappinfo front` during a smoke run, 2026-09-28."
 - "E0382 is a use of a moved value (https://doc.rust-lang.org/error_codes/E0382.html)."
   (a concept link: no date needed)
 
@@ -111,12 +111,13 @@ version or absent.
 
 ## Never taking over the developer's Mac
 
-Write: "For evidence that the change is wired, run `just smoke`, then `just logs`. When
-only the window shows it, ask the human to run `just run` (a human's recipe: it opens
-the app) and put what they saw in the pull request."
+Write: "For evidence that the change works, run `just test-macos`, then `just logs`.
+When only a logged-in Mac can show it, ask the human to run `just test-local` (a human's
+recipe: it may raise a Keychain or privacy prompt) and put its output in the pull
+request."
 
-Avoid: "Run `just run` and check the window." An unattended agent following that opens
-an app on top of the owner's work and takes focus.
+Avoid: "Run `just test-local` to check the Keychain adapter." An unattended agent
+following that raises a prompt on top of the owner's work and takes focus.
 
 ## For a reader new to Rust
 

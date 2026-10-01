@@ -31,20 +31,12 @@ it:
   which a human starts; a pull request that changes such an adapter carries that
   output. Never an `#[ignore]` without the reason string, and never one on a test that
   merely fails.
-- **A command → `src-tauri/tests/`.** `tauri::test::mock_builder()` with the real
-  handler list (`with_commands`) and fakes for the ports: argument decoding, error
-  mapping to `{ code }`, and the event the command emits (`just test-macos`).
 - **The helper CLI → `crates/myapp-cli/tests/`**, running the built binary against a
-  temporary `HOME`.
-- **A screen, hook, or IPC wrapper → a Vitest test beside it** (`ui/src/**/*.test.ts(x)`),
-  with the Rust side mocked by `ui/src/ipc/testing.ts` (`mockCommands`, `rejectWith`,
-  events through `shouldMockEvents`); `just test-ui`.
+  temporary `HOME` (`just test-macos`).
 - **A repository script → `scripts/<name>.test.ts` beside it**, calling `main` with a
   fake context and stubbed commands (`just test-scripts`).
-- **What only the assembled app shows → the launch smoke** (`just smoke`), and beyond
-  that the manual `just run` + `just logs` check the PR carries evidence of. A new
-  automated test never opens a window, takes focus, or raises a prompt (`AGENTS.md` ›
-  Never taking over the developer's Mac).
+- A new automated test never opens a window, takes focus, or raises a prompt
+  (`AGENTS.md` › Never taking over the developer's Mac).
 
 ## An Independent Oracle
 
@@ -85,8 +77,6 @@ maximum of 99, `assert_eq!(counter.value(), 99)` catches a bug that
   at a bound; the state after an error (nothing changed)
 - Both branches of every conditional in core: the floors measure lines and functions,
   not branches, so they will not notice a missed one
-- In the UI, query by role and accessible name (`getByRole("button", { name:
-  "Increment" })`), never by class, test id, or a glyph
 
 ## Exhaustive Matches
 
@@ -111,8 +101,8 @@ maximum of 99, `assert_eq!(counter.value(), 99)` catches a bug that
 - Tests may `unwrap()`/`expect()` (a panic is how a Rust test fails) — inside a
   `#[test]` function or `#[cfg(test)]` code only: clippy's `allow-unwrap-in-tests` does
   not cover a plain helper function in a `tests/` file, so a helper matches and panics
-  with a message instead (`must` in `src-tauri/tests/commands.rs`); library code in
-  `myapp-test-support` compares `Result`s with `assert_eq!` instead
+  with a message instead; library code in `myapp-test-support` compares `Result`s with
+  `assert_eq!` instead
 - No `.only` (Vitest's `allowOnly: false` fails the run) and no `.skip` or `#[ignore]`
   to get a red test out of the way
 - TDD: write the failing test first, then the minimum that makes it pass, then refactor

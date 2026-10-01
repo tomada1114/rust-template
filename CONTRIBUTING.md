@@ -31,37 +31,28 @@ just install   # mise install, pnpm install --frozen-lockfile, lefthook install,
 just fmt            # format every Rust and TypeScript file
 just fix            # formatters plus ESLint's automatic fixes
 just lint           # rustfmt check, workspace clippy -D warnings, tsc, ESLint, Prettier check
-just test           # test-core + test-ui, each with its coverage floors
+just test           # test-core, with its coverage floors
 just test-core      # core: nextest under llvm-cov (lines 80, functions 80), doctests,
                     #   and the other Linux-buildable crates' tests
-just test-ui        # Vitest over ui/src with its floors (lines 80, functions 80)
 just test-fast increment   # one core test or a group of them, no coverage
-just test-macos     # platform adapters and the Tauri commands (tauri::test), macOS only
+just test-macos     # platform adapters and the CLI against the real macOS, macOS only
 just test-scripts   # Vitest over scripts/ and skills' scripts with their floors, plus
                     #   the bundled Python tests and shellcheck
 just check-harness  # the harness's checks about itself (scripts/checks/)
-just bindings       # regenerate ui/src/ipc/generated/ from core's types; commit the result
 just deny           # cargo deny: advisories, licences, bans, sources
-just build          # the debug .app (no disk image)
-just smoke          # the launch smoke: release .app, signature, entitlements, helper, smoke run
 just logs           # print the end of the newest app log and exit
 just check          # the local gate, in CI's order; its steps are listed below
-just release-prep 0.2.0   # bump the three version sites and roll CHANGELOG.md (docs/distribution.md)
 ```
 
 `just check` runs verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test →
-test-macos → build → smoke. It opens no window, takes no focus, and raises no prompt.
+test-macos. It opens no window, takes no focus, and raises no prompt.
 
 These recipes are for a human and are never part of `just check`; an agent runs them
 only when you ask:
 
 ```bash
-just dev                # the app with hot reload (opens a window)
-just run                # build, quit any running copy, and open the debug app
-just install-app        # build the release app and copy it to ~/Applications
 just test-local         # the #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain
 just logs-follow        # follow the newest log (never ends)
-just reset-permissions  # make macOS forget this app's privacy (TCC) grants
 ```
 
 Run `just test-local` whenever you change an adapter in `crates/myapp-platform` that
@@ -74,21 +65,15 @@ Each recipe is a thin call; the justfile is the reference. The main ones:
 ```bash
 mise install && pnpm install --frozen-lockfile && lefthook install
 node scripts/verify-hooks.ts                     # just verify-hooks
-node scripts/build-sidecar.ts                    # just sidecar (the Tauri crate needs the helper first)
 cargo fmt --all --check                          # part of just lint
 node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- -D warnings
 pnpm typecheck && pnpm lint && pnpm format:check
 cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
 cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
-pnpm test:ui                                     # just test-ui
 pnpm test:scripts                                # just test-scripts (plus Python tests, shellcheck)
-cargo nextest run --locked -p myapp-platform -p myapp   # just test-macos
-pnpm tauri build --debug --bundles app -- --locked  # just build (unset every APPLE_* variable first)
-node scripts/smoke.ts                            # just smoke
-node scripts/bindings.ts                         # just bindings
+cargo nextest run --locked -p myapp-platform -p myapp-cli   # just test-macos
 cargo deny --locked check                        # just deny
-node scripts/release-prep.ts 0.2.0               # just release-prep 0.2.0
 ```
 
 ## Where a change goes
@@ -111,7 +96,7 @@ A new crate or npm package needs a reason and a maintainer's sign-off.
 3. Make sure `just check` passes.
 4. Open a pull request using the template, with a Conventional Commits title.
 
-Required checks: `Rust Core`, `Frontend`, `Repo Lint & Harness`, `macOS Build & Smoke`,
+Required checks: `Rust Core`, `Repo Lint & Harness`, `macOS`,
 `Template Bootstrap Smoke`, `Workflow Security Lint`, `Dependency Review`, and
 `Validate PR title`.
 

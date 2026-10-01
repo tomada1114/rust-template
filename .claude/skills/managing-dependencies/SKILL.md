@@ -20,8 +20,7 @@ description: >
 declared, and what happens at build and install time. **Does not own:** landing a
 Dependabot or Renovate pull request (`merging-dependency-prs`); the ADR the dependency
 owes (`recording-architecture-decisions`); editing `deny.toml`, `osv-scanner.toml`, or
-`pnpm-workspace.yaml` as gates (`changing-gates`); wiring a plugin's commands and
-capability into the app (`designing-ipc`); tool pins in `mise.toml` and
+`pnpm-workspace.yaml` as gates (`changing-gates`); tool pins in `mise.toml` and
 `rust-toolchain.toml` (`.claude/rules/project.md` › Tool Pinning).
 
 ## A dependency is a sign-off change

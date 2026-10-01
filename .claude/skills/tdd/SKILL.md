@@ -4,8 +4,8 @@ description: >
   Red-green-refactor for this repository: decide where the code lives (myapp-core by
   default), write a failing test first, prove it fails with just test-fast <filter>
   (cargo nextest in myapp-core) or Vitest for a ui/src hook, implement the minimum in
-  core, refactor, then re-check the coverage floors with just test-core and just
-  test-ui, and just lint. Use PROACTIVELY when implementing a feature, changing
+  core, refactor, then re-check the coverage floor with just test-core, and just
+  lint. Use PROACTIVELY when implementing a feature, changing
   behavior, fixing a bug (regression test first), adding a function, a type, a state
   transition, a command, or a hook; when asked for TDD or test-first; or when a
   coverage floor fails after a change.
@@ -31,8 +31,8 @@ should do.
   it tested and it builds and tests on Linux with no window. **BACKGROUND:**
   `designing-core-logic`.
 - **Rendering and wiring in the UI** go in `ui/src/`, as a hook that mirrors a Rust-owned
-  model and a component that renders it (`building-react-screens`). If a hook needs an
-  `if` about the domain, that condition belongs in core, returned through the view.
+  model and a component that renders it. If a hook needs an `if` about the domain,
+  that condition belongs in core, returned through the view.
 - **Talking to the OS or the file system** is a port in core plus an adapter in
   `crates/myapp-platform`. The red test is a core test against the fake, and the
   contract function in `crates/myapp-test-support`; the adapter only translates.
@@ -43,7 +43,7 @@ should do.
   starts from.
 - **A command or an event** decides nothing; its red test is in
   `src-tauri/tests/commands.rs` (`just test-macos`), after the core function it calls
-  has its own. **REQUIRED:** `designing-ipc`, when adding or renaming one.
+  has its own.
 - About to put a decision in `myapp-platform`, `src-tauri`, `myapp-cli`, or a component?
   Stop and move it to core.
 
@@ -106,7 +106,7 @@ Write the smallest change in core that makes the test pass, following `writing-r
 then a broader one that covers every test the change could touch; in the sample,
 `just test-fast counter`. All must pass, the new ones and the old. In the UI the
 smallest change is in the hook or component the test drives, and never a domain rule a
-hook would need an `if` for (Step 0); re-run the same file, then `just test-ui`.
+hook would need an `if` for (Step 0); re-run the same file.
 
 ## Step 4: REFACTOR — with the gates on
 
@@ -116,10 +116,8 @@ the change can fail:
 | Changed | Run |
 |---|---|
 | core | `just test-core` (its floors, doctests, and the other Linux-buildable crates), then `just lint` (clippy, including core's banned calls) |
-| a core type that crosses IPC | `just bindings`, then `just test-ui` and `just lint` (tsc) |
-| `ui/src/` | `just test-ui` (its floors), then `just lint` |
 | `src-tauri/` or `crates/myapp-platform/` | `just test-macos` |
-| `crates/myapp-cli/` | `just test-core` (it runs the CLI's tests), then `just smoke` (it runs the bundled copy) |
+| `crates/myapp-cli/` | `just test-core` (it runs the CLI's tests), then `just test-macos` |
 | `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-macos` (platform runs them against the real adapters) |
 | `scripts/` | `just test-scripts` (**REQUIRED:** `writing-repo-scripts`) |
 
@@ -136,8 +134,8 @@ weakening a gate (`AGENTS.md` › "Security and human approval").
 The regression test comes first and reproduces the bug through the same interface a
 user or caller hit: it fails for the reason the report describes, then passes with the
 fix. A bug that only the running app shows (a button wired to the wrong command) has
-no automated seam here; ask the human to reproduce it with `just run` (a human's recipe:
-it opens the app), then write the tests for each side the fix touches.
+no automated seam here; ask the human to reproduce it in the running app, then write
+the tests for each side the fix touches.
 
 ## Step 5: commit
 

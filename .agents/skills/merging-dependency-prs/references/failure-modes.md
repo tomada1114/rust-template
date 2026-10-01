@@ -86,10 +86,8 @@ bump fixes is a reason to land it sooner. Never add an `ignore` entry to pass.
 
 ## F6: A test, a floor, or the smoke fails
 
-**Symptom:** lint passes; `just test-core`, `just test-ui`, `just test-macos`, or
-`just smoke` fails, or a coverage floor is missed. A Tauri or `wry` bump that fails only
-in `macOS Build & Smoke` is the common case: the app no longer starts the way the smoke
-expects.
+**Symptom:** lint passes; `just test-core` or `just test-macos` fails, or a coverage
+floor is missed.
 
 **Fix:** a real signal. Read the failure, reproduce with the narrowest recipe
 (`AGENTS.md` › "Validating a change"), and hold the PR with the error. Never edit a test
@@ -156,11 +154,6 @@ except a side the approved plan names under F11 or F12.
 `npm-tauri`) fails only in one or more of these ways, and every other job and step
 passes:
 
-- `Repo Lint & Harness` fails at "Harness self-checks"; the only `FAIL` line is
-  `FAIL  tauri-versions`, and the only codes are `ERR_CHECK_TAURI_VERSIONS_DIVERGED` /
-  `ERR_CHECK_TAURI_PLUGIN_VERSIONS_DIVERGED`.
-- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at
-  `check-harness`, with the same `tauri-versions` failure.
 - `macOS Build & Smoke` fails at "Build the debug app bundle" with the Tauri CLI
   refusing the crate and npm packages on different versions.
 

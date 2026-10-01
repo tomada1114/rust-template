@@ -29,9 +29,8 @@ the screen lives in `ui/`, and repository automation is TypeScript under `script
 Quality gates are on from day one: rustfmt, clippy `all` + `pedantic` with warnings as
 errors, `unsafe_code = "forbid"` in every crate, an 80% line and 80% function coverage
 floor on `myapp-core`, TypeScript `strict` with ESLint's `strictTypeChecked`, and Vitest
-coverage floors on `ui/src/` (80/80), `scripts/` and skills' bundled TypeScript scripts
-(85/90), and the staged guard (90/100); skills' bundled Python and shell suites run with
-no floor.
+coverage floors on `scripts/` and skills' bundled TypeScript scripts (85/90) and the
+staged guard (90/100); skills' bundled Python and shell suites run with no floor.
 
 ## Product
 
@@ -63,34 +62,24 @@ just verify-hooks  # Fail when lefthook's pre-commit hook is not installed
 just fmt           # Format every Rust and TypeScript file (cargo fmt, prettier --write)
 just fix           # Format and apply ESLint's autofixes
 just lint          # rustfmt check, clippy -D warnings, tsc, ESLint, Prettier check
-just test          # test-core + test-ui: every test that runs anywhere, with the coverage floors
+just test          # test-core: every test that runs anywhere, with the coverage floors
 just test-core     # myapp-core with its 80/80 floors, its doctests, and the Linux-buildable crates' tests
-just test-ui       # Vitest over ui/src with its 80/80 floors
 just test-fast increment  # One core test or a group of them, no floor (iteration only)
-just test-macos    # Platform adapters and tauri::test command tests (macOS, no human)
+just test-macos    # Platform adapter and CLI tests against the real macOS (no human)
 just test-scripts  # Vitest over scripts/ and skills' scripts with its floors, plus bundled Python tests and shellcheck
 just check-harness # Re-assert the harness's claims about itself (scripts/checks/)
-just bindings      # Regenerate ui/src/ipc/generated/ from core's ts-rs types
-just sidecar       # Build myapp-cli into src-tauri/binaries/ (the Tauri build needs it)
-just build         # Build the debug .app bundle (no disk image)
-just smoke         # The launch smoke: release .app, signature, entitlements, helper, windowless run
 just logs          # Print the end of the newest app log and exit
 just deny          # cargo deny: advisories, licences, bans, sources
-just check         # Everything a Mac runs without a human: verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test → test-macos → build → smoke
+just check         # Everything a Mac runs without a human: verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test → test-macos
 just agents-sync   # Regenerate the .claude/skills/ mirror from .agents/skills/
 just agents-check  # Fail if .claude/skills/ differs from .agents/skills/
-just clean         # Remove build output (target/, dist/, coverage/, src-tauri/binaries/)
+just clean         # Remove build output (target/, coverage/)
 just prune-temp    # Remove stale verify-bootstrap-* temp dirs and idle Claude Code scratchpads (--dry-run to list)
-just release-prep 0.2.0  # Bump the three version sites, refresh Cargo.lock, roll CHANGELOG.md (no commit/tag/push)
 just verify-bootstrap    # Bootstrap a scratch clone in a temp directory; fail on anything it leaves behind (template only)
 
-# A human's recipes — they open the app, never end, or change the Mac; an agent runs them only when asked
-just dev               # Run the app with hot reload (opens a window)
-just run               # Build, quit any running copy, and open the debug app
-just install-app       # Build the release app and copy it to ~/Applications
+# A human's recipes — they need a logged-in Mac or never end; an agent runs them only when asked
 just test-local        # The #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain
 just logs-follow       # Follow the newest app log (never ends)
-just reset-permissions # Make macOS forget this app's privacy (TCC) grants
 
 # Writes to GitHub or rewrites the repository — a human's step
 just labels     # Create/update labels from .github/labels.yml (never deletes)
@@ -111,18 +100,12 @@ developer's Mac").
 |---|---|
 | Rust under `crates/myapp-core/src/` | `just test-fast <filter>` while iterating, then `just test-core` (the floors) and `just lint` (clippy, including core's banned calls) |
 | A test under `crates/myapp-core/tests/`, or a `#[cfg(test)]` module in core | `just test-core` |
-| A type in core that derives `ts_rs::TS` (anything crossing IPC) | `just bindings`, commit `ui/src/ipc/generated/` with it, then `just lint` (tsc) and `just test-ui` |
 | An adapter under `crates/myapp-platform/` | `just test-macos` (its contract tests against the real adapter); an `#[ignore]`d test there is human-run — ask for `just test-local` output for the PR |
 | A fake or a contract function under `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-macos` (platform runs them against the real adapters) |
-| The helper under `crates/myapp-cli/` | `just test-core` (it runs the CLI's tests), then `just smoke` (it runs the bundled copy) |
-| A command, the wiring, or startup under `src-tauri/src/` | `just test-macos` (the `tauri::test` command tests in `src-tauri/tests/`), then `just smoke` for the startup path |
-| `src-tauri/tauri.conf.json`, `src-tauri/capabilities/`, or `src-tauri/Entitlements.plist` | `just build`, then `just smoke` — and each is a sign-off change ("Security and human approval") |
-| A command or an event added, renamed, or removed | `just test-macos`, `just test-ui`, then `just check-harness` (the Rust and `ui/src/ipc/` name lists agree) |
-| A component, hook, or IPC wrapper under `ui/src/` | `just test-ui`, then `just lint` |
-| `ui/src/design/tokens.css` or a design primitive | `just test-ui` (`tokens.test.ts` checks dark values and contrast), then `just check-harness` (no raw color, `font-family`, or pixel font size outside `tokens.css`) |
+| The helper under `crates/myapp-cli/` | `just test-core` (it runs the CLI's tests), then `just test-macos` |
 | Formatting of any Rust or TypeScript file | `just fmt`, or `just lint` to only check |
 | A clippy or ESLint finding that may be auto-fixable | `just fix`, then `just lint` for what still needs a hand edit |
-| Behavior only the running app shows (a screen's wiring to Rust, a log line) | `just smoke` and `just logs` first; `just run`, then `just logs`, only when the human asks to see the window — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
+| Behavior only the running app shows (a log line) | `just test-macos` and `just logs` — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
 | A script under `scripts/` (including `scripts/lib/`) | `just test-scripts`, then `just lint` |
 | `lefthook.yml` or `scripts/verify-hooks.ts` | `just test-scripts`, then `just verify-hooks` |
 | A harness check under `scripts/checks/` | `just test-scripts`, then `just check-harness` |
@@ -189,11 +172,10 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   and `Clock` / `SystemClock` / `FixedClock`.
 - The core boundary is enforced three times, so removing one layer leaves the others:
   core's `Cargo.toml` lists no tauri, OS, or platform crate; `deny.toml`'s `[bans]`
-  `wrappers` let only `myapp` depend on `tauri` and only `myapp` and `myapp-cli` on
-  `myapp-platform`; and a harness check fails when core's normal and build dependency
-  closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`, `security-framework*`,
-  or `myapp-platform`. Those lists change together, and `just check-harness` fails when
-  they differ.
+  `wrappers` let only `myapp-cli` depend on `myapp-platform`; and a harness check fails
+  when core's normal and build dependency closure reaches `tauri*`, `wry`, `tao`,
+  `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`. Those lists
+  change together, and `just check-harness` fails when they differ.
 - I/O, time, the environment, and processes reach core only through ports or arguments,
   and core never sleeps or starts a thread that outlives the call:
   `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`,
@@ -224,15 +206,14 @@ scripts/                    # Repository automation in TypeScript, run by Node d
   prints the newest. The UI forwards its warnings and errors through
   `ui/src/ipc/log.ts` to the `log_from_ui` command.
 - Every type that crosses IPC lives in core and derives `ts_rs::TS`, exported to
-  `ui/src/ipc/generated/` by `just bindings` (CI regenerates and fails on a diff). Only
-  `ui/src/ipc/` imports those files or `@tauri-apps/*` (ESLint `no-restricted-imports`);
+  `ui/src/ipc/generated/`. Only `ui/src/ipc/` imports those files or `@tauri-apps/*`;
   the rest of the UI imports types from `ui/src/ipc/types.ts` and calls the typed
   wrappers in `commands.ts` and `events.ts`. Command names in `generate_handler!` and
   event names (a `pub const` per event, such as `COUNTER_CHANGED`) match what
   `commands.ts` invokes and `events.ts` listens to.
 - The screen uses only the primitives and `var(--…)` tokens in `ui/src/design/`, never
-  a raw color, a `font-family`, or a pixel font size (`docs/design/design-system.md`); every string
-  comes from `ui/src/copy/`; every control has an accessible name.
+  a raw color, a `font-family`, or a pixel font size; every string comes from
+  `ui/src/copy/`; every control has an accessible name.
 - Tauri's security posture is deliberate: a restrictive CSP in `tauri.conf.json`,
   `withGlobalTauri: false`, and one capability granting only `core:default`. The app
   commands need no capability entry; a plugin does, and adding one is an ADR decision.
@@ -298,7 +279,6 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `updating-docs` | Deciding which document a change must update |
 | `recording-architecture-decisions` | Writing an ADR under `docs/architecture/` |
 | `writing-repo-scripts` | A TypeScript script under `scripts/` or bundled with a skill, and its test |
-| `releasing-the-app` | Cutting a release: version, CHANGELOG, `just release-prep`, the tag, signing |
 | `starting-an-app` | Turning the template into a new app: bootstrap, design system first, app shape |
 | `writing-rust` | Rust in `crates/*` and `src-tauri`: ownership, errors, compiler messages, clippy |
 | `writing-typescript` | Type-system judgment in `ui/src/` and `scripts/` |
@@ -307,11 +287,8 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `placing-tests` | Where a new test goes and which floor measures it |
 | `designing-core-logic` | Shaping logic in `myapp-core`: ports, `Tuning`, transitions, views |
 | `designing-errors` | Error enums, codes for the UI, adapter mapping, `ERR_*` script codes |
-| `designing-ipc` | Adding a command or event end to end, bindings, capabilities, the sidecar |
 | `integrating-system-apis` | Calling macOS from `myapp-platform`: commands, `objc2`, TCC |
-| `running-the-app` | Seeing a change work: `just smoke` and `just logs`; the human's run recipes |
-| `building-react-screens` | A screen under `ui/src/`: a thin component over a hook, states, accessibility |
-| `designing-ui` | Look and feel: HIG in a WebView, the design system, the design-lock ADR |
+| `running-the-app` | Seeing a change work: `just test-macos` and `just logs`; the human's recipes |
 
 ### Rules
 
@@ -437,16 +414,11 @@ pre-commit hook, a PostToolUse hook an agent registers, and any step an agent ru
 verify its own work — may show a window, take keyboard focus, move the pointer, add a
 Dock icon, or raise a permission, Keychain, or Gatekeeper prompt.
 
-- For evidence that the app starts and is wired, use `just smoke` (it runs the built
-  executable directly with `MYAPP_SMOKE=1`: no window, no Dock icon, no focus change)
-  and `just logs`. Never launch the app with `open`.
-- `just dev`, `just run`, and `just install-app` open the app; run one only when the
-  human asks to see it. `just test-local`, `just reset-permissions`, and
-  `just logs-follow` are likewise started by a human on purpose.
+- For evidence that a change works, use `just test-macos` and `just logs`. Never launch
+  the app with `open`.
+- `just test-local` and `just logs-follow` are started by a human on purpose.
 - A test that needs a GUI session, a TCC grant, or the Keychain is
   `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`.
-- Local builds make the app bundle only (`--bundles app`): building a `.dmg` drives
-  Finder through AppleScript, so only the release workflow on a CI runner builds one.
 - Never trigger an installer or a `sudo` prompt; report the command for the human to
   run instead (`just install` does this for the Xcode Command Line Tools).
 
@@ -483,9 +455,6 @@ UIs), the `main` ruleset, the Renovate App, and the label set:
 - The `release-tags` ruleset, applied by the same `just ruleset` from
   `.github/rulesets/release-tags.json`: only a repository admin may create, move, or
   delete a `v*` tag, so it keeps its admin bypass.
-- The `release` environment, deployable only from the default branch and `v*` tags,
-  with the `APPLE_*` secrets on it — a manual step, since it is not a ruleset:
-  `docs/distribution.md` › "Repository settings the release needs".
 - The **Renovate** GitHub App (<https://github.com/apps/renovate>, checked 2026-09-30),
   installed on the repository: without it `.github/renovate.json` does nothing, so
   `mise.toml` and `rust-toolchain.toml` are never bumped — Dependabot covers only cargo,
@@ -550,30 +519,20 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | lefthook's pre-commit hook (`lefthook.yml`) | `git commit` | anyone who ran `just install` | check-only and fast, on the staged files: `rustfmt --check`, `prettier --check`, `eslint --max-warnings 0`, `typos`, and the staged guard. No clippy, compile, or test step — `just check` and CI run those. On the commit that concludes a conflicted merge, or one made at a rebase stop, the four style jobs skip (CI reruns them over the whole tree) and the staged guard and the skills mirror still run |
 | `scripts/check-staged.ts` (the hook's staged guard; rules in `scripts/lib/guard/`) | `git commit`, whatever is staged, including the commit that concludes a conflicted merge | anyone who ran `just install` | no secret-shaped path (`.env*`, `.envrc.*`, `secrets/`, signing material, SSH keys, `.claude/settings.local.json`) or credential-shaped content (private-key header, GitHub token, AWS keys, Anthropic or OpenAI API key, Slack token, Google API key, Stripe live key, and the rest `credentials.ts` lists) lands in a commit; judged from the index, so a partly staged file is judged as committed; staged deletions are never inspected |
 | `scripts/verify-hooks.ts` (`just install`'s last step, `just check`'s first) | `just install`, `just verify-hooks`, and `just check` | anyone who runs one | lefthook's pre-commit hook is installed in this checkout — skips under CI or the `ALLOW_MISSING_GIT_HOOKS` opt-out |
-| The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp` depends on `tauri` and only `myapp` and `myapp-cli` on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
+| The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp-cli` depends on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
 | `crates/myapp-core/clippy.toml`, core's `#![deny(clippy::wildcard_enum_match_arm)]`, `scripts/clippy-guard.ts` (every clippy run in `just lint` and CI goes through it), and `scripts/checks/clippy-allow-invalid.ts` | `just lint`, `just check`, and CI's clippy steps; the check in `just check-harness` and CI's `Repo Lint & Harness` job | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `std::os::unix::fs`'s `symlink`, `chown`, `fchown`, `lchown`, and `chroot`, `std::net`'s and `std::os::unix::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, the process and parent-process ids, `thread::available_parallelism`, `thread::spawn`, `thread::Builder::spawn`, `thread::sleep`, or `thread::park_timeout` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive; and every `path` in a `clippy.toml` names an item clippy resolves on that job's target — clippy only warns about one that does not, and `-D warnings` lets that pass, so the guard fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead of letting the ban silently do nothing, and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic in a `clippy.toml` (a deprecated or unknown key); and no `clippy.toml` sets `allow-invalid`, which would hide that warning from the guard, so the check fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` apart from its human-approved exception list (empty) |
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
-| ESLint's `no-restricted-imports`, `no-restricted-syntax`, `no-console`, `no-restricted-properties`, and `switch-exhaustiveness-check` (`eslint.config.mjs`) | the hook, `just lint`, and CI's `Frontend` job | every author | only `ui/src/ipc/` imports `@tauri-apps/*` or `ui/src/ipc/generated/`, only tests import `ui/src/ipc/testing.ts`, and inside `ui/src/ipc/` only `testing.ts` and tests import `@tauri-apps/api/mocks`, statically or by `import()`; no `console` (nor `window.console` or `globalThis.console`) outside `ui/src/ipc/log.ts` and `scripts/`; a `switch` over a union names every member and has no `default`; an unused disable directive is an error |
-| Coverage floors | `just test-core`, `just test-ui`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `ui/src/` 80 / 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
-| The launch smoke (`scripts/smoke.ts`, `just smoke`) | `just check` and CI's `macOS Build & Smoke` job | every author | the release `.app` builds, is signed, carries `Entitlements.plist`'s entitlements, bundles a runnable `myapp-cli`, and starts windowless in smoke mode — store, clock, logging, and command registration wired — exiting 0 after logging `startup complete` |
+| ESLint's `no-console`, `no-restricted-properties`, and `switch-exhaustiveness-check` (`eslint.config.mjs`) | the hook, `just lint`, and CI's `Repo Lint & Harness` job | every author | no `console` (nor `window.console` or `globalThis.console`) outside `scripts/`; a `switch` over a union names every member and has no `default`; an unused disable directive is an error |
+| Coverage floors | `just test-core`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
 | The skills-mirror check (`just agents-check`; the hook runs `node scripts/sync-agents.ts --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
-| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; every `tauri` crate in `Cargo.lock` and the `@tauri-apps/api` and `@tauri-apps/cli` `pnpm-lock.yaml` resolves share one MAJOR.MINOR, and each `@tauri-apps/plugin-<x>` matches its `tauri-plugin-<x>` crate's version; the bundle identifier is one value in `tauri.conf.json`, `myapp-platform`'s `BUNDLE_IDENTIFIER`, and the justfile's `bundle_id`; the app version is one value in `Cargo.toml`'s `[workspace.package]`, `tauri.conf.json`, and `package.json`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; the IPC command and event lists agree; no raw color, `font-family`, or pixel font size outside `tokens.css`; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that open the app, need a human, or write beyond the working tree (`dev`, `run`, `install-app`, `test-local`, `logs-follow`, `reset-permissions`, `install`, `labels`, `ruleset`, `release-prep`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
-| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, clippy on the Linux-buildable crates, core tests with floors, doctests, the bindings drift check, `cargo deny`, `cargo shear`), `Frontend` (tsc, ESLint, Prettier, UI tests with floors), `Repo Lint & Harness` (typos, actionlint, script tests, harness checks), `macOS Build & Smoke` (workspace clippy, `just test-macos`, `just build`, `just smoke`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
+| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
+| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (tsc, ESLint, Prettier, typos, actionlint, script tests, harness checks), `macOS` (workspace clippy, `just test-macos`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 
 These gaps are deliberate. Closing one means adding a mechanism that enforces it —
 a hook, a harness check, or a CI job — and then updating its row in the table above and
 removing or narrowing its bullet here:
 
-- **A UI-to-Rust wiring mistake that only the running app shows passes every gate.**
-  There is no end-to-end driver on macOS (Tauri's WebDriver support has no WKWebView
-  driver), so the UI is tested against `mockIPC` and the commands against
-  `tauri::test`, each side alone; the launch smoke proves the app starts with its
-  store, clock, and logging wired, not that a button reaches the command it should.
-  The check is manual: `just run`, exercise the change, then `just logs`, and the PR
-  carries that evidence (the `running-the-app` skill). Because `just run` opens a
-  window, an agent asks the human to run it or waits to be asked (see "Never taking
-  over the developer's Mac"), and review is what notices when the evidence is missing.
 - **The hook can be skipped, and it fails open.** `git commit --no-verify` (or `-n`,
   or an abbreviation such as `--no-veri`), `LEFTHOOK=0`, `LEFTHOOK_EXCLUDE=<job>`,
   `LEFTHOOK_BIN` or `LEFTHOOK_CONFIG` pointed elsewhere, and
@@ -612,21 +571,20 @@ removing or narrowing its bullet here:
   `.claude/settings.json`: which commands run without a prompt is each person's own
   choice, in their user-level `~/.claude/settings.json` (generic rules: git, `gh`, the
   hook-bypass and force-push denies) or the gitignored `.claude/settings.local.json`
-  (this repository's rules: its `just` recipes, dependency changes, the
-  `src-tauri/Entitlements.plist` edit deny), and for Codex CLI in a gitignored
-  `.codex/rules/local.rules`. That choice shapes where a human is consulted rather than
-  what is possible. A personal file should keep at `ask` the recipes that open the app
-  or need a human (`dev`, `run`, `install-app`, `test-local`, `logs-follow`,
-  `reset-permissions`) and those that write to GitHub or rewrite the repository
-  (`bootstrap`, `labels`, `ruleset`, `release-prep`). The same file is where to register
-  `scripts/format-edited-file.ts` as a `PostToolUse` hook on `Edit|Write|MultiEdit`
-  (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- node scripts/format-edited-file.ts`),
-  which formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod`
-  child) or TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions
-  the pre-commit hook checks) file an edit touched inside the checkout and reports a
-  formatter failure back to the agent (exit 2) — a convenience on that host, not a
-  gate. Codex CLI, another agent, and a human at a shell are bound by the instructions
-  in this file and by the gates above.
+  (this repository's rules: its `just` recipes, dependency changes), and for Codex CLI
+  in a gitignored `.codex/rules/local.rules`. That choice shapes where a human is
+  consulted rather than what is possible. A personal file should keep at `ask` the
+  recipes that need a human (`test-local`, `logs-follow`) and those that write to GitHub
+  or rewrite the repository (`bootstrap`, `labels`, `ruleset`). The same file is where
+  to register `scripts/format-edited-file.ts` as a `PostToolUse` hook on
+  `Edit|Write|MultiEdit`
+  (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- node scripts/format-edited-file.ts`), which
+  formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod` child) or
+  TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the
+  pre-commit hook checks) file an edit touched inside the checkout and reports a
+  formatter failure back to the agent (exit 2) — a convenience on that host, not a gate.
+  Codex CLI, another agent, and a human at a shell are bound by the instructions in this
+  file and by the gates above.
 - **Nothing runs the `#[ignore]`d tests for you.** A CI runner has no logged-in GUI
   session and cannot be granted a TCC permission or reach a login Keychain, so a test
   that needs one is `#[ignore = "local machine: …"]` and is reported as ignored by
@@ -647,17 +605,14 @@ Before submitting a PR:
 
 1. `just check` passes (every step of the justfile's `check` recipe)
 2. New public items have `///` doc comments explaining *why* (`missing_docs` warns on
-   any that lack one), and a new IPC wrapper in `ui/src/ipc/` has a TSDoc comment
+   any that lack one)
 3. Tests cover the new behavior (happy path AND error path); a change to an adapter
-   with an `#[ignore]`d test also carries `just test-local` output, and a change only
-   the running app shows carries `just run` + `just logs` evidence, since no gate runs
-   either
-4. `ui/src/ipc/generated/` is regenerated (`just bindings`) and committed with the
-   Rust type that changed it
-5. No new crate or npm package without justification and a human's sign-off (see
+   with an `#[ignore]`d test also carries `just test-local` output, since no gate runs
+   it
+4. No new crate or npm package without justification and a human's sign-off (see
    `.claude/rules/project.md`)
-6. User-facing changes have a `CHANGELOG.md` entry under `[Unreleased]`
-7. Commits and the PR title follow Conventional Commits (English)
+5. User-facing changes have a `CHANGELOG.md` entry under `[Unreleased]`
+6. Commits and the PR title follow Conventional Commits (English)
 
 ## Important Reminders
 
@@ -667,9 +622,8 @@ Before submitting a PR:
 - ALWAYS prefer editing an existing file to creating a new one
 - NEVER proactively create documentation files unless explicitly requested
 - NEVER lower a coverage floor or relax a lint to make a check pass
-- NEVER run a recipe that opens the app or needs a human (`just dev`, `just run`,
-  `just install-app`, `just test-local`, `just logs-follow`, `just reset-permissions`)
-  unless the human asked for it; `just smoke` and `just logs` are the evidence an agent
+- NEVER run a recipe that needs a human (`just test-local`, `just logs-follow`) unless
+  the human asked for it; `just test-macos` and `just logs` are the evidence an agent
   gathers on its own
 - A comment carries only what the code cannot: a non-obvious why, a trap the next edit
   would spring, an external constraint. Default to none, and keep the rest to a line or

@@ -34,20 +34,17 @@ The first `cargo` command installs the Rust toolchain `rust-toolchain.toml` pins
 
 ```bash
 just check       # the full local gate, in CI's order; opens no window
-just test        # core (coverage floors) and UI (coverage floors)
+just test        # core, with its coverage floors
 just test-fast increment   # one core test or a group of them
 just lint        # rustfmt, clippy -D warnings, tsc, ESLint, Prettier
 just fmt         # format everything
-just bindings    # after changing a type that crosses IPC; commit the result
 ```
 
 ## Seeing the app
 
-`just check` never shows the app: the launch smoke runs it windowless. To look at it:
+`just check` never shows the app. To read what it logged:
 
 ```bash
-just dev         # hot reload: Vite serves ui/, Rust rebuilds on change
-just run         # build the debug .app, quit any running copy, open it
 just logs        # the newest log file's last lines
 ```
 
@@ -67,12 +64,9 @@ An open window picks up the helper's change when it next loads or changes the co
 ## Permissions (TCC)
 
 The sample asks for no privacy permission. When an app cut from the template does —
-Accessibility, Screen Recording, Full Disk Access, and the like — two recipes help:
-
-- `just test-local` runs the `#[ignore]`d tests that need a logged-in session, a TCC
-  grant, or the Keychain. You start it; nothing else does.
-- `just reset-permissions` makes macOS forget this app's grants
-  (`tccutil reset All com.example.myapp`), so the next launch asks again.
+Accessibility, Screen Recording, Full Disk Access, and the like — `just test-local`
+runs the `#[ignore]`d tests that need a logged-in session, a TCC grant, or the
+Keychain. You start it; nothing else does.
 
 Local builds are ad-hoc signed, and every building recipe unsets the `APPLE_*`
 variables, so a local build never signs as a developer. How an app that needs a stable
@@ -141,8 +135,6 @@ that touches it says what to keep.
       in `ui/src/main.tsx`
 - [ ] `ui/src/ipc/commands.ts`, `events.ts`, `errors.ts`, and `types.ts`, and their
       tests — the counter wrappers, the event, and the error codes (keep `logFromUi`)
-- [ ] `ui/src/ipc/generated/` — `just bindings` rebuilds it from scratch, so the
-      counter's generated types disappear once core no longer exports them
 
 **Documents and agent guidance**:
 
@@ -165,7 +157,7 @@ that touches it says what to keep.
 - [ ] The skills under `.agents/skills/` that give the counter as an example, then
       `just agents-sync` (the `starting-an-app` skill)
 
-Then run `just bindings` and `just check`, and this search, which should print nothing:
+Then run `just check`, and this search, which should print nothing:
 
 ```bash
 git grep -nIiE 'counter|test-fast increment' -- . ':(exclude)scripts/' \

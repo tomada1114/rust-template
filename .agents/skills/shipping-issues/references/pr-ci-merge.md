@@ -136,21 +136,18 @@ carries the merge that just landed.
 
 ### Held for a human's evidence
 
-Two kinds of evidence the Review Checklist asks for can only come from the human,
-because producing them takes over the Mac (`AGENTS.md` › "Never taking over the
-developer's Mac"), and CI runs neither:
-
-- `just test-local` output, for a change to an adapter under `crates/myapp-platform/`
-  that has an `#[ignore = "local machine: ..."]` test;
-- `just run` and `just logs` output, for a change only the running app shows, such as
-  a screen's wiring to a command or an event.
+One kind of evidence the Review Checklist asks for can only come from the human,
+because producing it takes over the Mac (`AGENTS.md` › "Never taking over the
+developer's Mac"), and CI does not run it: `just test-local` output, for a change to an
+adapter under `crates/myapp-platform/` that has an `#[ignore = "local machine: ..."]`
+test.
 
 Such a PR is opened and watched to green like any other, and then **not merged**. Leave
 one comment on it naming the recipe the human should run and what to paste, record
 `--event blocked --field issue=<n> --field reason=human-evidence`, and move on to the
 next issue; the step 10 report lists it first among what the human has to do. Green CI
-is not the go-ahead here, because CI never ran the part that decides. `just smoke` and
-`just logs`, which an agent may run, go in the Test Plan either way.
+is not the go-ahead here, because CI never ran the part that decides. `just test-macos`
+and `just logs`, which an agent may run, go in the Test Plan either way.
 
 ### Clearing `blocked: dependency`
 

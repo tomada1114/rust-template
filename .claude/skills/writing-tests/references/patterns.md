@@ -67,13 +67,13 @@ for (value, expected) in [(-5, 0), (2, 2), (40, 3)] {
 ## A table of cases (TypeScript)
 
 `it.each` with a `%s`, `%j`, or `%p` placeholder in the title, so each case is labelled
-in the report. In the repository, `scripts/release-prep.test.ts` rejects a list of
-malformed versions:
+in the report. In the repository, `scripts/label-pr.test.ts` gives no label to a list of
+titles that are not Conventional Commits:
 
 ```ts
-it.each(["1.0", "v1.0.0", "1.0.0-rc.1", "01.0.0", "1.0.0+4"])(
-  "rejects the version %j",
-  (version) => { … },
+it.each(["wip: something", "Add a thing", "feat add", "FEAT: shout", ""])(
+  "gives no label to %j",
+  (title) => { … },
 );
 ```
 

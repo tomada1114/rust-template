@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-/// The bundle identifier. Must equal `identifier` in `src-tauri/tauri.conf.json`
-/// (a harness check compares them); the bootstrap renames both.
+/// The bundle identifier. Must equal the justfile's `bundle_id` (a harness check
+/// compares them); the bootstrap renames both.
 pub const BUNDLE_IDENTIFIER: &str = "com.example.myapp";
 
 /// The counter's file name inside [`app_data_dir`].

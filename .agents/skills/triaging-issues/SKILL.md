@@ -97,7 +97,7 @@ Two things nothing else can recover later:
   `ui/src/ipc/commands.ts:12`.
 - **What observable result closes it**, as a command or a test: `just test-core` passes
   with a new test named for the behavior, `just check-harness` passes, a `grep` prints
-  nothing, `just smoke` logs a line. Never a feeling of doneness ("works correctly", "is
+  nothing, `just logs` shows a line. Never a feeling of doneness ("works correctly", "is
   cleaned up"); a condition only the filer can judge cannot be verified by anyone else.
 
 `task.yml`'s fields ask for exactly these; a hand-written body keeps the same two parts.

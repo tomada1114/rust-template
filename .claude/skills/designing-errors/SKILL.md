@@ -19,10 +19,9 @@ description: >
 what an error and its log line may carry, and the OS-to-core mapping at the adapter
 boundary. **Does not own:** writing the failing test first (`tdd`); how an error is
 asserted (`writing-tests`); `Result`, `?`, and `match` as language features
-(`writing-rust`); wiring a command that returns the error (`designing-ipc`); the C and
-TCC mechanics of a failing system API (`integrating-system-apis`); the four-line stderr
-report of a script (`writing-repo-scripts`); where the wording is rendered
-(`building-react-screens`).
+(`writing-rust`); the C and TCC mechanics of a failing system API
+(`integrating-system-apis`); the four-line stderr report of a script
+(`writing-repo-scripts`).
 
 ## The one rule: the code is the contract, the message is not
 
@@ -36,9 +35,9 @@ sample, that is `Err(CounterError::AtMaximum)` and `{ code: "atMaximum" }`.
 ## Where an error type lives, and its shape
 
 - Declare every error a caller can observe in `myapp-core`, beside the module or port
-  that returns it. The shell, the CLI, the UI (through `just bindings`), and a fake in
-  `myapp-test-support` all name it, and core never depends on `myapp-platform`, so an
-  error declared in an adapter could not be named by core or by a fake.
+  that returns it. The shell, the CLI, the UI, and a fake in `myapp-test-support` all
+  name it, and core never depends on `myapp-platform`, so an error declared in an
+  adapter could not be named by core or by a fake.
 - One enum per failure domain, deriving `thiserror::Error`. `thiserror` writes the
   `Display` and `std::error::Error` impls from the `#[error]` attributes, so an error
   type costs a derive rather than two hand-written impls
@@ -181,7 +180,7 @@ variant name, so **renaming a Rust variant renames the code the UI switches on**
 the old wire name with `#[serde(rename = "…")]` when only the Rust name should change.
 Adding, renaming, or removing a code touches, in one pull request:
 
-1. the enum in core, then `just bindings`, committing `ui/src/ipc/generated/` with it;
+1. the enum in core;
 2. the guard's code table in `ui/src/ipc/errors.ts` (`tsc` fails there until it has the
    code) and its test;
 3. the sentence in `ui/src/copy/` (`just lint` fails until the `switch` covers it);

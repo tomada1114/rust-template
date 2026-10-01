@@ -3,12 +3,12 @@ name: updating-docs
 description: >
   Decides whether a change owes a documentation update and which surface it lands on:
   README.md (Quickstart, Design Philosophy, Using This Template), AGENTS.md,
-  CONTRIBUTING.md, CHANGELOG.md, docs/architecture.md, docs/getting-started.md,
-  docs/distribution.md, docs/design/design-system.md, a skill under .agents/skills/, a
-  /// rustdoc comment on a pub item in myapp-core, or a TSDoc comment in ui/src/ipc/ or
-  scripts/lib/. Use when triaging whether a pull request needs a document changed or a
-  CHANGELOG [Unreleased] entry, when a justfile recipe, a gate, an IPC name, or an
-  architecture boundary moved and it is unclear which file owns it, when the setup
+  CONTRIBUTING.md, CHANGELOG.md, docs/architecture.md, docs/getting-started.md, a
+  skill under .agents/skills/, a /// rustdoc comment on a pub item in myapp-core, or
+  a TSDoc comment in ui/src/ipc/ or scripts/lib/. Use when triaging whether a pull
+  request needs a document changed or a CHANGELOG [Unreleased] entry, when a
+  justfile recipe, a gate, an IPC name, or an architecture boundary moved and it is
+  unclear which file owns it, when the setup
   steps drifted, when a template-only block is involved, or when deciding that an
   internal refactor needs no documentation change.
 ---
@@ -20,8 +20,7 @@ description: >
 `CHANGELOG.md` (`.claude/rules/docs.md`); how a skill is written and mirrored
 (`authoring-skills`); whether a change owes an ADR and how one is written
 (`recording-architecture-decisions`); the roadmap (`steering-the-roadmap`); what a `///`
-comment says (`writing-rust`) or a TSDoc comment says (`writing-typescript`); rolling
-the changelog into a release (`releasing-the-app`).
+comment says (`writing-rust`) or a TSDoc comment says (`writing-typescript`).
 
 ## Decide on what a reader can observe
 
@@ -67,8 +66,6 @@ another's content: a copy is the half that goes stale.
 | `docs/architecture.md` | The layers every app starts with, the ports, IPC, and what is contract |
 | `docs/architecture/` | An app's ADRs and their index, and `roadmap.md` (owned by the two skills above) |
 | `docs/getting-started.md` | First setup, everyday commands, seeing the app, TCC, removing the example code |
-| `docs/distribution.md` | Building, signing, notarizing, opening, and verifying a release |
-| `docs/design/design-system.md` | Every token's role and each primitive's recipe |
 | a skill under `.agents/skills/` | The conventions of one kind of change, loaded on demand |
 | `///` on a `pub` item in core | That item's contract: why it exists and what it promises |
 | TSDoc in `ui/src/ipc/` and `scripts/lib/` | The same, for an exported wrapper or helper |
@@ -84,23 +81,21 @@ Some facts have two readers, and the pull request that moves the fact updates bo
   "Validating a change" row when the narrowest check moved), as `changing-gates` says;
 - a command or event name, a payload shape, or an on-disk format:
   `docs/architecture.md`'s contract table, with the code;
-- a token or primitive: `ui/src/design/` and `docs/design/design-system.md`;
-- a signing, notarization, or release step: `docs/distribution.md`, with the workflow;
 - a skill added, renamed, removed, or widened: its row in `AGENTS.md`'s Skills table
   (`just check-harness` fails when the names differ, not when a row's wording is stale).
 
 ## CHANGELOG.md
 
 A user-visible change gets an entry under `[Unreleased]` in the same pull request that
-makes it (Review Checklist item 6). User-visible means observable by someone running the
+makes it (Review Checklist item 5). User-visible means observable by someone running the
 app, or by someone building an app from the template: a behaviour, a screen, a file
 format, a recipe, a gate. Write the entry as the behaviour a reader sees, never as the
 files that changed, under a Keep a Changelog heading (`Added`, `Changed`, `Fixed`,
-`Removed`, `Security`, `Deprecated`). `just release-prep` later moves the whole section
-under the version heading; the notes GitHub generates from `.github/release.yml` are a
-supplement, not a substitute. Prettier skips `CHANGELOG.md`, so keep its wrapping by hand.
-`CHANGELOG.md` and `docs/` are maintained surfaces, not leftovers: keep them current
-rather than folding their content into a pull request description.
+`Removed`, `Security`, `Deprecated`). The notes GitHub generates from
+`.github/release.yml` are a supplement, not a substitute. Prettier skips `CHANGELOG.md`,
+so keep its wrapping by hand. `CHANGELOG.md` and `docs/` are maintained surfaces, not
+leftovers: keep them current rather than folding their content into a pull request
+description.
 
 ## Doc comments
 
@@ -170,5 +165,5 @@ running the code, it needs no sentence.
 ## Generated trees are off-limits
 
 Never hand-edit or document as source: `.claude/skills/` (the mirror `just agents-sync`
-writes from `.agents/skills/`), `ui/src/ipc/generated/` (`just bindings` writes it from
-core's types), `src-tauri/gen/`, and build output. Edit the source and regenerate.
+writes from `.agents/skills/`), `src-tauri/gen/`, and build output. Edit the source and
+regenerate.

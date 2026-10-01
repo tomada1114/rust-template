@@ -19,8 +19,6 @@ The short, always-on version of the `writing-rust` and `designing-errors` skills
 - A command in `src-tauri/src/commands.rs` is thin: decode the arguments, call core
   (on `tauri::async_runtime::spawn_blocking` if the port is slow), map the result,
   emit the event. No `if` about the domain
-- Every type that crosses IPC lives in core and derives `ts_rs::TS`; after changing
-  one, run `just bindings` and commit `ui/src/ipc/generated/` with it
 
 ## Errors
 

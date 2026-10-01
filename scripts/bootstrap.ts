@@ -169,6 +169,7 @@ const SKILL_SITES: readonly (readonly [string, readonly Form[]])[] = [
   ["designing-core-logic/SKILL.md", ["slug"]],
   ["designing-errors/SKILL.md", ["slug"]],
   ["integrating-system-apis/SKILL.md", ["slug"]],
+  ["integrating-system-apis/references/tcc-permissions.md", ["bundleId"]],
   ["integrating-system-apis/references/unsafe-and-ffi.md", ["slug"]],
   ["managing-dependencies/SKILL.md", ["slug"]],
   ["placing-tests/SKILL.md", ["slug"]],
@@ -209,8 +210,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: ".github/ISSUE_TEMPLATE/bug_report.yml", forms: ["bundleId"] },
   { file: ".github/ISSUE_TEMPLATE/config.yml", forms: ["repo"] },
   { file: ".github/PULL_REQUEST_TEMPLATE.md", forms: ["slug"] },
-  { file: ".github/workflows/ci.yml", forms: ["slug"] },
-  { file: "AGENTS.md", forms: ["bundleId", "slugSnake", "slug", "slugUpper"] },
+  { file: "AGENTS.md", forms: ["bundleId", "slugSnake", "slug"] },
   { file: "CODE_OF_CONDUCT.md", forms: ["owner"] },
   { file: "CONTRIBUTING.md", forms: ["slug"] },
   { file: "Cargo.toml", forms: ["slug"] },
@@ -244,7 +244,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "docs/getting-started.md", forms: ["bundleId", "slug"] },
   { file: "justfile", forms: ["bundleId", "slug"] },
   { file: "package.json", forms: ["name", "slug"] },
-  { file: "scripts/checks/bundle-identifier.test.ts", forms: ["bundleId", "name", "slug"] },
+  { file: "scripts/checks/bundle-identifier.test.ts", forms: ["bundleId", "slug"] },
   { file: "scripts/checks/bundle-identifier.ts", forms: ["slug"] },
   { file: "scripts/checks/core-boundary.test.ts", forms: ["slug"] },
   { file: "scripts/checks/core-boundary.ts", forms: ["slug"] },
@@ -253,7 +253,6 @@ const REPOSITORY_SITES: readonly Site[] = [
     file: "scripts/checks/fixtures/core-boundary/pass/metadata.json",
     forms: ["slugSnake", "slug"],
   },
-  { file: "scripts/checks/just-check-matches-ci.ts", forms: ["slug"] },
   { file: "scripts/checks/no-issue-references.test.ts", forms: ["repo"] },
 ];
 
@@ -379,11 +378,11 @@ export const TEXT_EDITS: readonly TextEdit[] = [
     find: "stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |",
     replace: "holds no `TODO:` |",
   },
-  { file: "AGENTS.md", find: "`release-prep`, `bootstrap`)", replace: "`release-prep`)" },
+  { file: "AGENTS.md", find: "`labels`, `ruleset`, `bootstrap`)", replace: "`labels`, `ruleset`)" },
   {
     file: "AGENTS.md",
-    find: "(`bootstrap`, `labels`, `ruleset`, `release-prep`)",
-    replace: "(`labels`, `ruleset`, `release-prep`)",
+    find: "(`bootstrap`, `labels`, `ruleset`)",
+    replace: "(`labels`, `ruleset`)",
   },
   {
     file: "AGENTS.md",
@@ -419,11 +418,6 @@ export const TEXT_EDITS: readonly TextEdit[] = [
       replace: "",
     },
   ]),
-  ...bothSkillTrees("merging-dependency-prs/references/failure-modes.md").map((file): TextEdit => ({
-    file,
-    find: '- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at\n  `check-harness`, with the same `tauri-versions` failure.\n',
-    replace: "",
-  })),
   ...bothSkillTrees("authoring-skills/SKILL.md").flatMap((file): TextEdit[] => [
     {
       file,

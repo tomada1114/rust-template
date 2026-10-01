@@ -17,13 +17,11 @@ description: >
 # Writing TypeScript
 
 **Owns:** type-system judgment, naming, and constant placement inside `ui/src/**` and
-`scripts/**`. **Does not own:** how a component or hook is shaped
-(`building-react-screens`); adding a command or event wrapper in `ui/src/ipc/`
-(`designing-ipc`); the error codes and their wording (`designing-errors`); a script's
-structure and failure contract (`writing-repo-scripts`); tests (`writing-tests`); the
-compiler and lint settings themselves (`changing-gates`).
+`scripts/**`. **Does not own:** the error codes and their wording (`designing-errors`);
+a script's structure and failure contract (`writing-repo-scripts`); tests
+(`writing-tests`); the compiler and lint settings themselves (`changing-gates`).
 
-`tsc` (`strict` plus the flags below, per `ui/tsconfig.json` and
+`tsc` (`strict` plus the flags below, per `tsconfig.json` and
 `scripts/tsconfig.json`), ESLint (`strictTypeChecked` and `stylisticTypeChecked` in
 `eslint.config.mjs`), and Prettier enforce most of the language; `just lint` runs all
 three and `just fix` applies their autofixes. This skill is the judgment they leave
@@ -34,7 +32,7 @@ open. The language itself is the TypeScript handbook
 
 - Keep a constant next to the code that reads it. No shared `constants.ts` that makes
   unrelated modules import each other. User-facing strings are not constants of a
-  module: they live in `ui/src/copy/` (`building-react-screens`).
+  module: they live in `ui/src/copy/`.
 - An error `code` string is not named here. **REQUIRED:** `designing-errors` owns the
   code vocabulary, both the Rust-generated codes the UI receives and the `ERR_*` codes
   in `scripts/`.
@@ -85,15 +83,14 @@ open. The language itself is the TypeScript handbook
 ## Types generated from Rust
 
 - `ui/src/ipc/generated/` is `ts-rs` output from core's Rust types: never edit it,
-  and never write a TypeScript copy of a type Rust already sends. Change the Rust type,
-  run `just bindings`, and commit both; a hand-written twin drifts silently, where the
-  generated one fails `tsc` at every place the change matters.
+  and never write a TypeScript copy of a type Rust already sends. Change the Rust type
+  and commit the regenerated output with it; a hand-written twin drifts silently, where
+  the generated one fails `tsc` at every place the change matters.
 - Derive what you need from a generated type (an indexed access, `Extract`) instead of
   restating it. In the sample, `CounterError["code"]` is the union of codes, and
   `Extract<CounterError, { code: "storage" }>` is one member.
-- A 64-bit Rust integer arrives as `number` (`TS_RS_LARGE_INT` in
-  `.cargo/config.toml`); a time is milliseconds since the epoch, formatted only in
-  `ui/src/copy/`.
+- A 64-bit Rust integer arrives as `number`; a time is milliseconds since the epoch,
+  formatted only in `ui/src/copy/`.
 
 ## `interface` vs `type`
 

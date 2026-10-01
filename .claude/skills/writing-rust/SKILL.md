@@ -21,9 +21,9 @@ description: >
 error propagation, `Option`, enums and `match`, visibility, traits, derives, and what to
 do with a compiler error or a clippy finding. **Does not own:** where a piece of logic
 goes, ports, and `Tuning` (`designing-core-logic`); the shape of an error enum and its
-codes (`designing-errors`); a Tauri command (`designing-ipc`); `unsafe` and macOS
-bindings (`integrating-system-apis`); tests (`writing-tests`); a new crate
-(`managing-dependencies`); a lint level or a `clippy.toml` (`changing-gates`).
+codes (`designing-errors`); `unsafe` and macOS bindings (`integrating-system-apis`);
+tests (`writing-tests`); a new crate (`managing-dependencies`); a lint level or a
+`clippy.toml` (`changing-gates`).
 
 The language is linked, not taught: The Rust Book (https://doc.rust-lang.org/book/) is
 the reference for every term below, and the clippy lint list
@@ -148,10 +148,6 @@ formats. None of them opens a window.
   so Rust's `last_changed_at` is `lastChangedAt` on the other side. That JSON is
   contract: a field added to a stored type gets `#[serde(default)]` so older files still
   read, and serde's attributes are documented at https://serde.rs/attributes.html.
-- A type that crosses IPC also derives `ts_rs::TS` with
-  `#[cfg_attr(feature = "export-bindings", ts(export))]`; after changing
-  one, run `just bindings` and commit `ui/src/ipc/generated/` with it. The rest of that
-  path is `designing-ipc`.
 
 ## Logging and `unsafe`
 

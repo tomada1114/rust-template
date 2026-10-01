@@ -119,7 +119,7 @@ jobs:
     name: Rust Core
     runs-on: ubuntu-24.04
     steps:
-      - run: cargo clippy -p myapp-core
+      - run: cargo clippy --workspace
 
   bootstrap-smoke:
     # Template-only.
@@ -584,8 +584,8 @@ describe("runBootstrap", () => {
     const agents = read(root, "AGENTS.md");
     expect(agents).toContain("cargo test -p tide-pool-core && pkill -x tide-pool");
     expect(agents).toContain("use tide_pool_core::Counter; tide_pool_lib::run();");
-    expect(agents).toContain("TIDE_POOL_SMOKE=1");
     expect(agents).toContain("~/Library/Logs/com.example.tide-pool/");
+    expect(read(root, "docs/architecture.md")).toContain("TIDE_POOL_SMOKE=1");
     // The Product section's introduction holds no marker of its own in an app.
     expect(agents).not.toContain("**TODO:");
     expect(agents).toContain("fails while one still holds its `TODO` marker");
@@ -600,7 +600,7 @@ describe("runBootstrap", () => {
 
     const ci = read(root, ".github/workflows/ci.yml");
     expect(ci).not.toContain("bootstrap");
-    expect(ci).toContain("cargo clippy -p tide-pool-core\n\n  zizmor:\n");
+    expect(ci).toContain("cargo clippy --workspace\n\n  zizmor:\n");
     const ruleset = read(root, ".github/rulesets/main.json");
     expect(ruleset).not.toContain("Template Bootstrap Smoke");
     expect(() => JSON.parse(ruleset) as unknown).not.toThrow();
