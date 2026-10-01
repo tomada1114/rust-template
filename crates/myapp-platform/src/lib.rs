@@ -1,8 +1,9 @@
 //! Adapters implementing `myapp-core`'s ports against the real operating system.
 //!
 //! Each adapter translates: it turns OS results into core's types and OS failures into
-//! core's error kinds, and decides nothing. The data and log directories are chosen per OS in `paths`; macOS-only code goes behind
-//! `#[cfg(target_os = "macos")]` so this crate still builds and tests on Linux CI.
+//! core's error kinds, and decides nothing. The data and log directories are chosen per
+//! OS in `paths`; macOS-only code goes behind `#[cfg(target_os = "macos")]` so this crate
+//! still builds and tests on Linux CI.
 
 mod clock;
 mod counter_store;
