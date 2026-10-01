@@ -160,6 +160,10 @@ clean:
     cargo clean
     rm -rf dist coverage src-tauri/binaries
 
+# Remove stale verify-bootstrap-* temp dirs and this checkout's idle Claude Code scratchpads: `just prune-temp --dry-run`
+prune-temp *args:
+    node scripts/prune-temp.ts {{ args }}
+
 # Repository script tests with the scripts/** coverage floors (85/90; scripts/lib/guard/** 90/100), plus shipping-issues' bundled Python suite and shellcheck
 test-scripts:
     pnpm test:scripts
