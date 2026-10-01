@@ -33,4 +33,12 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { foreground: "--color-accent", background: "--color-bg-window", kind: "ui" },
   { foreground: "--color-control-border", background: "--color-bg-window", kind: "ui" },
   { foreground: "--color-text-danger", background: "--color-bg-window", kind: "body" },
+  { foreground: "--color-control-text", background: "--color-control-bg-hover", kind: "body" },
+  { foreground: "--color-control-text", background: "--color-control-bg-active", kind: "body" },
+  { foreground: "--color-text-on-accent", background: "--color-accent-hover", kind: "body" },
+  { foreground: "--color-text-on-accent", background: "--color-accent-active", kind: "body" },
+  { foreground: "--color-accent-hover", background: "--color-bg-panel", kind: "ui" },
+  { foreground: "--color-accent-hover", background: "--color-bg-window", kind: "ui" },
+  { foreground: "--color-accent-active", background: "--color-bg-panel", kind: "ui" },
+  { foreground: "--color-accent-active", background: "--color-bg-window", kind: "ui" },
 ];
