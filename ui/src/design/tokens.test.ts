@@ -101,6 +101,58 @@ describe("primitives.css pairs", () => {
   });
 });
 
+describe("button states", () => {
+  const buttonRules = [...primitivesCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(
+    ([, selectors = ""]) => selectors.includes(".ui-button"),
+  );
+
+  it("change color through tokens, never a filter the pairing check cannot see", () => {
+    expect(buttonRules.length).toBeGreaterThan(0);
+    const filtered = buttonRules
+      .filter(([, , body = ""]) => /(^|[;\s])filter\s*:/.test(body))
+      .map(([, selectors = ""]) => selectors.trim());
+    expect(filtered).toEqual([]);
+  });
+
+  const required = requiredPairs(primitivesCss, SURFACES);
+  const states = ["--color-accent-hover", "--color-accent-active"] as const;
+
+  it.each(states)("derives %s's boundary on both surfaces", (state) => {
+    for (const surface of SURFACES) {
+      expect(required).toContainEqual(
+        expect.objectContaining({ foreground: state, background: surface }),
+      );
+    }
+  });
+
+  const measured = states.flatMap((state) =>
+    (["light", "dark"] as const).map((appearance) => ({ state, appearance })),
+  );
+
+  it.each(measured)(
+    "$state keeps 3:1 on both surfaces and 4.5:1 under its label ($appearance)",
+    ({ state, appearance }) => {
+      const colors = tokens[appearance];
+      const fill = colors.get(state) ?? "";
+      expect(contrastRatio(fill, colors.get("--color-bg-panel") ?? "")).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(fill, colors.get("--color-bg-window") ?? "")).toBeGreaterThanOrEqual(3);
+      expect(
+        contrastRatio(colors.get("--color-text-on-accent") ?? "", fill),
+      ).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it("differ from the resting fill in both appearances", () => {
+    for (const appearance of ["light", "dark"] as const) {
+      const colors = tokens[appearance];
+      const values = ["--color-accent", ...states].map((name) => colors.get(name));
+      expect(new Set(values).size).toBe(3);
+      expect(colors.get("--color-control-bg-hover")).not.toBe(colors.get("--color-control-bg"));
+      expect(colors.get("--color-control-bg-active")).not.toBe(colors.get("--color-control-bg"));
+    }
+  });
+});
+
 describe("requiredPairs", () => {
   const surfaces = ["--color-s1", "--color-s2"];
   const pairs = (css: string) =>

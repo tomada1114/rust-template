@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pnpm-lock.yaml` differs from `mise.toml`'s `node` major, so a Renovate or Dependabot
   bump can no longer move one alone; `merging-dependency-prs` moves a Node major's two
   sides together.
+- A harness check (`scripts/checks/formatter-glob.ts`, run by `just check-harness`)
+  fails with `ERR_CHECK_FORMATTER_GLOB_DIVERGED` when the Claude Code edit hook's
+  Prettier extensions differ from `lefthook.yml`'s prettier job glob; the unit test that
+  read the real checkout's `lefthook.yml` for this is gone.
 - The pre-commit staged guard reads every staged blob through one `git cat-file --batch`
   instead of one `git cat-file blob` per file, so a 1,000-file merge is judged in under a
   second rather than about 20 s. The 256 MiB read cap now bounds all staged content
@@ -102,10 +106,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The primary button keeps 3:1 contrast against the window and panel on hover and press in
+  dark mode: button states now use `--color-accent-hover`/`--color-accent-active` and
+  `--color-control-bg-hover`/`--color-control-bg-active` instead of a `brightness()` filter
+  the contrast check could not see.
 - Counter views no longer arrive out of order: the screen keeps the newest one, and
   `counter-changed` events leave in the order the changes were saved.
 - A counter file this version cannot read can now be replaced with Reset from the error
   screen, and a failed load can be retried.
+- A repeated identical failure on the counter's error screen (Reset failing twice the same
+  way) is announced again by screen readers.
 - `.gitignore` ignores Python bytecode (`__pycache__/`, `*.pyc`), and `just agents-sync` and
   `just agents-check` skip it in both skill trees, so running a skill's bundled Python tests
   directly can no longer stage bytecode into a commit.
