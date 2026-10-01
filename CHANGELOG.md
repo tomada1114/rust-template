@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `just run` and `just install-app` find the app bundle under the target directory `cargo
+  metadata` reports, through `scripts/bundle-path.ts`, so they work with `CARGO_TARGET_DIR`
+  or `build.target-dir` instead of assuming `./target`; a missing bundle stops the recipe
+  with `ERR_BUNDLE_MISSING`.
 - Counter views no longer arrive out of order: the screen keeps the newest one, and
   `counter-changed` events leave in the order the changes were saved.
 - A counter file this version cannot read can now be replaced with Reset from the error
