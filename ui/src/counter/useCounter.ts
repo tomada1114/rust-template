@@ -20,7 +20,12 @@ export type CounterFailure = CounterError | "unexpected";
 
 export type CounterState =
   | { readonly status: "loading" }
-  | { readonly status: "failed"; readonly error: CounterFailure }
+  | {
+      readonly status: "failed";
+      readonly error: CounterFailure;
+      /** Failures shown on this screen so far; a new count re-mounts the alert so it is re-announced. */
+      readonly errorCount: number;
+    }
   | {
       readonly status: "ready";
       readonly view: CounterView;
@@ -57,7 +62,7 @@ function withFailedAction(current: CounterState, failure: CounterFailure): Count
     case "ready":
       return { ...current, error: failure, errorCount: current.errorCount + 1 };
     case "failed":
-      return { status: "failed", error: failure };
+      return { status: "failed", error: failure, errorCount: current.errorCount + 1 };
     case "loading":
       return current;
   }
@@ -79,7 +84,9 @@ export function useCounter(): UseCounter {
         if (!active) return;
         const failure = toCounterFailure(error, "get_counter");
         setState((current) =>
-          current.status === "ready" ? current : { status: "failed", error: failure },
+          current.status === "ready"
+            ? current
+            : { status: "failed", error: failure, errorCount: 0 },
         );
       });
     };

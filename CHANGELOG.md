@@ -42,6 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of one `git cat-file blob` per file, so a 1,000-file merge is judged in under a
   second rather than about 20 s. The 256 MiB read cap now bounds all staged content
   together, and a missing or unreadable blob still fails with `ERR_STAGED_READ_FAILED`.
+- A harness check (`scripts/checks/workflow-write-scopes.ts`, run by `just check-harness`)
+  fails with `ERR_CHECK_WORKFLOW_WRITE_RUNS_CODE` when a workflow job whose token holds a
+  write scope or `id-token: write` (its own `permissions`, the workflow's, or the default
+  token's) checks out the repository, runs `jdx/mise-action` or a local action, calls a
+  remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, so a later edit can no
+  longer give release.yml's `build` job a write scope or let `publish` run repository
+  code. The jobs that need both (CodeQL, Scorecard, and the PR labeller) are listed with
+  their reasons, and an entry that no longer applies fails with
+  `ERR_CHECK_WORKFLOW_WRITE_EXCEPTION_STALE`.
 - A harness check (`scripts/checks/clippy-allow-invalid.ts`, run by `just check-harness`)
   fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` when any `clippy.toml` sets `allow-invalid`,
   the key that hides an unresolvable ban path from `scripts/clippy-guard.ts` and so lets
@@ -96,6 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `counter-changed` events leave in the order the changes were saved.
 - A counter file this version cannot read can now be replaced with Reset from the error
   screen, and a failed load can be retried.
+- A repeated identical failure on the counter's error screen (Reset failing twice the same
+  way) is announced again by screen readers.
 - `.gitignore` ignores Python bytecode (`__pycache__/`, `*.pyc`), and `just agents-sync` and
   `just agents-check` skip it in both skill trees, so running a skill's bundled Python tests
   directly can no longer stage bytecode into a commit.
