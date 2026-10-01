@@ -27,9 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `just install-cli` installs the `myapp` binary into `~/.cargo/bin`
   (`cargo install --locked --path crates/myapp`). It writes outside the checkout, so it
   is a human's recipe, kept out of any committed allow list like `just install`.
+- Linux support: on Linux `myapp` keeps its data in `$XDG_DATA_HOME/myapp` (default
+  `~/.local/share/myapp`) and its logs in `$XDG_STATE_HOME/myapp/logs` (default
+  `~/.local/state/myapp/logs`), following the XDG Base Directory Specification; macOS
+  keeps `~/Library/Application Support` and `~/Library/Logs`. `just logs` reads the
+  right directory on each system, and CI runs the platform tests on Linux as well.
 
 ### Changed
 
+- `just test-macos` is renamed `just test-platform`: it runs the platform adapters and
+  the CLI against the real OS, in CI's `Rust Core` (Linux) and `macOS` jobs.
 - The command-line tool is the app: `crates/myapp-cli` becomes `crates/myapp`, building
   the `myapp` binary (`myapp counter show`, `myapp counter increment`). Its contract is
   tested against the built binary: data on stdout, diagnostics on stderr; exit 0 on

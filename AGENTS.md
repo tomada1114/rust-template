@@ -65,12 +65,12 @@ just lint          # rustfmt check, clippy -D warnings, tsc, ESLint, Prettier ch
 just test          # test-core: every test that runs anywhere, with the coverage floors
 just test-core     # myapp-core with its 80/80 floors, its doctests, and the Linux-buildable crates' tests
 just test-fast increment  # One core test or a group of them, no floor (iteration only)
-just test-macos    # Platform adapter and CLI tests against the real macOS (no human)
+just test-platform # Platform adapter and CLI tests against the real OS, macOS or Linux (no human)
 just test-scripts  # Vitest over scripts/ and skills' scripts with its floors, plus bundled Python tests and shellcheck
 just check-harness # Re-assert the harness's claims about itself (scripts/checks/)
 just logs          # Print the end of the newest app log and exit
 just deny          # cargo deny: advisories, licences, bans, sources
-just check         # Everything a Mac runs without a human: verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test → test-macos
+just check         # Everything a Mac runs without a human: verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test → test-platform
 just agents-sync   # Regenerate the .claude/skills/ mirror from .agents/skills/
 just agents-check  # Fail if .claude/skills/ differs from .agents/skills/
 just clean         # Remove build output (target/, coverage/)
@@ -101,12 +101,12 @@ developer's Mac").
 |---|---|
 | Rust under `crates/myapp-core/src/` | `just test-fast <filter>` while iterating, then `just test-core` (the floors) and `just lint` (clippy, including core's banned calls) |
 | A test under `crates/myapp-core/tests/`, or a `#[cfg(test)]` module in core | `just test-core` |
-| An adapter under `crates/myapp-platform/` | `just test-macos` (its contract tests against the real adapter); an `#[ignore]`d test there is human-run — ask for `just test-local` output for the PR |
-| A fake or a contract function under `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-macos` (platform runs them against the real adapters) |
-| The binary under `crates/myapp/`, or its error wording in `crates/myapp/src/wording.rs` | `just test-core` (it runs the binary's tests), then `just test-macos` |
+| An adapter under `crates/myapp-platform/` | `just test-platform` (its contract tests against the real adapter); an `#[ignore]`d test there is human-run — ask for `just test-local` output for the PR |
+| A fake or a contract function under `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-platform` (platform runs them against the real adapters) |
+| The binary under `crates/myapp/`, or its error wording in `crates/myapp/src/wording.rs` | `just test-core` (it runs the binary's tests), then `just test-platform` |
 | Formatting of any Rust or TypeScript file | `just fmt`, or `just lint` to only check |
 | A clippy or ESLint finding that may be auto-fixable | `just fix`, then `just lint` for what still needs a hand edit |
-| Behavior only the running app shows (a log line) | `just test-macos` and `just logs` — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
+| Behavior only the running app shows (a log line) | `just test-platform` and `just logs` — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
 | A script under `scripts/` (including `scripts/lib/`) | `just test-scripts`, then `just lint` |
 | `lefthook.yml` or `scripts/verify-hooks.ts` | `just test-scripts`, then `just verify-hooks` |
 | A harness check under `scripts/checks/` | `just test-scripts`, then `just check-harness` |
@@ -273,7 +273,7 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `designing-core-logic` | Shaping logic in `myapp-core`: ports, `Tuning`, transitions, views |
 | `designing-errors` | Error enums, codes for the UI, adapter mapping, `ERR_*` script codes |
 | `integrating-system-apis` | Calling macOS from `myapp-platform`: commands, `objc2`, TCC |
-| `running-the-app` | Seeing a change work: `just test-macos` and `just logs`; the human's recipes |
+| `running-the-app` | Seeing a change work: `just test-platform` and `just logs`; the human's recipes |
 
 ### Rules
 
@@ -399,7 +399,7 @@ pre-commit hook, a PostToolUse hook an agent registers, and any step an agent ru
 verify its own work — may show a window, take keyboard focus, move the pointer, add a
 Dock icon, or raise a permission, Keychain, or Gatekeeper prompt.
 
-- For evidence that a change works, use `just test-macos` and `just logs`. Never launch
+- For evidence that a change works, use `just test-platform` and `just logs`. Never launch
   the app with `open`.
 - `just test-local`, `just logs-follow`, and `just install-cli` are started by a human on
   purpose.
@@ -512,7 +512,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | Coverage floors | `just test-core`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
 | The skills-mirror check (`just agents-check`; the hook runs `node scripts/sync-agents.ts --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
 | `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
-| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (tsc, ESLint, Prettier, typos, actionlint, script tests, harness checks), `macOS` (workspace clippy, `just test-macos`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
+| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `just test-platform`, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (tsc, ESLint, Prettier, typos, actionlint, script tests, harness checks), `macOS` (workspace clippy, `just test-platform`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 
 These gaps are deliberate. Closing one means adding a mechanism that enforces it —
@@ -574,7 +574,7 @@ removing or narrowing its bullet here:
 - **Nothing runs the `#[ignore]`d tests for you.** A CI runner has no logged-in GUI
   session and cannot be granted a TCC permission or reach a login Keychain, so a test
   that needs one is `#[ignore = "local machine: …"]` and is reported as ignored by
-  `just test-macos` and in CI. That is deliberate — an ignored test is visible where a
+  `just test-platform` and in CI. That is deliberate — an ignored test is visible where a
   missing one is not — and it leaves the run itself procedural: a change to such an
   adapter is expected to come with `just test-local` output in the PR, which a human
   runs, and review is what notices when it does not.
@@ -609,7 +609,7 @@ Before submitting a PR:
 - NEVER proactively create documentation files unless explicitly requested
 - NEVER lower a coverage floor or relax a lint to make a check pass
 - NEVER run a recipe that needs a human (`just test-local`, `just logs-follow`,
-  `just install-cli`) unless the human asked for it; `just test-macos` and `just logs`
+  `just install-cli`) unless the human asked for it; `just test-platform` and `just logs`
   are the evidence an agent gathers on its own
 - A comment carries only what the code cannot: a non-obvious why, a trap the next edit
   would spring, an external constraint. Default to none, and keep the rest to a line or

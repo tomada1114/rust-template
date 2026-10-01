@@ -236,7 +236,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "crates/myapp-platform/src/clock.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-platform/src/counter_store.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-platform/src/lib.rs", forms: ["slug"] },
-  { file: "crates/myapp-platform/src/paths.rs", forms: ["bundleId"] },
+  { file: "crates/myapp-platform/src/paths.rs", forms: ["bundleId", "slug"] },
   { file: "crates/myapp-platform/tests/contracts.rs", forms: ["slugSnake", "slug"] },
   { file: "crates/myapp-platform/tests/json_file_counter_store.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-platform/tests/logging.rs", forms: ["slugSnake"] },

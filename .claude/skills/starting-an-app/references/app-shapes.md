@@ -63,8 +63,8 @@ The changes, in order:
 
 ## What can be checked, and by whom
 
-- `just test-macos` and `just logs` stay an agent's evidence; they need no change
+- `just test-platform` and `just logs` stay an agent's evidence; they need no change
   beyond step 2's guard.
-- The plan itself is unit-tested in `src-tauri` (`just test-macos`).
+- The plan itself is unit-tested in `src-tauri` (`just test-platform`).
 - No gate sees the tray icon or its menu. The check is a human running the app and
   `just logs`, with what they saw in the pull request (`running-the-app`).

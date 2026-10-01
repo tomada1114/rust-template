@@ -2,7 +2,7 @@
 name: running-the-app
 description: >
   Covers seeing a change work in the real app without taking over the developer's Mac:
-  just test-macos and just logs as an agent's own evidence; the helper CLI against a
+  just test-platform and just logs as an agent's own evidence; the helper CLI against a
   scratch HOME; what to ask a human for, once; reading the daily log files in
   ~/Library/Logs; the WebView inspector in debug builds; and the evidence a pull
   request carries for behaviour no gate asserts. Use when asked to run, launch,
@@ -32,7 +32,7 @@ Nothing here opens a window, takes focus, or raises a prompt (`AGENTS.md` › "N
 over the developer's Mac"). This is the default, and usually enough.
 
 ```bash
-just test-macos   # platform adapters and the myapp binary against the real macOS
+just test-platform   # platform adapters and the myapp binary against the real OS
 just logs         # the newest app log file's last 50 lines, then exit
 ```
 
