@@ -178,7 +178,7 @@ agents-check:
 labels:
     node scripts/sync-labels.ts
 
-# Create or update the "main" branch ruleset from .github/rulesets/main.json (repository admin; a human's step)
+# Create or update every ruleset in .github/rulesets/ (main, release-tags) by name; never deletes (repository admin; a human's step)
 ruleset:
     node scripts/apply-ruleset.ts
 

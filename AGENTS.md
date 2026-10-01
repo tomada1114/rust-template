@@ -93,7 +93,7 @@ just reset-permissions # Make macOS forget this app's privacy (TCC) grants
 
 # Writes to GitHub or rewrites the repository — a human's step
 just labels     # Create/update labels from .github/labels.yml (never deletes)
-just ruleset    # Create/update the "main" ruleset from .github/rulesets/main.json (admin-only)
+just ruleset    # Create/update every .github/rulesets/*.json ruleset by name (admin-only)
 just bootstrap  # Turn the template into a new app (renames, removes template-only files)
 ```
 
@@ -400,8 +400,9 @@ section is the rule itself, not a description of a check that enforces it.
   `.github/labels.yml` declares, and never deletes one — but running it against the
   live repository still needs sign-off before its first run there, the same as any
   other remote write. `scripts/apply-ruleset.ts` (`just ruleset`) is the same kind of
-  script for branch protection: it only ever creates or updates the ruleset named
-  "main" from `.github/rulesets/main.json`, needs repository admin permissions to
+  script for branch and tag protection: it only ever creates or updates the rulesets
+  `.github/rulesets/*.json` name (`main` and `release-tags`), each by its own name,
+  never deletes one, needs repository admin permissions to
   succeed, and still needs sign-off before its first run against the live repository.
 
 Standing exceptions: invoking one of these skills is the sign-off for the remote
@@ -478,6 +479,12 @@ UIs), the `main` ruleset, the Renovate App, and the label set:
   deliberately lists no `bypass_actors`: a bypass lets an admin, or an agent acting
   with an admin's token, merge without the PR and green checks the ruleset exists to
   require, and an emergency change can still go through a PR.
+- The `release-tags` ruleset, applied by the same `just ruleset` from
+  `.github/rulesets/release-tags.json`: only a repository admin may create, move, or
+  delete a `v*` tag, so it keeps its admin bypass.
+- The `release` environment, deployable only from the default branch and `v*` tags,
+  with the `APPLE_*` secrets on it — a manual step, since it is not a ruleset:
+  `docs/distribution.md` › "Repository settings the release needs".
 - The **Renovate** GitHub App (<https://github.com/apps/renovate>, checked 2026-09-30),
   installed on the repository: without it `.github/renovate.json` does nothing, so
   `mise.toml` and `rust-toolchain.toml` are never bumped — Dependabot covers only cargo,
@@ -596,7 +603,7 @@ removing or narrowing its bullet here:
 - **Whether `main`'s ruleset is actually in force is invisible from the checkout.**
   The intended ruleset — PR required, checks green, no force-push or deletion — is
   defined as code in `.github/rulesets/main.json`; `just ruleset`
-  (`scripts/apply-ruleset.ts`) creates or updates it via the GitHub API for whoever runs
+  (`scripts/apply-ruleset.ts`) creates or updates it, with `release-tags.json`, via the GitHub API for whoever runs
   it as a repository admin. Nothing in the checkout verifies that it was applied —
   that is visible only via `gh api repos/{owner}/{repo}/rulesets`. "Use this template"
   does not copy rulesets, so every repository created from this template still needs

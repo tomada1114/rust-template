@@ -96,7 +96,8 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
    to `main`, `just labels` (and `dependencies` added by hand to any Dependabot pull
    request opened earlier), the GitHub security settings and the Renovate GitHub App,
-   and `just ruleset`.
+   `just ruleset` (the `main` and `release-tags` rulesets), and the `release`
+   environment (`docs/distribution.md`).
 
 A failure from step 3 on leaves a half-rewritten clone; see "Running it, and running it
 again" below.
