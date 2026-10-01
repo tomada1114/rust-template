@@ -28,7 +28,12 @@ fn xtask(root: &Path, args: &[&str], stdin: &str, env: &[(&str, &str)]) -> Outpu
     }
     let mut child = must(command.spawn(), "start xtask");
     if let Some(mut pipe) = child.stdin.take() {
-        must(pipe.write_all(stdin.as_bytes()), "write stdin");
+        // A task that fails before reading stdin (a usage error) may exit first, closing
+        // the pipe: what it did is judged from its output, not from this write.
+        match pipe.write_all(stdin.as_bytes()) {
+            Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => {}
+            result => must(result, "write stdin"),
+        }
     }
     must(child.wait_with_output(), "wait for xtask")
 }
