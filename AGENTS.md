@@ -618,7 +618,7 @@ removing or narrowing its bullet here:
   what is possible. A personal file should keep at `ask` the recipes that open the app
   or need a human (`dev`, `run`, `install-app`, `test-local`, `logs-follow`,
   `reset-permissions`) and those that write to GitHub or rewrite the repository
-  (`labels`, `ruleset`, `release-prep`, `bootstrap`). The same file is where to register
+  (`bootstrap`, `labels`, `ruleset`, `release-prep`). The same file is where to register
   `scripts/format-edited-file.ts` as a `PostToolUse` hook on `Edit|Write|MultiEdit`
   (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- node scripts/format-edited-file.ts`),
   which formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod`
