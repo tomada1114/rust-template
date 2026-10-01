@@ -43,7 +43,7 @@ tide-pool-core = { path = "crates/tide-pool-core" }
 tide-pool-platform = { path = "crates/tide-pool-platform" }
 tide-pool-test-support = { path = "crates/tide-pool-test-support" }
 `,
-  "crates/tide-pool-cli/Cargo.toml": '[package]\nname = "tide-pool-cli"\n',
+  "crates/tide-pool/Cargo.toml": '[package]\nname = "tide-pool"\n',
   "crates/tide-pool-core/Cargo.toml": '[package]\nname = "tide-pool-core"\n',
   "crates/tide-pool-platform/Cargo.toml": '[package]\nname = "tide-pool-platform"\n',
   "crates/tide-pool-test-support/Cargo.toml": '[package]\nname = "tide-pool-test-support"\n',
@@ -52,7 +52,7 @@ tide-pool-test-support = { path = "crates/tide-pool-test-support" }
   "Cargo.lock": `version = 4
 
 [[package]]
-name = "tide-pool-cli"
+name = "tide-pool"
 version = "0.1.0"
 
 [[package]]
@@ -279,7 +279,7 @@ describe("assertGenerated", () => {
 
   it("fails when a crate directory is missing, extra, or unparsable", () => {
     let root = generatedTree();
-    rmSync(join(root, "crates/tide-pool-cli"), { recursive: true });
+    rmSync(join(root, "crates/tide-pool"), { recursive: true });
     expect(codes(root)).toContain("ERR_VERIFY_BOOTSTRAP_NAME_MISMATCH");
     root = generatedTree();
     write(root, "crates/stray/Cargo.toml", '[package]\nname = "stray"\n');

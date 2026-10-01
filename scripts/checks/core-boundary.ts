@@ -12,8 +12,8 @@
  *    workspace crate: test-only code never ships.
  * 3. The crates AGENTS.md's boundary sentence names ("… normal and build dependency closure
  *    reaches `a`, `b`, or `c`.") equal {@link FORBIDDEN_IN_CORE}, and `deny.toml`'s
- *    `[bans] deny` wrapper entries are the boundary's: `myapp-platform` → `myapp-cli`
- *    only.
+ *    `[bans] deny` wrapper entries are the boundary's: `myapp-platform` → `myapp` (the
+ *    binary) only.
  *
  *   node scripts/checks/core-boundary.ts [--root DIR]
  *
@@ -51,9 +51,7 @@ export const FORBIDDEN_IN_CORE: readonly string[] = [
 const CORE = "myapp-core";
 const TEST_SUPPORT = "myapp-test-support";
 /** The boundary's direct-edge rule: the only crates that may depend on each of these directly. */
-const WRAPPERS: ReadonlyMap<string, readonly string[]> = new Map([
-  ["myapp-platform", ["myapp-cli"]],
-]);
+const WRAPPERS: ReadonlyMap<string, readonly string[]> = new Map([["myapp-platform", ["myapp"]]]);
 const METADATA_ARGS = ["metadata", "--format-version", "1", "--locked", "--offline"];
 const METADATA_COMMAND = `cargo ${METADATA_ARGS.join(" ")}`;
 /** The workspace's metadata is several MB; spawnSync's default buffer is 1 MiB. */
@@ -245,7 +243,7 @@ function closureViolations(metadata: CargoMetadata): FailureDetails[] {
         summary: `${CORE}'s dependency closure reaches ${name} (forbidden as \`${pattern}\`)`,
         expected: `no ${FORBIDDEN_IN_CORE.map((p) => `\`${p}\``).join(", ")} among ${CORE}'s normal or build dependencies, direct or transitive`,
         actual: `dependency path: ${path}`,
-        next: `remove the edge that brings ${name} into core (crates/${CORE}/Cargo.toml's [dependencies] or [build-dependencies], or a dependency's features); OS and Tauri code belongs in myapp-platform or src-tauri behind a port`,
+        next: `remove the edge that brings ${name} into core (crates/${CORE}/Cargo.toml's [dependencies] or [build-dependencies], or a dependency's features); OS code belongs in myapp-platform behind a port`,
       });
     }
   }

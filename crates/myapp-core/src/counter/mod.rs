@@ -143,12 +143,12 @@ pub struct CounterView {
     pub last_changed_at: Option<UnixMillis>,
     /// How many changes this service has saved since it was built (0 before the first).
     /// Of two views from one app process, the higher revision is the newer; on a tie the
-    /// later one is at least as new. Not stored, and not raised by the helper CLI.
+    /// later one is at least as new. Not stored, and not raised by another process's saves.
     pub revision: u64,
 }
 
 /// A failed counter action. Serialized with a `code` tag (`{ "code": "atMaximum" }`);
-/// the UI owns the wording (`ui/src/copy/`).
+/// the binary owns the wording (`crates/myapp/src/wording.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, Serialize)]
 #[serde(tag = "code", rename_all = "camelCase")]
 pub enum CounterError {
@@ -177,7 +177,7 @@ impl From<StorageError> for CounterError {
 /// One `CounterService` is shared by every command. Its lock is held across every use
 /// case and numbers the saves ([`CounterView::revision`]). An increment or decrement runs
 /// load → decide → save as one [`CounterStore::update`], so neither another command nor
-/// another process (the helper CLI) can slip a save in between. A reset is one
+/// another process can slip a save in between. A reset is one
 /// [`CounterStore::save`], because its result does not depend on what was stored.
 pub struct CounterService {
     revision: Mutex<u64>,

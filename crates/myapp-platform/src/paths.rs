@@ -16,8 +16,8 @@ pub fn home_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// `~/Library/Application Support/<identifier>` — the directory Tauri's
-/// `app_data_dir()` returns on macOS, so the app and the helper CLI share it.
+/// `~/Library/Application Support/<identifier>` — where the binary keeps its data on
+/// macOS.
 #[must_use]
 pub fn app_data_dir(home: &Path) -> PathBuf {
     home.join("Library")
@@ -25,25 +25,14 @@ pub fn app_data_dir(home: &Path) -> PathBuf {
         .join(BUNDLE_IDENTIFIER)
 }
 
-/// `~/Library/Logs/<identifier>` — the log directory Tauri documents for macOS, and the
-/// app's; the helper CLI logs to [`cli_log_dir`] under it.
+/// `~/Library/Logs/<identifier>` — the binary's log directory on macOS, the one
+/// `just logs` reads.
 #[must_use]
 pub fn log_dir(home: &Path) -> PathBuf {
     home.join("Library").join("Logs").join(BUNDLE_IDENTIFIER)
 }
 
-/// The helper CLI's log subdirectory inside [`log_dir`].
-pub const CLI_LOG_DIR_NAME: &str = "cli";
-
-/// `~/Library/Logs/<identifier>/cli` — the helper CLI's log directory. It is separate
-/// from the app's because log retention counts every file in a directory whose name
-/// starts with the writer's prefix, and the app's prefix is a prefix of the helper's.
-#[must_use]
-pub fn cli_log_dir(home: &Path) -> PathBuf {
-    log_dir(home).join(CLI_LOG_DIR_NAME)
-}
-
-/// Where the app and the CLI keep the counter.
+/// Where the binary keeps the counter.
 #[must_use]
 pub fn counter_file(home: &Path) -> PathBuf {
     app_data_dir(home).join(COUNTER_FILE_NAME)
@@ -63,10 +52,6 @@ mod tests {
         assert_eq!(
             log_dir(home),
             PathBuf::from("/Users/someone/Library/Logs/com.example.myapp")
-        );
-        assert_eq!(
-            cli_log_dir(home),
-            PathBuf::from("/Users/someone/Library/Logs/com.example.myapp/cli")
         );
         assert_eq!(
             counter_file(home),
