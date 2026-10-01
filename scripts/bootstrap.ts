@@ -6,7 +6,8 @@
  * - rewrites an explicit list of placeholder sites — each a file and the spellings it
  *   carries (`MyApp`; the slug as `myapp` / `myapp-core`, `myapp_core` / `myapp_lib`, and
  *   `MYAPP_SMOKE`; `com.example.myapp`; the template's owner/repo) — never a global replace;
- * - renames `crates/myapp-*` to `crates/<slug>-*`, after `cargo fetch --locked`, and updates
+ * - renames `crates/myapp` and `crates/myapp-*` to `crates/<slug>` and `crates/<slug>-*`,
+ *   after `cargo fetch --locked`, and updates
  *   Cargo.lock offline (`cargo update --workspace --offline`);
  * - removes the `<!-- template-only -->` … `<!-- /template-only -->` blocks, `docs/template/`,
  *   the `Template Bootstrap Smoke` CI job and its required context, the `bootstrap` and
@@ -217,11 +218,12 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "README.md", forms: ["bundleId", "repo", "repoName", "name", "slug", "slugUpper"] },
   { file: "SECURITY.md", forms: ["repo"] },
   { file: "clippy.toml", forms: ["slug"] },
-  { file: "crates/myapp-cli/Cargo.toml", forms: ["slug"] },
-  { file: "crates/myapp-cli/src/main.rs", forms: ["slugSnake", "slug"] },
-  { file: "crates/myapp-cli/tests/cli.rs", forms: ["bundleId", "slug"] },
+  { file: "crates/myapp/Cargo.toml", forms: ["slug"] },
+  { file: "crates/myapp/src/main.rs", forms: ["slugSnake", "slug"] },
+  { file: "crates/myapp/src/wording.rs", forms: ["slugSnake", "slug"] },
+  { file: "crates/myapp/tests/cli.rs", forms: ["bundleId", "slug"] },
   { file: "crates/myapp-core/Cargo.toml", forms: ["name", "slug"] },
-  { file: "crates/myapp-core/src/counter/mod.rs", forms: ["slugSnake"] },
+  { file: "crates/myapp-core/src/counter/mod.rs", forms: ["slugSnake", "slug"] },
   { file: "crates/myapp-core/src/lib.rs", forms: ["slug"] },
   { file: "crates/myapp-core/src/log.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-core/tests/contracts.rs", forms: ["slugSnake", "slug"] },
@@ -231,7 +233,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "crates/myapp-platform/src/clock.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-platform/src/counter_store.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-platform/src/lib.rs", forms: ["slug"] },
-  { file: "crates/myapp-platform/src/paths.rs", forms: ["bundleId"] },
+  { file: "crates/myapp-platform/src/paths.rs", forms: ["bundleId", "slug"] },
   { file: "crates/myapp-platform/tests/contracts.rs", forms: ["slugSnake", "slug"] },
   { file: "crates/myapp-platform/tests/json_file_counter_store.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-platform/tests/logging.rs", forms: ["slugSnake"] },
@@ -240,7 +242,7 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "crates/myapp-test-support/src/counter_store.rs", forms: ["slugSnake"] },
   { file: "crates/myapp-test-support/src/lib.rs", forms: ["slug"] },
   { file: "deny.toml", forms: ["slug"] },
-  { file: "docs/architecture.md", forms: ["bundleId", "name", "slugSnake", "slug", "slugUpper"] },
+  { file: "docs/architecture.md", forms: ["bundleId", "slugSnake", "slug", "slugUpper"] },
   { file: "docs/getting-started.md", forms: ["bundleId", "slug"] },
   { file: "justfile", forms: ["bundleId", "slug"] },
   { file: "package.json", forms: ["name", "slug"] },
@@ -554,9 +556,12 @@ export const REMOVED_PATHS: readonly string[] = [
   "scripts/bootstrap.ts",
 ];
 
-/** The crate directories named after the slug; each becomes `crates/<slug>-<suffix>`. */
+/**
+ * The crate directories named after the slug: `crates/myapp` becomes `crates/<slug>`, and
+ * each other one `crates/<slug>-<suffix>`.
+ */
 export const CRATE_DIRS: readonly string[] = [
-  "crates/myapp-cli",
+  "crates/myapp",
   "crates/myapp-core",
   "crates/myapp-platform",
   "crates/myapp-test-support",
@@ -1343,7 +1348,7 @@ export function dependencyNames(root: string): Set<string> {
 /** Refuse a slug whose shell or crate package name would collide with a dependency. */
 function assertSlugFree(root: string, slug: string): void {
   const taken = dependencyNames(root);
-  const packages = [slug, ...CRATE_DIRS.map((dir) => renamed(dir, slug).slice("crates/".length))];
+  const packages = CRATE_DIRS.map((dir) => renamedCrate(dir, slug).slice("crates/".length));
   const clash = packages.find((name) => taken.has(name));
   if (clash === undefined) return;
   throw new ScriptError({
@@ -1355,8 +1360,9 @@ function assertSlugFree(root: string, slug: string): void {
   });
 }
 
-function renamed(path: string, slug: string): string {
-  return path.replace(/^crates\/myapp-/, `crates/${slug}-`);
+/** `path` under the renamed crate directory: `crates/myapp…` becomes `crates/<slug>…`. */
+export function renamedCrate(path: string, slug: string): string {
+  return path.replace(/^crates\/myapp(?=[-/]|$)/, `crates/${slug}`);
 }
 
 function runStep(
@@ -1400,7 +1406,8 @@ export function runBootstrap(
   );
 
   for (const [file, content] of writes) writeFileSync(join(root, file), content);
-  for (const dir of CRATE_DIRS) renameSync(join(root, dir), join(root, renamed(dir, answers.slug)));
+  for (const dir of CRATE_DIRS)
+    renameSync(join(root, dir), join(root, renamedCrate(dir, answers.slug)));
   log(
     `bootstrap: rewrote ${String(writes.size)} files and renamed ${String(CRATE_DIRS.length)} crates`,
   );
@@ -1416,7 +1423,7 @@ export function runBootstrap(
   );
   const formattable = [...writes.keys()]
     .filter((file) => !file.endsWith(".md") && !file.endsWith(".rs"))
-    .map((file) => renamed(file, answers.slug));
+    .map((file) => renamedCrate(file, answers.slug));
   runStep(
     context,
     ["cargo", "fmt", "--all"],

@@ -19,8 +19,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
   names it for a new file or placeholder spelling. The recipe and that row are
   template-only: the bootstrap removes both.
+- `just install-cli` installs the `myapp` binary into `~/.cargo/bin`
+  (`cargo install --locked --path crates/myapp`). It writes outside the checkout, so it
+  is a human's recipe, kept out of any committed allow list like `just install`.
+- Linux support: on Linux `myapp` keeps its data in `$XDG_DATA_HOME/myapp` (default
+  `~/.local/share/myapp`) and its logs in `$XDG_STATE_HOME/myapp/logs` (default
+  `~/.local/state/myapp/logs`), following the XDG Base Directory Specification; macOS
+  keeps `~/Library/Application Support` and `~/Library/Logs`. `just logs` reads the
+  right directory on each system, and CI runs the platform tests on Linux as well.
 
 ### Changed
+
+- `just test-macos` is renamed `just test-platform`: it runs the platform adapters and
+  the CLI against the real OS, in CI's `Rust Core` (Linux) and `macOS` jobs.
+- The command-line tool is the app: `crates/myapp-cli` becomes `crates/myapp`, building
+  the `myapp` binary (`myapp counter show`, `myapp counter increment`). Its contract is
+  tested against the built binary: data on stdout, diagnostics on stderr; exit 0 on
+  success, 1 on a runtime error, 2 on a usage error; `myapp --version` prints the
+  workspace version. Every stderr sentence, including the wording for each core error
+  code, lives in `crates/myapp/src/wording.rs`. It logs to
+  `~/Library/Logs/com.example.myapp/myapp.YYYY-MM-DD.log`, where `just logs` looks,
+  instead of the old `cli/myapp-cli.*.log`; `myapp-platform` no longer exports
+  `cli_log_dir` or `CLI_LOG_DIR_NAME`.
 
 - Repository automation starts moving to Rust: a `cargo xtask` crate (`xtask/`, with
   the staged guard's rules in `xtask/guard/`) and a `.cargo/config.toml` alias replace

@@ -130,7 +130,7 @@ greps before committing; a pinned tool goes through `mise exec --`. A remote wri
 
 **Never taking over the developer's Mac.** Every step a skill tells an agent to run
 follows `AGENTS.md` › "Never taking over the developer's Mac": on its own an agent runs
-only what shows no window, takes no focus, and raises no prompt, with `just test-macos`
+only what shows no window, takes no focus, and raises no prompt, with `just test-platform`
 and `just logs` as its evidence. A human's recipe (`just test-local`,
 `just logs-follow`) is marked as one wherever a skill names it. A skill never has an
 agent `open` the app, script another app, build a `.dmg` locally, or start an installer

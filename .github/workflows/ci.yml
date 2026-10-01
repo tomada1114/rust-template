@@ -59,6 +59,9 @@ jobs:
       - name: Core tests with coverage floors, doctests, and the Linux-buildable crates' tests
         run: just test-core
 
+      - name: Platform tests (real adapters, the CLI) on Linux
+        run: just test-platform
+
       - name: cargo deny
         run: cargo deny --locked check
 
@@ -148,8 +151,8 @@ jobs:
       - name: Clippy (whole workspace)
         run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      - name: macOS tests (real adapters, the CLI)
-        run: just test-macos
+      - name: Platform tests (real adapters, the CLI) on macOS
+        run: just test-platform
 
   bootstrap-smoke:
     # Template-only: scripts/bootstrap.ts removes this job, and its required context in

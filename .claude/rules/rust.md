@@ -11,7 +11,7 @@ The short, always-on version of the `writing-rust` and `designing-errors` skills
 
 - A decision — anything that branches, clamps, formats, or remembers — goes in
   `myapp-core`, where the coverage floor sees it. `myapp-platform`, `src-tauri`, and
-  `myapp-cli` translate between core and the outside world and decide nothing
+  the `myapp` binary translate between core and the outside world and decide nothing
 - Core never names tauri, an OS binding crate, or `myapp-platform`, and reaches time,
   storage, the environment, and processes only through a port: a synchronous
   `Send + Sync` trait declared in core, implemented in `myapp-platform`, faked in
@@ -26,8 +26,9 @@ The short, always-on version of the `writing-rust` and `designing-errors` skills
   allowed in tests by `clippy.toml`). Return a `Result` and propagate with `?`
 - One `thiserror` enum per port or core module, with a variant per failure the caller
   can act on (`CounterError::{AtMaximum, AtMinimum, Storage { kind }}` is the worked
-  example). An error that crosses IPC serializes as a code (`#[serde(tag = "code")]`);
-  the UI owns the wording in `ui/src/copy/`, so Rust never sends a user-facing sentence
+  example). An error serializes as a code (`#[serde(tag = "code")]`); the binary owns
+  the wording in `crates/myapp/src/wording.rs`, matched without a wildcard arm, so core
+  never builds a user-facing sentence
 - An adapter maps `std::io::Error` and OS failures into core's error kinds at the
   boundary; core never sees a `std::io::Error`
 - No user data in an error or a log field: no path under the home directory, no file

@@ -67,6 +67,7 @@ import {
   deriveNames,
   findLeftovers,
   REMOVED_PATHS,
+  renamedCrate,
   SMOKE_JOB_NAME,
   type Answers,
 } from "./bootstrap.ts";
@@ -406,15 +407,16 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
   const pkg = parsed(text("package.json"), JSON.parse);
   const cargo = parsed(text("Cargo.toml"), parseToml);
   const lock = parsed(text("Cargo.lock"), parseToml);
-  const crateDirs = CRATE_DIRS.map((dir) =>
-    dir.replace(/^crates\/myapp-/, `crates/${names.slug}-`),
-  );
+  const crateDirs = CRATE_DIRS.map((dir) => renamedCrate(dir, names.slug));
   const justfile = text("justfile");
 
   const expectations: (readonly [string, unknown, unknown])[] = [
     [
       "paths.rs BUNDLE_IDENTIFIER",
-      quoted(text(`${crateDirs[2] ?? ""}/src/paths.rs`), /BUNDLE_IDENTIFIER: &str = "([^"]*)"/),
+      quoted(
+        text(`${renamedCrate("crates/myapp-platform", names.slug)}/src/paths.rs`),
+        /BUNDLE_IDENTIFIER: &str = "([^"]*)"/,
+      ),
       answers.bundleId,
     ],
     ["justfile bundle_id", quoted(justfile, /^bundle_id := "([^"]*)"/m), answers.bundleId],

@@ -45,7 +45,7 @@ just check
 ```
 
 `just check` runs everything a Mac can run without a human (verify-hooks, fmt, lint,
-lint-repo, agents-check, test-scripts, check-harness, test, test-macos, build, smoke);
+lint-repo, agents-check, test-scripts, check-harness, test, test-platform, build, smoke);
 the justfile's `check` recipe is the source of truth for the order. It opens no window
 (`AGENTS.md` › "Never taking over the developer's Mac"). A cold run takes longer than a
 foreground tool call may last, so under Claude Code start it with `run_in_background`
@@ -73,7 +73,7 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
 
 - **Where the logic landed.** A decision (anything that branches, clamps, or formats)
   belongs in `crates/myapp-core`, with tests, where the coverage floor sees it. A
-  decision found in `src-tauri/`, `crates/myapp-platform/`, `crates/myapp-cli/`, or
+  decision found in `src-tauri/`, `crates/myapp-platform/`, `crates/myapp/`, or
   `ui/src/` leaves "New logic lives in `myapp-core`" unchecked.
 - **IPC.** A type that derives `ts_rs::TS` changed without `ui/src/ipc/generated/`
   changing beside it, or a command or event changed without its wrapper in

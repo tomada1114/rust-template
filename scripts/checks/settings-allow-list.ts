@@ -29,6 +29,7 @@ import { checkMain, readRepoFile, type Check } from "./lib.ts";
 export const HUMAN_RECIPES = [
   "test-local",
   "logs-follow",
+  "install-cli",
   "install",
   "labels",
   "ruleset",

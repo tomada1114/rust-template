@@ -52,14 +52,16 @@ The app keeps its data in `~/Library/Application Support/com.example.myapp/count
 and its logs in `~/Library/Logs/com.example.myapp/`. Deleting `counter.json` starts the
 counter over.
 
-The bundled helper reads and writes the same file:
+The `myapp` binary reads and writes that file:
 
 ```bash
-cargo run --locked -p myapp-cli -- counter show
-cargo run --locked -p myapp-cli -- counter increment
+cargo run --locked -p myapp -- counter show
+cargo run --locked -p myapp -- counter increment
 ```
 
-An open window picks up the helper's change when it next loads or changes the counter.
+To run `myapp` from any directory, `just install-cli` installs it into `~/.cargo/bin`
+(`cargo install --locked --path crates/myapp`). It writes outside the checkout, so it is
+a human's recipe that no check and no agent runs unasked.
 
 ## Permissions (TCC)
 
@@ -126,8 +128,9 @@ that touches it says what to keep.
       element's assertion in `setup_leaves_the_same_state_and_commands_under_both_plans`;
       keep the `log_from_ui` call, the unregistered-command check, and the
       startup-plan tests
-- [ ] `crates/myapp-cli/src/main.rs` — the `counter` subcommand (keep `--help`,
-      `--version`, and the exit-code convention) and its tests in `tests/cli.rs`
+- [ ] `crates/myapp/src/main.rs` — the `counter` subcommand (keep `--help`,
+      `--version`, and the exit-code convention), its wording in `src/wording.rs`, and
+      its tests in `tests/cli.rs`
 
 **UI**:
 
@@ -139,7 +142,7 @@ that touches it says what to keep.
 **Documents and agent guidance**:
 
 - [ ] `docs/architecture.md` — the counter column under "Ports and adapters", the
-      command and event names, the helper's command line, and the `counter.json` format
+      command and event names, the command line's `counter` subcommand, and the `counter.json` format
       under "What is contract"
 - [ ] `README.md` — the introduction's counter sentence, "Why is the sample app a
       counter?", and the `just test-fast increment` example
@@ -147,7 +150,7 @@ that touches it says what to keep.
       Architecture (`JsonFileCounterStore`, `counter/`, `CounterStore`,
       `COUNTER_CHANGED`, `counter.json`)
 - [ ] `CONTRIBUTING.md`, the `justfile`'s `test-fast` comment, and this page — the
-      `just test-fast increment` examples, "Seeing the app"'s `counter.json` and helper
+      `just test-fast increment` examples, "Seeing the app"'s `counter.json` and `myapp`
       commands, and this checklist
 - [ ] `.claude/rules/rust.md`, `.claude/rules/testing.md`, and
       `.claude/rules/typescript.md` — the sentences that give a counter type as the

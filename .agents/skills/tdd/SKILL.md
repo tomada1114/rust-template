@@ -37,14 +37,14 @@ should do.
   `crates/myapp-platform`. The red test is a core test against the fake, and the
   contract function in `crates/myapp-test-support`; the adapter only translates.
   Whether the OS really behaves as the adapter assumes is checked afterwards by the
-  contract against the real adapter (`just test-macos`), or, for a test marked
+  contract against the real adapter (`just test-platform`), or, for a test marked
   `#[ignore = "local machine: …"]`, by `just test-local` — a human's recipe that needs
   a logged-in Mac. It is evidence for the pull request, never the red test this loop
   starts from.
 - **A command or an event** decides nothing; its red test is in
-  `src-tauri/tests/commands.rs` (`just test-macos`), after the core function it calls
+  `src-tauri/tests/commands.rs` (`just test-platform`), after the core function it calls
   has its own.
-- About to put a decision in `myapp-platform`, `src-tauri`, `myapp-cli`, or a component?
+- About to put a decision in `myapp-platform`, `src-tauri`, the `myapp` binary, or a component?
   Stop and move it to core.
 
 ## Step 1: RED — write the failing test
@@ -116,9 +116,9 @@ the change can fail:
 | Changed | Run |
 |---|---|
 | core | `just test-core` (its floors, doctests, and the other Linux-buildable crates), then `just lint` (clippy, including core's banned calls) |
-| `src-tauri/` or `crates/myapp-platform/` | `just test-macos` |
-| `crates/myapp-cli/` | `just test-core` (it runs the CLI's tests), then `just test-macos` |
-| `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-macos` (platform runs them against the real adapters) |
+| `src-tauri/` or `crates/myapp-platform/` | `just test-platform` |
+| `crates/myapp/` | `just test-core` (it runs the binary's tests), then `just test-platform` |
+| `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-platform` (platform runs them against the real adapters) |
 | `scripts/` | `just test-scripts` (**REQUIRED:** `writing-repo-scripts`) |
 
 Before the pull request, `just check` runs everything a Mac runs without a human. None

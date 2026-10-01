@@ -25,14 +25,15 @@ it:
   move the decision into core instead.
 - **Translation to or from the OS → the adapter's contract test.** Whether the file
   system or a macOS API really behaves as an adapter assumes is checked against the
-  real thing in `crates/myapp-platform/tests/` (`just test-macos`, CI's macOS job). A
+  real thing in `crates/myapp-platform/tests/` (`just test-platform`, CI's `Rust Core` and macOS jobs). A
   test that needs a logged-in GUI session, a TCC grant, or the Keychain carries
   `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`,
   which a human starts; a pull request that changes such an adapter carries that
   output. Never an `#[ignore]` without the reason string, and never one on a test that
   merely fails.
-- **The helper CLI → `crates/myapp-cli/tests/`**, running the built binary against a
-  temporary `HOME` (`just test-macos`).
+- **The `myapp` binary → `crates/myapp/tests/`**, running the built binary against a
+  temporary `HOME` (`just test-platform`); the wording for each error code is tested per
+  variant in `crates/myapp/src/wording.rs`.
 - **A repository script → `scripts/<name>.test.ts` beside it**, calling `main` with a
   fake context and stubbed commands (`just test-scripts`).
 - A new automated test never opens a window, takes focus, or raises a prompt

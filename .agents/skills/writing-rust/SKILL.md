@@ -70,7 +70,7 @@ formats. None of them opens a window.
 - Return `Result<T, E>` and propagate with `?`. Turn an `Option` into an error with
   `.ok_or(E)?` (`home_dir().ok_or(StartupError::NoHome)?` in `src-tauri/src/lib.rs`),
   or leave early with `let … else` (`let Some(home) = home_dir() else { … }` in
-  `crates/myapp-cli/src/main.rs`). Use `unwrap_or`, `unwrap_or_default`, or
+  `crates/myapp/src/main.rs`). Use `unwrap_or`, `unwrap_or_default`, or
   `map_or_else` only where the fallback is a correct answer, and say why in a comment
   (`SystemClock::now` in `crates/myapp-platform/src/clock.rs`).
 - `?` converts the error through `From`. Where one error wraps another, an
@@ -106,8 +106,8 @@ formats. None of them opens a window.
   `#[non_exhaustive]` foreign enum needs a `_` arm (E0004), which the lint accepts once
   every variant is named before it; `std::io::ErrorKind` has unstable variants no match
   can name (E0658), so test it with `==` or `matches!` instead. Outside core a match on
-  a `#[non_exhaustive]` foreign enum ends with `_ =>`. In the sample, `describe` in
-  `crates/myapp-cli/src/main.rs` matches every `CounterError` and every
+  a `#[non_exhaustive]` foreign enum ends with `_ =>`. In the sample, `counter_error` in
+  `crates/myapp/src/wording.rs` matches every `CounterError` and every
   `StorageErrorKind` inside it.
 
 ## Modules and visibility

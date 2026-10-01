@@ -23,7 +23,7 @@ struct CounterFile {
 /// from one process never share one.
 static SAVES: AtomicU64 = AtomicU64::new(0);
 
-/// Keeps the counter in a JSON file that the app and the helper CLI share.
+/// Keeps the counter in a JSON file.
 ///
 /// Saves are atomic: the new contents go to a temporary file in the same directory, named
 /// for this process and this save, which is then renamed over the old file, so a crash or

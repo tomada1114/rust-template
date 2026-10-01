@@ -2,7 +2,7 @@
 name: running-the-app
 description: >
   Covers seeing a change work in the real app without taking over the developer's Mac:
-  just test-macos and just logs as an agent's own evidence; the helper CLI against a
+  just test-platform and just logs as an agent's own evidence; the helper CLI against a
   scratch HOME; what to ask a human for, once; reading the daily log files in
   ~/Library/Logs; the WebView inspector in debug builds; and the evidence a pull
   request carries for behaviour no gate asserts. Use when asked to run, launch,
@@ -32,26 +32,24 @@ Nothing here opens a window, takes focus, or raises a prompt (`AGENTS.md` › "N
 over the developer's Mac"). This is the default, and usually enough.
 
 ```bash
-just test-macos   # platform adapters and the CLI against the real macOS
+just test-platform   # platform adapters and the myapp binary against the real OS
 just logs         # the newest app log file's last 50 lines, then exit
 ```
 
-- **`just logs`** prints the tail of the newest app file, `myapp.YYYY-MM-DD.log` in
-  `~/Library/Logs/com.example.myapp/`. The helper writes `myapp-cli.YYYY-MM-DD.log` in
-  that directory's `cli/` subdirectory, dated in UTC; read it with
-  `tail -n 100 ~/Library/Logs/com.example.myapp/cli/myapp-cli.$(date -u +%F).log`.
+- **`just logs`** prints the tail of the newest log file, `myapp.YYYY-MM-DD.log` (dated
+  in UTC) in `~/Library/Logs/com.example.myapp/`, which the `myapp` binary writes.
 - A line reads `<UTC timestamp>  INFO myapp_lib: startup complete pid=15240 smoke=true`
   (observed in this Mac's log, 2026-09-29). Each command logs one line naming itself
   (`log_outcome` in `src-tauri/src/commands.rs`), and the UI's forwarded warnings and
   errors appear with the target `ui`. A log line is often the cheapest observable for
   a wiring change: add the `tracing` event in the shell, then read it.
-- **The helper** runs without the GUI. Point `HOME` at a scratch directory so it reads
-  and writes a throwaway store and log instead of the developer's own. In the sample:
+- **The binary** runs headless. Point `HOME` at a scratch directory so it reads and
+  writes a throwaway store and log instead of the developer's own. In the sample:
 
   ```bash
-  cargo build --locked -p myapp-cli
+  cargo build --locked -p myapp
   scratch="$(mktemp -d)"
-  HOME="$scratch" target/debug/myapp-cli counter show
+  HOME="$scratch" target/debug/myapp counter show
   rm -rf "$scratch"
   ```
 
