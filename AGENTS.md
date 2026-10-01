@@ -24,13 +24,15 @@ This is a macOS desktop app built from a strict template: a Rust core, a Tauri v
 and a React + Vite + TypeScript screen, distributed as a `.dmg`. The Rust code is a
 Cargo workspace — the logic in `crates/myapp-core`, the OS adapters in
 `crates/myapp-platform`, fakes and contract suites in `crates/myapp-test-support`, and the
-`myapp` binary itself in `crates/myapp` — and repository automation is TypeScript under
+`myapp` binary itself in `crates/myapp` — and repository automation is Rust in the
+`xtask/` crate (`cargo xtask <task>`) and, for what is not yet ported, TypeScript under
 `scripts/`.
 Quality gates are on from day one: rustfmt, clippy `all` + `pedantic` with warnings as
 errors, `unsafe_code = "forbid"` in every crate, an 80% line and 80% function coverage
-floor on `myapp-core`, TypeScript `strict` with ESLint's `strictTypeChecked`, and Vitest
-coverage floors on `scripts/` and skills' bundled TypeScript scripts (85/90) and the
-staged guard (90/100); skills' bundled Python and shell suites run with no floor.
+floor on `myapp-core`, llvm-cov floors on `xtask` (85/90) and the staged guard's rules
+in `xtask/guard/` (90/100), TypeScript `strict` with ESLint's `strictTypeChecked`, and
+Vitest coverage floors on `scripts/` and skills' bundled TypeScript scripts (85/90);
+skills' bundled Python and shell suites run with no floor.
 
 ## Product
 
@@ -62,8 +64,9 @@ just verify-hooks  # Fail when lefthook's pre-commit hook is not installed
 just fmt           # Format every Rust and TypeScript file (cargo fmt, prettier --write)
 just fix           # Format and apply ESLint's autofixes
 just lint          # rustfmt check, clippy -D warnings, tsc, ESLint, Prettier check
-just test          # test-core: every test that runs anywhere, with the coverage floors
+just test          # test-core + test-xtask: every test that runs anywhere, with the coverage floors
 just test-core     # myapp-core with its 80/80 floors, its doctests, and the Linux-buildable crates' tests
+just test-xtask    # The xtask crate's tests with its floors (85/90; the guard's rules 90/100)
 just test-fast increment  # One core test or a group of them, no floor (iteration only)
 just test-platform # Platform adapter and CLI tests against the real OS, macOS or Linux (no human)
 just test-scripts  # Vitest over scripts/ and skills' scripts with its floors, plus bundled Python tests and shellcheck
@@ -108,7 +111,8 @@ developer's Mac").
 | A clippy or ESLint finding that may be auto-fixable | `just fix`, then `just lint` for what still needs a hand edit |
 | Behavior only the running app shows (a log line) | `just test-platform` and `just logs` — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
 | A script under `scripts/` (including `scripts/lib/`) | `just test-scripts`, then `just lint` |
-| `lefthook.yml` or `scripts/verify-hooks.ts` | `just test-scripts`, then `just verify-hooks` |
+| A task under `xtask/` (including the guard's rules in `xtask/guard/`) | `cargo nextest run -p xtask -p xtask-guard` while iterating, then `just test-xtask` (the floors) and `just lint` |
+| `lefthook.yml` or `xtask/src/verify_hooks.rs` | `just test-xtask` (`xtask/tests/lefthook.rs` runs the real hook), `just test-scripts`, then `just verify-hooks` |
 | A harness check under `scripts/checks/` | `just test-scripts`, then `just check-harness` |
 | A `just` recipe name, a workflow's `uses:` or `permissions:`, a skill's frontmatter, the `## Product` section, a committed `.claude/settings.json`'s `permissions` (if one is added), core's forbidden-crate lists (`deny.toml`'s `wrappers`, the closure check), the gates `just check` or `ci.yml` runs, or a label an issue form, workflow, or bot config applies | `just check-harness` |
 | A skill under `.agents/skills/` | `just agents-sync`, then `just agents-check` and `just check-harness`; `just test-scripts` too when the skill ships scripts |
@@ -142,7 +146,10 @@ crates/
                             #   arguments to calls and results to stdout, stderr, and an exit
                             #   code. Decides nothing; src/wording.rs holds every stderr sentence,
                             #   and src/tui/ the ratatui terminal loop and view for `myapp tui`
-scripts/                    # Repository automation in TypeScript, run by Node directly
+xtask/                      # Repository automation in Rust, run as `cargo xtask <task>` (the
+                            #   alias is in .cargo/config.toml); never shipped
+└── guard/                  # Crate `xtask-guard`: the staged guard's path and credential rules
+scripts/                    # The automation not yet ported: TypeScript, run by Node directly
 ```
 
 - New logic goes in `myapp-core` with tests. The adapters and the binary translate; a
@@ -310,7 +317,7 @@ these agents runs inline in the main session instead.
 
 Only what is mechanically decidable is blocked at commit time; whether a commit
 *should* contain what it contains stays in PR review. The pre-commit hook's staged
-guard (`scripts/check-staged.ts`, rules in `scripts/lib/guard/`) refuses a
+guard (`cargo xtask check-staged`, rules in `xtask/guard/`) refuses a
 secret-shaped staged path or credential-shaped staged content.
 
 Never read a secret-shaped file, even to check it: `.env`, `.env.*`, or `.envrc.*`
@@ -318,7 +325,7 @@ Never read a secret-shaped file, even to check it: `.env`, `.env.*`, or `.envrc.
 directory, `*.p12`, `*.pfx`, `*.p8`, `*.provisionprofile`, `*.mobileprovision`,
 `*.keychain`/`*.keychain-db`, `*key*.pem`, `private-key.*`, an SSH private key
 (`id_rsa`, `id_ed25519`, …), `.netrc`, `credentials.json`, and `secrets.json`. This is
-the same list `scripts/lib/guard/paths.ts` refuses to commit, so the read rule and the
+the same list `xtask/guard/src/paths.rs` refuses to commit, so the read rule and the
 commit guard agree (the guard also refuses `.claude/settings.local.json`, which is
 per-user settings rather than a secret, so reading it is fine and only committing it is
 not); if a task seems to need one, ask the human for the non-secret fact instead.
@@ -454,7 +461,20 @@ UIs), the `main` ruleset, the Renovate App, and the label set:
 
 ## Repository scripts
 
-Every script under `scripts/` follows these rules, whoever writes it. The reasons
+Repository automation is moving from TypeScript under `scripts/` to Rust tasks in the
+`xtask/` crate, run as `cargo xtask <task>`. A task keeps the same contract: it is a
+function of a faked context (`xtask/src/context.rs`'s `Context`: argv, env, root, a
+`run` function for child processes, a logger, stdin); spawned git gets `git_env` or, for
+the staged guard and the skills mirror's `--staged`, `staged_guard_env`
+(`xtask/src/git_env.rs`); a failure is a `ScriptError` (`xtask/src/fail.rs`) printed as
+the `ERR_<STAGE>_<WHAT>` report below; its tests sit in a `#[cfg(test)] mod tests`
+beside it (end-to-end runs of the binary in `xtask/tests/`), in a temporary directory or
+a throwaway repository, never the real checkout. `just test-xtask` (part of `just check`
+and CI's `Repo Lint & Harness` job) holds `xtask` and `xtask-guard` together to lines 85
+and functions 90, and the guard's rules in `xtask/guard/` alone to lines 90 and
+functions 100.
+
+Every script still under `scripts/` follows these rules, whoever writes it. The reasons
 behind them, with worked examples, are in the `writing-repo-scripts` skill:
 
 - TypeScript run directly by Node's type stripping (`node scripts/<name>.ts`): no build
@@ -488,8 +508,8 @@ behind them, with worked examples, are in the `writing-repo-scripts` skill:
   `scripts/lib/**/<name>.test.ts`), run by Vitest's `scripts` project
   (`just test-scripts`, part of `just check` and CI's `Repo Lint & Harness` job) with
   the coverage floors in `vitest.config.ts`: lines 85 and functions 90 across
-  `scripts/` and across a skill's bundled TypeScript under `.agents/skills/*/scripts/`,
-  lines 90 and functions 100 on `scripts/lib/guard/`. A test works in a temp directory
+  `scripts/` and across a skill's bundled TypeScript under `.agents/skills/*/scripts/`.
+  A test works in a temp directory
   or a throwaway repository, never the real checkout, and shares no state with any
   other test. A harness check under `scripts/checks/` takes `--root` so
   its test can point it at a fixture tree per failure mode. A skill's bundled scripts
@@ -502,17 +522,17 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 
 | Layer | Fires on | Applies to | Holds |
 |---|---|---|---|
-| lefthook's pre-commit hook (`lefthook.yml`) | `git commit` | anyone who ran `just install` | check-only and fast, on the staged files: `rustfmt --check`, `prettier --check`, `eslint --max-warnings 0`, `typos`, and the staged guard. No clippy, compile, or test step — `just check` and CI run those. On the commit that concludes a conflicted merge, or one made at a rebase stop, the four style jobs skip (CI reruns them over the whole tree) and the staged guard and the skills mirror still run |
-| `scripts/check-staged.ts` (the hook's staged guard; rules in `scripts/lib/guard/`) | `git commit`, whatever is staged, including the commit that concludes a conflicted merge | anyone who ran `just install` | no secret-shaped path (`.env*`, `.envrc.*`, `secrets/`, signing material, SSH keys, `.claude/settings.local.json`) or credential-shaped content (private-key header, GitHub token, AWS keys, Anthropic or OpenAI API key, Slack token, Google API key, Stripe live key, and the rest `credentials.ts` lists) lands in a commit; judged from the index, so a partly staged file is judged as committed; staged deletions are never inspected |
-| `scripts/verify-hooks.ts` (`just install`'s last step, `just check`'s first) | `just install`, `just verify-hooks`, and `just check` | anyone who runs one | lefthook's pre-commit hook is installed in this checkout — skips under CI or the `ALLOW_MISSING_GIT_HOOKS` opt-out |
+| lefthook's pre-commit hook (`lefthook.yml`) | `git commit` | anyone who ran `just install` | check-only and fast, on the staged files: `rustfmt --check`, `prettier --check`, `eslint --max-warnings 0`, `typos`, and the staged guard. No clippy or test step — `just check` and CI run those (`cargo xtask` compiles the xtask crate on its first run and after `xtask/` changes). On the commit that concludes a conflicted merge, or one made at a rebase stop, the four style jobs skip (CI reruns them over the whole tree) and the staged guard and the skills mirror still run |
+| `cargo xtask check-staged` (the hook's staged guard, `xtask/src/check_staged.rs`; rules in `xtask/guard/`) | `git commit`, whatever is staged, including the commit that concludes a conflicted merge | anyone who ran `just install` | no secret-shaped path (`.env*`, `.envrc.*`, `secrets/`, signing material, SSH keys, `.claude/settings.local.json`) or credential-shaped content (private-key header, GitHub token, AWS keys, Anthropic or OpenAI API key, Slack token, Google API key, Stripe live key, and the rest `credentials.rs` lists) lands in a commit; judged from the index, so a partly staged file is judged as committed; staged deletions are never inspected |
+| `cargo xtask verify-hooks` (`just install`'s last step, `just check`'s first) | `just install`, `just verify-hooks`, and `just check` | anyone who runs one | lefthook's pre-commit hook is installed in this checkout — skips under CI or the `ALLOW_MISSING_GIT_HOOKS` opt-out |
 | The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp` depends on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
-| `crates/myapp-core/clippy.toml`, core's `#![deny(clippy::wildcard_enum_match_arm)]`, `scripts/clippy-guard.ts` (every clippy run in `just lint` and CI goes through it), and `scripts/checks/clippy-allow-invalid.ts` | `just lint`, `just check`, and CI's clippy steps; the check in `just check-harness` and CI's `Repo Lint & Harness` job | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `std::os::unix::fs`'s `symlink`, `chown`, `fchown`, `lchown`, and `chroot`, `std::net`'s and `std::os::unix::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, the process and parent-process ids, `thread::available_parallelism`, `thread::spawn`, `thread::Builder::spawn`, `thread::sleep`, or `thread::park_timeout` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive; and every `path` in a `clippy.toml` names an item clippy resolves on that job's target — clippy only warns about one that does not, and `-D warnings` lets that pass, so the guard fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead of letting the ban silently do nothing, and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic in a `clippy.toml` (a deprecated or unknown key); and no `clippy.toml` sets `allow-invalid`, which would hide that warning from the guard, so the check fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` apart from its human-approved exception list (empty) |
+| `crates/myapp-core/clippy.toml`, core's `#![deny(clippy::wildcard_enum_match_arm)]`, `cargo xtask clippy-guard` (every clippy run in `just lint` and CI goes through it), and `scripts/checks/clippy-allow-invalid.ts` | `just lint`, `just check`, and CI's clippy steps; the check in `just check-harness` and CI's `Repo Lint & Harness` job | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `std::os::unix::fs`'s `symlink`, `chown`, `fchown`, `lchown`, and `chroot`, `std::net`'s and `std::os::unix::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, the process and parent-process ids, `thread::available_parallelism`, `thread::spawn`, `thread::Builder::spawn`, `thread::sleep`, or `thread::park_timeout` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive; and every `path` in a `clippy.toml` names an item clippy resolves on that job's target — clippy only warns about one that does not, and `-D warnings` lets that pass, so the guard fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead of letting the ban silently do nothing, and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic in a `clippy.toml` (a deprecated or unknown key); and no `clippy.toml` sets `allow-invalid`, which would hide that warning from the guard, so the check fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` apart from its human-approved exception list (empty) |
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
 | ESLint's `no-console`, `no-restricted-properties`, and `switch-exhaustiveness-check` (`eslint.config.mjs`) | the hook, `just lint`, and CI's `Repo Lint & Harness` job | every author | no `console` (nor `window.console` or `globalThis.console`) outside `scripts/`; a `switch` over a union names every member and has no `default`; an unused disable directive is an error |
-| Coverage floors | `just test-core`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90; `scripts/lib/guard/` 90 / 100 |
-| The skills-mirror check (`just agents-check`; the hook runs `node scripts/sync-agents.ts --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
-| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`scripts/format-edited-file.ts`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
-| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `just test-platform`, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (tsc, ESLint, Prettier, typos, actionlint, script tests, harness checks), `macOS` (workspace clippy, `just test-platform`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
+| Coverage floors | `just test-core`, `just test-xtask`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `xtask` with `xtask-guard` 85 / 90; `xtask/guard/` 90 / 100; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90 |
+| The skills-mirror check (`just agents-check`; the hook runs `cargo xtask sync-agents --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
+| `scripts/checks/` (`just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the `@types/node` major `pnpm-lock.yaml` resolves equals `mise.toml`'s `node` major; `mise.toml`'s pnpm pin names the version `package.json`'s `packageManager` does; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); the edit hook's Prettier extensions (`xtask/src/format_edited_file.rs`'s `PRETTIER_EXTENSIONS`) equal the pre-commit prettier job's glob in `lefthook.yml`; `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; the ignore lists agree on excluding `.claude/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `scripts/bootstrap.ts` has run |
+| CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `just test-platform`, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (tsc, ESLint, Prettier, typos, actionlint, script tests, xtask tests with floors, harness checks), `macOS` (workspace clippy, `just test-platform`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 
 These gaps are deliberate. Closing one means adding a mechanism that enforces it —
@@ -531,7 +551,7 @@ removing or narrowing its bullet here:
   pre-merge-commit, which `lefthook.yml` does not configure.
   Nothing in this repository blocks these for every author: a personal permission
   file's `deny` list can refuse the usual spellings on one host, and only as written,
-  and `scripts/verify-hooks.ts` sees only that the hook file is lefthook's, not that
+  and `cargo xtask verify-hooks` sees only that the hook file is lefthook's, not that
   its binary resolves or that no variable disables it. "Never bypass the hooks"
   therefore still holds as an instruction, and CI is the backstop — except for the
   staged guard, which no CI job reruns over a pull request's diff: GitHub push
@@ -539,7 +559,7 @@ removing or narrowing its bullet here:
   `.github/workflows/security-audit.yml` runs gitleaks over the full history weekly, so
   a secret that slipped past both is found after the fact rather than never.
 - **Hooks are absent on a bare clone until `just install` runs**, because
-  `lefthook install` is part of that recipe. `scripts/verify-hooks.ts` narrows this: it
+  `lefthook install` is part of that recipe. `cargo xtask verify-hooks` narrows this: it
   fails loudly at `just install` and `just check` time when the hook is missing, so a
   clone whose hook silently failed to install no longer looks identical to one that
   succeeded. It does not close the gap — a contributor who runs neither still commits
@@ -563,8 +583,9 @@ removing or narrowing its bullet here:
   recipes that need a human or write outside the checkout (`test-local`, `logs-follow`,
   `install-cli`) and those that write to GitHub or rewrite the repository
   (`bootstrap`, `labels`, `ruleset`). The same file is where to register
-  `scripts/format-edited-file.ts` as a `PostToolUse` hook on `Edit|Write|MultiEdit`
-  (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- node scripts/format-edited-file.ts`), which
+  to register `cargo xtask format-edited-file` (`xtask/src/format_edited_file.rs`) as a
+  `PostToolUse` hook on `Edit|Write|MultiEdit`
+  (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- cargo xtask format-edited-file`), which
   formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod` child) or
   TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the
   pre-commit hook checks) file an edit touched inside the checkout and reports a

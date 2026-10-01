@@ -1,31 +1,36 @@
 /**
- * The Claude Code edit hook (scripts/format-edited-file.ts) formats with Prettier
- * exactly the extensions lefthook.yml's pre-commit `prettier` job checks, so an agent's
- * edit is never left in a shape the commit then refuses, and the hook never rewrites a
- * file the gate ignores. This check fails when `PRETTIER_EXTENSIONS` and the job's
- * `glob` (`"*.{ts,tsx,…}"`) name different sets.
+ * The Claude Code edit hook (`cargo xtask format-edited-file`,
+ * xtask/src/format_edited_file.rs) formats with Prettier exactly the extensions
+ * lefthook.yml's pre-commit `prettier` job checks, so an agent's edit is never left in a
+ * shape the commit then refuses, and the hook never rewrites a file the gate ignores.
+ * This check fails when the hook's `PRETTIER_EXTENSIONS` and the job's `glob`
+ * (`"*.{ts,tsx,…}"`) name different sets.
  *
  * lefthook.yml is read with the `yaml` parser: `pre-commit.jobs[]`, the entry whose
- * `name` is `prettier`, and its `glob` in the `*.{a,b,…}` form.
+ * `name` is `prettier`, and its `glob` in the `*.{a,b,…}` form. The Rust source is not a
+ * structured format: the check reads the string literals inside the one
+ * `PRETTIER_EXTENSIONS: &[&str] = &[…];` item.
  *
  *   node scripts/checks/formatter-glob.ts [--root DIR]
  *
  * Git work tree: not required.
  *
  * Errors: ERR_CHECK_INPUT_MISSING, ERR_CHECK_FORMATTER_GLOB_UNPARSED (lefthook.yml is
- * not YAML, or the job's glob is not `*.{…}`), ERR_CHECK_FORMATTER_GLOB_MISSING (no
- * `prettier` job under `pre-commit.jobs`), ERR_CHECK_FORMATTER_GLOB_DIVERGED.
+ * not YAML, the job's glob is not `*.{…}`, or the hook declares no
+ * `PRETTIER_EXTENSIONS` list), ERR_CHECK_FORMATTER_GLOB_MISSING (no `prettier` job under
+ * `pre-commit.jobs`), ERR_CHECK_FORMATTER_GLOB_DIVERGED.
  */
 import { parse } from "yaml";
 
-import { PRETTIER_EXTENSIONS } from "../format-edited-file.ts";
 import type { FailureDetails } from "../lib/fail.ts";
 import { runScript } from "../lib/script.ts";
 import { checkMain, readRepoFile, type Check } from "./lib.ts";
 
 const LEFTHOOK = "lefthook.yml";
-const HOOK = "scripts/format-edited-file.ts";
+const HOOK = "xtask/src/format_edited_file.rs";
 const GLOB = /^\*\.\{([^{}]+)\}$/;
+const EXTENSIONS_ITEM = /PRETTIER_EXTENSIONS:\s*&\[&str\]\s*=\s*&\[([^\]]*)\];/;
+const STRING_LITERAL = /"([^"\\]*)"/g;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -78,16 +83,35 @@ function prettierGlob(
   return { glob };
 }
 
+const inputMissing = (path: string): FailureDetails => ({
+  code: "ERR_CHECK_INPUT_MISSING",
+  summary: `${path} does not exist`,
+  expected: `${path} at the root (it is committed)`,
+  actual: "no such file",
+  next: `restore ${path} from version control`,
+});
+
+/** The extensions the hook's `PRETTIER_EXTENSIONS` item lists, or undefined without one. */
+export function hookExtensions(source: string): string[] | undefined {
+  const body = EXTENSIONS_ITEM.exec(source)?.[1];
+  if (body === undefined) return undefined;
+  return [...body.matchAll(STRING_LITERAL)].map((match) => match[1] ?? "");
+}
+
 function run(root: string): FailureDetails[] {
   const text = readRepoFile(root, LEFTHOOK);
-  if (text === undefined) {
+  if (text === undefined) return [inputMissing(LEFTHOOK)];
+  const source = readRepoFile(root, HOOK);
+  if (source === undefined) return [inputMissing(HOOK)];
+  const extensions = hookExtensions(source);
+  if (extensions === undefined) {
     return [
       {
-        code: "ERR_CHECK_INPUT_MISSING",
-        summary: `${LEFTHOOK} does not exist`,
-        expected: `${LEFTHOOK} at the root (it is committed)`,
-        actual: "no such file",
-        next: `restore ${LEFTHOOK} from version control`,
+        code: "ERR_CHECK_FORMATTER_GLOB_UNPARSED",
+        summary: `${HOOK} declares no PRETTIER_EXTENSIONS list`,
+        expected: `a \`PRETTIER_EXTENSIONS: &[&str] = &[".ts", …];\` item in ${HOOK}`,
+        actual: "no such item",
+        next: `restore the item in ${HOOK}, or update scripts/checks/formatter-glob.ts's reader in the same change`,
       },
     ];
   }
@@ -103,7 +127,7 @@ function run(root: string): FailureDetails[] {
     ];
   }
   const hooked = [...new Set(braces.split(",").map((extension) => `.${extension.trim()}`))].sort();
-  const edited = [...new Set(PRETTIER_EXTENSIONS)].sort();
+  const edited = [...new Set(extensions)].sort();
   const onlyHooked = hooked.filter((extension) => !edited.includes(extension));
   const onlyEdited = edited.filter((extension) => !hooked.includes(extension));
   if (onlyHooked.length === 0 && onlyEdited.length === 0) return [];

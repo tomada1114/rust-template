@@ -10,7 +10,7 @@ only records what Claude Code adds on top of them.
   already enforces; the gate's config is the source of truth.
 - **Permissions and the format hook are personal.** This repository commits no
   `.claude/settings.json`: which commands run without a prompt, and whether
-  `scripts/format-edited-file.ts` runs as a `PostToolUse` hook after each edit, are each
+  `cargo xtask format-edited-file` runs as a `PostToolUse` hook after each edit, are each
   person's choice in `~/.claude/settings.json` or the gitignored
   `.claude/settings.local.json`. `AGENTS.md` › "Enforcement layers" says what such a
   file should keep at `ask` and how to register the hook, and › "Security and human

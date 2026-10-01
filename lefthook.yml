@@ -1,5 +1,6 @@
 # Local Git hooks. Check-only and fast: nothing here rewrites a file, and
-# there is no clippy, compile, or test step — `just check` and CI run those. Each job runs
+# there is no clippy or test step — `just check` and CI run those (`cargo xtask` builds the
+# xtask crate on its first run, and again after xtask/ changes). Each job runs
 # the same executable and flags as the matching `just`/pnpm recipe, narrowed to the staged
 # files, so a change cannot pass here and fail there. The one addition is the skills-mirror
 # job's `--staged`: it judges the index about to be committed, where `just agents-check`
@@ -18,16 +19,17 @@ pre-commit:
   # and the skills mirror never skip — no CI job reruns the guard over a pull request's
   # diff, and a resolved skill conflict is where the mirror drifts. They judge what is
   # staged against HEAD, so a `reword` or a `git commit --amend` at an `edit` stop now runs
-  # them too, over what that stop newly stages (nothing, for a reword). The guard spawns one
-  # `git cat-file` per staged file, about 20 ms each (a 1,000-file merge takes ~20 s): a
-  # cost paid on a rare commit, not on every one. `git rebase --continue` commits a
-  # resolution without running pre-commit at all; see AGENTS.md's gaps.
+  # them too, over what that stop newly stages (nothing, for a reword). The guard reads
+  # every staged blob through one `git cat-file --batch`, so a large merge costs one git
+  # process, not one per file. `git rebase --continue` commits a resolution without running
+  # pre-commit at all; see AGENTS.md's gaps.
+  # xtask/tests/lefthook.rs runs this file's hook through real merge and rebase commits.
   parallel: true
   jobs:
     # Secret-shaped paths and credential-shaped content in the staged blobs (not the
     # working tree). No glob: it must see every staged file, whatever its extension.
     - name: staged guard
-      run: node scripts/check-staged.ts
+      run: cargo xtask check-staged
 
     - name: rustfmt
       skip: [merge, rebase]
@@ -53,4 +55,4 @@ pre-commit:
     # its synced mirror is drift even when both working copies match.
     - name: skills mirror
       glob: "{.agents/skills/**,.claude/skills/**}"
-      run: node scripts/sync-agents.ts --check --staged
+      run: cargo xtask sync-agents --check --staged

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "xtask", "xtask/guard"]
 resolver = "3" # explicit: a virtual manifest has no edition to infer it from
 
 [workspace.package]
@@ -17,6 +17,11 @@ myapp-test-support = { path = "crates/myapp-test-support" }
 clap = { version = "4.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 # Only the crossterm backend: the default widget set, macros, and layout cache go unused.
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
+# The staged guard's credential shapes (xtask only), with its default features spelled
+# out: `unicode` makes `\s` and `(?i)` Unicode-aware, and `perf` (the lazy DFA, literal
+# search through aho-corasick and memchr) judges a 2 MiB staged file in under a second in
+# a debug build, where the bare PikeVM took about 20 seconds.
+regex = { version = "1.13", default-features = false, features = ["std", "unicode", "perf"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
