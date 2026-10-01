@@ -177,6 +177,19 @@ describe("workflow-write-scopes: ERR_CHECK_WORKFLOW_WRITE_RUNS_CODE", () => {
     ]);
   });
 
+  it("finds a tool inside $(…), a subshell, or after a separator", () => {
+    const steps = [
+      step.run('echo "path=$(pnpm store path)"'),
+      step.run("(cd ui && cargo build --locked)"),
+      step.run("true;just test"),
+    ].join("");
+    expect(summaries(one(job("build", WRITE, steps)))).toEqual([
+      ".github/workflows/w.yml:11: job `build` holds contents: write and runs `pnpm`",
+      ".github/workflows/w.yml:12: job `build` holds contents: write and runs `cargo`",
+      ".github/workflows/w.yml:13: job `build` holds contents: write and runs `just`",
+    ]);
+  });
+
   it("ignores commands that only mention the tools' files or a longer name", () => {
     const steps = [
       step.run("node scripts/x.ts"),

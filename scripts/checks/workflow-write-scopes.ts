@@ -20,9 +20,10 @@
  *   other than `read` or `none` count as write.
  * - A job holding a write scope fails when a step uses `actions/checkout` or
  *   `jdx/mise-action`, or a local action (`uses: ./…`, repository code by definition);
- *   when a `run:` line names `pnpm`, `cargo`, or `just` as a word (or a path ending in
- *   one); or when the job calls a remote reusable workflow, whose steps the check cannot
- *   see. A local reusable workflow is checked in its own file, with its own permissions.
+ *   when a `run:` line names `pnpm`, `cargo`, or `just` as a command word (or a path
+ *   ending in one), also inside `$(…)`, a subshell, or after `;`, `&&`, or `|`; or
+ *   when the job calls a remote reusable workflow, whose steps the check cannot see.
+ *   A local reusable workflow is checked in its own file, with its own permissions.
  *   A step's or a job's `if:` is ignored: a conditional step still counts.
  * - A job that genuinely needs a write scope and one of these is a human's decision,
  *   recorded in EXCEPTIONS below with the triggers it may keep and its reason; an
@@ -151,12 +152,21 @@ function actionHit(uses: string, line: number): Hit | undefined {
   return undefined;
 }
 
-/** A run line's repository-code commands, each the first word naming it. */
+/**
+ * A command word: after the line's start or a shell separator (blank, `;`, `&`, `|`, a
+ * backtick, `(` as in `$(…)`, a quote, `=`), optionally behind a path, and ending at
+ * one, so `justfile`, `pnpm-lock.yaml`, and `cargo-nextest` are not commands.
+ */
+const COMMAND = /(?:^|[\s;&|`("'=])(?:[^\s;&|`("'=]*\/)?(pnpm|cargo|just)(?=$|[\s;&|`)"'])/g;
+
+const isRepoCodeCommand = (word: string): word is (typeof REPO_CODE_COMMANDS)[number] =>
+  REPO_CODE_COMMANDS.some((name) => name === word);
+
+/** A run line's repository-code commands, in order of first appearance. */
 function commandsIn(line: string): (typeof REPO_CODE_COMMANDS)[number][] {
   const found: (typeof REPO_CODE_COMMANDS)[number][] = [];
-  for (const word of line.split(/\s+/)) {
-    const tool = REPO_CODE_COMMANDS.find((name) => word === name || word.endsWith(`/${name}`));
-    if (tool !== undefined && !found.includes(tool)) found.push(tool);
+  for (const [, tool = ""] of line.matchAll(COMMAND)) {
+    if (isRepoCodeCommand(tool) && !found.includes(tool)) found.push(tool);
   }
   return found;
 }
