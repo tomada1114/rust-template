@@ -50,17 +50,17 @@ by moving it out with `mv` into the holding area
 ([below](#approval-gated-commands)), never with `rm`. Say in the step 10
 report where any leftover scratch directories are; the holding area is offered
 for deletion in the final confirmation, a scratchpad left in place is the
-user's to delete if they care. Every sub-agent prompt that has a sub-agent create a fixture must carry
-this prohibition explicitly -- three separate agents in one observed run
-reached for `rm` on their own scratch directories despite the instruction
+user's to delete if they care. Every sub-agent prompt that has a sub-agent create a
+fixture must carry this prohibition explicitly -- three separate agents in one observed
+run reached for `rm` on their own scratch directories despite the instruction
 being implied rather than stated.
 
 Deleting worktrees mid-run to stay under the concurrency cap is the one
 tempting exception, and it is not worth it: each intermediate call is another
 approval, and the disk a few worktrees hold, several gigabytes of `target/` each
-here, is still cheaper than interrupting a long unattended run. Carry them to the end and clean once. If disk genuinely
-is the constraint, that is a reason to shrink the batch, not to add cleanup
-calls. The script touches only: worktrees under an
+here, is still cheaper than interrupting a long unattended run. Carry them to the end and
+clean once. If disk genuinely is the constraint, that is a reason to shrink the batch, not
+to add cleanup calls. The script touches only: worktrees under an
 explicitly given `--worktree-root`; harness `worktree-agent-*` branches (a
 leftover branch-naming convention from the Claude Code harness -- a different
 thing from this skill's own worktrees, which are never branch-named that way);
@@ -127,9 +127,9 @@ a moved-out directory never reads as untracked content (the reason
 relative path under it (`holding/42/crates/myapp-core/src/legacy/`) so the report can
 name what came from where; on a name collision add a suffix rather than
 overwrite. A move across filesystems is a copy-then-delete -- fine for a
-fixture, slow for a `target/` or `node_modules/` tree; keep holding for what the run actually needs
-out of the way. **Never move anything this run did not create or the issue did
-not name** -- the holding area is not a way to clear someone else's untracked
+fixture, slow for a `target/` or `node_modules/` tree; keep holding for what the run
+actually needs out of the way. **Never move anything this run did not create or the issue
+did not name** -- the holding area is not a way to clear someone else's untracked
 work out of a dirty tree; that is a [stop condition](../SKILL.md#stop-conditions).
 
 Sub-agents follow the same rule and are handed the path as `{holding_dir}`

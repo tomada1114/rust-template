@@ -5,12 +5,12 @@ description: >
   an expected value that is independent of the implementation, asserting an error
   variant or code (assert_eq! on an Err variant, a { code } object) instead of its
   message, the contract suite a port's fake and real adapter share (<port>_contract in
-  myapp-test-support), fakes such as FixedClock instead of mocks, an injected clock and never a sleep, tempfile::tempdir per test, commands
-  driven through tauri::test get_ipc_response, Testing Library queries by role and
-  accessible name, and mockCommands / rejectWith / emitEvent over mockIPC. Use when
-  writing or reviewing a #[test], a file under crates/*/tests or src-tauri/tests, a
-  .test.ts or .test.tsx, the regression test for a bug, a flaky or ignored test, or
-  the missing test a coverage floor asks for.
+  myapp-test-support), fakes such as FixedClock instead of mocks, an injected clock and
+  never a sleep, tempfile::tempdir per test, commands driven through tauri::test
+  get_ipc_response, Testing Library queries by role and accessible name, and mockCommands
+  / rejectWith / emitEvent over mockIPC. Use when writing or reviewing a #[test], a file
+  under crates/*/tests or src-tauri/tests, a .test.ts or .test.tsx, the regression test
+  for a bug, a flaky or ignored test, or the missing test a coverage floor asks for.
 ---
 
 # Writing Tests

@@ -2,7 +2,8 @@
 
 What this repository decided about `unsafe`, `objc2`, and C callbacks, and why. How
 each binding behaves is its crate's and Apple's documentation, linked rather than
-restated. The Rust side of FFI is the Nomicon's (<https://doc.rust-lang.org/nomicon/ffi.html>).
+restated. The Rust side of FFI is the Nomicon's
+(<https://doc.rust-lang.org/nomicon/ffi.html>).
 
 ## Why `unsafe` is forbidden, and what lifting it takes
 

@@ -66,9 +66,11 @@ and any other conclusion, including one the script has never seen, is listed und
 Minor and patch bumps arrive grouped and majors one per PR (`.github/dependabot.yml`).
 For cargo and npm, the Tauri family arrives in its own group (`cargo-tauri`,
 `npm-tauri`) and everything else in `cargo-minor-and-patch` / `npm-minor-and-patch`.
-Dependabot counts a 0.x minor as a minor (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference, `groups` › `update-types`, checked 2026-09-30), so it rides in a group; the survey shows that
-row's level as `major` and marks the bump `(major)`: name it in the plan as a major and
-read its release notes (review checklist). Read a grouped PR's diff in full:
+Dependabot counts a 0.x minor as a minor
+(https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
+`groups` › `update-types`, checked 2026-09-30), so it rides in a group; the survey shows
+that row's level as `major` and marks the bump `(major)`: name it in the plan as a major
+and read its release notes (review checklist). Read a grouped PR's diff in full:
 
 ```bash
 gh pr diff <number>
@@ -82,7 +84,8 @@ against each PR:
 release notes for every major and every 0.x minor, workflow permissions and SHA pins on
 an Actions bump, maintainer and source changes, supply-chain settings left alone, crates
 whose build-time code changed, and the Tauri rule below. A failing PR is diagnosed
-before it is judged: **REQUIRED:** [references/failure-modes.md](references/failure-modes.md).
+before it is judged: **REQUIRED:**
+[references/failure-modes.md](references/failure-modes.md).
 
 ## The Tauri rule
 
@@ -169,8 +172,8 @@ a lockfile or by merging bot branches:
   this platform.
 - **rust-toolchain:** edit `channel` in `rust-toolchain.toml`; rustup installs it on the
   next `cargo` call (`RUSTUP_AUTO_INSTALL`, on by default:
-  https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30). `mise.toml` lists
-  no `rust` tool, so `mise install` does not.
+  https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).
+  `mise.toml` lists no `rust` tool, so `mise install` does not.
 - **Actions:** copy the new 40-character SHA and its `# vX.Y.Z` comment exactly.
 
 Commit each lockfile with its manifest (**REQUIRED:** `smart-commit`), then run

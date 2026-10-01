@@ -110,8 +110,8 @@ Every screen renders each state, and a test reaches each one:
   glyph-only control is an `IconButton`, whose `label` prop is required and becomes the
   `aria-label` while the glyph is `aria-hidden`. A region is named by its heading
   (`Panel as="section" labelledBy=…`).
-- **State changes are announced:** the value in `role="status"` (a `Text` with `as="output"`
-  in the sample), an error in `role="alert"`.
+- **State changes are announced:** the value in `role="status"` (a `Text` with
+  `as="output"` in the sample), an error in `role="alert"`.
 - **Keyboard:** every action is a native `button` (the primitives are), so Tab reaches it
   and Enter or Space presses it. Never a clickable `div`. The focus ring comes from
   `base.css`; never remove an outline to tidy a control. Once the app has its own menu,

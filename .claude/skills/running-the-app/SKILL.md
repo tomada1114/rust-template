@@ -146,5 +146,6 @@ command, not a paraphrase, and paste:
 
 Redact before pasting: a signing identity, a Team ID, a certificate name, a personal
 name, or a home directory path (`ps` and `stat` print `/Users/<name>/…`), and say that
-you did. A pull request here, or in an app cut from this template, may be public. Leave nothing behind: remove
-any scratch `HOME`, and check `git status --porcelain` shows only the change.
+you did. A pull request here, or in an app cut from this template, may be public. Leave
+nothing behind: remove any scratch `HOME`, and check `git status --porcelain` shows only
+the change.

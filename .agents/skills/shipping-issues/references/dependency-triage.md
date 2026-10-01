@@ -49,7 +49,8 @@ next candidate.
 ## Dependency edges the regex misses
 
 `issue_digest.py` catches explicit `#N` references and the common English
-dependency phrasings (`Depends on #N`, the spelling `triaging-issues` asks for). These edges only appear on reading:
+dependency phrasings (`Depends on #N`, the spelling `triaging-issues` asks for). These
+edges only appear on reading:
 
 - **Same-file collision** -- two issues that both rewrite `Cargo.toml` are not
   formally dependent, but they must not run in parallel worktrees, and the
@@ -107,9 +108,9 @@ at the same time; the PR, CI watch and merge stay serialized regardless.
 **Every parallel batch passes through step 2c** -- the plan proposes, that step
 decides. A script can tell you two issues declare no overlapping paths and no
 dependency edge; it cannot tell you both will end up editing `Cargo.toml` or
-`src-tauri/src/lib.rs`'s `generate_handler!`, that one is a refactor whose blast radius is wider than its
-`touches=` admits, or that a generated file makes any two concurrent branches
-conflict. Thoroughness scales with the grouping verdict: `MECHANICAL` means
+`src-tauri/src/lib.rs`'s `generate_handler!`, that one is a refactor whose blast radius is
+wider than its `touches=` admits, or that a generated file makes any two concurrent
+branches conflict. Thoroughness scales with the grouping verdict: `MECHANICAL` means
 read each issue's real reach against its declared `touches=`; `PARTIAL` means
 read the undeclared issues properly before keeping them.
 
@@ -188,11 +189,12 @@ Either way, the same four things happen in the same order:
    happen.
 3. Record it in the run record (`--event design --field issue=<n> --field
    mode=<inline|background> --field verdict=<DECIDED|DEFERRED>`).
-4. Clear the block: `python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py
-   --clear-design <n>` -- after the comment posted, never before. It clears both
-   forms of the block: the `blocked: design` label (or its equivalent) and a
-   `design=open` in the ship contract, rewritten to `design=settled` with the
-   rest of the body untouched. Clearing only the label leaves the issue held.
+4. Clear the block: `python3
+   .agents/skills/shipping-issues/scripts/apply_priority_labels.py --clear-design <n>` --
+   after the comment posted, never before. It clears both forms of the block: the
+   `blocked: design` label (or its equivalent) and a `design=open` in the ship contract,
+   rewritten to `design=settled` with the rest of the body untouched. Clearing only the
+   label leaves the issue held.
 
 **Neither path invents a product or UX call** the repo and the issue thread do
 not already answer. Inline, ask the user and do not implement past it; in the
