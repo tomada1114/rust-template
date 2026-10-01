@@ -73,7 +73,7 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
 
 - **Where the logic landed.** A decision (anything that branches, clamps, or formats)
   belongs in `crates/myapp-core`, with tests, where the coverage floor sees it. A
-  decision found in `src-tauri/`, `crates/myapp-platform/`, `crates/myapp-cli/`, or
+  decision found in `src-tauri/`, `crates/myapp-platform/`, `crates/myapp/`, or
   `ui/src/` leaves "New logic lives in `myapp-core`" unchecked.
 - **IPC.** A type that derives `ts_rs::TS` changed without `ui/src/ipc/generated/`
   changing beside it, or a command or event changed without its wrapper in

@@ -70,9 +70,9 @@ node scripts/clippy-guard.ts cargo clippy --workspace --all-targets --locked -- 
 pnpm typecheck && pnpm lint && pnpm format:check
 cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
 cargo test --doc --locked -p myapp-core
-cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp-cli
+cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
 pnpm test:scripts                                # just test-scripts (plus Python tests, shellcheck)
-cargo nextest run --locked -p myapp-platform -p myapp-cli   # just test-macos
+cargo nextest run --locked -p myapp-platform -p myapp   # just test-macos
 cargo deny --locked check                        # just deny
 ```
 

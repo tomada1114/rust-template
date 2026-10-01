@@ -19,8 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
   names it for a new file or placeholder spelling. The recipe and that row are
   template-only: the bootstrap removes both.
+- `just install-cli` installs the `myapp` binary into `~/.cargo/bin`
+  (`cargo install --locked --path crates/myapp`). It writes outside the checkout, so it
+  is a human's recipe, kept out of any committed allow list like `just install`.
 
 ### Changed
+
+- The command-line tool is the app: `crates/myapp-cli` becomes `crates/myapp`, building
+  the `myapp` binary (`myapp counter show`, `myapp counter increment`). Its contract is
+  tested against the built binary: data on stdout, diagnostics on stderr; exit 0 on
+  success, 1 on a runtime error, 2 on a usage error; `myapp --version` prints the
+  workspace version. Every stderr sentence, including the wording for each core error
+  code, lives in `crates/myapp/src/wording.rs`. It logs to
+  `~/Library/Logs/com.example.myapp/myapp.YYYY-MM-DD.log`, where `just logs` looks,
+  instead of the old `cli/myapp-cli.*.log`; `myapp-platform` no longer exports
+  `cli_log_dir` or `CLI_LOG_DIR_NAME`.
 
 - The committed `.claude/settings.json` is removed: Claude Code permissions and the
   format-on-edit hook now live in each person's user-level `~/.claude/settings.json` or

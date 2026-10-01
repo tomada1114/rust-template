@@ -102,7 +102,7 @@ reading the clock is banned, not representing time.
 - The shell builds it and passes it in, so a test passes a tiny one to reach a boundary
   in one step. In the sample, `Tuning` lives in
   `crates/myapp-core/src/counter/mod.rs`, `src-tauri/src/lib.rs` and
-  `crates/myapp-cli/src/main.rs` pass `Tuning::default()`, and
+  `crates/myapp/src/main.rs` pass `Tuning::default()`, and
   `crates/myapp-core/tests/counter_service.rs` uses `Tuning::new(0, 2)`.
 - When fields only make sense together, keep them private and let a constructor refuse
   an inconsistent set with a typed error. In the sample, `Tuning::new(min, max)`

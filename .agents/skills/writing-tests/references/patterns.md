@@ -178,11 +178,11 @@ expect(describeLastChanged(1_700_000_000_000, "en-US", "UTC")).toBe(
 
 Run the built executable with `env!("CARGO_BIN_EXE_<name>")`, set `HOME` on the child
 process to a `tempfile::tempdir()`, and assert the exit code and output. In the sample,
-`crates/myapp-cli/tests/cli.rs`:
+`crates/myapp/tests/cli.rs`:
 
 ```rust
 let home = tempfile::tempdir().unwrap();
 let output = run(home.path(), &["counter", "show"]);
-assert!(output.status.success(), "{}", stderr(&output));
-assert_eq!(stdout(&output), "0");
+assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+assert_eq!(stdout(&output), "0\n");
 ```

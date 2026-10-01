@@ -31,8 +31,9 @@ it:
   which a human starts; a pull request that changes such an adapter carries that
   output. Never an `#[ignore]` without the reason string, and never one on a test that
   merely fails.
-- **The helper CLI → `crates/myapp-cli/tests/`**, running the built binary against a
-  temporary `HOME` (`just test-macos`).
+- **The `myapp` binary → `crates/myapp/tests/`**, running the built binary against a
+  temporary `HOME` (`just test-macos`); the wording for each error code is tested per
+  variant in `crates/myapp/src/wording.rs`.
 - **A repository script → `scripts/<name>.test.ts` beside it**, calling `main` with a
   fake context and stubbed commands (`just test-scripts`).
 - A new automated test never opens a window, takes focus, or raises a prompt

@@ -158,8 +158,9 @@ panic kills the whole app at once, with no error for the UI and no line in the l
   `announce` does when an emit fails, without failing the command.
 
 `anyhow` is not used: every crate here is a library or a composition root with a typed
-error, and the helper CLI maps core's error to its own stderr line and exit code (in the
-sample, `describe` in `crates/myapp-cli/src/main.rs`). Adding it for the CLI's `main` is a
+error, and the binary maps core's error to its own stderr line and exit code (in the
+sample, `counter_error` in `crates/myapp/src/wording.rs`, the one module that holds every
+stderr sentence, matched without a wildcard arm and tested per variant). Adding it for the binary's `main` is a
 new dependency (`managing-dependencies`), and it stays out of core, platform, and the
 shell.
 

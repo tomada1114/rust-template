@@ -50,8 +50,8 @@ A single `src-tauri` crate, the layout `create-tauri-app` generates
 (<https://v2.tauri.app/start/project-structure/>, checked 2026-09-28), cannot keep OS
 and Tauri code out of the logic. So the repository root is a virtual workspace:
 `crates/myapp-core` holds the rules and state, `crates/myapp-platform` the OS adapters,
-`crates/myapp-test-support` the fakes, `crates/myapp-cli` the helper executable, and
-`src-tauri` (crate `myapp`) only the shell. The UI lives in `ui/`. No crate is named
+`crates/myapp-test-support` the fakes, and `crates/myapp` the `myapp` binary, the only
+place the adapters are wired to core. No crate is named
 `core`, which would collide with Rust's built-in `core` library. A repository per layer
 was rejected: it costs a release process per layer for a personal app.
 
@@ -90,13 +90,14 @@ wrappers in `ui/src/ipc/commands.ts` and `events.ts` are one line each. CI regen
 the bindings and fails on a diff, and a harness check compares the command and event
 names on both sides, so neither half can drift silently.
 
-### Why is the helper a separate crate, bundled as a sidecar?
+### Why is the tool one binary, in its own crate?
 
-A launchd job needs a small executable it can run without starting the GUI. `myapp-cli`
-shares core and platform with the app, is built into `src-tauri/binaries/`, and ships
-inside the `.app` through Tauri's `bundle.externalBin`. The launch smoke runs the
-bundled copy, which proves it was bundled and signed. The GUI does not spawn it, so no
-shell plugin or shell permission ships.
+One `cargo install --locked --path crates/myapp` (`just install-cli`) yields the whole
+tool, and its subcommands are the only entry points, so there is one composition root to
+wire adapters in. Keeping the binary out of core and platform leaves those two as
+libraries a test links without a `main`. The binary only translates: arguments to calls,
+a view to stdout, a typed error to wording on stderr and an exit code, with every
+sentence in `crates/myapp/src/wording.rs`.
 
 ### Why is the sample app a counter?
 
@@ -111,8 +112,9 @@ illustration to replace.
 
 `tauri-plugin-log` rotates by size only and needs a plugin permission
 (<https://v2.tauri.app/plugin/logging/>, checked 2026-09-28). `tracing` gives
-one logging API across every crate; only the shell and the CLI install a subscriber,
-which writes to `~/Library/Logs/com.example.myapp/`, rotated daily and keeping 14 files.
+one logging API across every crate; only the binary installs a subscriber, which
+writes `myapp.YYYY-MM-DD.log` to `~/Library/Logs/com.example.myapp/`, rotated daily and
+keeping 14 files.
 The writer is synchronous, because Tauri exits through `process::exit`, which would drop
 a background writer's last lines. `just logs` prints the newest file's tail and exits.
 
@@ -350,6 +352,7 @@ just install      # once per clone
 just check        # the full local gate; opens no window
 just test-fast increment   # one core test or a group of them, while iterating
 just logs         # the newest app log's last lines
+just install-cli  # install the myapp binary into ~/.cargo/bin (a human's step)
 ```
 
 `just --list` shows every recipe. The app's data lives in

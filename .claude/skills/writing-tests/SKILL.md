@@ -57,9 +57,9 @@ test green:
   `mockCommands` from `ui/src/ipc/testing.ts`. The mock sits at the IPC boundary, so the
   wrapper in `ui/src/ipc/commands.ts` and its command name run as in production; never
   `vi.mock` a module of this repository.
-- **The helper CLI** as a built binary with `HOME` pointed at a temporary directory
-  (`crates/myapp-cli/tests/cli.rs`): its contract is arguments in, exit code and output
-  out.
+- **The `myapp` binary** as a built executable with `HOME` pointed at a temporary
+  directory (`crates/myapp/tests/cli.rs`): its contract is arguments in, exit code,
+  stdout, and stderr out.
 - **A script** by calling its `main` with a fake `ScriptContext` (`writing-repo-scripts`).
 
 Wanting to reach past an interface to assert something means the code is the wrong

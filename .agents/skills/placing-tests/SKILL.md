@@ -5,7 +5,7 @@ description: >
   tests beside core code vs crates/myapp-core/tests/, fakes and <port>_contract
   functions in crates/myapp-test-support, adapter tests in crates/myapp-platform/tests
   and #[ignore = "local machine: ..."] for ones that need a human's Mac, tauri::test
-  command tests in src-tauri/tests, the CLI's tests in crates/myapp-cli/tests, a
+  command tests in src-tauri/tests, the binary's tests in crates/myapp/tests, a
   .test.ts or .test.tsx beside the source in the ui or scripts Vitest project
   (vitest.config.ts), and which coverage floor governs it (the llvm-cov floors in the
   justfile's test-core recipe, the per-glob thresholds in vitest.config.ts). Use when
@@ -36,7 +36,8 @@ fewest machines while still able to fail for the behavior:
 | An adapter behavior that needs a GUI session, a TCC grant, or the Keychain | the same file, `#[ignore = "local machine: <what it needs>"]` | `just test-local`, a human's recipe | none |
 | A Tauri command, its error mapping, its event | `src-tauri/tests/commands.rs` | `just test-macos` | none |
 | A pure startup decision in the shell | `#[cfg(test)] mod tests` in that file (`src-tauri/src/startup.rs`) | `just test-macos` | none |
-| The helper CLI | `crates/myapp-cli/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
+| The `myapp` binary's command line | `crates/myapp/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
+| The binary's wording for an error code | `#[cfg(test)] mod tests` in `crates/myapp/src/wording.rs`, one test per variant | `just test-core` | none |
 | A repository script | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor, and `scripts/lib/guard/**` for the staged guard |
 | A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | `.agents/skills/*/scripts/**` floor |
 | A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/shipping-issues/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
