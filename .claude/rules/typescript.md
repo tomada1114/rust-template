@@ -59,7 +59,11 @@ these are the ones they cannot, or the ones worth knowing before the gate fails.
   decide about it
 - No `enum`, `namespace`, or parameter property in `ui/` or the root config files either
   (`erasableSyntaxOnly` in `ui/tsconfig.json` and `tsconfig.json`)
-- `import type` for type-only imports (`verbatimModuleSyntax`)
+- Mark a type-only import inline, `import { value, type X } from "./x"`: ESLint's
+  `consistent-type-imports` requires the marking and its fix writes this form
+  (`fixStyle: "inline-type-imports"`); `import type { X }` is fine when every name is a
+  type. Under `verbatimModuleSyntax` the inline form keeps the module's import, while
+  `import type` removes it
 - No `any`, no non-null `!`, no `@ts-ignore`; a `@ts-expect-error` needs a description
   and, like an `// eslint-disable`, is weakening a gate when it only silences a check
   (`AGENTS.md` › Security and human approval)
