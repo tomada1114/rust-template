@@ -245,6 +245,38 @@ fn a_file_from_an_unknown_format_version_is_corrupt() {
 }
 
 #[test]
+fn a_save_replaces_a_file_that_is_not_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = store_in(&dir);
+    fs::write(store.path(), "not json").unwrap();
+    let saved = StoredCounter {
+        value: 3,
+        last_changed_at: Some(UnixMillis(7)),
+    };
+    assert_eq!(store.save(&saved), Ok(()));
+    assert_eq!(
+        store.load(),
+        Ok(Some(StoredCounter {
+            value: 3,
+            last_changed_at: Some(UnixMillis(7)),
+        }))
+    );
+}
+
+#[test]
+fn a_save_replaces_a_file_from_an_unknown_format_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = store_in(&dir);
+    fs::write(
+        store.path(),
+        r#"{ "version": 2, "counter": { "value": 1, "lastChangedAt": null } }"#,
+    )
+    .unwrap();
+    assert_eq!(store.save(&counter(0)), Ok(()));
+    assert_eq!(store.load(), Ok(Some(counter(0))));
+}
+
+#[test]
 fn a_path_that_cannot_be_read_is_unavailable() {
     let dir = tempfile::tempdir().unwrap();
     let store = JsonFileCounterStore::new(dir.path().to_path_buf()); // a directory, not a file
