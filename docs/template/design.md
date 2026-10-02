@@ -314,6 +314,9 @@ alternate screen is a thin shell around them, kept small because no check runs i
   `cargo-llvm-cov`, `cargo-nextest`, `cargo-deny`, `cargo-shear`, `typos`, `actionlint`,
   `zizmor`, `gitleaks`, `shellcheck` (only if a shell script remains).
 - Never `latest`; bumps arrive as Renovate PRs with a 7-day minimum release age.
+- Amended 2026-10-01 (issue #170): Node and pnpm left with the Node toolchain, so
+  `mise.toml` pins neither and `package.json` is gone; Renovate keeps only its `mise`
+  and `rust-toolchain` managers, and Dependabot only cargo and github-actions.
 
 ### D10. Task runner — Designer
 
@@ -349,6 +352,18 @@ secret-shaped paths and credential-shaped content, ported from both references).
 clippy, compile, or tests in the hook. `scripts/verify-hooks.ts` (`just install`'s last
 step and `just check`'s first) fails if lefthook's hook is not installed, with the
 `ALLOW_MISSING_GIT_HOOKS` opt-out and a CI skip.
+
+**Amended 2026-10-01 (issue #170, the Node toolchain removed):** the `prettier` and
+`eslint` jobs left with Node, so the hook runs the staged guard, `rustfmt --check`,
+`typos`, and the skills mirror (the guard and the mirror check are `cargo xtask` tasks
+now, D12). Prettier's check over JSON, YAML, and Markdown — the files it read that were
+not TypeScript — is **dropped, not replaced**: keeping it would keep Node and pnpm for
+one formatter, and a substitute would add a tool pin, a hook job, a CI step, and an
+ignore list to keep in agreement, for files whose layout no gate or reader depends on.
+typos still reads them, actionlint and zizmor still lint the workflows, and the harness
+checks still parse the YAML they assert on. `cargo xtask format-edited-file` formats
+`.rs` files only. A replacement formatter is its own change, through the
+`changing-gates` skill.
 
 ### D12. Repository automation in `cargo xtask` — Owner (2026-10-01; supersedes TypeScript scripts)
 
@@ -386,7 +401,7 @@ alias (`cargo xtask <task>`), never shipped, and outside core's coverage floor.
 | Rust coverage | `cargo llvm-cov nextest -p myapp-core --fail-under-lines 80 --fail-under-functions 80` (issue #133). Platform, shell, and CLI are outside the floor: they translate, and core decides. |
 | Rust tests | `cargo nextest run --locked`, plus `cargo test --doc --locked`. |
 | Supply chain (Rust) | `cargo deny check` (advisories, licenses allow-list, bans with `multiple-versions = "warn"`, sources: crates.io only), `cargo shear`; advisory scope per D17. |
-| TS | `tsc --noEmit`, ESLint `--max-warnings 0`, Prettier check, Vitest with per-glob floors: `ui/src/**` lines/functions 80 (excluding `main.tsx` and `ipc/generated/`), `scripts/**` and `.agents/skills/*/scripts/**` 85/90, `scripts/lib/guard/**` 90/100. |
+| TS | Removed 2026-10-01 (issue #170) with the Node toolchain and the TypeScript it gated: no `tsc`, ESLint, Prettier, or Vitest floors remain, and nothing replaces Prettier's check over JSON, YAML, and Markdown (D11). xtask carries the scripts' floors (D12); a skill's bundled Python and shell suites run in `just test-scripts` with no floor. |
 | Repo | typos (excluding `.claude/skills/`, issue #139), actionlint, zizmor, the skills-mirror check, the harness checks (D14). |
 
 What weakening a gate means here is listed in `AGENTS.md` › Security and human approval,
@@ -628,6 +643,7 @@ distinctive look records it as an ADR like any other decision.
 | this template (pivot, 2026-10-01) | D5: the `myapp-cli` sidecar and `bundle.externalBin` | One binary with subcommands (new D5). |
 | this template (pivot, 2026-10-01) | D8: React, Vite, TypeScript, ESLint, Prettier, Vitest, the CSP and capabilities | No GUI; ratatui (new D8). |
 | this template (pivot, 2026-10-01) | D12: TypeScript scripts under `scripts/`, Node, pnpm | `cargo xtask` (new D12). |
+| this template (issue #170, 2026-10-01) | Prettier's check over JSON, YAML, and Markdown | Dropped with the Node toolchain and not replaced, to keep the toolchain small (D11). |
 | this template (pivot, 2026-10-01) | D18: the `.dmg` release, signing, notarization, `Entitlements.plist`, `release.yml` | No distribution; `cargo install --path` (new D18). |
 | this template (pivot, 2026-10-01) | D23: the CSS design system, its checks, and the design-lock step | No WebView to style; a TUI theme module (D8). |
 

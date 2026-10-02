@@ -4,9 +4,6 @@ paths:
   - "crates/*/Cargo.toml"
   - "src-tauri/Cargo.toml"
   - "Cargo.lock"
-  - "package.json"
-  - "pnpm-lock.yaml"
-  - "pnpm-workspace.yaml"
   - "mise.toml"
   - "rust-toolchain.toml"
   - "deny.toml"
@@ -14,14 +11,9 @@ paths:
   - "clippy.toml"
   - "crates/*/clippy.toml"
   - "rustfmt.toml"
-  - "eslint.config.mjs"
-  - "**/tsconfig*.json"
-  - "vitest.config.ts"
   - "vite.config.ts"
   - "lefthook.yml"
   - "typos.toml"
-  - ".prettierrc.json"
-  - ".prettierignore"
   - ".github/dependabot.yml"
   - ".github/renovate.json"
 ---
@@ -41,11 +33,10 @@ paths:
   - **License** — in the allow-list `deny.toml`'s `[licenses]` and
     `.github/workflows/dependency-review.yml`'s `allow-licenses` enforce; a per-crate
     exception goes in both, with its reason
-  - **Weight** — the crates `cargo tree` or the packages `pnpm why` add, and
-    `default-features = false` with only the features used
-  - **Build-time code** — a crate's `build.rs` or proc-macro, or an npm lifecycle
-    script, runs on the developer's Mac at build time; a new `allowBuilds` entry in
-    `pnpm-workspace.yaml` needs explicit human approval
+  - **Weight** — the crates `cargo tree` adds, and `default-features = false` with only
+    the features used
+  - **Build-time code** — a crate's `build.rs` or proc-macro runs on the developer's
+    Mac at build time
   - **Advisories** — `just deny` and OSV-Scanner report nothing against the version
     being added
 - A crate's version is written once, in the root `Cargo.toml`'s
@@ -54,29 +45,24 @@ paths:
   `myapp-platform` (`just deny` and `just check-harness` fail otherwise)
 - The `tauri` crates and the `@tauri-apps/*` npm packages move together at the same
   minor; `tauri` stays on `2` until a migration ADR moves it to a new major
-- `Cargo.lock` and `pnpm-lock.yaml` are committed with the manifest change that moved
-  them, never hand-edited: `cargo add`/`cargo update -p <crate>` and `pnpm add` write
-  them. Verify with `just deny`, `mise exec -- cargo shear`, and `just check`
+- `Cargo.lock` is committed with the manifest change that moved it, never hand-edited:
+  `cargo add`/`cargo update -p <crate>` write it. Verify with `just deny`,
+  `mise exec -- cargo shear`, and `just check`
 
 ## Tool Pinning
 
 - Rust is pinned once, in `rust-toolchain.toml` (rustup reads it; `mise.toml` lists no
-  `rust` tool); Node and every CLI tool in `mise.toml`. Never pin one tool in two
-  places, with one exception: pnpm is pinned in `mise.toml`
-  (`aqua:pnpm/pnpm`, which installs it, since Node 25 no longer bundles corepack) and in
-  `package.json`'s `packageManager` (which pnpm itself reads), and Renovate moves both
-  in one grouped pull request; no check compares them, so a hand edit changes both
+  `rust` tool); every CLI tool in `mise.toml`. Never pin one tool in two places
 - Never `latest`, and never a range, in `mise.toml` or `rust-toolchain.toml`: an exact
   version, preferring the prebuilt-binary (aqua/github) backends over `cargo:`, which
   compiles from source
-- Pins are bumped by bots, not by hand: Dependabot (`.github/dependabot.yml`) for cargo,
-  npm, and GitHub Actions, Renovate (`.github/renovate.json`) for `mise.toml` and
+- Pins are bumped by bots, not by hand: Dependabot (`.github/dependabot.yml`) for cargo
+  and GitHub Actions, Renovate (`.github/renovate.json`) for `mise.toml` and
   `rust-toolchain.toml`. Each waits 7 days after a release before opening a PR
-  (Dependabot's `cooldown`, Renovate's `minimumReleaseAge`), and pnpm refuses a version
-  younger than 7 days (`minimumReleaseAge` in `pnpm-workspace.yaml`), so a compromised
-  fresh release has time to be pulled. The three values stay equal (a harness check)
+  (Dependabot's `cooldown`, Renovate's `minimumReleaseAge`), so a compromised fresh
+  release has time to be pulled. The two values stay equal (a harness check)
 - CI on the bot's PR is the gate; landing those PRs is the `merging-dependency-prs`
-  skill. A clippy, ESLint, or TypeScript bump that fires a new finding is fixed in the
+  skill. A clippy or Rust toolchain bump that fires a new finding is fixed in the
   code on that PR, never skipped. A Tauri major is a migration issue, never a batch
   merge
 - After changing `mise.toml`, run `mise install`; after changing `rust-toolchain.toml`,
@@ -87,8 +73,8 @@ paths:
 ## Gates
 
 - These files enforce rather than implement; changing one is the `changing-gates`
-  skill. NEVER lower a coverage floor (the `test-core` recipe, `vitest.config.ts`'s
-  `thresholds`), relax a lint level, add to an ignore or exclude list, or loosen
+  skill. NEVER lower a coverage floor (the `test-core` and
+  `test-xtask` recipes), relax a lint level, add to an ignore or exclude list, or loosen
   `deny.toml` or `osv-scanner.toml` without a human's explicit approval
 - An `osv-scanner.toml` ignore needs its reason and an `ignoreUntil` at most 90 days
   out, and only for a crate that does not ship (absent from

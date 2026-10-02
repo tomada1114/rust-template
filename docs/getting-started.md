@@ -25,8 +25,7 @@ clone runs `mise trust` first (<https://mise.jdx.dev/cli/trust.html>, checked
 1. checks for the Xcode Command Line Tools and, if they are missing, stops with the
    command to run (it never starts an installer);
 2. runs `mise install` for the pinned tools;
-3. runs `pnpm install --frozen-lockfile` with the pnpm mise installed;
-4. installs lefthook's pre-commit hook, and fails if it is not in place.
+3. installs lefthook's pre-commit hook, and fails if it is not in place.
 
 The first `cargo` command installs the Rust toolchain `rust-toolchain.toml` pins.
 
@@ -36,7 +35,7 @@ The first `cargo` command installs the Rust toolchain `rust-toolchain.toml` pins
 just check       # the full local gate, in CI's order; opens no window
 just test        # core, with its coverage floors
 just test-fast increment   # one core test or a group of them
-just lint        # rustfmt, clippy -D warnings, tsc, ESLint, Prettier
+just lint        # rustfmt, clippy -D warnings
 just fmt         # format everything
 ```
 
@@ -152,10 +151,9 @@ that touches it says what to keep.
 - [ ] `CONTRIBUTING.md`, the `justfile`'s `test-fast` comment, and this page — the
       `just test-fast increment` examples, "Seeing the app"'s `counter.json` and `myapp`
       commands, and this checklist
-- [ ] `.claude/rules/rust.md`, `.claude/rules/testing.md`, and
-      `.claude/rules/typescript.md` — the sentences that give a counter type as the
-      example (each is a parenthetical or its own sentence; replace it with your own
-      type or delete it)
+- [ ] `.claude/rules/rust.md` and `.claude/rules/testing.md` — the sentences that give
+      a counter type as the example (each is a parenthetical or its own sentence;
+      replace it with your own type or delete it)
 - [ ] `.github/PULL_REQUEST_TEMPLATE.md` — the counter in the example title
 - [ ] The skills under `.agents/skills/` that give the counter as an example, then
       `just agents-sync` (the `starting-an-app` skill)
@@ -177,7 +175,7 @@ so the search reads them too.
 
 `src-tauri/icons/` holds the template's placeholder icons, listed under `bundle.icon` in
 `src-tauri/tauri.conf.json`. To replace them, make a square PNG or SVG with
-transparency and run `pnpm tauri icon path/to/icon.png`, which writes the desktop sizes
+transparency and run the Tauri CLI's `tauri icon path/to/icon.png`, which writes the desktop sizes
 into that directory (<https://v2.tauri.app/develop/icons/>, checked 2026-09-28). It
 also writes sizes this macOS-only app does not list; delete what `bundle.icon` does not
 name.

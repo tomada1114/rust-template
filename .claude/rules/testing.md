@@ -3,9 +3,6 @@ paths:
   - "crates/*/tests/**"
   - "crates/myapp-test-support/**"
   - "src-tauri/tests/**"
-  - "**/*.test.ts"
-  - "**/*.test.tsx"
-  - "ui/src/test/**"
 ---
 
 The short version of the `tdd`, `writing-tests`, and `placing-tests` skills.
@@ -34,8 +31,10 @@ it:
 - **The `myapp` binary → `crates/myapp/tests/`**, running the built binary against a
   temporary `HOME` (`just test-platform`); the wording for each error code is tested per
   variant in `crates/myapp/src/wording.rs`.
-- **A repository script → `scripts/<name>.test.ts` beside it**, calling `main` with a
-  fake context and stubbed commands (`just test-scripts`).
+- **A `cargo xtask` task → a `#[cfg(test)] mod tests` beside it** (end-to-end runs of
+  the binary in `xtask/tests/`), calling the task with a faked `Context` and stubbed
+  commands (`just test-xtask`); **a skill's bundled script → its skill's
+  `scripts/tests/`**, with a fake `gh` on PATH (`just test-scripts`).
 - A new automated test never opens a window, takes focus, or raises a prompt
   (`AGENTS.md` › Never taking over the developer's Mac).
 
@@ -84,28 +83,24 @@ maximum of 99, `assert_eq!(counter.value(), 99)` catches a bug that
 - A `match` on a core enum in a test names every variant too (core denies
   `clippy::wildcard_enum_match_arm`); a table of cases lists every variant, so adding one
   fails the test that must decide about it
-- A TypeScript `switch` over a union in a test is exhaustive the same way
 
 ## Hygiene
 
 - Tests are independent: no shared mutable state, no ordering assumptions — nextest runs
-  each test in its own process and Vitest runs files in parallel
+  each test in its own process
 - Time is injected, never waited for: core reads time only through the `Clock` port, so
   a test hands it a `FixedClock` at a chosen instant. No `std::thread::sleep`, no
-  `setTimeout` to wait for something to happen, no assertion on wall-clock time; in
-  Vitest, await the promise or use `findBy…`, and use fake timers only for code that
-  itself schedules
+  `setTimeout` to wait for something to happen, no assertion on wall-clock time
 - A test that touches the file system gets its own directory:
-  `tempfile::tempdir()` in Rust (kept alive until the test ends), `mkdtemp` under
-  `os.tmpdir()` in TypeScript. Never a fixed shared path, the checkout, or the real
+  `tempfile::tempdir()` in Rust (kept alive until the test ends),
+  `tempfile.TemporaryDirectory()` in a skill's Python suite. Never a fixed shared path, the checkout, or the real
   `~/Library` — parallel tests would collide, and a leftover file changes the next run
 - Tests may `unwrap()`/`expect()` (a panic is how a Rust test fails) — inside a
   `#[test]` function or `#[cfg(test)]` code only: clippy's `allow-unwrap-in-tests` does
   not cover a plain helper function in a `tests/` file, so a helper matches and panics
   with a message instead; library code in `myapp-test-support` compares `Result`s with
   `assert_eq!` instead
-- No `.only` (Vitest's `allowOnly: false` fails the run) and no `.skip` or `#[ignore]`
-  to get a red test out of the way
+- No `#[ignore]` or `unittest.skip` to get a red test out of the way
 - TDD: write the failing test first, then the minimum that makes it pass, then refactor
   with the test green (the `tdd` skill)
 - NEVER weaken an assertion to make a test pass — fix the code
