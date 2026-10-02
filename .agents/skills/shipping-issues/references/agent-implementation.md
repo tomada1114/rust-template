@@ -42,7 +42,7 @@ that has since changed."}
 
 <context>
 Work directory: {workdir}   {"<- already provisioned: dependencies installed,
-                              local config copied, baseline verified" in
+                              local config copied" in
                               parallel mode; omit in serial mode}
 Base branch: {base_branch}
 Branch: {branch_name}             <- already created and checked out; do not
@@ -53,9 +53,11 @@ Likely files: {paths from step 2's triage, or -- when step 2 was skipped on a
 Project conventions: read {workdir}/CLAUDE.md and
 {workdir}/AGENTS.md before writing code.
 Decisions already made: {anything step 2/2b resolved, so it is not re-opened}
-Verification command: {verify_command, from step 3's smoke run -- if that
-                        smoke run found none, say so explicitly here rather
-                        than asking the sub-agent to locate one}
+Verification: the narrowest checks that can fail for what you change, from
+              AGENTS.md › "Validating a change" (name them here when the
+              triage already knows them). Do NOT run the full `just check`
+              before pushing: CI is the gate and the PR merges only once it
+              is green.
 </context>
 
 Do:
@@ -67,8 +69,9 @@ Do:
 3. Implement the stated scope. Deliver what the task asks, at the scope it
    asks. If a better approach exists, say so in one sentence under
    SCOPE-NOTES and implement as asked.
-4. Add or update the tests that cover the change, and run the verification
-   command above. Report the exact command. For a performance task, re-run
+4. Add or update the tests that cover the change, and run the narrowest
+   checks named above (never the full gate: CI runs it). Report the exact
+   commands. For a performance task, re-run
    step 2's baseline under the same conditions and report both numbers under
    MEASURE. Never run a recipe that needs a human: `just test-local`,
    `just logs-follow`. `just test-platform` and `just logs` are your evidence that

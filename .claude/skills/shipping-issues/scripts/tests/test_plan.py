@@ -249,12 +249,12 @@ class MainTest(unittest.TestCase):
         self.assertIn("grouping: MECHANICAL", out)
         self.assertIn("--spec 85:fix/85-thing-85", out)
         self.assertIn("--spec 106:fix/106-thing-106", out)
-        self.assertIn('--verify "pnpm run verify"', out)
+        # CI is the gate: the batch is provisioned without a baseline run.
+        self.assertNotIn("--verify", out)
 
     def test_the_next_command_never_decides_viability_for_the_caller(self):
         rows = [rank_row(1, touches=["a/"]), rank_row(2, touches=["b/"])]
         rc, out, err = self._run(["--mode", "all"], rows)
-        self.assertIn('--verify "pnpm run verify"', out)
         self.assertNotIn("--gate-first", out)
         self.assertIn("PROPOSAL, not a decision", out)
 
@@ -262,7 +262,7 @@ class MainTest(unittest.TestCase):
         rc, out, err = self._run([], [rank_row(1, touches=["a/"])])
         self.assertIn("verify-check: 'pnpm run verify'", out)
         self.assertIn("package.json:scripts.verify", out)
-        self.assertIn("confirm it is this repo's real gate", out)
+        self.assertIn("not run as a baseline: CI is the gate", out)
 
     def test_no_verify_command_says_so_rather_than_going_quiet(self):
         pre = PREFLIGHT.replace("verify_command: pnpm run verify",
@@ -271,8 +271,8 @@ class MainTest(unittest.TestCase):
         self.assertIn("verify-check: NONE found", out)
 
     def test_a_missing_preflight_key_stops_the_run(self):
-        # The silent version of this used to drop --verify from the batch
-        # command, removing the baseline check with no message at all.
+        # A preflight that silently lost a key is a broken preflight, not a
+        # plan: stop rather than guess.
         pre = "\n".join(l for l in PREFLIGHT.splitlines()
                         if not l.startswith("verify_command:")) + "\n"
         rc, out, err = self._run([], [rank_row(1, touches=["a/"])], preflight=pre)

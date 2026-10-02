@@ -157,6 +157,9 @@ where this one had to guess.
 
 ## A red baseline
 
+Only a run that opted into `worktree_setup.sh --verify` has a baseline; by default
+none runs, because CI is the gate (SKILL.md step 3).
+
 A red baseline is **the repository's problem, not the issue's**, and finding it
 before an implementation run costs one command instead of a wasted spawn. Read
 the exit code and the log's tail, never the full output.

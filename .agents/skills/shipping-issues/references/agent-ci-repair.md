@@ -32,7 +32,8 @@ the GitHub API otherwise, do not watch CI, do not sleep or poll.
 </context>
 
 Base branch: {base_branch}
-Verification command: {verify_command, from step 3's smoke run}
+Verification: the narrowest checks that reproduce the failing CI step locally
+(AGENTS.md › "Validating a change"); CI re-runs the full gate after the push.
 Project conventions: read {workdir}/CLAUDE.md and {workdir}/AGENTS.md
 before changing anything.
 
