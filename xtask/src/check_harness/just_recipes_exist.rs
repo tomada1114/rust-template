@@ -10,7 +10,8 @@
 //! Only code is read — inline code spans (which may wrap across lines, but never across a
 //! blank line) and fenced blocks — so English prose ("just to be safe") never counts. An
 //! issue form is YAML whose strings GitHub renders as Markdown, so each string value is
-//! read that way on its own, at its line; a form that does not parse fails the check. A
+//! read that way on its own, at its line — a `|` or `>` block from its source text, since
+//! folding would join a fence's lines; a form that does not parse fails the check. A
 //! token is `just` not preceded by a name character, then a recipe name (a letter or `_`,
 //! then letters, digits, `_`, `-`), so `just --list` and the placeholder `just <recipe>`
 //! name nothing. From a committed `.claude/settings.json`, each `permissions` rule of the
@@ -34,7 +35,7 @@ use regex::Regex;
 use super::documents::standing_documents;
 use super::settings_allow_list::line_holding;
 use super::yaml::{self, Keys, Node, Yaml};
-use super::{Input, finding, has_extension, read_file};
+use super::{Input, finding, has_extension, pattern, read_file};
 use crate::fail::FailureDetails;
 
 const NOT_A_RECIPE: [&str; 6] = ["set", "export", "unexport", "import", "mod", "alias"];
@@ -103,12 +104,12 @@ struct Found {
 /// Where, in a fenced block, `just` starts a command rather than a sentence: at the start
 /// of the line, after a prompt, a comment marker, a quote, a backtick, a shell operator,
 /// `--`, an environment assignment, or a command prefix — so a prompt template's "its CI
-/// just failed" is prose, while `# just lint` and `mise exec -- just check` are not.
-fn command_position() -> Option<Regex> {
-    Regex::new(
-        r#"(?:^|[$#>%"'`(;|&{]|--|\b[A-Za-z_]\w*=\S*|\b(?:then|do|else|exec|time|env|xargs))$"#,
+/// just failed" is prose, while `# just lint` and `mise exec -- just check` are not. Word
+/// boundaries and word characters are ASCII, as in the JavaScript original.
+fn command_position() -> Result<Regex, FailureDetails> {
+    pattern(
+        r#"(?:^|[$#>%"'`(;|&{]|--|(?-u:\b)[A-Za-z_][A-Za-z0-9_]*=\S*|(?-u:\b)(?:then|do|else|exec|time|env|xargs))$"#,
     )
-    .ok()
 }
 
 /// `just <recipe>` tokens in `code`, whose first character is on line `line`. With
@@ -215,13 +216,35 @@ fn markdown_tokens(text: &str, position: &Regex) -> Vec<Found> {
     found
 }
 
-/// Every token in the string values of a YAML tree, each read as Markdown at its line.
-fn node_tokens(node: &Node, position: &Regex, found: &mut Vec<Found>) {
+/// The source lines of the block scalar (`|` or `>`) whose first content line is
+/// `lines[first]`: every line indented at least as deep, blank ones included. A folded
+/// value joins its lines, so only its source keeps a fence and each line's number.
+fn block_source<'a>(lines: &[&'a str], first: usize) -> Vec<&'a str> {
+    let indent = |line: &str| line.len() - line.trim_start_matches(' ').len();
+    let block = lines.get(first..).unwrap_or_default();
+    let depth = block.first().map_or(0, |line| indent(line));
+    block
+        .iter()
+        .take_while(|line| line.trim().is_empty() || indent(line) >= depth)
+        .copied()
+        .collect()
+}
+
+/// Every token in the string values of a YAML tree, each read as Markdown at its line: a
+/// block scalar from its source text, any other string from its value.
+fn node_tokens(node: &Node, source: &[&str], position: &Regex, found: &mut Vec<Found>) {
     match &node.value {
         Yaml::Str(text) => {
-            let first = node.value_start_line();
+            let (first, text) = if node.is_block() {
+                if text.trim().is_empty() {
+                    return;
+                }
+                (node.line, block_source(source, node.line - 1).join("\n"))
+            } else {
+                (node.value_start_line(), text.clone())
+            };
             found.extend(
-                markdown_tokens(text, position)
+                markdown_tokens(&text, position)
                     .into_iter()
                     .map(|token| Found {
                         line: first + token.line - 1,
@@ -231,12 +254,12 @@ fn node_tokens(node: &Node, position: &Regex, found: &mut Vec<Found>) {
         }
         Yaml::Seq(items) => {
             for item in items {
-                node_tokens(item, position, found);
+                node_tokens(item, source, position, found);
             }
         }
         Yaml::Map(pairs) => {
             for (_, value) in pairs {
-                node_tokens(value, position, found);
+                node_tokens(value, source, position, found);
             }
         }
         Yaml::Null | Yaml::Bool(_) | Yaml::Number(_) => {}
@@ -336,8 +359,9 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             "restore AGENTS.md from version control, or run the check against the repository root (--root DIR)",
         )];
     }
-    let Some(position) = command_position() else {
-        return Vec::new();
+    let position = match command_position() {
+        Ok(position) => position,
+        Err(invalid) => return vec![invalid],
     };
     let recipes = justfile_recipes(&justfile);
     let mut violations = Vec::new();
@@ -351,7 +375,8 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             match yaml::parse(&text, Keys::Unique) {
                 Ok(document) => {
                     let mut found = Vec::new();
-                    node_tokens(&document.root, &position, &mut found);
+                    let source: Vec<&str> = text.split('\n').collect();
+                    node_tokens(&document.root, &source, &position, &mut found);
                     found
                 }
                 Err(error) => {
@@ -514,6 +539,16 @@ body:
             };
             files.push((file, Some("A planned `just not-yet`.\n".to_owned())));
         }
+        // Named literally too, so dropping either from UNCHECKED_DOCUMENTS fails here.
+        for file in [
+            "docs/architecture/roadmap.md",
+            "docs/architecture/adr/0001-a-choice.md",
+        ] {
+            files.push((
+                file.to_owned(),
+                Some("A planned `just not-yet`.\n".to_owned()),
+            ));
+        }
         for (path, content) in overrides {
             files.retain(|(existing, _)| existing != path);
             files.push(((*path).to_owned(), content.map(str::to_owned)));
@@ -613,6 +648,7 @@ body:
             "run --verify \"just bogus-quoted\"",
             "FOO=1 just bogus-env && mise exec -- just bogus-dashes",
             "then just bogus-then",
+            "\u{e9}X=1 just bogus-ascii",
             "```",
         ]
         .join("\n");
@@ -624,6 +660,7 @@ body:
                 missing("README.md", 5, "bogus-env"),
                 missing("README.md", 5, "bogus-dashes"),
                 missing("README.md", 6, "bogus-then"),
+                missing("README.md", 7, "bogus-ascii"),
             ]
         );
         let violations = check(&[("README.md", Some("````md\n```\njust bogus-open\n"))]);
@@ -694,6 +731,13 @@ body:
             "      options:",
             "        - just bogus-prose",
             "        - Run `just bogus-listed`",
+            "      notes: >",
+            "        Run this:",
+            "",
+            "        ```sh",
+            "        just bogus-folded",
+            "        ```",
+            "      after: Then run `just bogus-after`.",
         ]
         .join("\n");
         let path = ".github/ISSUE_TEMPLATE/task.yml";
@@ -705,6 +749,8 @@ body:
                 missing(path, 11, "bogus-quoted"),
                 missing(path, 13, "bogus-wrapped"),
                 missing(path, 17, "bogus-listed"),
+                missing(path, 22, "bogus-folded"),
+                missing(path, 24, "bogus-after"),
             ]
         );
         let violations = check(&[(
