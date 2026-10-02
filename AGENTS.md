@@ -77,7 +77,7 @@ just check         # Everything a Mac runs without a human: verify-hooks → fmt
 just agents-sync   # Regenerate the .claude/skills/ mirror from .agents/skills/
 just agents-check  # Fail if .claude/skills/ differs from .agents/skills/
 just clean         # Remove build output (target/, coverage/)
-just prune-temp    # Remove stale verify-bootstrap-* temp dirs and idle Claude Code scratchpads (--dry-run to list)
+just prune-temp    # Remove temp dirs a bootstrap check left behind (verify-bootstrap-*) and idle Claude Code scratchpads (--dry-run to list)
 just verify-bootstrap    # Bootstrap a scratch clone in a temp directory; fail on anything it leaves behind (template only)
 
 # A human's recipes — they need a logged-in Mac, never end, or write outside the checkout; an agent runs them only when asked

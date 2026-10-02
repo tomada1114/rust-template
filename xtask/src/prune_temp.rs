@@ -1,8 +1,8 @@
 //! `cargo xtask prune-temp`: removes temporary directories that are known to be safe to
 //! delete, so an agent never needs a raw `rm -rf`:
 //!
-//! - every `verify-bootstrap-*` directory directly under the OS temp directory (what
-//!   `cargo xtask verify-bootstrap` leaves behind when a run is interrupted);
+//! - every `verify-bootstrap-*` directory directly under the OS temp directory (the
+//!   scratch copies an interrupted bootstrap check leaves behind);
 //! - each Claude Code session's `scratchpad` for this checkout,
 //!   `<claude-base>/<slug>/<session>/scratchpad`, where `<slug>` is the checkout's
 //!   absolute path with every non-alphanumeric character replaced by `-` — only when
@@ -31,7 +31,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::context::{Context, RunOptions};
 use crate::fail::{ScriptError, TaskResult};
 
-/// The prefix `cargo xtask verify-bootstrap` gives its temporary directories.
+/// The name prefix of the scratch copies a bootstrap check makes in the temp directory.
 const BOOTSTRAP_PREFIX: &str = "verify-bootstrap-";
 /// How long a session directory must sit untouched before its scratchpad is pruned.
 const SESSION_IDLE_MS: u32 = 24 * 60 * 60 * 1000;

@@ -86,14 +86,16 @@ const TEMP_PREFIX: &str = "verify-bootstrap-";
 /// section, the app the template was first written for, and a sentence about the
 /// template itself — what it ships ("the template ships the index empty") or where its
 /// own reasoning lives. An app is not the template, so it keeps none of it; a passage that
-/// must survive is worded for both ("the index starts empty").
-pub(crate) const TEMPLATE_TEXT: [&str; 6] = [
+/// must survive is worded for both ("the index starts empty"). The bootstrap removes the
+/// `verify-bootstrap` task and recipe, so an app names neither as a command.
+pub(crate) const TEMPLATE_TEXT: [&str; 7] = [
     r"docs/template",
     r"design D[0-9]",
     r"first app cut from this template",
     r"Using This Template",
     r"(?i)\bthe template(?: repository)? ships\b",
     r"(?i)\bthe template['’]s own reasoning\b",
+    r"\b(?:cargo xtask|just) verify-bootstrap\b",
 ];
 
 /// A pattern this file writes as a literal, compiled; one that does not compile is a bug
@@ -1114,7 +1116,7 @@ mod tests {
         write(
             root,
             "notes.txt",
-            "The template ships the index empty; see docs/template.\n",
+            "The template ships the index empty; see docs/template.\nRun `just verify-bootstrap`.\n",
         );
         write(root, "docs/template/design.md", "x\n");
         write(
@@ -1155,6 +1157,11 @@ mod tests {
             "docs/template, .github/workflows/ci.yml (the bootstrap-smoke job), .github/rulesets/main.json (the \"Template Bootstrap Smoke\" context), xtask/src/main.rs (the bootstrap task), xtask/src/main.rs (the verify_bootstrap task), justfile (the verify-bootstrap recipe)"
         );
         assert!(found[3].actual.contains("notes.txt:1: The template ships"));
+        assert!(
+            found[3]
+                .actual
+                .contains("notes.txt:2: Run `just verify-bootstrap`.")
+        );
     }
 
     #[test]

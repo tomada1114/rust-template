@@ -74,7 +74,7 @@ const TASKS: &[TaskEntry] = &[
     ),
     (
         "prune-temp",
-        "remove stale verify-bootstrap-* temp dirs and idle Claude Code scratchpads",
+        "remove temp dirs a bootstrap check left behind (verify-bootstrap-*) and idle Claude Code scratchpads",
         prune_temp::main,
     ),
     (
