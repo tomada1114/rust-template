@@ -235,8 +235,9 @@ terminal beside yours. So nothing routine — `just check` and every recipe in i
 pre-commit hook, an agent's own verification — may show a window, take focus, or raise
 a permission, Keychain, or Gatekeeper prompt, and none may take over a terminal: no
 check runs `myapp tui`, enables raw mode, enters the alternate screen, or needs a TTY.
-An agent's evidence is the tests, a subcommand run against a scratch `HOME`, and
-`just logs`; the full-screen view is yours to run.
+An agent's evidence is the tests, a subcommand run against a scratch `HOME` (on Linux,
+with `XDG_DATA_HOME` and `XDG_STATE_HOME` unset too), and `just logs`; the full-screen
+view is yours to run.
 <!-- template-only -->
 ## Using This Template
 

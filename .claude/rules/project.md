@@ -44,8 +44,9 @@ paths:
   (`just deny` and `just check-harness` fail otherwise), and never clap, ratatui, or
   crossterm, which belong to the binary
 - ratatui and crossterm are pre-1.0, so their minor versions are breaking: such a bump
-  is a migration reviewed on its own pull request (`merging-dependency-prs`); replacing
-  clap or ratatui, or a new major of either, owes an ADR
+  is a migration reviewed on its own pull request (`merging-dependency-prs`), not an
+  ADR; replacing clap or ratatui, a clap major, or ratatui 1.0 and its later majors owes
+  an ADR
 - `Cargo.lock` is committed with the manifest change that moved it, never hand-edited:
   `cargo add`/`cargo update -p <crate>` write it. Verify with `just deny`,
   `mise exec -- cargo shear`, and `just check`

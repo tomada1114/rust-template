@@ -82,9 +82,12 @@ app needs, and write it into the Product section's core interaction:
 
 - **Subcommands only**, for a tool that is scripted or scheduled: remove the `tui`
   subcommand, `crates/myapp/src/tui/`, and core's screen types (`CounterScreen`,
-  `ScreenAction`, `ScreenKey`), and drop `ratatui` from the binary's dependencies
-  (`mise exec -- cargo shear` confirms nothing else uses it). Removing a dependency
-  needs no sign-off; adding one back does.
+  `ScreenAction`, `ScreenKey`), drop `ratatui` from `crates/myapp/Cargo.toml`, and,
+  since no other member uses it, its entry in the root `Cargo.toml`'s
+  `[workspace.dependencies]` (crossterm has no entry of its own: the binary reaches it
+  as `ratatui::crossterm`). `mise exec -- cargo shear` confirms nothing is left unused
+  (`managing-dependencies` › "Removing one"). Removing a dependency needs no sign-off;
+  adding one back does.
 - **Subcommands and a screen**, for a tool someone works in: keep both, with the
   screen's state and key table in core and only the loop and drawing in the binary
   (`building-tuis`). A screen never replaces the subcommands: they are what a script

@@ -108,7 +108,7 @@ your first real core module, so the coverage floor always has code to measure.
 - [ ] `crates/myapp-platform/src/counter_store.rs` (`JsonFileCounterStore`), its `mod`
       and re-export in `src/lib.rs`, `COUNTER_FILE_NAME` and `counter_file` in
       `src/paths.rs` (drop only the `counter_file` assertion from
-      `directories_follow_the_macos_conventions`, which also covers the data and log
+      `macos_selects_the_macos_directories`, which also covers the data and log
       directories), `tests/json_file_counter_store.rs`, and the counter-store test in
       `tests/contracts.rs`
 - [ ] `crates/myapp-test-support/src/counter_store.rs` (`InMemoryCounterStore`,
@@ -119,8 +119,7 @@ your first real core module, so the coverage floor always has code to measure.
 
 - [ ] `src/main.rs` — the `counter` subcommand and its handler (keep `--help`,
       `--version`, `compose`, and the exit-code convention), its wording in
-      `src/wording.rs`, and its tests in `tests/cli.rs` and that directory's helper
-      modules
+      `src/wording.rs`, and its tests in `tests/cli.rs`
 - [ ] `src/tui/` — the counter view in `view.rs` and the counter wiring in `mod.rs`;
       keep the terminal's enter, leave, and panic-hook code for your own screen, or
       remove the `tui` subcommand if your tool has none

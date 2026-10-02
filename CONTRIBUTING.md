@@ -19,8 +19,7 @@ repository, which commands to run, and how a change gets merged.
   pins it).
 - `python3` 3.9 or later on `PATH` for the skills' bundled Python tests in
   `just test-scripts` (the Command Line Tools' `/usr/bin/python3` will do). It is not
-  pinned in `mise.toml`. Below 3.11, `merging-dependency-prs`' survey skips reading
-  `Cargo.lock` (no `tomllib`) and says so.
+  pinned in `mise.toml`.
 
 Then:
 

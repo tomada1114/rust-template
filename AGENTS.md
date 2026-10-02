@@ -239,8 +239,9 @@ these owes an ADR, as `recording-architecture-decisions` sets out:
   directory name (`myapp`), which key the tool's data and log directories;
 - a second language for the tool's wording;
 - a TUI theme beyond the terminal's own colors;
-- replacing clap or ratatui with another framework, or moving to a new major version of
-  either.
+- replacing clap or ratatui with another framework, a clap major, or ratatui 1.0 and
+  its later majors (a pre-1.0 ratatui or crossterm minor is a migration
+  `merging-dependency-prs` lands on its own pull request, not an ADR).
 
 An agent writes an ADR as Proposed; only a human accepts it. An ADR records reasoning and
 grants nothing: a release pipeline, a permission grant, or a new dependency still needs
@@ -269,7 +270,7 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `updating-docs` | Deciding which document a change must update |
 | `recording-architecture-decisions` | Writing an ADR under `docs/architecture/` |
 | `writing-repo-scripts` | A `cargo xtask` task or a skill's bundled script, and its test |
-| `starting-an-app` | Turning the template into a new app: bootstrap, design system first, app shape |
+| `starting-an-app` | Turning the template into a new app: bootstrap, Product section, the tool's shape (subcommands only, or plus `myapp tui`), first ADRs |
 | `writing-rust` | Rust in `crates/*`: ownership, errors, clap and ratatui idioms, compiler messages, clippy |
 | `tdd` | Red-green-refactor with `just test-fast` |
 | `writing-tests` | The body of one Rust test: oracles, fakes, contracts, clocks, the built binary, `TestBackend` |
@@ -407,11 +408,14 @@ take over a terminal.
   When a change only the real terminal shows needs eyes on it, ask the human to run it
   (`running-the-app`).
 - For evidence that a change works, use the tests, `just test-platform`, a plain
-  subcommand run against a scratch `HOME`, and `just logs`.
+  subcommand run against a scratch `HOME` (on Linux, with `XDG_DATA_HOME` and
+  `XDG_STATE_HOME` unset too, as `running-the-app` shows), and `just logs`.
 - `just test-local`, `just logs-follow`, and `just install-cli` are started by a human on
   purpose.
-- A test that needs a GUI session, a TCC grant, the Keychain, or a real terminal is
-  `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`.
+- A test that needs a GUI session, a TCC grant, or the Keychain is
+  `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`. No
+  test needs a real terminal: nextest gives a test none, and a human running `myapp tui`
+  is the only route to one.
 - Never trigger an installer or a `sudo` prompt; report the command for the human to
   run instead (`just install` does this for the Xcode Command Line Tools).
 

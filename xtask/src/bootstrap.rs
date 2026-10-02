@@ -614,8 +614,8 @@ fn document_edits() -> Vec<TextEdit> {
         edit("AGENTS.md", PRODUCT_INTRO, PRODUCT_INTRO_IN_AN_APP),
         edit(
             "AGENTS.md",
-            "| `starting-an-app` | Turning the template into a new app: bootstrap, design system first, app shape |",
-            "| `starting-an-app` | The app's first decisions: Product section, design system first, app shape, removing the sample |",
+            "| `starting-an-app` | Turning the template into a new app: bootstrap, Product section, the tool's shape (subcommands only, or plus `myapp tui`), first ADRs |",
+            "| `starting-an-app` | The app's first decisions: Product section, the tool's shape (subcommands only, or plus `myapp tui`), first ADRs, removing the sample |",
         ),
         edit(
             "AGENTS.md",

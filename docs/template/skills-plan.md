@@ -81,7 +81,7 @@ front end, Node, and release mechanics replaced by the binary crate, the TUI,
 | `designing-core-logic` | Views shared by a subcommand's output and a TUI frame; no IPC boundary. |
 | `designing-errors` | Variant to wording and exit code in the binary crate; `ERR_*` codes in xtask; no serialized codes for a UI. |
 | `integrating-system-apis` | macOS and Linux adapters behind `cfg(target_os)`, each with its contract suite. |
-| `running-the-app` | The tests, a subcommand run against a scratch `HOME`, and `just logs` as an agent's evidence; `myapp tui` only when the human asks (design § D22). |
+| `running-the-app` | The tests, a subcommand run against a scratch `HOME`, and `just logs` as an agent's evidence; `myapp tui` run by the human, never by an agent (design § D22). |
 
 ## Rules (`.claude/rules/`, Claude Code only)
 
