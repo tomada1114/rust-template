@@ -11,7 +11,7 @@ persisted state, an injected clock, subcommands and a terminal view over one cor
 coverage floors, architecture boundaries that fail a build, and supply-chain-hardened
 CI, all from the first commit.
 
-It runs on macOS (Apple Silicon) and Linux. Windows, any graphical interface, a release
+It runs on macOS (Apple Silicon) and Linux. Windows, a release
 pipeline or release artifacts, crates.io publishing, and localization are
 non-goals.
 
@@ -75,7 +75,7 @@ thing without a test failing.
 
 A rule that lives only in prose drifts. Core's `Cargo.toml` names no OS crate, so core
 cannot compile a call into one. A harness check reads `cargo metadata` and fails if
-core's dependency closure ever gains a macOS binding crate, a desktop-GUI crate, or
+core's dependency closure ever gains a macOS binding crate or
 `myapp-platform`, and `cargo deny`'s `wrappers` rule allows `myapp-platform` as a direct
 dependency of the binary only. clippy, configured in `crates/myapp-core/clippy.toml`,
 bans printing and the standard streams, `std::fs`'s files and functions, `Path`'s
@@ -360,7 +360,7 @@ just install-cli  # install the myapp binary into ~/.cargo/bin (a human's step)
   [Code of Conduct](CODE_OF_CONDUCT.md), [Changelog](CHANGELOG.md)
 <!-- template-only -->
 - The template's own design: [design.md](docs/template/design.md),
-  [issue-triage.md](docs/template/issue-triage.md), and
+  [skills-plan.md](docs/template/skills-plan.md), and
   [implementation-notes.md](docs/template/implementation-notes.md)
 <!-- /template-only -->
 

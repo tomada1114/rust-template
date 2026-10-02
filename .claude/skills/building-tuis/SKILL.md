@@ -40,7 +40,7 @@ test reaches, because the one part no check runs is the loop that owns a real te
 | Drawing one state | the binary, `crates/myapp/src/tui/view.rs` | `draw(frame, &screen)` |
 
 - Core never names ratatui or crossterm. No gate stops it (the core boundary's lists
-  in `AGENTS.md` › "Architecture" name OS and GUI crates, not these), so review holds
+  in `AGENTS.md` › "Architecture" name OS bindings and platform adapters), so review holds
   the line: with a key type of core's own, the whole state machine is tested inside the
   coverage floor with plain values, and a second front end could drive the same screen.
 - A screen's `update` takes `self` and returns the next screen: success shows the new

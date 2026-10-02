@@ -2300,7 +2300,7 @@ mod tests {
             super::Form::Name => "Welcome to MyApp.",
             super::Form::Slug => "cargo test -p myapp-core && pkill -x myapp",
             super::Form::SlugSnake => "use myapp_core::Counter; myapp_lib::run();",
-            super::Form::SlugUpper => "MYAPP_SMOKE=1",
+            super::Form::SlugUpper => "MYAPP_TEST=1",
             super::Form::BundleId => "~/Library/Logs/com.example.myapp/",
             super::Form::Repo => "https://github.com/tomada1114/rust-template/security",
             super::Form::RepoName => "cd rust-template",
@@ -2988,7 +2988,7 @@ mod tests {
         assert!(agents.contains("cargo test -p tide-pool-core && pkill -x tide-pool"));
         assert!(agents.contains("use tide_pool_core::Counter; tide_pool_lib::run();"));
         assert!(agents.contains("~/Library/Logs/com.example.tide-pool/"));
-        assert!(read(root, ".agents/skills/designing-clis/SKILL.md").contains("TIDE_POOL_SMOKE=1"));
+        assert!(read(root, ".agents/skills/designing-clis/SKILL.md").contains("TIDE_POOL_TEST=1"));
         assert!(read(root, "CODE_OF_CONDUCT.md").contains("[@ada](https://github.com/ada)"));
         assert!(read(root, "SECURITY.md").contains("https://github.com/ada/tide-pool/security"));
         // The Product section's introduction holds no marker of its own in an app.
@@ -3470,7 +3470,7 @@ mod tests {
         write(
             root,
             "a.md",
-            "MyApp\nfine\nmyapp_core\nMYAPP_SMOKE\ncom.example.myapp\n",
+            "MyApp\nfine\nmyapp_core\nMYAPP_TEST\ncom.example.myapp\n",
         );
         write(
             root,
@@ -3485,7 +3485,7 @@ mod tests {
             [
                 "a.md:1: MyApp",
                 "a.md:3: myapp_core",
-                "a.md:4: MYAPP_SMOKE",
+                "a.md:4: MYAPP_TEST",
                 "a.md:5: com.example.myapp",
                 "b.md:1: https://github.com/tomada1114/rust-template",
             ]

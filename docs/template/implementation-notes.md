@@ -2,14 +2,8 @@
 
 <!-- template-only: cargo xtask bootstrap removes docs/template/ from a generated app. -->
 
-What the implementation runs did differently from [design.md](design.md), and the
-decisions they made that the design left open. Design decisions are never edited to match
-what was built; each entry says what the design said, what was done, and why.
-
-The first run built the desktop-GUI stack the 2026-10-01 pivot removed (design.md § 1).
-Its notes about that stack — the GUI framework's versions and licences, the Node
-toolchain, the bindings generator, the launch smoke, the release scripts — went with it;
-git history keeps them. What follows still holds for the command-line template.
+Implementation observations that still apply to the finalized [design.md](design.md).
+The maintained operating rules live in AGENTS.md and the configurations they name.
 
 ## Deviations
 
@@ -18,11 +12,6 @@ git history keeps them. What follows still holds for the command-line template.
   `good first issue`, `help wanted`, `invalid`, `question`, `wontfix`) remain beside them:
   the sync never deletes a label the manifest does not mention (as in both reference
   repositories), and deleting labels is outside the run's GitHub authority.
-- **`just check` runs two more gates than D10 lists:** `lint-repo` (typos over the whole
-  tree and actionlint) and `agents-check` (the skills mirror), placed after `lint`. CI
-  already ran all three; running them locally too shrinks `just-check-matches-ci`'s
-  exception list to what genuinely cannot run offline (cargo deny, zizmor's online audits)
-  or has no local meaning.
 - CI's `Repo Lint & Harness` job runs `cargo fetch --locked` before the script tests: the
   `core-boundary` check reads `cargo metadata --offline`, which needs the registry.
 
@@ -37,8 +26,7 @@ git history keeps them. What follows still holds for the command-line template.
 - **Actions pinned one release back where the newest was under seven days old**
   (`github/codeql-action` v4.38.1), matching Dependabot's cooldown.
 - Template-only blocks in standing docs are marked `<!-- template-only -->` …
-  `<!-- /template-only -->` (D19 names the blocks, not their syntax); the bootstrap
-  removes exactly this pair.
+  `<!-- /template-only -->`; the bootstrap removes exactly this pair.
 
 ## Facts confirmed during the run
 
