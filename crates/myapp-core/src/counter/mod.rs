@@ -135,7 +135,8 @@ impl Counter {
     }
 }
 
-/// What the UI renders. The only counter type that crosses IPC.
+/// What `myapp counter` prints and `myapp tui` draws: the one counter type the binary
+/// reads. Its JSON shape is pinned in `tests/serialization.rs`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CounterView {

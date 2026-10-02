@@ -210,6 +210,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `myapp_core::log` (`UiLogEntry`, `UiLogLevel`): a log entry the desktop UI once sent
+  to the shell, which nothing in the CLI/TUI template reads. Core's comments that still
+  described the UI, IPC, and a helper CLI now describe the `myapp` binary.
+
 - The Node toolchain: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
   `eslint.config.mjs`, every `tsconfig*.json`, `vitest.config.ts`, `.prettierrc.json`,
   `.prettierignore`, the rest of `scripts/`, the `writing-typescript` skill, and

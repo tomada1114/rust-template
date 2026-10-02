@@ -380,7 +380,7 @@ const SKILL_SITES: [(&str, &[Form]); 36] = [
 /// Every placeholder site outside the skills. Keep this list explicit: a new file that
 /// names the app is added here, and `just verify-bootstrap` (which CI's Template
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
-const REPOSITORY_SITES: [(&str, &[Form]); 50] = [
+const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
     (".claude/rules/project.md", &[Slug]),
     (".claude/rules/rust.md", &[SlugSnake, Slug]),
     (".claude/rules/testing.md", &[Slug]),
@@ -403,7 +403,6 @@ const REPOSITORY_SITES: [(&str, &[Form]); 50] = [
     ("crates/myapp-core/Cargo.toml", &[Name, Slug]),
     ("crates/myapp-core/src/counter/mod.rs", &[SlugSnake, Slug]),
     ("crates/myapp-core/src/lib.rs", &[Slug]),
-    ("crates/myapp-core/src/log.rs", &[SlugSnake]),
     ("crates/myapp-core/tests/contracts.rs", &[SlugSnake, Slug]),
     (
         "crates/myapp-core/tests/counter_screen.rs",

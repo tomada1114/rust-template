@@ -97,9 +97,6 @@ your first real core module, so the coverage floor always has code to measure.
 - [ ] `tests/counter_service.rs`, `tests/counter_screen.rs`, the counter-store test in
       `tests/contracts.rs`, and the counter shapes in `tests/serialization.rs` —
       replace with tests for your core
-- [ ] `src/log.rs` (`UiLogEntry`, `UiLogLevel`) and its shapes in
-      `tests/serialization.rs`: nothing in the binary uses it; delete it unless your
-      tool takes log entries from another program
 - [ ] Keep `src/time.rs` (`Clock`) unless your app has no use for it: it is general, not
       counter-specific
 
