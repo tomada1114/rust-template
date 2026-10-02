@@ -26,9 +26,9 @@ lint-repo:
     typos
     actionlint
 
-# Re-assert the harness's claims about itself (scripts/checks/, one module per claim)
+# Re-assert the harness's claims about itself (xtask/src/check_harness/, one module per claim)
 check-harness:
-    node scripts/check-harness.ts
+    cargo xtask check-harness
 
 # Install the pinned toolchain and dependencies (no sudo, no installer windows)
 install:

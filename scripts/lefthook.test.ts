@@ -8,9 +8,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-import { isRecord } from "./checks/shared/workflows.ts";
-
 const ROOT = join(import.meta.dirname, "..");
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 describe("lefthook.yml", () => {
   it("never skips the staged guard or the skills mirror during a merge or a rebase", () => {

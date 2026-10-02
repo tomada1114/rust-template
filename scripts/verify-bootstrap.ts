@@ -14,9 +14,10 @@
  *   of a decision by its number there, of README's template-only section, a sentence
  *   about the first app cut from it, or one about what the template itself ships or its
  *   own reasoning (TEMPLATE_TEXT);
- * - AGENTS.md's Product section fails the product-section check while its bullets are
- *   unfilled, with a `Next:` line naming a skill the app has, and passes once only its
- *   four bullets are filled in;
+ * - AGENTS.md's Product section fails the product-section check (`cargo xtask
+ *   check-harness --check product-section`, run from this checkout against the generated
+ *   app) while its bullets are unfilled, with a `Next:` line naming a skill the app has,
+ *   and passes once only its four bullets are filled in;
  * - no dangling reference in a Markdown file (a skill included): a relative link to a
  *   missing file, a path the bootstrap removed, or `just <recipe>` for a recipe the
  *   justfile does not define;
@@ -33,11 +34,12 @@
  *
  * --keep leaves the scratch copy in place and prints its path. The run needs
  * `just install` first (the bootstrap and Prettier come from node_modules) and cargo's
- * registry (the bootstrap fetches and updates Cargo.lock). Outside a git work tree it
- * refuses: there is no checkout to clone.
+ * registry (the bootstrap fetches and updates Cargo.lock, and `cargo xtask` builds the
+ * harness). Outside a git work tree it refuses: there is no checkout to clone.
  *
  * Errors: ERR_VERIFY_BOOTSTRAP_USAGE, ERR_VERIFY_BOOTSTRAP_NO_DEPS,
- * ERR_VERIFY_BOOTSTRAP_CLONE, ERR_VERIFY_BOOTSTRAP_RUN, and a generated-tree violation:
+ * ERR_VERIFY_BOOTSTRAP_CLONE, ERR_VERIFY_BOOTSTRAP_RUN, ERR_VERIFY_BOOTSTRAP_HARNESS (the
+ * product-section check could not run), and a generated-tree violation:
  * ERR_VERIFY_BOOTSTRAP_LEFTOVER, ERR_VERIFY_BOOTSTRAP_MARKER,
  * ERR_VERIFY_BOOTSTRAP_TEMPLATE_FILE, ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT,
  * ERR_VERIFY_BOOTSTRAP_DANGLING_REFERENCE, ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION,
@@ -61,7 +63,6 @@ import { dirname, join, normalize, relative } from "node:path";
 
 import { parse as parseToml } from "smol-toml";
 
-import { check as productSection } from "./checks/product-section.ts";
 import {
   CRATE_DIRS,
   deriveNames,
@@ -265,17 +266,68 @@ function productViolation(actual: string): FailureDetails {
     "AGENTS.md's Product section does not behave as an app's should after the bootstrap",
     "the product-section check to fail on the unfilled bullets, name a skill the app has, and pass once only the four bullets are filled in",
     actual,
-    "fix the Product section's TEXT_EDITS entry in scripts/bootstrap.ts, or scripts/checks/product-section.ts's Next line, then run `node scripts/verify-bootstrap.ts` again",
+    "fix the Product section's TEXT_EDITS entry in scripts/bootstrap.ts, or xtask/src/check_harness/product_section.rs's Next line, then run `node scripts/verify-bootstrap.ts` again",
   );
 }
 
-function productSectionBehaviour(root: string): FailureDetails[] {
+/** The product-section check: its violations under a root. */
+export type ProductSectionCheck = (root: string) => FailureDetails[];
+
+const HARNESS_ARGS = ["xtask", "check-harness", "--check", "product-section", "--root"];
+
+/** The violations in `cargo xtask check-harness`'s output: each four-line report it prints. */
+export function parseHarnessReport(stdout: string): FailureDetails[] {
+  const lines = stdout.split("\n");
+  const found: FailureDetails[] = [];
+  lines.forEach((line, index) => {
+    const head = /^(ERR_[A-Z0-9_]+): (.*)$/.exec(line);
+    const field = (offset: number, label: string): string | undefined => {
+      const text = lines[index + offset];
+      return text?.startsWith(`${label}: `) === true ? text.slice(label.length + 2) : undefined;
+    };
+    const expected = field(1, "Expected");
+    const actual = field(2, "Actual");
+    const next = field(3, "Next");
+    if (head === null || expected === undefined || actual === undefined || next === undefined) {
+      return;
+    }
+    found.push({ code: head[1] ?? "", summary: head[2] ?? "", expected, actual, next });
+  });
+  return found;
+}
+
+/**
+ * The product-section check as `cargo xtask check-harness` runs it, from this checkout
+ * against another root. A run that fails without a check's report (cargo could not build
+ * the harness, say) is not a verdict on the root, so it stops the verification.
+ */
+export function harnessProductSection(context: ScriptContext): ProductSectionCheck {
+  return (root) => {
+    const args = [...HARNESS_ARGS, root];
+    const result = context.run("cargo", args, { cwd: context.root, env: context.env });
+    if (result.status === 0) return [];
+    const found = parseHarnessReport(result.stdout);
+    if (found.length > 0) return found;
+    throw new ScriptError({
+      code: "ERR_VERIFY_BOOTSTRAP_HARNESS",
+      summary: "the product-section check did not run",
+      expected: `\`cargo ${args.join(" ")}\` to exit 0 or report a violation`,
+      actual: `exit ${String(result.status)}: ${(result.stderr.trim().split("\n").at(-1) ?? "").trim()}`,
+      next: "run `cargo xtask check-harness --check product-section` in this checkout and fix what stops it, then this again",
+    });
+  };
+}
+
+function productSectionBehaviour(
+  root: string,
+  productSection: ProductSectionCheck,
+): FailureDetails[] {
   const agents = readText(root, "AGENTS.md");
   const justfile = readText(root, "justfile");
   if (agents === undefined || justfile === undefined) {
     return [productViolation("no AGENTS.md or justfile in the generated app")];
   }
-  const unfilled = productSection.run(root);
+  const unfilled = productSection(root);
   if (unfilled.length === 0) {
     return [productViolation("the check passes on the unfilled section")];
   }
@@ -298,7 +350,7 @@ function productSectionBehaviour(root: string): FailureDetails[] {
   try {
     writeFileSync(join(filledRoot, "AGENTS.md"), fillProductBullets(agents));
     writeFileSync(join(filledRoot, "justfile"), justfile);
-    const filled = productSection.run(filledRoot);
+    const filled = productSection(filledRoot);
     return filled.length === 0
       ? []
       : [
@@ -502,8 +554,15 @@ function nameMismatches(root: string, answers: Answers): FailureDetails[] {
       ];
 }
 
-/** Every way the tree at `root` falls short of an app bootstrapped with `answers`. */
-export function assertGenerated(root: string, answers: Answers): FailureDetails[] {
+/**
+ * Every way the tree at `root` falls short of an app bootstrapped with `answers`, with
+ * `productSection` judging AGENTS.md's Product section.
+ */
+export function assertGenerated(
+  root: string,
+  answers: Answers,
+  productSection: ProductSectionCheck,
+): FailureDetails[] {
   const files = listFiles(root);
   return [
     ...leftovers(root, files),
@@ -511,7 +570,7 @@ export function assertGenerated(root: string, answers: Answers): FailureDetails[
     ...templateMaterial(root),
     ...templateText(root, files),
     ...danglingReferences(root, files),
-    ...productSectionBehaviour(root),
+    ...productSectionBehaviour(root, productSection),
     ...nameMismatches(root, answers),
   ];
 }
@@ -639,7 +698,7 @@ export function main(context: ScriptContext): void {
         next: "fix what the bootstrap reports (its ERR_BOOTSTRAP_* code), then run this again",
       });
     }
-    violations = assertGenerated(clone, VERIFY_ANSWERS);
+    violations = assertGenerated(clone, VERIFY_ANSWERS, harnessProductSection(context));
   } finally {
     if (keep) context.log(`verify-bootstrap: kept the scratch copy at ${clone}`);
     else rmSync(workspace, { recursive: true, force: true });

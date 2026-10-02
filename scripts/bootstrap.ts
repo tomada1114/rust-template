@@ -249,16 +249,14 @@ const REPOSITORY_SITES: readonly Site[] = [
   { file: "docs/getting-started.md", forms: ["bundleId", "slug"] },
   { file: "justfile", forms: ["bundleId", "slug"] },
   { file: "package.json", forms: ["name", "slug"] },
-  { file: "scripts/checks/bundle-identifier.test.ts", forms: ["bundleId", "slug"] },
-  { file: "scripts/checks/bundle-identifier.ts", forms: ["slug"] },
-  { file: "scripts/checks/core-boundary.test.ts", forms: ["slug"] },
-  { file: "scripts/checks/core-boundary.ts", forms: ["slug"] },
-  { file: "scripts/checks/fixtures/core-boundary/pass/deny.toml", forms: ["slug"] },
+  { file: "xtask/src/check_harness/bundle_identifier.rs", forms: ["bundleId", "slug"] },
+  { file: "xtask/src/check_harness/core_boundary.rs", forms: ["slug"] },
+  { file: "xtask/src/check_harness/no_issue_references.rs", forms: ["repo"] },
+  { file: "xtask/tests/fixtures/core-boundary/pass/deny.toml", forms: ["slug"] },
   {
-    file: "scripts/checks/fixtures/core-boundary/pass/metadata.json",
+    file: "xtask/tests/fixtures/core-boundary/pass/metadata.json",
     forms: ["slugSnake", "slug"],
   },
-  { file: "scripts/checks/no-issue-references.test.ts", forms: ["repo"] },
 ];
 
 export const SITES: readonly Site[] = [
@@ -480,65 +478,28 @@ export const TEXT_EDITS: readonly TextEdit[] = [
     replace: "A personal macOS desktop app with a modest UI: a Rust core, a Tauri v2\nshell,",
   },
   {
-    file: "scripts/checks/just-check-matches-ci.ts",
-    find: `  ciOnlyJobs: {
-    "Template Bootstrap Smoke":
-      "template-only (the bootstrap removes the job and the \`verify-bootstrap\` recipe): it runs scripts/verify-bootstrap.ts, which fails when this tree holds a placeholder spelling, template-only text, or a dangling reference the bootstrap would leave behind, then bootstraps a throwaway copy and runs \`just check\` there. \`just check\` leaves it out because it clones the tree, needs cargo's registry, and would run a second \`just check\`; \`just verify-bootstrap\` runs the verification locally, and AGENTS.md › Validating a change says when",
-  },`,
-    replace: "  ciOnlyJobs: {},",
+    file: "xtask/src/check_harness/just_check_matches_ci.rs",
+    find: `    ci_only_jobs: &[(
+        "Template Bootstrap Smoke",
+        "template-only (the bootstrap removes the job and the \`verify-bootstrap\` recipe): it runs scripts/verify-bootstrap.ts, which fails when this tree holds a placeholder spelling, template-only text, or a dangling reference the bootstrap would leave behind, then bootstraps a throwaway copy and runs \`just check\` there. \`just check\` leaves it out because it clones the tree, needs cargo's registry, and would run a second \`just check\`; \`just verify-bootstrap\` runs the verification locally, and AGENTS.md › Validating a change says when",
+    )],`,
+    replace: "    ci_only_jobs: &[],",
   },
   {
-    file: "scripts/checks/just-check-matches-ci.ts",
-    find: " ciOnlyJobs is\n *   not: the bootstrap removes that job from an app cut from the template.",
-    replace: " ciOnlyJobs is\n *   not reported as stale; it lists no job in this app.",
+    file: "xtask/src/check_harness/just_check_matches_ci.rs",
+    find: " `ci_only_jobs` is not: the\n//! bootstrap removes that job from an app cut from the template.",
+    replace: " `ci_only_jobs` is not\n//! reported as stale; it lists no job in this app.",
   },
   {
-    file: "scripts/checks/shared/documents.ts",
-    find: ` * Documents neither check reads. \`docs/template/\` is the template's own design record: it
- * cites the upstream template's issues and plans recipes before they exist, and the
- * bootstrap deletes it. The roadmap and the ADRs are an app's own planning and decision
- * records:`,
-    replace: ` * Documents neither check reads. The roadmap and the ADRs are an app's own planning and
- * decision records:`,
+    file: "xtask/src/check_harness/documents.rs",
+    find: `/// Documents neither check reads. The template's own design record (\`docs/template/\`)
+/// cites the upstream template's issues and plans recipes before they exist, and the
+/// bootstrap deletes it. The roadmap and the ADRs are an app's own planning and decision
+/// records:`,
+    replace: `/// Documents neither check reads. The roadmap and the ADRs are an app's own planning and
+/// decision records:`,
   },
-  { file: "scripts/checks/shared/documents.ts", find: '  "docs/template",\n', replace: "" },
-  {
-    file: "scripts/checks/shared/documents.test.ts",
-    find: '      "docs/template/design.md",\n',
-    replace: "",
-  },
-  {
-    file: "scripts/checks/just-recipes-exist.ts",
-    find: "(`docs/template/`, the roadmap, and the ADRs:",
-    replace: "(the roadmap and the ADRs:",
-  },
-  {
-    file: "scripts/checks/just-recipes-exist.test.ts",
-    find:
-      String.raw`    "docs/template/plan.md": "A planned ${"`"}just not-yet${"`"} (docs/template/ is not read).\n",` +
-      "\n",
-    replace: "",
-  },
-  {
-    file: "scripts/checks/just-recipes-exist.test.ts",
-    find: `  it("reads neither docs/template/, the roadmap, nor an ADR, which plan recipes ahead", () => {
-    const root = fixture({
-      "docs/template/deep/x.md": "Run \`just bogus-template\`.\\n",
-`,
-    replace: `  it("reads neither the roadmap nor an ADR, which plan recipes ahead", () => {
-    const root = fixture({
-`,
-  },
-  {
-    file: "scripts/checks/no-issue-references.ts",
-    find: "(`docs/template/`, the template's design record the bootstrap deletes; the roadmap,",
-    replace: "(the roadmap,",
-  },
-  {
-    file: "scripts/checks/no-issue-references.test.ts",
-    find: String.raw`    "docs/template/design.md": "Decided in #140 (issue 166).\n",` + "\n",
-    replace: "",
-  },
+  { file: "xtask/src/check_harness/documents.rs", find: '    "docs/template",\n', replace: "" },
   {
     file: "osv-scanner.toml",
     find: "# Every entry expires after 90 days and is recorded in docs/template/implementation-notes.md.\n",
