@@ -24,7 +24,7 @@ use myapp_platform::{
 
 /// Read and change the counter.
 #[derive(Debug, Parser)]
-#[command(version, about)]
+#[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: Command,

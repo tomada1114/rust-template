@@ -242,6 +242,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `myapp --help` opens with the tool's own one-line summary ("Read and change the
+  counter") instead of the binary crate's `Cargo.toml` description.
+
 - The `cargo xtask` hooks no longer wait on the lock of a workspace build running
   meanwhile (a cold clippy, nextest's build, a background `just check`): lefthook's
   staged guard and skills-mirror jobs build xtask into `target/xtask` with
