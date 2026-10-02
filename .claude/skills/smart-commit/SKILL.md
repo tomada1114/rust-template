@@ -4,11 +4,10 @@ description: >
   Covers turning the working tree into Conventional Commits in this repository: the
   branch guard, the judgment the staged guard (cargo xtask check-staged) cannot make,
   grouping changes into atomic commits, the files that must travel together (Cargo.lock
-  with a Cargo.toml, pnpm-lock.yaml with package.json, .claude/skills/ with
-  .agents/skills/), the commit types
+  with a Cargo.toml, .claude/skills/ with .agents/skills/), the commit types
   check-pr-title.yml accepts, and recovering when lefthook's pre-commit hook refuses a
-  commit (ERR_STAGED_BLOCKED_PATH, ERR_STAGED_CREDENTIAL_SHAPED, rustfmt, prettier,
-  eslint, typos, skills mirror). Use when asked to commit, save changes, stage changes,
+  commit (ERR_STAGED_BLOCKED_PATH, ERR_STAGED_CREDENTIAL_SHAPED, rustfmt, typos, skills
+  mirror). Use when asked to commit, save changes, stage changes,
   commit and push, push my changes, or ship it, or when git commit fails in the hook.
 ---
 
@@ -90,27 +89,25 @@ tells matters more than the commit count: three related one-line edits are one c
 | Tests only (`crates/*/tests/`, `src-tauri/tests/`, `*.test.ts(x)`) | `test` |
 | Docs (`*.md`, `.github/PULL_REQUEST_TEMPLATE.md` included, `docs/`, a skill) | `docs` |
 | A dependency bump or addition | `deps` |
-| `justfile`, `scripts/`, `lefthook.yml` | `build` |
+| `justfile`, `lefthook.yml` | `build` |
 | `.github/workflows/`, and `.github/zizmor.yml` (the workflow security linter's config) | `ci` |
 | The rest of `.github/` that is not Markdown: issue forms, `labels.yml`, `rulesets/`, the Dependabot, Renovate, and release-notes config | `chore` |
 | Tool config (`mise.toml`, `typos.toml`, `.claude/`, an editor file) | `chore` |
 
 Where two rows match one file, the more specific row wins: a Markdown file is `docs`
-wherever it lives (the PR template too), a test under `scripts/` is `test`, and a
-skill's mirror under `.claude/skills/` is `docs`.
+wherever it lives (the PR template too), and a skill's mirror under `.claude/skills/`
+is `docs`.
 
 These always travel in one commit, whatever the grouping otherwise says:
 
 - **A source change and its test.** This repository works test-first (`tdd`); a red test
   is never committed alone, and the pair takes the source change's type.
-- **A manifest and its lockfile:** `Cargo.lock` with the `Cargo.toml` that moved it,
-  `pnpm-lock.yaml` with the `package.json` that moved it. A lockfile committed apart
-  from its manifest is a commit that does not build (`cargo` fails under `--locked`, and
-  `pnpm install --frozen-lockfile` refuses the mismatch).
+- **A manifest and its lockfile:** `Cargo.lock` with the `Cargo.toml` that moved it. A
+  lockfile committed apart from its manifest is a commit that does not build (`cargo`
+  fails under `--locked`).
 - **A skill and its mirror:** `.agents/skills/<name>/` with `.claude/skills/<name>/`
-  after `just agents-sync`. The hook's skills-mirror job compares the two trees on
-  disk, not what is staged, so it cannot catch a commit that stages only one side:
-  stage both yourself.
+  after `just agents-sync`. The hook's skills-mirror job compares the two trees as
+  staged, so a commit that stages only one side is refused: stage both.
 
 ## Step 4: Write the commits
 

@@ -62,7 +62,7 @@ user launches, not a step a run takes on its own.
 
 `low` was observed to **skip test and fixture hunks** (in the reference template this
 skill came from). That is wrong whenever a file under
-`crates/*/tests/`, a `*.test.ts`, or `xtask/src/check_harness/` *is* the gate rather than a
+`crates/*/tests/`, a skill's `scripts/tests/`, or `xtask/src/check_harness/` *is* the gate rather than a
 consumer of one -- a contract function in `crates/myapp-test-support`, a harness
 check, a script test that pins a failure contract -- and it fails silently: a diff
 confined to such a file comes back `(none)` in a few seconds, which reads exactly like a
@@ -177,7 +177,7 @@ on **`architect`** when the issue is any of:
   an error enum and its codes, a type that crosses IPC, a persisted file format. The first
   implementer fixes the vocabulary every later one inherits.
 - **A skill, instruction file, or gate design** -- a `SKILL.md`, `AGENTS.md`, a
-  clippy or ESLint setting, a harness check, a CI job that defines what "green"
+  clippy setting, a harness check, a CI job that defines what "green"
   means. These are prompts and policies: they are read by every future run, and
   a mediocre one degrades work long after this run ends.
 

@@ -12,25 +12,28 @@ repository, which commands to run, and how a change gets merged.
 - [rustup](https://rustup.rs/). It installs the toolchain `rust-toolchain.toml` pins
   (with clippy, rustfmt, and `llvm-tools`) the first time `cargo` runs.
 - [mise](https://mise.jdx.dev/), which installs every other pinned tool from `mise.toml`:
-  Node, pnpm, Just, lefthook, cargo-llvm-cov, cargo-nextest, cargo-deny, cargo-shear, typos,
+  Just, lefthook, cargo-llvm-cov, cargo-nextest, cargo-deny, cargo-shear, typos,
   actionlint, zizmor, gitleaks, and shellcheck.
 - [Just](https://just.systems/man/en/) to start the first `just install` (mise then
-  pins it). mise installs pnpm at the version `package.json`'s
-  `packageManager` also names (Renovate moves the two in one grouped pull request).
+  pins it).
+- `python3` 3.9 or later on `PATH` for the skills' bundled Python tests in
+  `just test-scripts` (the Command Line Tools' `/usr/bin/python3` will do). It is not
+  pinned in `mise.toml`. Below 3.11, `merging-dependency-prs`' survey skips reading
+  `Cargo.lock` (no `tomllib`) and says so.
 
 Then:
 
 ```bash
 mise trust     # approve mise.toml (asked once per clone)
-just install   # mise install, pnpm install --frozen-lockfile, lefthook install, verify-hooks
+just install   # mise install, lefthook install, verify-hooks
 ```
 
 ## Development workflow
 
 ```bash
-just fmt            # format every Rust and TypeScript file
-just fix            # formatters plus ESLint's automatic fixes
-just lint           # rustfmt check, workspace clippy -D warnings, tsc, ESLint, Prettier check
+just fmt            # format every Rust file
+just fix            # rustfmt's automatic fixes (clippy's findings are fixed by hand)
+just lint           # rustfmt check, workspace clippy -D warnings
 just test           # test-core and test-xtask, with their coverage floors
 just test-core      # core: nextest under llvm-cov (lines 80, functions 80), doctests,
                     #   and the other Linux-buildable crates' tests
@@ -38,8 +41,7 @@ just test-xtask     # xtask's tests under llvm-cov (lines 85, functions 90; the 
                     #   guard's rules in xtask/guard/ lines 90, functions 100)
 just test-fast increment   # one core test or a group of them, no coverage
 just test-platform  # platform adapters and the CLI against the real OS (macOS or Linux)
-just test-scripts   # Vitest over scripts/ and skills' scripts with their floors, plus
-                    #   the bundled Python tests and shellcheck
+just test-scripts   # the skills' bundled Python tests and shellcheck (no floor)
 just check-harness  # the harness's checks about itself (cargo xtask check-harness)
 just deny           # cargo deny: advisories, licences, bans, sources
 just logs           # print the end of the newest app log and exit
@@ -65,16 +67,15 @@ has an `#[ignore]`d test, and paste its output into the pull request: CI cannot 
 Each recipe is a thin call; the justfile is the reference. The main ones:
 
 ```bash
-mise install && pnpm install --frozen-lockfile && lefthook install
+mise install && lefthook install
 cargo xtask verify-hooks                         # just verify-hooks
 cargo fmt --all --check                          # part of just lint
 cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
-pnpm typecheck && pnpm lint && pnpm format:check
 cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
 cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
 cargo llvm-cov nextest --locked --no-report -p xtask -p xtask-guard  # just test-xtask (its floors: the recipe's report lines)
-pnpm test:scripts                                # just test-scripts (plus Python tests, shellcheck)
+python3 -m unittest discover -s .agents/skills/<skill>/scripts/tests -t .agents/skills/<skill>/scripts/tests  # just test-scripts, per skill (plus shellcheck)
 cargo nextest run --locked -p myapp-platform -p myapp   # just test-platform
 cargo deny --locked check                        # just deny
 ```
@@ -87,7 +88,7 @@ cargo deny --locked check                        # just deny
 | Access to the OS or the filesystem | an adapter in `crates/myapp-platform` behind a port core declares, plus a fake and a contract function in `crates/myapp-test-support` |
 | A command or an event | `src-tauri/src/commands.rs` and `lib.rs`'s handler list, and the matching wrapper in `ui/src/ipc/commands.ts` or `events.ts` |
 | A screen or a component | `ui/src/`, using the primitives and tokens in `ui/src/design/`; user-facing wording in `ui/src/copy/` |
-| Repository automation | a task in `xtask/src/` (run as `cargo xtask <task>`), with its tests beside it; `scripts/*.ts` only for what is not yet ported |
+| Repository automation | a task in `xtask/src/` (run as `cargo xtask <task>`), with its tests beside it |
 
 [docs/architecture.md](docs/architecture.md) explains the layers and what is contract.
 A new crate or npm package needs a reason and a maintainer's sign-off.
@@ -107,8 +108,8 @@ Required checks: `Rust Core`, `Repo Lint & Harness`, `macOS`,
 
 - New logic lives in `myapp-core` with tests of the happy and the error path; keep the
   core's 80% line and 80% function coverage floors.
-- clippy `-D warnings`, ESLint `--max-warnings 0`, rustfmt, and Prettier pass with no
-  suppression. Silencing a check (`#[allow]`, `#[expect]`, `eslint-disable`), lowering a
+- clippy `-D warnings` and rustfmt pass with no suppression. Silencing a check
+  (`#[allow]`, `#[expect]`), lowering a
   floor, excluding a file from coverage, or `#[ignore]` on a failing test needs a
   maintainer's sign-off.
 - No `unwrap` or `expect` outside tests, and no `unsafe`.

@@ -1,4 +1,4 @@
-# Task runner. Every recipe is a thin call into cargo (`cargo xtask` included), pnpm, or scripts/.
+# Task runner. Every recipe is a thin call into cargo (`cargo xtask` included) or a pinned tool.
 # `just --list` shows them all.
 #
 # Never taking over the developer's Mac: recipes a human starts on purpose (test-local,
@@ -42,7 +42,6 @@ install:
         exit 1
     fi
     mise install
-    pnpm install --frozen-lockfile
     lefthook install
     cargo xtask verify-hooks
 
@@ -50,24 +49,18 @@ install:
 verify-hooks:
     cargo xtask verify-hooks
 
-# Format every Rust and TypeScript file
+# Format every Rust file
 fmt:
     cargo fmt --all
-    pnpm format
 
-# Apply every automatic fix (formatters and lint autofixes)
+# Apply every automatic fix (rustfmt's; clippy's findings are fixed by hand)
 fix:
     cargo fmt --all
-    pnpm exec eslint . --fix
-    pnpm format
 
-# Check formatting, lints, and types in both languages
+# Check formatting and lints
 lint:
     cargo fmt --all --check
     cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
-    pnpm typecheck
-    pnpm lint
-    pnpm format:check
 
 # Every test that runs anywhere: the Rust core and the xtask crate, each with its coverage floors
 test: test-core test-xtask
@@ -130,10 +123,10 @@ clean:
 prune-temp *args:
     cargo xtask prune-temp {{ args }}
 
-# Repository script tests with the scripts/** coverage floors (85/90), plus shipping-issues' bundled Python suite and shellcheck
+# The skills' bundled scripts: shipping-issues' and merging-dependency-prs' Python suites (no floor), and shellcheck
 test-scripts:
-    pnpm test:scripts
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agents/skills/shipping-issues/scripts/tests -t .agents/skills/shipping-issues/scripts/tests -p 'test_*.py'
+    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agents/skills/merging-dependency-prs/scripts/tests -t .agents/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
     shellcheck .agents/skills/shipping-issues/scripts/*.sh
 
 # Regenerate .claude/skills/ as a byte-for-byte copy of .agents/skills/

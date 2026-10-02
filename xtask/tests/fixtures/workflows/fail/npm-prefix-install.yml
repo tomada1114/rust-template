@@ -1,0 +1,8 @@
+# `npm --prefix ui install`: a global option between npm and install.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
+  just-check-matches-ci: []
+edits:
+  - file: .github/actions/setup/action.yml
+    from: "run: cargo fetch --locked\n"
+    to: "run: npm --prefix ui install\n"

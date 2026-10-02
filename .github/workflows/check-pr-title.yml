@@ -30,7 +30,7 @@ jobs:
           ignoreLabels: |
             dependencies
           # The action's default types plus `deps`. Every prefix a bot uses must appear
-          # here: dependabot.yml uses `deps:` (cargo, npm) and `ci:` (github-actions);
+          # here: dependabot.yml uses `deps:` (cargo) and `ci:` (github-actions);
           # renovate.json uses `deps:` (a harness check keeps them agreeing).
           types: |
             feat

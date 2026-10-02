@@ -174,6 +174,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The Node toolchain: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
+  `eslint.config.mjs`, every `tsconfig*.json`, `vitest.config.ts`, `.prettierrc.json`,
+  `.prettierignore`, the rest of `scripts/`, the `writing-typescript` skill, and
+  `.claude/rules/typescript.md`. `mise.toml` no longer pins Node or pnpm, `just install`
+  no longer runs `pnpm install`, and `just fmt`, `just fix`, and `just lint` cover Rust
+  only. The pre-commit hook loses its Prettier and ESLint jobs; Prettier's check over
+  JSON, YAML, and Markdown is dropped rather than replaced, so no gate formats those
+  files, and `cargo xtask format-edited-file` formats `.rs` files only. CodeQL analyzes
+  `rust` and `actions`; npm leaves Dependabot, Renovate, OSV-Scanner, Dependency
+  Review's configuration, and the cooldown agreement check. `merging-dependency-prs`'
+  survey is now `survey_prs.py`, a Python script whose tests `just test-scripts` runs
+  beside `shipping-issues`', with no coverage floor; the Vitest floors went with the
+  TypeScript they measured.
 - The GUI stack, as the template pivots to Rust command-line tools: the Tauri shell
   (`src-tauri/`, with its `tauri.conf.json`, capabilities, `Entitlements.plist`, and
   signing settings), the React screen and design system (`ui/`, `docs/design/`), the

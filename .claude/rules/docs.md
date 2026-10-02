@@ -28,5 +28,5 @@ paths:
 - Keep README's Design Philosophy in sync when a documented decision changes
 - User-facing changes get a CHANGELOG entry under `[Unreleased]` in the same PR
   (Keep a Changelog)
-- Wrap prose at about 90 columns; Prettier does not format Markdown here
-  (`.prettierignore`), and `typos` spell-checks it
+- Wrap prose at about 90 columns; no formatter touches Markdown here, and `typos`
+  spell-checks it

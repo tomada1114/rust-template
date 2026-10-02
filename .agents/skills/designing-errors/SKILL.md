@@ -7,10 +7,10 @@ description: >
   ui/src/ipc/errors.ts, what an error payload or a tracing field may carry, how an
   adapter in myapp-platform maps std::io::Error or an OS failure into a core kind,
   Option versus Err, no panic across a command (panic = "abort" in release), anyhow,
-  and the ERR_<STAGE>_<WHAT> codes of scripts/. Use when adding or changing an error
-  enum or variant, a Result-returning function or port, a From impl, a match on an
-  error, the wording for an error code, a ScriptError code, or when renaming a variant
-  changes the JSON the UI receives.
+  and the ERR_<STAGE>_<WHAT> codes of cargo xtask tasks and skills' scripts. Use when
+  adding or changing an error enum or variant, a Result-returning function or port, a
+  From impl, a match on an error, the wording for an error code, a ScriptError code, or
+  when renaming a variant changes the JSON the UI receives.
 ---
 
 # Designing Errors
@@ -80,14 +80,11 @@ what a command rejects with.
 
 - Rust never sends a user-facing sentence. The UI owns the wording in `ui/src/copy/`,
   one exhaustive `switch` per error type (`describeCounterError` in the sample).
-  ESLint's `switch-exhaustiveness-check` fails `just lint` when a code has no case, so
-  a new variant cannot ship without its sentence.
 - A rejection is narrowed before it is read. `ui/src/ipc/errors.ts` holds one guard per
   error type, checking the code and the fields that code carries (`isCounterError` in
   the sample: `{ code: "storage" }` without a known `kind` is rejected). The codes and
-  kinds are a table keyed by the generated union, `satisfies Record<<Error>["code"], …>`,
-  so `tsc` fails in `errors.ts` both for a code Rust does not send and for one it sends
-  that the guard does not check yet; `errors.test.ts` gets a case for each.
+  kinds are a table keyed by the generated union, `satisfies Record<<Error>["code"], …>`;
+  `errors.test.ts` gets a case for each code.
 - A rejection that is not a known code (the bridge itself failed) becomes
   `"unexpected"` in the hook, and is logged through `ui/src/ipc/log.ts` with its type
   (`errorType`: `TypeError`, `string`), never its message; the screen shows a generic
@@ -164,15 +161,16 @@ stderr sentence, matched without a wildcard arm and tested per variant). Adding 
 new dependency (`managing-dependencies`), and it stays out of core, platform, and the
 shell.
 
-## Codes in `xtask/` and `scripts/`
+## Codes in `xtask/` and skills' scripts
 
-A repository task or script fails with a `ScriptError` (`xtask/src/fail.rs` for a
-`cargo xtask` task, `scripts/lib/fail.ts` for a script not yet ported) whose `code` is
-`ERR_<STAGE>_<WHAT>`: the stage is the script (`ERR_SMOKE_*`, `ERR_AGENTS_*`,
-`ERR_RELEASE_*`), so the code alone says which task or script to read, and the rest
-names the failure, not the function (`ERR_SMOKE_CODESIGN`, not
-`ERR_SMOKE_VERIFY_FAILED`). Reuse the existing stage before inventing one. A test asserts
-`details.code` (in Rust, `error.details.code`), never the summary. An error a task did
+A repository task or a skill's script fails with a `ScriptError` (`xtask/src/fail.rs`
+for a `cargo xtask` task; the script's own class for a skill's Python script, as in
+`merging-dependency-prs`' `survey_prs.py`) whose `code` is `ERR_<STAGE>_<WHAT>`: the
+stage is the task or script (`ERR_HOOKS_*`, `ERR_AGENTS_*`, `ERR_SURVEY_*`), so the code
+alone says which one to read, and the rest names the failure, not the function
+(`ERR_HOOKS_NOT_INSTALLED`, not `ERR_HOOKS_CHECK_FAILED`). Reuse the existing stage
+before inventing one. A test asserts the code (`outcome.code()` or
+`error.details.code` in a task, `error.code` in Python), never the summary. An error a task did
 not expect (an I/O failure, say) is `ScriptError::unexpected`, reported as
 `ERR_INTERNAL_UNEXPECTED`. The report's shape and exit codes are
 `writing-repo-scripts`'.
@@ -186,9 +184,8 @@ the old wire name with `#[serde(rename = "…")]` when only the Rust name should
 Adding, renaming, or removing a code touches, in one pull request:
 
 1. the enum in core;
-2. the guard's code table in `ui/src/ipc/errors.ts` (`tsc` fails there until it has the
-   code) and its test;
-3. the sentence in `ui/src/copy/` (`just lint` fails until the `switch` covers it);
+2. the guard's code table in `ui/src/ipc/errors.ts` and its test;
+3. the sentence in `ui/src/copy/`;
 4. the literal-JSON test in `crates/myapp-core/tests/serialization.rs`, and the command
    test that rejects with it (`src-tauri/tests/commands.rs`);
 5. one line in the pull request naming the old code, the new one, and what the UI now

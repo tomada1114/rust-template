@@ -64,18 +64,6 @@ for (value, expected) in [(-5, 0), (2, 2), (40, 3)] {
 
 `src-tauri/tests/commands.rs` does the same with `for level in ["warn", "error"]`.
 
-## A table of cases (TypeScript)
-
-`it.each` with a `%s`, `%j`, or `%p` placeholder in the title, so each case is labelled
-in the report. In the repository, `scripts/typescript-gates.test.ts` refuses `console`
-reached through each global object:
-
-```ts
-it.each(["window", "globalThis", "self"])("refuses %s.console", async (object) => {
-  …
-});
-```
-
 ## The contract suite (Rust)
 
 One function per port in `crates/myapp-test-support/`, called once per implementation.

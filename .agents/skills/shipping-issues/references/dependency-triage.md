@@ -125,7 +125,7 @@ Two issues may share a batch only when **all** of these hold:
   grepping for the symbols and paths each issue body names -- a two-minute
   check that prevents a conflict pileup nobody wants to unpick later.
 - Neither changes shared infrastructure -- `Cargo.toml` and `Cargo.lock`,
-  `package.json` and `pnpm-lock.yaml`, `mise.toml`, `rust-toolchain.toml`, the
+  `mise.toml`, `rust-toolchain.toml`, the
   `justfile`, CI config, `ui/src/ipc/generated/`, a persisted file format.
   Anything touching those is serialized, always, even when the code paths are
   disjoint. An append-only list is not shared infrastructure: every user-facing

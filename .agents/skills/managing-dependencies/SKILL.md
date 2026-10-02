@@ -1,34 +1,33 @@
 ---
 name: managing-dependencies
 description: >
-  Covers whether a crate or an npm package may be added to this repository and how it
-  is declared: the review record its pull request carries, [workspace.dependencies] as
-  the one place a crate version is written, default features off for a new crate
-  unless needed, and only the features used, which crate may depend on what
-  (myapp-core stays platform-neutral), cargo deny licences, bans, and sources,
-  pnpm-workspace.yaml's minimumReleaseAge, strictDepBuilds and allowBuilds, and trust
-  settings, the typescript ceiling, and a Tauri plugin counting as a dependency and a
+  Covers whether a crate may be added to this repository and how it is declared: the
+  review record its pull request carries, [workspace.dependencies] as the one place a
+  crate version is written, default features off for a new crate unless needed, and
+  only the features used, which crate may depend on what (myapp-core stays
+  platform-neutral), cargo deny licences, bans, and sources, the 7-day cooldown applied
+  by eye to a crate added by hand, and a Tauri plugin counting as a dependency and a
   capability. Use when adding, bumping, or removing a dependency by hand, editing
-  Cargo.toml's dependencies or package.json, enabling a crate feature such as tauri's
-  tray-icon, an install or cargo deny fails on a licence, a peer range, a build script,
-  or the cooldown, or someone proposes raising typescript or tauri to a new major.
+  Cargo.toml's dependencies, enabling a crate feature such as tauri's tray-icon, cargo
+  deny fails on a licence, a ban, a source, or an advisory, or someone proposes raising
+  tauri to a new major.
 ---
 
 # Managing Dependencies
 
-**Owns:** whether a crate or npm package may exist in this repository, how it is
-declared, and what happens at build and install time. **Does not own:** landing a
+**Owns:** whether a crate may exist in this repository, how it is declared, and what
+happens at build time. **Does not own:** landing a
 Dependabot or Renovate pull request (`merging-dependency-prs`); the ADR the dependency
-owes (`recording-architecture-decisions`); editing `deny.toml`, `osv-scanner.toml`, or
-`pnpm-workspace.yaml` as gates (`changing-gates`); tool pins in `mise.toml` and
+owes (`recording-architecture-decisions`); editing `deny.toml` or `osv-scanner.toml` as
+gates (`changing-gates`); tool pins in `mise.toml` and
 `rust-toolchain.toml` (`.claude/rules/project.md` › Tool Pinning).
 
 ## A dependency is a sign-off change
 
-A new crate or npm package, runtime or dev, direct or a Tauri plugin, needs a written
+A new crate, runtime or dev, direct or a Tauri plugin, needs a written
 reason and a human's sign-off before it is added (`AGENTS.md` › "Security and human
 approval"), and it owes an ADR. So an agent writes the review record below, proposes
-the change, and stops; it runs `cargo` or `pnpm add` only once the owner has agreed.
+the change, and stops; it runs `cargo` only once the owner has agreed.
 A declined request ends the change there. Enabling a new feature of an existing crate
 is the same kind of change when the feature brings in new crates: `cargo tree` shows
 whether it does.
@@ -46,20 +45,17 @@ yet, not that a detail is left for later.
 - **Licence.** In the allow-list `deny.toml`'s `[licenses]` and
   `.github/workflows/dependency-review.yml`'s `allow-licenses` enforce. A per-crate
   exception goes into both files, with its reason (`changing-gates`).
-- **Weight.** What it adds: `cargo tree -p <member> -e normal` before and after, or
-  `pnpm why <package>`. Declare a new crate with `default-features = false` and list
+- **Weight.** What it adds: `cargo tree -p <member> -e normal` before and after. Declare a new crate with `default-features = false` and list
   only the features used, unless a default feature is needed. The review record says
   which defaults stay on and why. Default features are how a small crate brings in a
   TLS stack or an async runtime nobody asked for; `cargo tree -e features` shows what is
   on. This judges a new declaration. It is not a retrofit: `tauri` and the existing
   entries in `[workspace.dependencies]` keep their defaults.
 - **Build-time code.** A crate's `build.rs` or a proc-macro runs on the developer's Mac
-  at every build, with their permissions; an npm lifecycle script runs at install. Read
-  what it does. A new `allowBuilds` entry in `pnpm-workspace.yaml` needs the owner's
-  explicit approval (it ships as `{}`: no package may run one today).
+  at every build, with their permissions. Read what it does.
 - **Advisories.** `just deny` and OSV-Scanner report nothing against the version being
   added.
-- **Where it goes.** Which crate or which `package.json` section, and why (below).
+- **Where it goes.** Which crate, and why (below).
 - **Its `rust-version`.** A crate needing a newer Rust than the workspace's
   `rust-version` narrows what the app can build with. `resolver = "3"` prefers releases
   whose `rust-version` fits, falling back when none does
@@ -98,35 +94,6 @@ yet, not that a detail is left for later.
   matching release is younger than 7 days, hold an older one with
   `cargo update -p <crate> --precise <version>`, as the bot would.
 
-## Declaring an npm package
-
-- `dependencies` are bundled into the UI that ships; `devDependencies` are tools and
-  tests. The pnpm project publishes nothing, so it declares no `peerDependencies`.
-- Add or bump with `pnpm add <package>` (or `pnpm add -D`), never by typing a version into
-  `package.json`, and commit `pnpm-lock.yaml` with it; the lockfile is regenerated
-  (`pnpm install --lockfile-only` when only it should change), never hand-edited. A caret
-  or tilde range lets the cooldown resolve to an older, already-cooled release; an exact
-  pin on a release younger than the cooldown fails the install outright.
-- `pnpm-workspace.yaml` holds the supply-chain settings: `minimumReleaseAge` (a version
-  younger than 7 days does not resolve, lockfiled or not), `trustPolicy: no-downgrade`,
-  `blockExoticSubdeps`, `strictPeerDependencies`, `strictDepBuilds` with `allowBuilds`,
-  and `verifyDepsBeforeRun: error`. Each failing install is the setting working: find
-  out why, and never relax one to get past it (`changing-gates`).
-- An urgent security fix younger than the cooldown may get one exact
-  `package@version` entry in `minimumReleaseAgeExclude`, approved by a human, in a pull
-  request that cites the advisory, says why waiting is riskier, and says when the entry
-  comes out. Never a wildcard or an unversioned name. `trustPolicyExclude` takes the same
-  shape: one exact `package@version`, its reason in a comment, and a human's approval.
-- A peer or resolution failure is not answered with `peerDependencyRules` or
-  `overrides` to quiet it. If one is genuinely needed, name the single `parent>child`
-  edge, say why the package works against the version it did not declare, and say what
-  lets the entry be dropped; it is a sign-off change like a new dependency.
-- TypeScript is held below the version `typescript-eslint` supports, and
-  `strictPeerDependencies` makes a bump past it fail the install. Read the real ceiling
-  before proposing a TypeScript change:
-  `node -p "require('typescript-eslint/package.json').peerDependencies.typescript"`.
-  Raising it is a coordinated upgrade, never a routine bump.
-
 ## Tauri moves as one
 
 The `tauri` crates and the `@tauri-apps/*` npm packages stay on the same minor (a harness
@@ -150,8 +117,8 @@ the crates it adds.
 ## Removing one
 
 `mise exec -- cargo shear` reports a crate no member uses (CI runs it); remove it from
-the member and, if nothing else uses it, from `[workspace.dependencies]`. `pnpm remove
-<package>` for npm. Removing is routine and needs no sign-off.
+the member and, if nothing else uses it, from `[workspace.dependencies]`. Removing is
+routine and needs no sign-off.
 
 ## Verifying the change
 
@@ -160,7 +127,7 @@ just deny                   # advisories, licences, bans, sources
 mise exec -- cargo shear    # no unused crate
 just lint
 just test
-just check                  # the macOS build and the launch smoke, for a crate the shell uses
+just check                  # the whole local gate, test-platform included
 ```
 
 CI adds Dependency Review and OSV-Scanner on the pull request. **REQUIRED:**

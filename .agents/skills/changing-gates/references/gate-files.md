@@ -62,8 +62,8 @@ does not pin. Changing an option reformats the whole tree: land the option and t
   macOS-only app never builds; the target selects the shipped graph and ignores nothing
   inside it.
 - `[licenses] allow` and `.github/workflows/dependency-review.yml`'s `allow-licenses`
-  hold the same permissive list (the workflow adds `BSD-2-Clause` and `ISC`, which npm
-  packages use). A per-crate exception (`exceptions`, `allow-dependencies-licenses`)
+  hold the same permissive list (the workflow's also holds permissive licences no
+  crate uses yet, which `cargo deny` would warn about as unused). A per-crate exception (`exceptions`, `allow-dependencies-licenses`)
   goes into both files with its reason.
 - `[bans] deny` with `wrappers` says which crate may depend on `tauri` and on
   `myapp-platform` directly. It changes together with `AGENTS.md`'s boundary list and
@@ -76,38 +76,28 @@ does not pin. Changing an option reformats the whole tree: land the option and t
   most 90 days out, and a tracking issue. An OSV ignore for a crate absent from
   `cargo tree --target aarch64-apple-darwin` needs only the reason and the expiry.
 
-## `rust-toolchain.toml`, `mise.toml`, and `package.json`'s `packageManager`
+## `rust-toolchain.toml` and `mise.toml`
 
-Each tool is pinned exactly once — Rust in `rust-toolchain.toml` (rustup reads it;
-`mise.toml` lists no `rust` tool), Node and every CLI tool in `mise.toml` — except pnpm,
-pinned in `mise.toml` (`aqua:pnpm/pnpm`, which installs it) and in `packageManager`
-(which pnpm reads) at one version, which Renovate's `pnpm` group keeps by moving both in
-one pull request; no check compares them, so a hand edit changes both. Never `latest`,
-never a range, and prefer the prebuilt-binary backends over `cargo:`, which compiles
-from source. Renovate opens the bumps for the first two after its 7-day minimum release
-age; its `enabledManagers` in `.github/renovate.json` are `mise`, `rust-toolchain`, and
-`npm` limited by `packageRules` to the `packageManager` field, with both pnpm pins in
-one `pnpm` group; every other `package.json` dependency is Dependabot's `npm` ecosystem
-(`.github/dependabot.yml`).
-`package.json`'s `@types/node` stays on the major of `mise.toml`'s `node`, so the
-scripts type-check against the Node that runs them. No check compares the two majors
-(the harness reads no Node-only pin since it moved to `cargo xtask check-harness`), so a
-Node major moves both in one change, by hand.
+Each tool is pinned exactly once: Rust in `rust-toolchain.toml` (rustup reads it;
+`mise.toml` lists no `rust` tool), every CLI tool in `mise.toml`. Never `latest`, never
+a range, and prefer the prebuilt-binary backends over `cargo:`, which compiles from
+source. Renovate opens the bumps for both after its 7-day minimum release age; its
+`enabledManagers` in `.github/renovate.json` are `mise` and `rust-toolchain`, and every
+crate and action is Dependabot's (`.github/dependabot.yml`).
 
-A bump of Rust, clippy, ESLint, typescript-eslint, or TypeScript can fire a finding
-the old version did not. The fix goes into the code on that pull request; skipping the
-bump or suppressing the finding is weakening a gate. A tool added to `mise.toml` that a
-CI job needs is added to that job's `jdx/mise-action` `install_args` too: CI installs
-only what each job names.
+A bump of Rust or clippy can fire a finding the old version did not. The fix goes into
+the code on that pull request; skipping the bump or suppressing the finding is
+weakening a gate. A tool added to `mise.toml` that a CI job needs is added to that job's
+`jdx/mise-action` `install_args` too: CI installs only what each job names.
 
 ## `lefthook.yml`
 
-- `skip: [merge, rebase]` sits on the four style jobs only, never on the hook: the
+- `skip: [merge, rebase]` sits on the two style jobs only, never on the hook: the
   commit that concludes a conflicted merge carries a resolution no hook has seen, so the
   staged guard and the skills mirror run for it, while the style jobs, which CI reruns
   over the whole tree, skip re-linting everything the other side changed. A `reword` or
   a `git commit --amend` at an `edit` stop runs the guard and the mirror too, over what
-  is staged against HEAD at that stop. `scripts/lefthook.test.ts` drives a real
+  is staged against HEAD at that stop. `xtask/tests/lefthook.rs` drives a real
   conflicted merge and a conflicted rebase stop through the real lefthook.
 - `parallel: true`: every job is check-only, so none depends on another's output. A
   job that wrote files would break that and would need ordering; that is one more
@@ -121,69 +111,12 @@ only what each job names.
 - The hook's xtask jobs run `cargo xtask`, which builds the xtask crate from the working
   tree: a commit made while `xtask/` does not compile is refused until it does.
 
-## `eslint.config.mjs`
+## `typos.toml`
 
-- The IPC boundary keeps `@tauri-apps/*` and `ui/src/ipc/generated/` inside
-  `ui/src/ipc/`, `ui/src/ipc/testing.ts` inside tests and `ui/src/test/`, and, inside
-  `ui/src/ipc/`, `@tauri-apps/api/mocks` inside `testing.ts` and tests. Each
-  boundary object feeds two rules through `importBoundaries()`: `no-restricted-imports`
-  (import and export declarations) and `no-restricted-syntax` (a dynamic `import()`,
-  which that rule never sees; a computed `import()` specifier is refused outright).
-  The `ui/react`, `ui/ipc-boundary`, `ui/ipc-testing`, `ui/tests`, and `ui/ipc-tests`
-  blocks each pass
-  their full set. A later config object that gives a rule options **replaces** the
-  earlier options rather than merging them
-  (https://eslint.org/docs/latest/use/configure/rules, checked 2026-09-29), so a new
-  block that sets either rule for other files silently drops every boundary there
-  unless it calls `importBoundaries()` with the full set.
-- `no-console` is an error except in `ui/src/ipc/log.ts` and `scripts/`, and
-  `no-restricted-properties` refuses `window.console`, `globalThis.console`, and
-  `self.console` wherever `no-console` applies.
-- `switch-exhaustiveness-check` sets `considerDefaultExhaustiveForUnions` and
-  `allowDefaultCaseForExhaustiveSwitch` to `false`: a `switch` over a union names every
-  member and has no `default`.
-- `scripts/typescript-gates.test.ts` probes each of these, and `erasableSyntaxOnly` in
-  `tsconfig.json` and `ui/tsconfig.json`, against the real configs (`just test-scripts`).
-- `linterOptions.reportUnusedDisableDirectives: "error"` makes a stale disable comment
-  fail.
-- `eslintConfigPrettier` stays the last element; anywhere else it stops turning off the
-  stylistic rules that would fight Prettier, and the two tools disagree about one file.
-- A new block gets a `name`: that is how a reader and ESLint's config inspector find it.
-
-## `tsconfig.json`, `ui/tsconfig.json`, `scripts/tsconfig.json`
-
-Three configs, one per tree: the root config files, the UI Vite bundles, and the scripts
-Node runs by type stripping. `pnpm typecheck` (inside `just lint`) checks all three.
-`scripts/tsconfig.json`'s `erasableSyntaxOnly` is load-bearing: Node strips types without
-transforming code, so `enum`, `namespace`, and parameter properties would fail at run
-time, not at type-check time. `ui/tsconfig.json` and the root `tsconfig.json` set it too,
-so `ui/src/` and the root config files keep the same language. Removing a strict option
-(`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) weakens checking
-for every file in that tree.
-
-## `vitest.config.ts`
-
-- `thresholds` are per glob (`ui/src/**` 80/80, `scripts/**` 85/90,
-  `.agents/skills/*/scripts/**` 85/90) so one tree cannot subsidise another. The staged
-  guard's rules left this file with the port to Rust: their floor (lines 90, functions
-  100) is the `test-xtask` recipe's.
-- `coverage.include` counts every source file, tested or not, so a new untested file
-  shows as 0% rather than disappearing. Each `exclude` entry that takes source code out
-  carries a reason; a new one is weakening unless the file holds nothing to decide
-  (generated code, an entry point).
-- `allowOnly: false` fails a focused test; the mock-restoring options keep a stub from
-  outliving its test.
-- A project inherits those shared options from the root config: `extends: true` is the
-  default since Vitest 5.0 (https://vitest.dev/guide/projects, checked 2026-09-29), and
-  the config writes it anyway so the inheritance is visible. A project with
-  `extends: false` drops them silently.
-
-## `.prettierrc.json`, `.prettierignore`, `typos.toml`
-
-A formatting option reformats the tree (land it with `just fmt`). An ignore entry takes
-a path out of the gate for good; the lists exclude build output, lockfiles, fixtures,
-and the generated `.claude/skills/` mirror, and `just check-harness` keeps them agreeing
-on that mirror.
+An ignore entry takes a path out of the gate for good; the list excludes build output,
+the lockfile, and the generated `.claude/skills/` mirror, and `just check-harness` fails
+unless it excludes that mirror and not `.agents/skills/`. A real technical term goes
+in `[default.extend-words]` with the reason it is spelled that way.
 
 ## `tauri.conf.json`, `src-tauri/capabilities/`, `src-tauri/Entitlements.plist`
 
@@ -218,9 +151,9 @@ What every workflow follows, checked by `actionlint`, `zizmor`, and `just check-
   which is the only CI record a merged commit gets;
 - no `pull_request_target` (it runs fork code with a writable token);
 - a fail-closed shell (`defaults.run.shell` with `-euo pipefail`), so a failure before
-  a `|` or an unset variable stops the step instead of passing it, and `--locked` /
-  `--frozen-lockfile` on every cargo and pnpm install, so a lockfile drift fails
-  instead of resolving silently;
+  a `|` or an unset variable stops the step instead of passing it, and `--locked` on
+  every cargo command that resolves the lockfile, so a lockfile drift fails instead of
+  resolving silently;
 - no Rust build cache on the release path, where a poisoned cache would reach a shipped
   binary.
 

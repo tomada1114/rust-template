@@ -15,10 +15,9 @@
 //!   `verify_bootstrap.rs`) and every mention of them, and the skill reference that only
 //!   describes this task, and rewrites the passages outside those blocks that describe the
 //!   template ([`text_edits`]);
-//! - resets CHANGELOG.md to an empty [Unreleased] and the two version sites to 0.1.0,
-//!   writes the author into package.json and the copyright line into LICENSE;
-//! - formats what it rewrote (`cargo fmt --all`, and Prettier while the tree has a
-//!   `package.json`), and prints the next steps.
+//! - resets CHANGELOG.md to an empty [Unreleased] and Cargo.toml's version to 0.1.0, and
+//!   writes the copyright line into LICENSE (the holder defaults to the author);
+//! - formats the renamed crates (`cargo fmt --all`), and prints the next steps.
 //!
 //! ```text
 //! cargo xtask bootstrap [--name N] [--slug S] [--bundle-id ID] [--repo OWNER/REPO]
@@ -38,14 +37,14 @@
 //! `ERR_BOOTSTRAP_INVALID_NAME`, `ERR_BOOTSTRAP_INVALID_SLUG`,
 //! `ERR_BOOTSTRAP_INVALID_BUNDLE_ID`, `ERR_BOOTSTRAP_INVALID_REPO`,
 //! `ERR_BOOTSTRAP_INVALID_AUTHOR`, `ERR_BOOTSTRAP_INVALID_COPYRIGHT`,
-//! `ERR_BOOTSTRAP_ABORTED`, `ERR_BOOTSTRAP_NO_DEPS`, `ERR_BOOTSTRAP_NOT_TEMPLATE`,
+//! `ERR_BOOTSTRAP_ABORTED`, `ERR_BOOTSTRAP_NOT_TEMPLATE`,
 //! `ERR_BOOTSTRAP_DIRTY`, `ERR_BOOTSTRAP_SITE_MISSING`, `ERR_BOOTSTRAP_SITE_INCOMPLETE`,
 //! `ERR_BOOTSTRAP_MARKER`, `ERR_BOOTSTRAP_REWRITE`, `ERR_BOOTSTRAP_FETCH`,
 //! `ERR_BOOTSTRAP_LOCKFILE`, `ERR_BOOTSTRAP_FORMAT`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufRead, IsTerminal, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
@@ -370,7 +369,7 @@ const SKILL_SITES: [(&str, &[Form]); 28] = [
 /// Every placeholder site outside the skills. Keep this list explicit: a new file that
 /// names the app is added here, and `just verify-bootstrap` (which CI's Template
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
-const REPOSITORY_SITES: [(&str, &[Form]); 50] = [
+const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
     (".claude/rules/project.md", &[Slug]),
     (".claude/rules/rust.md", &[SlugSnake, Slug]),
     (".claude/rules/testing.md", &[Slug]),
@@ -433,7 +432,6 @@ const REPOSITORY_SITES: [(&str, &[Form]); 50] = [
     ),
     ("docs/getting-started.md", &[BundleId, Slug]),
     ("justfile", &[BundleId, Slug]),
-    ("package.json", &[Name, Slug]),
     (
         "xtask/src/check_harness/bundle_identifier.rs",
         &[BundleId, Slug],
@@ -841,9 +839,7 @@ verify-bootstrap *args:
     cargo xtask verify-bootstrap {{ args }}
 ";
 const CARGO_VERSION: &str = r#"(?ms)^(\[workspace\.package\][^\[]*?^version\s*=\s*")([^"]*)(")"#;
-const JSON_VERSION: &str = r#"("version"\s*:\s*")[^"]*(")"#;
 const LICENSE_LINE: &str = r"(?m)^Copyright \(c\) \d{4} tomada1114$";
-const PACKAGE_AUTHOR: &str = "\"author\": \"tomada1114\"";
 const START_MARKER: &str = "<!-- template-only -->";
 const END_MARKER: &str = "<!-- /template-only -->";
 const FIRST_VERSION: &str = "0.1.0";
@@ -1581,41 +1577,6 @@ fn reset_cargo_version(text: &str) -> Result<String, ScriptError> {
     Ok(result)
 }
 
-fn reset_json_version(file: &str, text: &str) -> Result<String, ScriptError> {
-    let pattern = compile(JSON_VERSION)?;
-    if !pattern.is_match(text) {
-        return Err(site_missing(file, "no \"version\" field"));
-    }
-    let result = pattern
-        .replace(text, format!("${{1}}{FIRST_VERSION}${{2}}"))
-        .into_owned();
-    let parsed = serde_json::from_str::<serde_json::Value>(&result)
-        .map_err(|error| rewrite_failed(file, error.to_string()))?;
-    if parsed.get("version").and_then(serde_json::Value::as_str) != Some(FIRST_VERSION) {
-        return Err(rewrite_failed(
-            file,
-            "its top-level version is not 0.1.0 after the edit",
-        ));
-    }
-    Ok(result)
-}
-
-fn edit_package_json(text: &str, answers: &Answers) -> Result<String, ScriptError> {
-    let text = reset_json_version("package.json", text)?;
-    let count = text.matches(PACKAGE_AUTHOR).count();
-    if count != 1 {
-        return Err(site_missing(
-            "package.json",
-            format!("{count} occurrence(s) of the template's \"author\" field"),
-        ));
-    }
-    Ok(text.replacen(
-        PACKAGE_AUTHOR,
-        &format!("\"author\": {}", quoted(&answers.author)),
-        1,
-    ))
-}
-
 fn edit_license(text: &str, answers: &Answers, year: i64) -> Result<String, ScriptError> {
     replace_once(
         "LICENSE",
@@ -1657,7 +1618,6 @@ fn structured_edit(
     match file {
         "CHANGELOG.md" => reset_changelog(text),
         "Cargo.toml" => reset_cargo_version(text),
-        "package.json" => edit_package_json(text, answers),
         "LICENSE" => edit_license(text, answers, year),
         CI_FILE => remove_ci_job(text),
         RULESET_FILE => remove_ruleset_context(text),
@@ -1665,10 +1625,9 @@ fn structured_edit(
     }
 }
 
-const STRUCTURED_FILES: [&str; 7] = [
+const STRUCTURED_FILES: [&str; 6] = [
     "CHANGELOG.md",
     "Cargo.toml",
-    "package.json",
     "LICENSE",
     CI_FILE,
     RULESET_FILE,
@@ -1796,26 +1755,6 @@ fn assert_template(root: &Path) -> Result<(), ScriptError> {
         actual,
         "the bootstrap runs once, on a fresh clone of a repository created from the template; it has nothing to do here",
     ))
-}
-
-/// Prettier, from `just install`, while the tree still has a Node toolchain.
-fn prettier(root: &Path) -> Option<PathBuf> {
-    root.join("package.json")
-        .is_file()
-        .then(|| root.join("node_modules").join(".bin").join("prettier"))
-}
-
-fn assert_deps(root: &Path) -> Result<(), ScriptError> {
-    match prettier(root) {
-        Some(bin) if !bin.exists() => Err(ScriptError::new(
-            "ERR_BOOTSTRAP_NO_DEPS",
-            "Prettier is not installed, so the rewritten files could not be formatted; nothing was written",
-            format!("Prettier at {}", bin.display()),
-            "no such file",
-            "run `just install`, then the bootstrap again",
-        )),
-        _ => Ok(()),
-    }
 }
 
 fn git(context: &Context<'_>, args: &[&str]) -> RunResult {
@@ -2001,8 +1940,8 @@ const NEXT_STEPS: [&str; 21] = [
     "The bootstrap and its verifier removed themselves from xtask.",
     "",
     "Next steps:",
-    "  1. just install (the rename changed package.json's name), review the rewrite",
-    "     (`git status`, `git diff`), and commit it as one commit before editing anything.",
+    "  1. Review the rewrite (`git status`, `git diff`), and commit it as one commit before",
+    "     editing anything.",
     "  2. Fill in AGENTS.md's `## Product` section — what the app is and who it is for, the core",
     "     interaction, the non-goals — and delete every `TODO:` there. `just check-harness`",
     "     (and so `just check`) fails until you do.",
@@ -2025,7 +1964,6 @@ const NEXT_STEPS: [&str; 21] = [
 fn run_bootstrap(context: &Context<'_>, answers: &Answers, year: i64) -> TaskResult {
     let root = context.root.as_path();
     assert_template(root)?;
-    assert_deps(root)?;
     assert_slug_free(root, &answers.slug)?;
     let writes = plan(root, answers, year)?;
     assert_clean(context)?;
@@ -2054,7 +1992,7 @@ fn run_bootstrap(context: &Context<'_>, answers: &Answers, year: i64) -> TaskRes
         CRATE_DIRS.len()
     ));
 
-    format(context, &writes, &answers.slug)?;
+    format(context)?;
 
     for path in REMOVED_PATHS {
         remove_path(&root.join(path))?;
@@ -2072,8 +2010,8 @@ fn run_bootstrap(context: &Context<'_>, answers: &Answers, year: i64) -> TaskRes
     Ok(())
 }
 
-/// Update Cargo.lock for the renamed crates and format what the bootstrap rewrote.
-fn format(context: &Context<'_>, writes: &Plan, slug: &str) -> TaskResult {
+/// Update Cargo.lock for the renamed crates and format them.
+fn format(context: &Context<'_>) -> TaskResult {
     let partial = "the clone is half-rewritten: `git status` shows what changed; discard it and bootstrap a fresh clone after fixing the cause";
     run_step(
         context,
@@ -2090,26 +2028,6 @@ fn format(context: &Context<'_>, writes: &Plan, slug: &str) -> TaskResult {
         "ERR_BOOTSTRAP_FORMAT",
         "rustfmt failed on the renamed crates",
         partial,
-    )?;
-    let Some(bin) = prettier(&context.root) else {
-        return Ok(());
-    };
-    let formattable: Vec<String> = writes
-        .keys()
-        .filter(|file| !has_suffix(file, ".md") && !has_suffix(file, ".rs"))
-        .map(|file| renamed_crate(file, slug))
-        .collect();
-    let mut args = vec!["--write", "--ignore-unknown"];
-    args.extend(formattable.iter().map(String::as_str));
-    // Prettier's own bin, not `pnpm exec`: pnpm refuses to run anything once the rename
-    // has changed package.json's name, until the next `pnpm install`.
-    run_step(
-        context,
-        &bin.display().to_string(),
-        &args,
-        "ERR_BOOTSTRAP_FORMAT",
-        "Prettier failed on the rewritten files",
-        &format!("{partial} (Prettier comes from `just install`)"),
     )
 }
 
@@ -2196,8 +2114,8 @@ pub(crate) fn main(context: &Context<'_>) -> TaskResult {
 #[cfg(test)]
 mod tests {
     //! Each run works on a throwaway tree in a temporary directory, synthesized from the
-    //! task's own site list, so no test reads or writes this checkout; cargo, git, and
-    //! Prettier are stubbed through the context's run function. The whole tree is proven
+    //! task's own site list, so no test reads or writes this checkout; cargo and git are
+    //! stubbed through the context's run function. The whole tree is proven
     //! by `just verify-bootstrap` and CI's Template Bootstrap Smoke.
 
     use std::cell::RefCell;
@@ -2259,9 +2177,7 @@ mod tests {
         }
     }
 
-    const PACKAGE_JSON: &str = "{\n  \"name\": \"myapp\",\n  \"version\": \"0.4.2\",\n  \"description\": \"MyApp: a desktop app.\",\n  \"author\": \"tomada1114\",\n  \"license\": \"MIT\"\n}\n";
-
-    const CARGO_TOML: &str = "[workspace]\nmembers = [\"crates/*\"]\n\n[workspace.package]\nversion = \"0.4.2\" # one of the two version sites\nedition = \"2024\"\n\n[workspace.dependencies]\nmyapp-core = { path = \"crates/myapp-core\" }\n";
+    const CARGO_TOML: &str = "[workspace]\nmembers = [\"crates/*\"]\n\n[workspace.package]\nversion = \"0.4.2\" # the version site\nedition = \"2024\"\n\n[workspace.dependencies]\nmyapp-core = { path = \"crates/myapp-core\" }\n";
 
     const CHANGELOG: &str = "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n## [Unreleased]\n\n### Added\n\n- The template.\n\n## [0.4.2] - 2026-01-01\n\n- Earlier.\n";
 
@@ -2283,13 +2199,11 @@ mod tests {
     const README: &str = "# MyApp\n\nIntro for MyApp.\n\n<!-- template-only -->\n**Starting from the template?** See below.\n<!-- /template-only -->\n\n## Quickstart\n\n```bash\ngit clone https://github.com/tomada1114/rust-template.git\ncd rust-template\n```\n\nThe data lives in ~/Library/Application Support/com.example.myapp/, MYAPP_SMOKE=1 runs\nmyapp-core's smoke.\n\n<!-- template-only -->\n## Using This Template\n\nEverything about `just bootstrap`.\n<!-- /template-only -->\n\n## License\n";
 
     /// A template tree holding every site the task lists: each listed form, each text
-    /// edit's anchor, the marker files, the paths it removes, the crate directories, and
-    /// Prettier's bin.
+    /// edit's anchor, the marker files, the paths it removes, and the crate directories.
     fn template_tree() -> tempfile::TempDir {
         let dir = temp_dir();
         let root = dir.path();
         let mut contents: std::collections::BTreeMap<String, String> = [
-            ("package.json", PACKAGE_JSON.to_owned()),
             ("Cargo.toml", CARGO_TOML.to_owned()),
             ("CHANGELOG.md", CHANGELOG.to_owned()),
             ("LICENSE", LICENSE.to_owned()),
@@ -2330,7 +2244,6 @@ mod tests {
                 write(root, &format!("{dir}/Cargo.toml"), "[package]\n");
             }
         }
-        write(root, "node_modules/.bin/prettier", "#!/bin/sh\n");
         dir
     }
 
@@ -2787,20 +2700,8 @@ mod tests {
             panic!("{error}");
         }
 
-        let package: serde_json::Value =
-            serde_json::from_str(&read(root, "package.json")).expect("json");
-        assert_eq!(
-            package,
-            serde_json::json!({
-                "name": "tide-pool",
-                "version": "0.1.0",
-                "description": "Tide Pool: a desktop app.",
-                "author": "Ada Lovelace",
-                "license": "MIT",
-            })
-        );
         let cargo = read(root, "Cargo.toml");
-        assert!(cargo.contains("version = \"0.1.0\" # one of the two"));
+        assert!(cargo.contains("version = \"0.1.0\" # the version site"));
         assert!(cargo.contains("tide-pool-core = { path = \"crates/tide-pool-core\" }"));
         assert!(
             read(root, "LICENSE").contains("Copyright (c) 2031 Ada Lovelace and contributors\n")
@@ -2862,33 +2763,17 @@ mod tests {
     /// The commands a successful run made, in order, and the next steps it printed.
     fn assert_commands_and_next_steps(root: &Path, ran: &Ran) {
         // cargo fetch before anything is written, then the offline lockfile update and fmt.
-        let prettier = root
-            .join("node_modules/.bin/prettier")
-            .display()
-            .to_string();
         let commands: Vec<&str> = ran.commands.iter().map(String::as_str).collect();
-        assert_eq!(commands.len(), 7, "{commands:?}");
         assert_eq!(
-            commands[..5],
+            commands,
             [
                 "git rev-parse --is-inside-work-tree",
                 "git status --porcelain",
                 "cargo fetch --locked",
                 "cargo update --workspace --offline",
                 "cargo fmt --all",
+                "git ls-files -z --cached --others --exclude-standard",
             ]
-        );
-        let format = commands[5];
-        assert!(
-            format.starts_with(&format!("{prettier} --write --ignore-unknown ")),
-            "{format}"
-        );
-        assert!(format.contains(" package.json"));
-        assert!(!format.contains("README.md"));
-        assert!(!format.contains("main.rs"));
-        assert_eq!(
-            commands[6],
-            "git ls-files -z --cached --others --exclude-standard"
         );
         assert!(ran.cwds.iter().all(|cwd| cwd.as_deref() == Some(root)));
 
@@ -2898,7 +2783,7 @@ mod tests {
             "AGENTS.md",
             "docs/architecture/roadmap.md",
             "steering-the-roadmap",
-            "just install",
+            "commit it as one commit",
             "just labels",
             "add `dependencies` by hand",
             "just ruleset",
@@ -2933,30 +2818,6 @@ mod tests {
             "identifier null; missing crates/myapp-core"
         );
         assert_eq!(justfile_bundle_id("bundle_id := \"x\" trailing"), None);
-    }
-
-    #[test]
-    fn writes_nothing_without_prettier_while_the_tree_has_a_package_json() {
-        let dir = template_tree();
-        std::fs::remove_file(dir.path().join("node_modules/.bin/prettier")).expect("remove");
-        let before = read(dir.path(), "README.md");
-        let ran = with_answers(dir.path(), &answers(), &ok);
-        assert_eq!(ran.code(), "ERR_BOOTSTRAP_NO_DEPS");
-        assert!(ran.commands.is_empty());
-        assert_eq!(read(dir.path(), "README.md"), before);
-    }
-
-    #[test]
-    fn skips_prettier_once_the_tree_has_no_node_toolchain() {
-        let dir = template_tree();
-        let root = dir.path();
-        std::fs::remove_file(root.join("package.json")).expect("remove");
-        std::fs::remove_dir_all(root.join("node_modules")).expect("remove");
-        // package.json is a site and a structured edit, so its absence is a drifted site.
-        let ran = with_answers(root, &answers(), &ok);
-        assert_eq!(ran.code(), "ERR_BOOTSTRAP_SITE_MISSING");
-        assert_eq!(ran.error().details.actual, "the file does not exist");
-        assert!(ran.commands.is_empty());
     }
 
     /// The first error code of a run on a template tree that `damage` changed, and
@@ -3079,18 +2940,6 @@ mod tests {
                 "no version under [workspace.package]",
             ),
             (
-                "package.json",
-                "\"version\"",
-                "\"release\"",
-                "no \"version\" field",
-            ),
-            (
-                "package.json",
-                "\"author\": \"tomada1114\"",
-                "\"author\": \"someone\"",
-                "0 occurrence(s) of the template's \"author\" field",
-            ),
-            (
                 "LICENSE",
                 "2026 tomada1114",
                 "2026 someone",
@@ -3139,18 +2988,8 @@ mod tests {
             (".github/rulesets/main.json", "  ]\n}", "  ]\n"),
             (
                 "Cargo.toml",
-                "version = \"0.4.2\" # one of the two version sites",
+                "version = \"0.4.2\" # the version site",
                 "description = \"\"\"\nversion = \"inside a string\"\n\"\"\"\nversion = \"0.4.2\"",
-            ),
-            (
-                "package.json",
-                "\"license\": \"MIT\"\n}",
-                "\"license\": \"MIT\"",
-            ),
-            (
-                "package.json",
-                "\"version\": \"0.4.2\",",
-                "\"version\": \"0.4.2\", \"version\": \"0.4.2\",",
             ),
         ] {
             let (code, _, quiet) = damaged(&|root| replace_in(root, file, from, to));
@@ -3199,7 +3038,6 @@ mod tests {
         for (prefix, code) in [
             ("cargo update", "ERR_BOOTSTRAP_LOCKFILE"),
             ("cargo fmt", "ERR_BOOTSTRAP_FORMAT"),
-            ("prettier --write", "ERR_BOOTSTRAP_FORMAT"),
         ] {
             let dir = template_tree();
             let ran = with_answers(dir.path(), &answers(), &failing(prefix, 2));

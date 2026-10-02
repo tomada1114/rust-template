@@ -4,5 +4,5 @@ expect:
   just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
 edits:
   - file: .github/workflows/ci.yml
-    from: "      - run: just test-ui\n"
-    to: "      - if: github.event_name == 'push'\n        run: just test-ui\n"
+    from: "      - run: just test-core\n"
+    to: "      - if: github.event_name == 'push'\n        run: just test-core\n"

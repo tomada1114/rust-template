@@ -16,7 +16,7 @@ description: >
 # Authoring Skills
 
 **Owns:** where a skill lives, its layout and frontmatter, its size, and the conventions
-every skill in this repository follows. **Does not own:** how a script under `scripts/`
+every skill in this repository follows. **Does not own:** how a skill's bundled script
 is written (`writing-repo-scripts`); which documentation surface a change lands on
 (`updating-docs`); changing a gate's configuration (`changing-gates`); what any one
 skill says about its own subject.
@@ -35,10 +35,9 @@ skill says about its own subject.
 - The mirror is real files, not a symlink: a symlink is only a link where git checks it
   out as one (`core.symlinks`, https://git-scm.com/docs/git-config, checked 2026-09-29),
   and real files let `just agents-check` compare bytes. The sync refuses a symlink.
-- Being generated, the mirror is skipped by `typos`, Prettier, and ESLint, and
-  `.gitattributes` collapses it in a PR diff. Review and spell-check `.agents/skills/`.
-  Markdown has no formatter here (`.prettierignore` lists `*.md`): wrap prose by hand at
-  the width the neighboring skills use. When `typos` flags a real technical term, add
+- Being generated, the mirror is skipped by `typos`, and `.gitattributes` collapses it
+  in a PR diff. Review and spell-check `.agents/skills/`. Markdown has no formatter
+  here: wrap prose by hand at the width the neighboring skills use. When `typos` flags a real technical term, add
   it to `typos.toml`'s `[default.extend-words]` rather than rewording around the checker
   (a gate file: `changing-gates`).
 - Skills live in this repository, never in a committed plugin marketplace: a plugin's
@@ -110,7 +109,7 @@ or test depends on a skill's code block. Write placeholder names exactly (`myapp
 `myapp_core`, `MyApp`, `com.example.myapp`) so the bootstrap's rename finds them.
 
 **Platform-skill scope.** On a surface someone else documents (Rust, cargo, Tauri, a
-crate, macOS and Apple APIs, React, Vitest, GitHub Actions), a skill holds only this
+crate, macOS and Apple APIs, React, Python, GitHub Actions), a skill holds only this
 repository's decisions, their reasons, the mechanics that are ours (paths, recipes, crate
 names, error codes), and the traps met here. Everything else is a link to the tool's
 documentation, not a restatement of it.
@@ -158,13 +157,12 @@ of an active skill competes with the task for the agent's context.
 ## Scripts bundled inside a skill
 
 A script under `.agents/skills/<name>/scripts/` follows `AGENTS.md` › "Repository
-scripts", and its tests run under `just test-scripts`. A TypeScript script's
-`*.test.ts` joins Vitest's `scripts` project by its path; a suite in another language
-(`shipping-issues`' Python and shell) is added to the `test-scripts` recipe in the same
-pull request. **REQUIRED:** `writing-repo-scripts`. Keep it a thin dispatcher: it
-parses its arguments, calls into `scripts/lib/`, and prints, with no decision of its
-own beyond choosing the output format. Branching logic belongs in `scripts/lib/`, under
-the `scripts/**` coverage floor, where another script or skill can reuse it.
+scripts": Python on the standard library or shell, with its tests under the skill's
+`scripts/tests/`, which `just test-scripts` runs with no coverage floor. A skill whose
+first suite lands adds its line to the `test-scripts` recipe in the same pull request.
+**REQUIRED:** `writing-repo-scripts`. Keep it to the skill's own step: logic another
+recipe, hook, or CI job needs is a `cargo xtask` task, where `just test-xtask`'s floors
+measure it.
 
 ## Before committing a skill
 

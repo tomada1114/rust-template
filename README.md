@@ -29,7 +29,7 @@ Tools (`xcode-select --install`), [rustup](https://rustup.rs/),
 git clone https://github.com/tomada1114/rust-template.git
 cd rust-template
 mise trust     # approve mise.toml once (mise asks before using an untrusted config)
-just install   # pinned tools via mise, pnpm dependencies, lefthook's git hook
+just install   # pinned tools via mise and lefthook's git hook
 just check     # everything a Mac can run without a human; opens no window
 ```
 
@@ -76,9 +76,7 @@ bans printing and the standard streams, `std::fs`'s files and functions, `Path`'
 file-system queries, `std::net`'s sockets and address lookups, clock reads
 (`SystemTime::now`, `Instant::now`, `elapsed`), `std::env`'s argument, variable, and
 directory functions, `std::process::Command`, `exit`, and `abort`, and unscoped threads
-and `thread::sleep` in core, so I/O, time, and environment arrive only through ports. On
-the TypeScript side, ESLint's `no-restricted-imports` keeps `@tauri-apps/*` inside
-`ui/src/ipc/`.
+and `thread::sleep` in core, so I/O, time, and environment arrive only through ports.
 
 ### Why ts-rs plus a thin hand-written IPC layer?
 
@@ -120,10 +118,8 @@ a background writer's last lines. `just logs` prints the newest file's tail and 
 
 ### Why React and Vite with no CSS framework and no state library?
 
-The screen is modest, so the stack is the plain, well-known one: React 19, Vite 8,
-TypeScript 6.0 (typescript-eslint 8 declares `typescript <6.1.0` as its peer range,
-<https://www.npmjs.com/package/typescript-eslint>, checked 2026-09-28), strict ESLint,
-Prettier, and Vitest with Testing Library. Styling is plain CSS over design tokens;
+The screen is modest, so the stack is the plain, well-known one: React 19, Vite 8, and
+TypeScript 6.0. Styling is plain CSS over design tokens;
 state is React state plus one hook per Rust-owned model. A component library, a CSS
 framework, or a state library is a decision for an app to make and record, not a
 default. Tauri's security settings start closed: a restrictive CSP,
@@ -131,41 +127,41 @@ default. Tauri's security settings start closed: a restrictive CSP,
 
 ### Why is every tool pinned in exactly one place?
 
-A version written twice drifts. Rust is pinned in `rust-toolchain.toml`, Node and every
-other CLI in `mise.toml`, preferring prebuilt binaries to the `cargo:` backend, which compiles from
+A version written twice drifts. Rust is pinned in `rust-toolchain.toml`, every other CLI
+in `mise.toml`, preferring prebuilt binaries to the `cargo:` backend, which compiles from
 source. Nothing is `latest`; bumps arrive as Renovate or Dependabot pull requests after
-a 7-day release age. pnpm is the one exception: `mise.toml` installs it and
-`package.json`'s `packageManager` names it for pnpm itself, and Renovate moves the two
-in one grouped pull request.
+a 7-day release age.
 
 ### Why Just?
 
 One command, `just check`, runs locally what CI runs. Just is a task runner rather than
-a build system, and each recipe is a thin call into cargo, pnpm, or `scripts/`, so every
-recipe also works without it. `cargo xtask` cannot naturally drive pnpm and mise.
+a build system, and each recipe is a thin call into cargo (`cargo xtask` included) or a
+pinned tool, so every recipe also works without it. `cargo xtask` cannot naturally drive
+mise.
 
 ### Why lefthook, and why does the pre-commit hook only check?
 
-The repository is polyglot, and lefthook gives per-language staged-file globs and
-parallel jobs from one YAML file. The hook stays check-only and fast — rustfmt,
-Prettier, ESLint, and typos on the staged files, plus a guard against secret-shaped
-paths and credential-shaped content — with no compile, clippy, or tests: those belong to
-`just check` and CI. `just install` fails when the hook is missing.
+lefthook gives per-language staged-file globs and parallel jobs from one YAML file. The
+hook stays check-only and fast — rustfmt and typos on the staged files, the skills
+mirror, plus a guard against secret-shaped paths and credential-shaped content — with no
+compile, clippy, or tests: those belong to `just check` and CI. `just install` fails
+when the hook is missing. JSON, YAML, and Markdown have no formatter: Prettier's check
+over them left with the Node toolchain, to keep the toolchain small.
 
-### Why repository scripts in TypeScript?
+### Why repository automation in Rust?
 
-Node is already required for the UI; the scripts need real YAML, TOML, and JSON parsers;
-and a reader new to Rust can maintain TypeScript. Scripts run directly under Node's type
-stripping with no build step, each has a Vitest test with its own coverage floor, and a
-failing script prints a stable `ERR_<STAGE>_<WHAT>` code, then `Expected:`, `Actual:`,
-and `Next:` lines.
+`cargo xtask <task>` needs no runtime beyond the Rust toolchain the app already pins.
+Its tasks read YAML, TOML, and JSON with real parsers, each is a function of a faked
+context with its own coverage floor, and a failing task prints a stable
+`ERR_<STAGE>_<WHAT>` code, then `Expected:`, `Actual:`, and `Next:` lines. A skill may
+bundle Python or shell scripts of its own, which `just test-scripts` tests.
 
 ### Why a coverage floor on the core only?
 
 The floor (80% of lines and 80% of functions, measured by `cargo llvm-cov`) sits where
 the decisions are. The platform crate, the shell, and the CLI translate and decide
-nothing, so a numeric gate there would only invite tests of glue. The UI and the scripts
-carry their own per-directory floors, so one tree cannot subsidize another. clippy runs
+nothing, so a numeric gate there would only invite tests of glue. The `xtask` crate
+carries its own floors, so one tree cannot subsidize another. clippy runs
 at `pedantic` with warnings as errors, `unsafe_code` is forbidden in every crate, and
 weakening any gate needs a human's sign-off.
 
@@ -186,7 +182,7 @@ Tauri's WebDriver support covers Windows and Linux only, because macOS has no WK
 driver (<https://v2.tauri.app/develop/tests/webdriver/>, checked 2026-09-28), and the
 alternatives are a pre-1.0 in-app WebDriver server or a paid driver. So each layer is
 tested where it lives — core with fakes, adapters with contract suites,
-commands through `tauri::test`'s mock runtime, the UI with Vitest and mocked IPC — and a
+commands through `tauri::test`'s mock runtime, the UI with mocked IPC — and a
 launch smoke builds the release app and proves the real wiring starts. The gap that
 leaves, a UI-to-Rust wiring mistake only the running app shows, is named, and a pull
 request that could hit it carries `just logs` evidence.
@@ -197,13 +193,13 @@ macOS runners queue longer. Core, the Linux-buildable crates, the UI, the script
 the repository lint all run on Ubuntu; one macOS job runs workspace clippy, the tests
 that need macOS, the debug build, and the launch smoke. Every job pins its actions by
 SHA, sets `persist-credentials: false`, least-privilege permissions, and a timeout, and
-every install is `--locked` or `--frozen-lockfile`.
+every cargo command that resolves the lockfile is `--locked`.
 
 ### Why this much supply-chain control, and why scope advisories to Apple Silicon?
 
 An app that runs on your Mac with your permissions deserves the same scrutiny as a
 server: CodeQL, OSV-Scanner, OpenSSF Scorecard, zizmor, Dependency Review with a license
-allow-list, `cargo deny`, pnpm's release-age and build-script allow-list, a 7-day
+allow-list, `cargo deny`, a 7-day
 cooldown on every automated bump, a weekly full-history gitleaks scan, and the branch
 ruleset as code. `Cargo.lock` lists every platform's dependencies, including Tauri's
 Linux GTK stack, which this app never ships; so `cargo deny` evaluates the
@@ -285,10 +281,8 @@ screen and applies it by replacing token values, never by styling a screen direc
    holder, and rewrites exactly those placeholder sites. It then removes
    `docs/template/` and this section, resets `CHANGELOG.md` and the version to 0.1.0,
    deletes itself, and prints the steps below.
-3. Run `just install` again (the rename changed `package.json`'s name, and pnpm runs
-   nothing until the next install), review the rewrite (`git status`, `git diff`), and
-   commit it as one commit before you edit anything, so the rename stays one reviewable
-   diff.
+3. Review the rewrite (`git status`, `git diff`), and commit it as one commit before
+   you edit anything, so the rename stays one reviewable diff.
 4. Fill in `AGENTS.md`'s `## Product` section: what the app is and who it is for, the
    core interaction, and the non-goals it must not grow. Delete every `TODO:` marker as
    you go; `just check` fails while one is left.

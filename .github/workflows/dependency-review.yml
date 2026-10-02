@@ -25,7 +25,7 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         # The allow-list mirrors deny.toml's (permissive licences) for every ecosystem in
-        # the dependency graph: crates, npm packages, and the actions a workflow uses.
+        # the dependency graph: crates and the actions a workflow uses.
         # - fail-on-severity is unset: its default, `low`, is the strictest.
         # - allow-ghsas lists exactly osv-scanner.toml's GHSA ignores
         #   (xtask/src/check_harness/advisory_ignores_agree.rs), none today.

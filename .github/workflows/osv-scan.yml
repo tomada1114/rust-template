@@ -32,4 +32,3 @@ jobs:
         with:
           scan-args: |-
             --lockfile=Cargo.lock
-            --lockfile=pnpm-lock.yaml

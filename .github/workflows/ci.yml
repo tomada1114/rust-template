@@ -25,7 +25,6 @@ defaults:
 
 env:
   CARGO_TERM_COLOR: always
-  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
 jobs:
   rust-core:
@@ -44,7 +43,7 @@ jobs:
       # Rust itself comes from rust-toolchain.toml through the runner's rustup.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest github:EmbarkStudios/cargo-deny github:Boshen/cargo-shear
+          install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest github:EmbarkStudios/cargo-deny github:Boshen/cargo-shear
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
@@ -83,31 +82,9 @@ jobs:
       # the skills mirror and xtask's tests.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node aqua:pnpm/pnpm just typos actionlint shellcheck lefthook github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
+          install_args: just typos actionlint shellcheck lefthook github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-
-      - name: Locate the pnpm store
-        id: pnpm-store
-        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # The TypeScript gates over scripts/ and the root config files (`just lint`'s lines).
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: ESLint
-        run: pnpm lint
-
-      - name: Prettier
-        run: pnpm format:check
 
       - name: Typos
         run: typos
@@ -121,7 +98,8 @@ jobs:
       - name: Fetch crates (the core-boundary check reads cargo metadata offline)
         run: cargo fetch --locked
 
-      - name: Script tests with coverage floors
+      # The skills' bundled Python suites run on the runner's own python3.
+      - name: Skill script tests
         run: just test-scripts
 
       # lefthook (installed above) runs the real pre-commit hook in xtask/tests/lefthook.rs.
@@ -144,7 +122,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node just aqua:nextest-rs/nextest/cargo-nextest
+          install_args: just aqua:nextest-rs/nextest/cargo-nextest
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
@@ -173,18 +151,12 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: node aqua:pnpm/pnpm just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest shellcheck typos actionlint lefthook
+          install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest shellcheck typos actionlint lefthook
 
       - name: Clone the checkout into a scratch directory
         run: |
           git clone --quiet --no-hardlinks . "$RUNNER_TEMP/bootstrap-smoke"
           mise trust "$RUNNER_TEMP/bootstrap-smoke/mise.toml"
-
-      # Prettier (the bootstrap formats what it rewrote) and the bootstrapped app's own
-      # `just check` still need the Node toolchain.
-      - name: Install dependencies in the clone
-        working-directory: ${{ runner.temp }}/bootstrap-smoke
-        run: pnpm install --frozen-lockfile
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -202,9 +174,6 @@ jobs:
           cargo xtask bootstrap --yes \
             --name "Tide Pool" --slug tide-pool --bundle-id com.example.tide-pool \
             --repo example-owner/tide-pool --author "Template Smoke" --copyright "Template Smoke"
-          # The rename changed package.json's name, and pnpm runs nothing until the next
-          # install (the bootstrap's next steps say `just install`).
-          pnpm install --frozen-lockfile
 
       - name: The Product-section check fires on the unfilled app
         working-directory: ${{ runner.temp }}/bootstrap-smoke

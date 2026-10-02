@@ -4,7 +4,7 @@ name: Label PR
 # categories in .github/release.yml.
 #
 # The job holds a write token, so it runs nothing from the repository: no checkout, no
-# mise, no cargo, pnpm, or just — only the inline script below, `gh`, and `jq` (both
+# mise, no cargo or just — only the inline script below, `gh`, and `jq` (both
 # preinstalled on the runner image). A pull request therefore cannot change the code that
 # runs with the token. The title reaches the script through `env:`, never interpolated
 # into it.

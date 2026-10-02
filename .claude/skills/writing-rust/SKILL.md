@@ -173,4 +173,4 @@ formats. None of them opens a window.
    you do not understand: `AGENTS.md` › "Security and human approval" counts the first
    two as weakening a gate. If a lint looks wrong for this code, say so in the pull
    request and let a human decide.
-4. `just fix` applies rustfmt and ESLint's autofixes; it does not fix clippy findings.
+4. `just fix` applies rustfmt only; it does not fix clippy findings.

@@ -1,14 +1,10 @@
 [files]
 extend-exclude = [
-  # Generated lockfiles: a typo in a package name is upstream's.
+  # The generated lockfile: a typo in a package name is upstream's.
   "Cargo.lock",
-  "pnpm-lock.yaml",
   # Build output, matching .gitignore.
   "target/",
   "coverage/",
-  "node_modules/",
-  # Data under test: a fixture misspelled on purpose is the point of the fixture.
-  "scripts/**/fixtures/",
   # Generated mirror of .agents/skills/ (`just agents-sync`); the real files are
   # checked at their real path.
   ".claude/skills/",

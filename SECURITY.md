@@ -37,12 +37,10 @@ replace this section with the commitments its own maintainers can keep.
 
 - Every GitHub Action is pinned to a full commit SHA with a version comment, and
   workflows are linted by actionlint and zizmor.
-- CLI tools are pinned in `mise.toml`, Rust in `rust-toolchain.toml`, and pnpm in
-  `package.json`; `Cargo.lock` and `pnpm-lock.yaml` are committed, and every install in
-  CI is `--locked` or `--frozen-lockfile`.
-- Automated dependency updates (Dependabot for Cargo, npm, and Actions; Renovate for
-  `mise.toml` and `rust-toolchain.toml`) wait out a 7-day release age, and pnpm refuses
-  a version younger than that.
+- CLI tools are pinned in `mise.toml` and Rust in `rust-toolchain.toml`; `Cargo.lock` is
+  committed, and every cargo command in CI that resolves it is `--locked`.
+- Automated dependency updates (Dependabot for Cargo and Actions; Renovate for
+  `mise.toml` and `rust-toolchain.toml`) wait out a 7-day release age.
 - `cargo deny` checks advisories, licences, bans, and sources over the dependency graph
   of the one shipped target, `aarch64-apple-darwin`. CodeQL, OSV-Scanner, OpenSSF
   Scorecard, and Dependency Review run in CI, and gitleaks scans the full history weekly.

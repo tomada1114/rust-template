@@ -1,6 +1,6 @@
 version: 2
-# Weekly, with a 7-day cooldown equal to Renovate's and pnpm's minimumReleaseAge (a
-# harness check keeps the three equal). Minor and patch updates arrive grouped; a major
+# Weekly, with a 7-day cooldown equal to Renovate's minimumReleaseAge (a harness check
+# keeps the two equal). Minor and patch updates arrive grouped; a major
 # stays out of every group and gets its own PR, reviewed against its migration notes
 # (merging-dependency-prs). Dependabot reads a 0.x minor as a minor, so such a bump
 # rides in a group; the survey marks it (major).
@@ -17,21 +17,6 @@ updates:
       - "dependencies"
     groups:
       cargo-minor-and-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    commit-message:
-      prefix: "deps:"
-    labels:
-      - "dependencies"
-    groups:
-      npm-minor-and-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 

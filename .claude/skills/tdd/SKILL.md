@@ -3,19 +3,18 @@ name: tdd
 description: >
   Red-green-refactor for this repository: decide where the code lives (myapp-core by
   default), write a failing test first, prove it fails with just test-fast <filter>
-  (cargo nextest in myapp-core) or Vitest for a ui/src hook, implement the minimum in
-  core, refactor, then re-check the coverage floor with just test-core, and just
-  lint. Use PROACTIVELY when implementing a feature, changing
-  behavior, fixing a bug (regression test first), adding a function, a type, a state
-  transition, a command, or a hook; when asked for TDD or test-first; or when a
-  coverage floor fails after a change.
+  (cargo nextest in myapp-core), implement the minimum in core, refactor, then
+  re-check the coverage floor with just test-core, and just lint. Use PROACTIVELY when
+  implementing a feature, changing behavior, fixing a bug (regression test first),
+  adding a function, a type, a state transition, a command, or a hook; when asked for
+  TDD or test-first; or when a coverage floor fails after a change.
 ---
 
 # TDD Workflow
 
 **Owns:** the order of work — where a change starts, the red run, the minimum green
 change, the refactor with the gates on, and what lands in one commit. **Does not own:**
-which file and project a test goes in and which floor measures it (`placing-tests`);
+which file a test goes in and which floor measures it (`placing-tests`);
 how a test body is written (`writing-tests`); how core logic is shaped
 (`designing-core-logic`); the commit itself (`smart-commit`).
 
@@ -87,15 +86,11 @@ it("shows the new view after increment", async () => {
 
 ```bash
 just test-fast increment_by              # core: cargo nextest, filtered by test name
-pnpm exec vitest run --project ui ui/src/counter/useCounter.test.tsx   # one UI file (the sample's)
 ```
 
 Read the failure. For a Rust function that does not exist yet, the compile error
-naming it counts as red. In Vitest a missing export arrives as `undefined`, so the run
-fails with a `TypeError` at the call: that counts only when the message names the
-missing function (`… is not a function`). For a change to existing behavior,
-the run must show the assertion itself failing — `assert_eq!` prints the `left` and
-`right` values, and `expect` its diff — because a test that fails for another reason (a
+naming it counts as red. For a change to existing behavior, the run must show the
+assertion itself failing — `assert_eq!` prints the `left` and `right` values — because a test that fails for another reason (a
 typo, a missing import) proves nothing about the behavior. **Do not skip this run**: a
 test that has never failed may never be able to.
 
@@ -119,7 +114,8 @@ the change can fail:
 | `src-tauri/` or `crates/myapp-platform/` | `just test-platform` |
 | `crates/myapp/` | `just test-core` (it runs the binary's tests), then `just test-platform` |
 | `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-platform` (platform runs them against the real adapters) |
-| `scripts/` | `just test-scripts` (**REQUIRED:** `writing-repo-scripts`) |
+| `xtask/` | `just test-xtask` (**REQUIRED:** `writing-repo-scripts`) |
+| A skill's `scripts/` | `just test-scripts` (**REQUIRED:** `writing-repo-scripts`) |
 
 Before the pull request, `just check` runs everything a Mac runs without a human. None
 of these recipes opens a window or takes focus (`AGENTS.md` › "Never taking over the

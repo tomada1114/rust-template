@@ -35,9 +35,10 @@
 //! - fail-open commands: no `set +e`/`+u` (or `set +o errexit|nounset|pipefail`) in a
 //!   `run:`, and no command whose failure is swallowed by an `|| true`, `|| :`,
 //!   `|| exit 0`, `|| echo …`, or `|| printf …` fallback;
-//! - every `pnpm install`/`pnpm i` (global options such as `--dir ui` before it included)
-//!   has `--frozen-lockfile`; no `npm install`/`npm i`/`npm add`; and every `cargo`
-//!   [`CARGO_LOCKED`] subcommand has `--locked` (or `--frozen`) before any `--`. The same
+//! - no `npm install`/`npm i`/`npm add` (global options such as `--prefix x` before it
+//!   included), which installs from the registry with no lockfile and no pin — a tool a
+//!   job needs is pinned in `mise.toml`; and every `cargo` [`CARGO_LOCKED`] subcommand has
+//!   `--locked` (or `--frozen`) before any `--`. The same
 //!   rule reads every justfile recipe line, which is what lets a `run:` that calls
 //!   `just <recipe>` rely on the recipe.
 //!
@@ -99,7 +100,6 @@ const CARGO_LOCKED: [&str; 13] = [
     "bench", "build", "check", "clippy", "deny", "doc", "fetch", "install", "llvm-cov", "nextest",
     "run", "shear", "test",
 ];
-const PNPM_INSTALL: [&str; 2] = ["install", "i"];
 const NPM_INSTALL: [&str; 3] = ["install", "i", "add"];
 
 /// One rule's code and the Expected and Next lines its findings share.
@@ -166,8 +166,8 @@ const FAIL_OPEN: Rule = Rule {
 };
 const UNLOCKED: Rule = Rule {
     code: "ERR_CHECK_WORKFLOW_UNLOCKED",
-    expected: "`--frozen-lockfile` on every `pnpm install`, no `npm install`, and `--locked` on every cargo build/check/clippy/doc/test/bench/run/install/fetch/nextest/llvm-cov/deny/shear before any `--`",
-    next: "add the flag, or call the `just` recipe that already carries it",
+    expected: "no `npm install`, and `--locked` on every cargo build/check/clippy/doc/test/bench/run/install/fetch/nextest/llvm-cov/deny/shear before any `--`",
+    next: "add the flag, or call the `just` recipe that already carries it; pin a tool in mise.toml instead of installing it from npm",
 };
 const BOT_PREFIX: Rule = Rule {
     code: "ERR_CHECK_WORKFLOW_BOT_PREFIX",
@@ -761,7 +761,7 @@ fn subcommand<'a>(words: &[&'a str], index: usize, wanted: &[&str]) -> Option<&'
     let mut at = index + 1;
     while let Some(flag) = words.get(at).filter(|word| word.starts_with('-')) {
         at += 1;
-        // `--dir ui install`: a flag's value, unless it is already the wanted subcommand.
+        // `--prefix ui install`: a flag's value, unless it is already the wanted subcommand.
         if let Some(next) = words.get(at)
             && !flag.contains('=')
             && !next.starts_with('-')
@@ -778,20 +778,12 @@ fn unlocked_command(command: &str) -> Option<String> {
     let words: Vec<&str> = command.split_whitespace().collect();
     for (index, word) in words.iter().enumerate() {
         match *word {
-            "pnpm" => {
-                let sub = subcommand(&words, index, &PNPM_INSTALL);
-                if sub.is_some_and(|sub| PNPM_INSTALL.contains(&sub))
-                    && !words.contains(&"--frozen-lockfile")
-                {
-                    return Some("`pnpm install` without --frozen-lockfile".to_owned());
-                }
-            }
             "npm" => {
                 if let Some(sub) =
                     subcommand(&words, index, &NPM_INSTALL).filter(|sub| NPM_INSTALL.contains(sub))
                 {
                     return Some(format!(
-                        "`npm {sub}`, which resolves without pnpm-lock.yaml (use `pnpm install --frozen-lockfile`)"
+                        "`npm {sub}`, which installs from the registry with no lockfile or pin (pin the tool in mise.toml)"
                     ));
                 }
             }
@@ -1114,7 +1106,7 @@ mod tests {
 
     fn ci_text() -> String {
         format!(
-            "name: CI\non:\n  push:\n    branches: [main]\n  pull_request:\npermissions:\n  contents: read\nconcurrency:\n  group: ${{{{ github.workflow }}}}-${{{{ github.event_name == 'pull_request' && github.ref || github.sha }}}}\n  cancel-in-progress: ${{{{ github.event_name == 'pull_request' }}}}\ndefaults:\n  run:\n    shell: bash --noprofile --norc -euo pipefail {{0}}\njobs:\n  build:\n    name: Build\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read\n    steps:\n      - uses: actions/checkout@{SHA} # v7.0.1\n        with:\n          persist-credentials: false\n      - uses: ./.github/actions/local\n      - run: pnpm install --frozen-lockfile\n      - run: |\n          cargo test --locked -p core\n          cargo clippy --locked --all-targets -- -D warnings\n          cargo fmt --all --check\n      - run: just test-core\n"
+            "name: CI\non:\n  push:\n    branches: [main]\n  pull_request:\npermissions:\n  contents: read\nconcurrency:\n  group: ${{{{ github.workflow }}}}-${{{{ github.event_name == 'pull_request' && github.ref || github.sha }}}}\n  cancel-in-progress: ${{{{ github.event_name == 'pull_request' }}}}\ndefaults:\n  run:\n    shell: bash --noprofile --norc -euo pipefail {{0}}\njobs:\n  build:\n    name: Build\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read\n    steps:\n      - uses: actions/checkout@{SHA} # v7.0.1\n        with:\n          persist-credentials: false\n      - uses: ./.github/actions/local\n      - run: cargo fetch --locked\n      - run: |\n          cargo test --locked -p core\n          cargo clippy --locked --all-targets -- -D warnings\n          cargo fmt --all --check\n      - run: just test-core\n"
         )
     }
 
@@ -1447,11 +1439,7 @@ mod tests {
             ["ERR_CHECK_WORKFLOW_SHELL"; 3]
         );
         let with_set = no_defaults(&ci_text())
-            .replacen(
-                "run: pnpm install",
-                "run: set -euo pipefail; pnpm install",
-                1,
-            )
+            .replacen("run: cargo fetch", "run: set -euo pipefail; cargo fetch", 1)
             .replacen("run: |\n", "run: |\n          set -euo pipefail\n", 1)
             .replacen(
                 "run: just test-core",
@@ -1479,8 +1467,8 @@ mod tests {
         );
         let other_shells = no_defaults(&ci_text())
             .replacen(
-                "run: pnpm install --frozen-lockfile",
-                "run: pnpm install --frozen-lockfile\n        shell: pwsh",
+                "run: cargo fetch --locked",
+                "run: cargo fetch --locked\n        shell: pwsh",
                 1,
             )
             .replacen(
@@ -1596,13 +1584,13 @@ mod tests {
     }
 
     #[test]
-    fn requires_locked_installs_and_builds() {
+    fn requires_locked_builds_and_no_npm_install() {
         assert_eq!(
-            ci_codes("pnpm install --frozen-lockfile", "pnpm install"),
+            ci_codes("cargo fetch --locked", "cargo fetch"),
             ["ERR_CHECK_WORKFLOW_UNLOCKED"]
         );
         assert_eq!(
-            ci_codes("pnpm install --frozen-lockfile", "pnpm i --prod"),
+            ci_codes("cargo fetch --locked", "npm i --prod"),
             ["ERR_CHECK_WORKFLOW_UNLOCKED"]
         );
         let found = check(&[(
@@ -1633,11 +1621,10 @@ mod tests {
             Vec::<String>::new()
         );
         for (command, unlocked) in [
-            ("pnpm -r install", true),
-            ("pnpm --dir=ui i", true),
-            ("pnpm --dir ui install", true),
-            ("pnpm --frozen-lockfile install", false),
-            ("pnpm --silent lint", false),
+            ("npm -g install left-pad", true),
+            ("npm --prefix=ui i", true),
+            ("npm --prefix ui install", true),
+            ("npm --silent run lint", false),
             ("npm ci", false),
             ("npm --prefix ui add left-pad", true),
             ("cargo shear --locked", false),
@@ -1666,7 +1653,7 @@ mod tests {
 
     #[test]
     fn applies_the_step_rules_to_composite_actions() {
-        let action = "name: Setup\ndescription: x\nruns:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n    - run: pnpm install\n      shell: bash\n";
+        let action = "name: Setup\ndescription: x\nruns:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n    - run: cargo fetch\n      shell: bash\n";
         let all = [
             "ERR_CHECK_WORKFLOW_UNPINNED",
             "ERR_CHECK_WORKFLOW_CHECKOUT_CREDENTIALS",

@@ -1,8 +1,8 @@
-# A gate run as `just test-ui || true`: its failure is swallowed.
+# A gate run as `just test-core || true`: its failure is swallowed.
 expect:
   workflow-hygiene: [ERR_CHECK_WORKFLOW_FAIL_OPEN]
   just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
 edits:
   - file: .github/workflows/ci.yml
-    from: "      - run: just test-ui\n"
-    to: "      - run: just test-ui || true\n"
+    from: "      - run: just test-core\n"
+    to: "      - run: just test-core || true\n"

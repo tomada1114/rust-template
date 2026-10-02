@@ -4,5 +4,5 @@ expect:
   just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
 edits:
   - file: .github/workflows/ci.yml
-    from: "      - run: just test-ui\n"
-    to: "      - run: just test-ui\n        continue-on-error: true\n"
+    from: "      - run: just test-core\n"
+    to: "      - run: just test-core\n        continue-on-error: true\n"
