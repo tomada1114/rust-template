@@ -320,17 +320,19 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder; each is listed for both skill trees.
-const SKILL_SITES: [(&str, &[Form]); 28] = [
+const SKILL_SITES: [(&str, &[Form]); 31] = [
+    ("building-tuis/SKILL.md", &[Slug]),
     ("changing-gates/SKILL.md", &[Slug]),
     ("changing-gates/references/gate-files.md", &[Slug]),
     ("changing-gates/references/weakening.md", &[Slug]),
     ("create-pr/SKILL.md", &[Slug]),
+    ("designing-clis/SKILL.md", &[SlugSnake, Slug, SlugUpper]),
     ("designing-core-logic/SKILL.md", &[Slug]),
     ("designing-errors/SKILL.md", &[Slug]),
     ("integrating-system-apis/SKILL.md", &[Slug]),
     (
         "integrating-system-apis/references/tcc-permissions.md",
-        &[BundleId],
+        &[Slug],
     ),
     (
         "integrating-system-apis/references/unsafe-and-ffi.md",
@@ -339,10 +341,7 @@ const SKILL_SITES: [(&str, &[Form]); 28] = [
     ("managing-dependencies/SKILL.md", &[Slug]),
     ("placing-tests/SKILL.md", &[Slug]),
     ("recording-architecture-decisions/SKILL.md", &[Slug]),
-    (
-        "running-the-app/SKILL.md",
-        &[BundleId, SlugSnake, Slug, SlugUpper],
-    ),
+    ("running-the-app/SKILL.md", &[SlugSnake, Slug]),
     (
         "shipping-issues/references/agent-implementation.md",
         &[Slug],
@@ -358,6 +357,7 @@ const SKILL_SITES: [(&str, &[Form]); 28] = [
     ("triaging-issues/SKILL.md", &[Slug]),
     ("updating-docs/SKILL.md", &[Slug]),
     ("writing-rust/SKILL.md", &[Slug]),
+    ("writing-rust/references/clap-and-ratatui.md", &[Slug]),
     (
         "writing-rust/references/compiler-errors.md",
         &[SlugSnake, Slug],

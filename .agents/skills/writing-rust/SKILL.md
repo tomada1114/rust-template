@@ -1,28 +1,30 @@
 ---
 name: writing-rust
 description: >
-  Covers the Rust a newcomer needs to change this codebase safely, in crates/*/src and
-  src-tauri/src: ownership and borrowing (&str in, String out, clone a small value
-  rather than add a lifetime, Arc and Mutex for shared ports), Result and the ? operator
-  instead of unwrap or expect, Option, enums with an exhaustive match
+  Covers the Rust a newcomer needs to change this codebase safely, in crates/*/src:
+  ownership and borrowing (&str in, String out, clone a small value rather than add a
+  lifetime, Arc and Mutex for shared ports), Result and the ? operator instead of
+  unwrap or expect, Option and let-else, enums with an exhaustive match
   (wildcard_enum_match_arm), modules and pub(crate), traits as Send + Sync ports, serde
-  and ts-rs derives, reading compiler errors (E0382 use of moved value, E0499, E0502,
-  E0505, E0597 borrow conflicts, E0277 trait bound not satisfied, E0004 non-exhaustive
-  match, E0308 mismatched types), and fixing a clippy pedantic finding instead of
-  adding #[allow]. Use when writing or reviewing a .rs file, when cargo build, just
-  lint, or just test-fast fails with a compiler error or a clippy warning, when the
-  borrow checker objects, or when reaching for unwrap, a lifetime annotation, unsafe,
-  or #[allow(clippy::...)].
+  derives, the clap derive and ratatui idioms the binary uses, reading compiler errors
+  (E0382 use of moved value, E0499, E0502, E0505, E0597 borrow conflicts, E0277 trait
+  bound not satisfied, E0004 non-exhaustive match, E0308 mismatched types), and fixing
+  a clippy pedantic finding instead of adding #[allow]. Use when writing or reviewing a
+  .rs file, when cargo build, just lint, or just test-fast fails with a compiler error
+  or a clippy warning, when the borrow checker objects, or when reaching for unwrap,
+  println!, a lifetime annotation, unsafe, or #[allow(clippy::...)].
 ---
 
 # Writing Rust
 
-**Owns:** Rust language judgment in `crates/*/src/` and `src-tauri/src/` — ownership,
-error propagation, `Option`, enums and `match`, visibility, traits, derives, and what to
-do with a compiler error or a clippy finding. **Does not own:** where a piece of logic
-goes, ports, and `Tuning` (`designing-core-logic`); the shape of an error enum and its
-codes (`designing-errors`); `unsafe` and macOS bindings (`integrating-system-apis`);
-tests (`writing-tests`); a new crate (`managing-dependencies`); a lint level or a
+**Owns:** Rust language judgment in `crates/*/src/` — ownership, error propagation,
+`Option`, enums and `match`, visibility, traits, derives, the clap and ratatui idioms
+the binary uses, and what to do with a compiler error or a clippy finding. **Does not
+own:** where a piece of logic goes, ports, and `Tuning` (`designing-core-logic`); the
+shape of an error enum and its codes (`designing-errors`); a subcommand's streams and
+exit codes (`designing-clis`); a screen's split and its terminal lifecycle
+(`building-tuis`); `unsafe` and OS bindings (`integrating-system-apis`); tests
+(`writing-tests`); a new crate (`managing-dependencies`); a lint level or a
 `clippy.toml` (`changing-gates`).
 
 The language is linked, not taught: The Rust Book (https://doc.rust-lang.org/book/) is
@@ -32,7 +34,7 @@ skill holds the choices this repository makes where the language offers several.
 
 The loop while writing: `just test-fast <filter>` compiles core and runs the matching
 tests, `just lint` runs clippy on every crate with warnings as errors, and `just fmt`
-formats. None of them opens a window.
+formats. None of them opens a window or takes over a terminal.
 
 ## Ownership and borrowing
 
@@ -45,10 +47,11 @@ formats. None of them opens a window.
   through three functions. Do not add lifetime annotations to make an error go away.
 - A struct owns its fields (`String`, not `&str`). A reference inside a struct gives the
   struct a lifetime parameter that spreads to every type and function that holds it.
-- A closure that runs on another thread must own what it uses (`move`), so clone the
-  `Arc` first. In the sample, `get_counter` in `src-tauri/src/commands.rs` does
-  `Arc::clone(&state.counter)` before `on_blocking_thread(move || …)`; borrowing
-  `state` there fails to compile, because the thread may outlive the borrow.
+- A closure that may run on another thread or after the current function returns must
+  own what it uses (`move`); clone an `Arc` first when the caller still needs it. In
+  `install_panic_hook` (`crates/myapp/src/tui/mod.rs`), `panic::set_hook` needs a
+  `Send + Sync + 'static` closure, so `move` hands the previous hook into it; borrowing
+  a local there fails to compile, because the hook outlives the function.
 - Share a port or a service between threads with `Arc<T>`; change data behind `&self`
   with a `Mutex`. `Rc` and `RefCell` are for one thread only, and a port must be
   `Send + Sync` (below), so they fail there with E0277.
@@ -64,21 +67,23 @@ formats. None of them opens a window.
 - Never `unwrap()` or `expect()` outside tests. Enforced by: `Cargo.toml`
   `[workspace.lints.clippy]` `unwrap_used`/`expect_used`, with `clippy.toml`
   `allow-unwrap-in-tests`. The reason is harder than style: the release profile sets
-  `panic = "abort"` (root `Cargo.toml`), so a panic ends the whole app at once, with no
-  error the UI can show and nothing unwound
-  (https://doc.rust-lang.org/cargo/reference/profiles.html#panic, checked 2026-09-29).
+  `panic = "abort"` (root `Cargo.toml`), so a panic ends the whole process at once, with
+  no `error:` line and nothing unwound; in the TUI only the panic hook restores the
+  terminal (https://doc.rust-lang.org/cargo/reference/profiles.html#panic, checked
+  2026-09-29).
 - Return `Result<T, E>` and propagate with `?`. Turn an `Option` into an error with
-  `.ok_or(E)?` (`home_dir().ok_or(StartupError::NoHome)?` in `src-tauri/src/lib.rs`),
-  or leave early with `let … else` (`let Some(home) = home_dir() else { … }` in
-  `crates/myapp/src/main.rs`). Use `unwrap_or`, `unwrap_or_default`, or
-  `map_or_else` only where the fallback is a correct answer, and say why in a comment
-  (`SystemClock::now` in `crates/myapp-platform/src/clock.rs`).
+  `.ok_or(E)?` (`decided.ok_or(CounterError::Storage { … })` in
+  `CounterService::change`), or leave early with `let … else`
+  (`let Some(home) = home_dir() else { … }` in `crates/myapp/src/main.rs`). Use
+  `unwrap_or`, `unwrap_or_default`, or `map_or_else` only where the fallback is a
+  correct answer, and say why in a comment (`SystemClock::now` in
+  `crates/myapp-platform/src/clock.rs`).
 - `?` converts the error through `From`. Where one error wraps another, an
   `impl From<Inner> for Outer` lets `?` do the conversion; without it the `?` fails with
   E0277. In the sample, `impl From<StorageError> for CounterError` is what lets
   `self.store.load()?` compile inside a method returning `CounterError`.
-- Errors derive `thiserror::Error`; `anyhow` is not used in a library. Which variants an
-  enum has, and what crosses IPC: **REQUIRED:** `designing-errors`, before adding or
+- Errors derive `thiserror::Error`; `anyhow` is not used. Which variants an enum has,
+  and how the binary words each: **REQUIRED:** `designing-errors`, before adding or
   changing a variant.
 - Never swallow an error. `let _ = fallible();` carries a comment saying why the failure
   does not matter. In the sample, `write_atomically` in
@@ -100,13 +105,13 @@ formats. None of them opens a window.
   variants with `A | B =>`. A new variant then fails to compile (E0004) at every place
   that must decide what it means, instead of falling silently into a default. Enforced
   by: `#![deny(clippy::wildcard_enum_match_arm)]` in `crates/myapp-core/src/lib.rs`
-  (core only; follow the same rule in the other crates). In core the lint fires on an
-  enum a foreign crate owns too, whenever a `_` stands for a variant the match could
+  and `crates/myapp/src/main.rs` (follow the same rule in the other crates). Where it
+  is denied, the lint fires on an enum a foreign crate owns too, whenever a `_` stands for a variant the match could
   have named (observed on this Mac with `cargo clippy`, rustc 1.98.1, 2026-09-30). A
   `#[non_exhaustive]` foreign enum needs a `_` arm (E0004), which the lint accepts once
   every variant is named before it; `std::io::ErrorKind` has unstable variants no match
-  can name (E0658), so test it with `==` or `matches!` instead. Outside core a match on
-  a `#[non_exhaustive]` foreign enum ends with `_ =>`. In the sample, `counter_error` in
+  can name (E0658), so test it with `==` or `matches!` instead. In a crate without the
+  deny, a match on a `#[non_exhaustive]` foreign enum ends with `_ =>`. In the sample, `counter_error` in
   `crates/myapp/src/wording.rs` matches every `CounterError` and every
   `StorageErrorKind` inside it.
 
@@ -130,8 +135,8 @@ formats. None of them opens a window.
 
 - A port is a synchronous trait with `Send + Sync` as supertraits and `&self` methods:
   `pub trait Clock: Send + Sync { fn now(&self) -> UnixMillis; }` in
-  `crates/myapp-core/src/time.rs`. `Send + Sync` is what lets Tauri's shared state and
-  a blocking thread hold it; a type with an `Rc` or a `RefCell` inside is neither, and
+  `crates/myapp-core/src/time.rs`. `Send + Sync` is what lets an `Arc<dyn Clock>` be
+  shared with another thread; a type with an `Rc` or a `RefCell` inside is neither, and
   fails with E0277 where it is handed over
   (https://doc.rust-lang.org/book/ch16-04-extensible-concurrency-sync-and-send.html).
 - A service stores a port as `Arc<dyn Port>`: one compiled copy and a readable type.
@@ -142,19 +147,29 @@ formats. None of them opens a window.
 - When a port is needed at all, and why ports never become `async`:
   **BACKGROUND:** `designing-core-logic`.
 
-## Derives for IPC and disk
+## Derives for disk and `--json`
 
-- A type whose JSON the UI or a file reads uses `#[serde(rename_all = "camelCase")]`,
+- A type whose JSON a file or a script reads uses `#[serde(rename_all = "camelCase")]`,
   so Rust's `last_changed_at` is `lastChangedAt` on the other side. That JSON is
   contract: a field added to a stored type gets `#[serde(default)]` so older files still
   read, and serde's attributes are documented at https://serde.rs/attributes.html.
 
-## Logging and `unsafe`
+## clap and ratatui
 
-- Log with the `tracing` macros and structured fields (`tracing::warn!(command,
-  %error, "…")`), never `println!`, `eprintln!`, or `dbg!`: a `.app` started from
-  Finder has no terminal, so nobody reads its stdout, while the log file stays. The
-  helper CLI's own output to its user is the exception.
+The binary's idioms for both, and the traps a newcomer meets in them (a subcommand
+enum's derives, `ExitCode`, let chains, `Layout::areas`, `const` styles), are in
+[references/clap-and-ratatui.md](references/clap-and-ratatui.md).
+
+## Output, logging, and `unsafe`
+
+- Log with the `tracing` macros and structured fields (`tracing::warn!(?action,
+  %error, "…")`) rather than an ad-hoc `println!`, `eprintln!`, or `dbg!`: stdout is a
+  subcommand's data and, under `myapp tui`, the screen itself, so a stray line breaks a
+  pipe or a frame, while the log file stays. The binary's own output to its user is
+  the exception: its result is written with `writeln!` to a locked stdout so a closed
+  pipe is an error rather than a panic, and its `error: …`/`warning: …` wording is
+  printed with `eprintln!` in `main.rs`, the sentence taken from `wording.rs`
+  (`designing-clis`). The ban is on diagnostics printed anywhere else.
 - `unsafe` is forbidden in every crate (`unsafe_code = "forbid"`) and is never the fix
   for a borrow-checker error. Edition 2024 makes `std::env::set_var` unsafe
   (https://doc.rust-lang.org/edition-guide/rust-2024/newly-unsafe-functions.html,

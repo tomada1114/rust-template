@@ -2,9 +2,9 @@
 
 What this repository decided about APIs behind a privacy (TCC) permission, and why. What
 each API returns is Apple's to document and is linked. Every decision below rests on one
-property: **TCC tells the app nothing.** A refused call fails quietly (a `false`, an
+property: **TCC tells the program nothing.** A refused call fails quietly (a `false`, an
 empty result, a creation that returns nothing) and a new grant arrives with no callback.
-The app finds out by asking again.
+The tool finds out by asking again.
 
 ## Checking and prompting
 
@@ -17,8 +17,8 @@ checked 2026-09-29). So:
 - **The answer to a prompting call is from before the user reacted.** Never store it as
   the new state; ask again later.
 - **Prompt when the user first reaches for the feature that needs it, never at
-  launch.** Before the user knows what the app is for, the prompt reads as a demand.
-  This repository treats it as spendable once per app per user: a prompt shown again
+  launch.** Before the user knows what the tool is for, the prompt reads as a demand.
+  This repository treats it as spendable once per program per user: a prompt shown again
   and again trains the user to dismiss it.
 - **Checking is cheap and side-effect free** without the prompt option; do it as often
   as the state needs.
@@ -53,23 +53,24 @@ pub enum Gate {
 }
 ```
 
-Refreshing, prompting at most once, and what `Blocked` renders are methods on the core
+Refreshing, prompting at most once, and what `Blocked` shows are methods on the core
 type that owns the gate, each with a test against the fake (`designing-core-logic`,
-`tdd`). The view that crosses IPC is a DTO in core like any other.
+`tdd`). A subcommand prints the resulting view and a TUI screen draws it, like any
+other.
 
 ## The grant arrives with no callback
 
-The user leaves the app, opens System Settings › Privacy & Security, flips a switch, and
-comes back. Nothing in the app was called. Two answers, in this order:
+The user leaves the tool, opens System Settings › Privacy & Security, flips a switch, and
+comes back. Nothing in the tool was called. So the tool asks again:
 
-1. **Re-check when the window gains focus.** Returning to the app is the one signal
-   that follows a change in System Settings. Tauri reports it as
-   `WindowEvent::Focused(true)`
-   (<https://docs.rs/tauri/latest/tauri/enum.WindowEvent.html>, checked 2026-09-29); the
-   shell handles the event by calling core's refresh and emitting the new view.
-2. **Poll only while blocked and visible,** about once a second, and stop the moment
-   the answer turns true. It covers a grant given without leaving the app, and costs
-   nothing while ready.
+1. **A subcommand checks on every run.** Each run is a new process that reads the
+   answer fresh; a blocked run exits 1 with wording that names the permission, and the
+   next run after the grant simply works.
+2. **The TUI re-checks on the user's word, and on a tick only while blocked.** Give
+   the blocked screen a key that retries (an action in core's key table, named on the
+   help line), and, if the screen should notice by itself, a tick the loop turns into a
+   refresh action about once a second, stopped the moment the answer turns true. It
+   costs nothing while ready (`building-tuis`).
 
 Some APIs need re-arming, not only re-checking: a registration attempted while
 untrusted never happened. Model that as "the gate turned ready, so start", not as a retry
@@ -77,39 +78,42 @@ loop.
 
 ## Degraded, not broken
 
-A missing grant is a state the user can leave, so the app stays usable and says what is
-missing and how to fix it: name the permission as System Settings names it, and offer
-one action that gets the user there rather than a paragraph describing where to click.
-The wording lives in `ui/src/copy/` like any other.
+A missing grant is a state the user can leave, so the tool stays usable and says what is
+missing and how to fix it: name the permission as System Settings names it, and say
+which program to grant it to (see "Which program holds the grant" below). The wording
+lives in `crates/myapp/src/wording.rs` like any other.
 
 ## Usage-description keys
 
-Some TCC-gated APIs require an `NS…UsageDescription` key in the app's `Info.plist`, and
-the system ends the process at the call when the key is missing, which is worse than a
-refusal. Tauri merges a `src-tauri/Info.plist` into the bundle's generated one
-(<https://v2.tauri.app/distribute/macos-application-bundle/>, checked 2026-09-29); the
-template ships none. Add the key the API's Apple page names, in the pull request that
-adds the API. Not every permission has one: check the API's own page rather than
-assuming either way.
+Some TCC-gated APIs require an `NS…UsageDescription` key in the program's `Info.plist`,
+and the system ends the process at the call when the key is missing, which is worse
+than a refusal. `myapp` is a bare binary with no bundle and no `Info.plist`, so an API
+that needs a key also needs a decision on how the binary carries one: an ADR, in the
+pull request that adds the API. Not every permission has a key: check the API's own
+Apple page rather than assuming either way.
 
-## The grant your own rebuild destroys
+## Which program holds the grant
 
-Local builds are ad-hoc signed (`signingIdentity: "-"` in `src-tauri/tauri.conf.json`,
-and every building recipe unsets the `APPLE_*` variables). TCC identifies an app by its
-code signature, and an ad-hoc signature changes with every build, so each rebuild looks
-like a different app and the grant given a minute ago no longer applies. Apple's DTS
+TCC judges a privacy request by its responsible code, and for a tool run from Terminal
+that is Terminal (<https://developer.apple.com/forums/thread/760964>, checked
+2026-09-29). So the entry the user flips in System Settings may be their terminal app
+rather than `myapp`. Say in the hand-off which entry to look for, and treat "it works
+from my terminal" as evidence about that terminal, not about `myapp` started some other
+way (a scheduled job, another terminal app).
+
+When the grant is held by a program's own signature, TCC identifies the program by its
+code signature, and a build whose signature changes with every build looks like a new
+program each time, so a grant given a minute ago no longer applies. Apple's DTS
 recommends a stable signing identity for day-to-day work with TCC
-(<https://developer.apple.com/forums/thread/730043>, checked 2026-09-29; the mechanism is
-the designated requirement,
+(<https://developer.apple.com/forums/thread/730043>, checked 2026-09-29; the mechanism
+is the designated requirement,
 <https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements>).
-
 This is the reason an agent debugging a TCC feature concludes the code is broken when it
-is not. How an app that needs grants signs its local builds is that app's decision, in
-an ADR (`docs/getting-started.md` › "Permissions (TCC)"); signing settings are a
-sign-off change (`AGENTS.md` › "Security and human approval"). After switching
-signing, or when System Settings shows an entry that grants nothing,
-`tccutil reset All com.example.myapp` (a human's step) makes macOS forget this app's
-decisions, and only this app's, so the next launch asks again.
+is not. How an app that needs grants signs its builds is that app's decision, in an
+ADR; signing settings are a sign-off change (`AGENTS.md` › "Security and human
+approval"). When System Settings shows an entry that grants nothing, `tccutil reset`
+(a human's step; `man tccutil`) makes macOS forget a program's decisions so the next
+run asks again.
 
 ## The human hand-off
 
@@ -117,16 +121,15 @@ Every TCC step needs a person: the prompt is a system window, and System Setting
 another app, which an agent never drives (`AGENTS.md` › "Never taking over the
 developer's Mac"). Ask once, in one message, before the loop starts:
 
-- which permission, and for which process: the app itself, or, for `just test-local`,
-  the terminal that runs the tests, since macOS judges a privacy request by its
-  responsible code, and for a tool run from Terminal that is Terminal
-  (<https://developer.apple.com/forums/thread/760964>, checked 2026-09-29);
+- which permission, and for which program: usually the terminal that runs `myapp` or
+  `just test-local` (see "Which program holds the grant");
 - the order of the steps (build, run, grant, run again) and the recipe for each
   (`just test-local` is a human recipe);
-- what to send back: the `just test-local` output, and what the window showed.
+- what to send back: the `just test-local` output, and what the tool printed or the
+  screen showed.
 
 Asking once per iteration turns a five-minute check into an afternoon. Then read
-`just logs` yourself for what the app recorded (`running-the-app`).
+`just logs` yourself for what the tool recorded (`running-the-app`).
 
 ## Tests that need a grant
 
