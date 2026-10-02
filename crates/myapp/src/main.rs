@@ -9,6 +9,8 @@
 // `wording` until it has its words.
 #![deny(clippy::wildcard_enum_match_arm)]
 
+#[cfg(feature = "openrouter")]
+mod llm;
 mod tui;
 mod wording;
 
@@ -39,6 +41,22 @@ enum Command {
     },
     /// Open the full-screen counter view (needs an interactive terminal).
     Tui,
+    /// Ask a language model to process text.
+    #[cfg(feature = "openrouter")]
+    Llm {
+        #[command(subcommand)]
+        action: LlmAction,
+    },
+}
+
+#[cfg(feature = "openrouter")]
+#[derive(Debug, Subcommand)]
+enum LlmAction {
+    /// Send one prompt and print the final answer.
+    Ask {
+        /// The text to send to the model.
+        prompt: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Subcommand)]
@@ -57,6 +75,10 @@ fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Counter { action } => counter(action),
         Command::Tui => tui(),
+        #[cfg(feature = "openrouter")]
+        Command::Llm {
+            action: LlmAction::Ask { prompt },
+        } => llm::run(&prompt),
     }
 }
 

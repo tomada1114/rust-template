@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optional OpenRouter text generation: build with the `openrouter` feature to use
+  `myapp llm ask`, with OpenAI Luna and Max reasoning effort selected in source.
+  `TextGenerator`, `GenerationService`, and `GenerationView` can be reused by CLI and
+  TUI actions; keys are resolved only on a call, from `OPENROUTER_KEY` or `.env.local`.
+- Bootstrap's `--env-from DIR` copies a local `.env.local` from another checkout,
+  keeping existing credentials and creating new files with owner-only permissions.
+
 - The template: a Tauri v2 macOS app with a Rust core, a React UI, CI, and agent tooling.
 - Documentation: the README's design rationale, contributing and security policies, a
   code of conduct, architecture, distribution and signing, and getting-started guides, an

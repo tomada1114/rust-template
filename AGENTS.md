@@ -162,6 +162,13 @@ xtask/                      # Repository automation in Rust, run as `cargo xtask
   hands core a fake from `myapp-test-support`. Core never meets async.
   The worked example is `CounterStore` / `JsonFileCounterStore` / `InMemoryCounterStore`
   and `Clock` / `SystemClock` / `FixedClock`.
+- Optional model calls use `TextGenerator` / `OpenRouterClient` / `StubTextGenerator`
+  with the same synchronous boundary. `GenerationService` validates input and returns
+  a `GenerationView`; the binary's `src/llm.rs` selects model and effort in source.
+  The `openrouter` feature is off by default. Credentials are resolved only on a call,
+  from `OPENROUTER_KEY`, then `.env.local` in the working directory. See
+  `docs/openrouter.md`; `just lint` checks all features and the test recipes exercise
+  both default and feature-enabled builds using local HTTP fixtures.
 - The core boundary is enforced three times, so removing one layer leaves the others:
   core's `Cargo.toml` lists no OS or platform crate; `deny.toml`'s `[bans]`
   `wrappers` let only `myapp` depend on `myapp-platform`; and a harness check fails

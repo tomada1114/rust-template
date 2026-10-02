@@ -8,11 +8,15 @@
 mod clock;
 mod counter_store;
 mod logging;
+#[cfg(feature = "openrouter")]
+mod openrouter;
 mod paths;
 
 pub use clock::SystemClock;
 pub use counter_store::JsonFileCounterStore;
 pub use logging::{LOG_FILES_KEPT, LoggingError, init_logging};
+#[cfg(feature = "openrouter")]
+pub use openrouter::{OpenRouterClient, OpenRouterTuning};
 pub use paths::{
     BUNDLE_IDENTIFIER, COUNTER_FILE_NAME, XDG_APP_NAME, app_data_dir, counter_file, home_dir,
     log_dir, macos_data_dir, macos_log_dir, xdg_data_dir, xdg_log_dir,

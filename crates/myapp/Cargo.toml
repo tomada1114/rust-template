@@ -7,6 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+default = []
+openrouter = ["myapp-platform/openrouter"]
+
 [dependencies]
 clap = { workspace = true }
 myapp-core = { workspace = true }

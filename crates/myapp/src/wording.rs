@@ -3,6 +3,8 @@
 //! lives here, in one place, and each `match` names every variant: a new core variant does
 //! not compile until it has its words.
 
+#[cfg(feature = "openrouter")]
+use myapp_core::GenerationError;
 use myapp_core::{CounterError, StorageErrorKind};
 
 /// Printed when `HOME` is unset or empty, so no file location can be derived.
@@ -41,9 +43,85 @@ fn storage_error(kind: StorageErrorKind) -> &'static str {
     }
 }
 
+/// Actionable model-failure wording, shared by a CLI command and a future TUI screen.
+#[cfg(feature = "openrouter")]
+pub fn generation_error(error: GenerationError) -> &'static str {
+    match error {
+        GenerationError::EmptyPrompt => "the model prompt must contain text",
+        GenerationError::InvalidConfiguration => {
+            "the model configuration or .env.local could not be read"
+        }
+        GenerationError::MissingCredentials => {
+            "set OPENROUTER_KEY in the environment or .env.local before calling a model"
+        }
+        GenerationError::InvalidCredentials => "the OpenRouter key is invalid or was rejected",
+        GenerationError::InsufficientCredits => "the OpenRouter account has insufficient credits",
+        GenerationError::RateLimited => "the OpenRouter rate limit was reached; try again later",
+        GenerationError::Timeout => "the model call timed out",
+        GenerationError::Unavailable => "the model provider could not be reached",
+        GenerationError::Rejected => "the model request or answer was rejected",
+        GenerationError::Truncated => {
+            "the model exhausted its output budget; increase the source token limit"
+        }
+        GenerationError::InvalidResponse => {
+            "the model provider returned an invalid or empty answer"
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "openrouter")]
+    #[test]
+    fn each_model_failure_has_actionable_wording_without_provider_data() {
+        for (error, expected) in [
+            (
+                GenerationError::EmptyPrompt,
+                "the model prompt must contain text",
+            ),
+            (
+                GenerationError::InvalidConfiguration,
+                "the model configuration or .env.local could not be read",
+            ),
+            (
+                GenerationError::MissingCredentials,
+                "set OPENROUTER_KEY in the environment or .env.local before calling a model",
+            ),
+            (
+                GenerationError::InvalidCredentials,
+                "the OpenRouter key is invalid or was rejected",
+            ),
+            (
+                GenerationError::InsufficientCredits,
+                "the OpenRouter account has insufficient credits",
+            ),
+            (
+                GenerationError::RateLimited,
+                "the OpenRouter rate limit was reached; try again later",
+            ),
+            (GenerationError::Timeout, "the model call timed out"),
+            (
+                GenerationError::Unavailable,
+                "the model provider could not be reached",
+            ),
+            (
+                GenerationError::Rejected,
+                "the model request or answer was rejected",
+            ),
+            (
+                GenerationError::Truncated,
+                "the model exhausted its output budget; increase the source token limit",
+            ),
+            (
+                GenerationError::InvalidResponse,
+                "the model provider returned an invalid or empty answer",
+            ),
+        ] {
+            assert_eq!(generation_error(error), expected);
+        }
+    }
 
     #[test]
     fn at_maximum_says_the_counter_cannot_go_higher() {

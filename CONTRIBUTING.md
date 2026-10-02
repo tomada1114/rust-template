@@ -52,6 +52,11 @@ just check          # the local gate, in CI's order; its steps are listed below
 test-platform. It opens no window, takes no focus, raises no prompt, and takes over no
 terminal.
 
+`just lint` checks all Cargo features. `just test-core` and `just test-platform` test
+both default builds and the optional OpenRouter build, using local HTTP fixtures and
+synthetic credentials. On Linux these checks also need the OpenSSL development
+headers and `pkg-config`; see [OpenRouter](docs/openrouter.md).
+
 These recipes are for a human and are never part of `just check`; an agent runs them
 only when you ask:
 
@@ -76,13 +81,15 @@ Each recipe is a thin call; the justfile is the reference. The main ones:
 mise install && lefthook install
 cargo xtask verify-hooks                         # just verify-hooks
 cargo fmt --all --check                          # part of just lint
-cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo xtask clippy-guard cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
 cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
+cargo nextest run --locked --all-features -p myapp-test-support -p myapp-platform -p myapp
 cargo llvm-cov nextest --locked --no-report -p xtask -p xtask-guard  # just test-xtask (its floors: the recipe's report lines)
 python3 -m unittest discover -s .agents/skills/<skill>/scripts/tests -t .agents/skills/<skill>/scripts/tests  # just test-scripts, per skill (plus shellcheck)
 cargo nextest run --locked -p myapp-platform -p myapp   # just test-platform
+cargo nextest run --locked --all-features -p myapp-platform -p myapp
 cargo deny --locked check                        # just deny
 ```
 

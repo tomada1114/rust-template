@@ -43,6 +43,14 @@ copyright holder to the author, and any other missing value fails with
 changes anything. `--help` prints the usage line; an unknown, repeated, or valueless
 flag fails with `ERR_BOOTSTRAP_USAGE`.
 
+`--env-from DIR` is optional and takes the local template checkout's directory. It
+copies `DIR/.env.local` automatically, as opaque bytes, without parsing or printing
+credentials. A relative directory is resolved from the new checkout. An existing
+destination, including a symlink, is preserved without opening the source; a new file
+has owner-only read/write permissions (`0600`). A missing, unreadable, or non-file
+source fails with `ERR_BOOTSTRAP_ENV_COPY` before any rename. Omitting the option
+leaves credentials unset, so apps without model calls need no key.
+
 Every value is trimmed and validated before anything is written, each failure with its
 own `ERR_BOOTSTRAP_INVALID_<FIELD>` code:
 
@@ -73,6 +81,9 @@ Every edit is computed and checked in memory first, so a drifted site list fails
 
 1. Runs `cargo fetch --locked`, which needs the network once: it downloads the versions
    `Cargo.lock` already pins, and nothing is written if it fails (`ERR_BOOTSTRAP_FETCH`).
+   If `--env-from` was supplied, its source is opened before the fetch, and `.env.local`
+   is copied after the fetch, before the planned edits. A failed copy removes its
+   partial destination and stops before renaming anything (`ERR_BOOTSTRAP_ENV_COPY`).
 2. Writes the planned edits in one pass: the placeholder sites with the values above;
    every `<!-- template-only -->` … `<!-- /template-only -->` block, the `bootstrap` and
    `verify-bootstrap` recipes and tasks (their `mod` lines and entries in
