@@ -11,7 +11,15 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { gitEnv } from "./lib/git-env.ts";
 import { runCommand, type RunOptions, type RunResult, type ScriptContext } from "./lib/script.ts";
-import { assertGenerated, fillProductBullets, main, VERIFY_ANSWERS } from "./verify-bootstrap.ts";
+import { ScriptError, type FailureDetails } from "./lib/fail.ts";
+import {
+  assertGenerated,
+  fillProductBullets,
+  harnessProductSection,
+  main,
+  parseHarnessReport,
+  VERIFY_ANSWERS,
+} from "./verify-bootstrap.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -113,12 +121,47 @@ function generatedTree(root: string = tempDir("verify-bootstrap-app-")): string 
   return root;
 }
 
+/**
+ * A stand-in for the Rust product-section check in an app (`cargo xtask check-harness
+ * --check product-section`), which xtask's own tests cover: each `TODO:` left in the
+ * Product section is a violation whose Next line names the `starting-an-app` skill.
+ */
+function productSection(root: string): FailureDetails[] {
+  const path = join(root, "AGENTS.md");
+  const lines = existsSync(path) ? readFileSync(path, "utf8").split("\n") : [];
+  const start = lines.indexOf("## Product");
+  const found: FailureDetails[] = [];
+  for (let index = start + 1; start !== -1 && index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (line.startsWith("## ")) break;
+    if (!line.includes("TODO:")) continue;
+    found.push({
+      code: "ERR_CHECK_PRODUCT_SECTION",
+      summary: `AGENTS.md:${String(index + 1)} still holds a \`TODO:\` marker after the bootstrap`,
+      expected: "a `## Product` section holding no `TODO:`",
+      actual: line.trim(),
+      next: "write the section (the `starting-an-app` skill walks through it)",
+    });
+  }
+  return found;
+}
+
+/** productSection's verdict as `cargo xtask check-harness` prints it. */
+function harnessOutput(root: string): Partial<RunResult> {
+  const found = productSection(root);
+  if (found.length === 0) return { status: 0, stdout: "ok    product-section\n" };
+  const reports = found.map(
+    (v) => `${v.code}: ${v.summary}\nExpected: ${v.expected}\nActual: ${v.actual}\nNext: ${v.next}`,
+  );
+  return { status: 1, stdout: ["FAIL  product-section", ...reports, ""].join("\n") };
+}
+
 const codes = (root: string): string[] =>
-  assertGenerated(root, VERIFY_ANSWERS).map((violation) => violation.code);
+  assertGenerated(root, VERIFY_ANSWERS, productSection).map((violation) => violation.code);
 
 describe("assertGenerated", () => {
   it("accepts an app with every name in agreement and nothing left of the template", () => {
-    expect(assertGenerated(generatedTree(), VERIFY_ANSWERS)).toEqual([]);
+    expect(assertGenerated(generatedTree(), VERIFY_ANSWERS, productSection)).toEqual([]);
   });
 
   it.each([
@@ -131,7 +174,7 @@ describe("assertGenerated", () => {
   ])("fails on a leftover %s", (_label, text) => {
     const root = generatedTree();
     write(root, "docs/leftover.md", `line one\n${text}\n`);
-    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    const violations = assertGenerated(root, VERIFY_ANSWERS, productSection);
     expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_LEFTOVER"]);
     expect(violations[0]?.actual).toContain("docs/leftover.md:2");
   });
@@ -179,7 +222,7 @@ describe("assertGenerated", () => {
   ])("fails on text about the template: %s", (_label, text) => {
     const root = generatedTree();
     write(root, "scripts/lib/notes.ts", `// ok\n// ${text}\n`);
-    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    const violations = assertGenerated(root, VERIFY_ANSWERS, productSection);
     expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT"]);
     expect(violations[0]?.actual).toContain("scripts/lib/notes.ts:2");
   });
@@ -203,7 +246,7 @@ describe("assertGenerated", () => {
   it("fails when the Product section passes unfilled", () => {
     const root = generatedTree();
     write(root, "AGENTS.md", "## Product\n\n- **Non-goals** — none.\n");
-    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    const violations = assertGenerated(root, VERIFY_ANSWERS, productSection);
     expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION"]);
     expect(violations[0]?.actual).toContain("passes on the unfilled section");
   });
@@ -212,15 +255,16 @@ describe("assertGenerated", () => {
     const root = generatedTree();
     const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
     write(root, "AGENTS.md", agents.replace("The owner writes", "TODO: the owner writes"));
-    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    const violations = assertGenerated(root, VERIFY_ANSWERS, productSection);
     expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION"]);
     expect(violations[0]?.actual).toContain("AGENTS.md:5 still holds");
+    expect(violations[0]?.actual).toContain("TODO: the owner writes");
   });
 
   it("fails when the Product section's Next line names a skill the app lacks", () => {
     const root = generatedTree();
     rmSync(join(root, ".agents/skills/starting-an-app"), { recursive: true });
-    const violations = assertGenerated(root, VERIFY_ANSWERS);
+    const violations = assertGenerated(root, VERIFY_ANSWERS, productSection);
     expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION"]);
     expect(violations[0]?.actual).toContain("a skill the app lacks: starting-an-app");
   });
@@ -250,7 +294,7 @@ describe("assertGenerated", () => {
     ]) {
       const root = generatedTree();
       write(root, ".agents/skills/example/references/extra.md", `${text}\n`);
-      const violations = assertGenerated(root, VERIFY_ANSWERS);
+      const violations = assertGenerated(root, VERIFY_ANSWERS, productSection);
       expect(violations.map((v) => v.code)).toEqual(["ERR_VERIFY_BOOTSTRAP_DANGLING_REFERENCE"]);
       expect(violations[0]?.actual).toContain(".agents/skills/example/references/extra.md");
     }
@@ -346,6 +390,9 @@ function context(
       run: (command, args, options) => {
         calls.push({ command, args, options });
         if (command === "git") return runCommand(command, args, options);
+        if (command === "cargo") {
+          return { status: 0, stdout: "", stderr: "", ...harnessOutput(args.at(-1) ?? "") };
+        }
         return { status: 0, stdout: "", stderr: "", ...bootstrap(options?.cwd ?? "") };
       },
       log: (line) => lines.push(line),
@@ -480,6 +527,77 @@ describe("main", () => {
         main(context(sourceRepo(), ["--fast"], () => ({})).context);
       }),
     ).toMatch(/^ERR_VERIFY_BOOTSTRAP_USAGE/);
+  });
+});
+
+describe("the product-section check through cargo xtask", () => {
+  const run = (
+    result: Partial<RunResult>,
+  ): { check: (root: string) => FailureDetails[]; calls: Call[] } => {
+    const calls: Call[] = [];
+    const check = harnessProductSection({
+      argv: [],
+      env: { PATH: "/bin" },
+      root: "/checkout",
+      run: (command, args, options) => {
+        calls.push({ command, args, options });
+        return { status: 0, stdout: "", stderr: "", ...result };
+      },
+      log: () => undefined,
+    });
+    return { check, calls };
+  };
+
+  it("runs the one check from the checkout against the root", () => {
+    const { check, calls } = run({ status: 0 });
+    expect(check("/app")).toEqual([]);
+    expect(calls).toEqual([
+      {
+        command: "cargo",
+        args: ["xtask", "check-harness", "--check", "product-section", "--root", "/app"],
+        options: { cwd: "/checkout", env: { PATH: "/bin" } },
+      },
+    ]);
+  });
+
+  it("returns each violation the harness reports", () => {
+    const root = generatedTree();
+    const { check } = run(harnessOutput(root));
+    expect(check(root)).toEqual(productSection(root));
+    expect(check(root).map((v) => v.code)).toEqual([
+      "ERR_CHECK_PRODUCT_SECTION",
+      "ERR_CHECK_PRODUCT_SECTION",
+    ]);
+  });
+
+  it("stops when the harness fails without a report", () => {
+    const { check } = run({ status: 101, stderr: "Compiling xtask\nerror: could not compile\n" });
+    let thrown: unknown;
+    try {
+      check("/app");
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    if (!(thrown instanceof ScriptError)) throw new Error("expected a ScriptError");
+    expect(thrown.details.code).toBe("ERR_VERIFY_BOOTSTRAP_HARNESS");
+    expect(thrown.details.actual).toBe("exit 101: error: could not compile");
+  });
+
+  it("reads only complete four-line reports", () => {
+    expect(
+      parseHarnessReport(
+        [
+          "FAIL  product-section",
+          "ERR_CHECK_A: one",
+          "Expected: e",
+          "Actual: a",
+          "Next: n",
+          "ERR_CHECK_B: cut short",
+          "Expected: e",
+          "",
+        ].join("\n"),
+      ),
+    ).toEqual([{ code: "ERR_CHECK_A", summary: "one", expected: "e", actual: "a", next: "n" }]);
   });
 });
 

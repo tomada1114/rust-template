@@ -71,14 +71,19 @@ impl ScriptError {
     }
 }
 
-impl fmt::Display for ScriptError {
+impl fmt::Display for FailureDetails {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let details = &self.details;
         write!(
             f,
             "{}: {}\nExpected: {}\nActual: {}\nNext: {}",
-            details.code, details.summary, details.expected, details.actual, details.next
+            self.code, self.summary, self.expected, self.actual, self.next
         )
+    }
+}
+
+impl fmt::Display for ScriptError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.details.fmt(f)
     }
 }
 

@@ -2,7 +2,7 @@
 # Never use "latest" or bump by hand: Renovate's `mise` manager opens the bump PRs,
 # with a 7-day minimum release age (.github/renovate.json).
 # Rust is pinned once, in rust-toolchain.toml. pnpm is pinned here and in package.json's
-# `packageManager` at the same version (scripts/checks/pnpm-pin.ts keeps them equal).
+# `packageManager` at the same version (Renovate moves both in one grouped PR).
 # Prebuilt binaries (aqua/github backends) only: the `cargo:` backend compiles from
 # source.
 [tools]

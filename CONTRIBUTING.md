@@ -16,7 +16,7 @@ repository, which commands to run, and how a change gets merged.
   actionlint, zizmor, gitleaks, and shellcheck.
 - [Just](https://just.systems/man/en/) to start the first `just install` (mise then
   pins it). mise installs pnpm at the version `package.json`'s
-  `packageManager` also names (a harness check keeps the two equal).
+  `packageManager` also names (Renovate moves the two in one grouped pull request).
 
 Then:
 
@@ -40,7 +40,7 @@ just test-fast increment   # one core test or a group of them, no coverage
 just test-platform  # platform adapters and the CLI against the real OS (macOS or Linux)
 just test-scripts   # Vitest over scripts/ and skills' scripts with their floors, plus
                     #   the bundled Python tests and shellcheck
-just check-harness  # the harness's checks about itself (scripts/checks/)
+just check-harness  # the harness's checks about itself (cargo xtask check-harness)
 just deny           # cargo deny: advisories, licences, bans, sources
 just logs           # print the end of the newest app log and exit
 just check          # the local gate, in CI's order; its steps are listed below

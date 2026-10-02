@@ -34,8 +34,8 @@ use crate::fail::{ScriptError, TaskResult};
 const USAGE: &str = "cargo xtask format-edited-file [--root DIR] < hook-payload.json";
 const HOOK_FAILURE: u8 = 2;
 
-/// The extensions `lefthook.yml`'s prettier job checks; this hook formats the same set
-/// (`just check-harness` compares the two).
+/// The extensions `lefthook.yml`'s prettier job checks; this hook formats the same set.
+/// No check compares the two, so a change to one changes the other in the same commit.
 pub(crate) const PRETTIER_EXTENSIONS: &[&str] = &[
     ".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json", ".css", ".html", ".yml", ".yaml",
 ];

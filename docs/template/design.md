@@ -397,8 +397,10 @@ ignore list, `continue-on-error`, `--no-verify`.
 
 ### D14. Harness self-checks — Designer
 
-`just check-harness` runs `scripts/checks/*.ts` (each runnable against a fixture root with
-`--root`, each with fixture tests), porting macos-app-template's checks and the day-one
+`just check-harness` runs the harness checks — `scripts/checks/*.ts` when this was
+decided, `cargo xtask check-harness` (one module per check under
+`xtask/src/check_harness/`) since — each runnable against a fixture root with `--root`,
+each with fixture tests, porting macos-app-template's checks and the day-one
 improvements from the triage:
 
 - every `just <recipe>` named in `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, and skills exists;

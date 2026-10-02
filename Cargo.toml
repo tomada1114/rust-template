@@ -26,9 +26,15 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
 thiserror = "2"
+# The harness checks' TOML reader (xtask only): parsing into `toml::Table` needs `parse`
+# and `serde`; `display` (writing TOML) goes unused.
+toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std", "ansi"] }
+# The harness checks' YAML reader (xtask only), through its event parser so each node
+# keeps its line; the default `encoding` feature (non-UTF-8 input) goes unused.
+yaml-rust2 = { version = "0.13", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

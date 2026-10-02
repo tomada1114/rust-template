@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     # The one literal branch here is the default branch the ruleset's ~DEFAULT_BRANCH
-    # gates, as scripts/checks/ruleset-contexts.ts reads it: rename it with the branch.
+    # gates, as xtask/src/check_harness/ruleset_contexts.rs reads it: rename it with the branch.
     branches: [main]
   pull_request:
 

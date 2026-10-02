@@ -182,19 +182,14 @@ only when `CLEAN` and all green.
 ## F12: One side of a Node major
 
 **Symptom:** a Renovate PR that moves `mise.toml`'s `node` to a new major, or a
-Dependabot PR that moves `@types/node` to one, fails only in these ways, and every other
-job and step passes:
-
-- `Repo Lint & Harness` fails at "Harness self-checks"; the only `FAIL` line is
-  `FAIL  node-types-major`, and the only code is `ERR_CHECK_NODE_MAJOR_DIVERGED`.
-- `Template Bootstrap Smoke` fails at "just check in the bootstrapped app", at
-  `check-harness`, with the same `node-types-major` failure.
+Dependabot PR that moves `@types/node` to one, with no open PR moving the other side.
+CI usually passes: `tsc` accepts either major, and no check compares the two (the
+harness reads no Node-only pin since it moved to `cargo xtask check-harness`), so the
+plan's own read of the PR list is what notices one side moving alone.
 
 **Cause:** `@types/node` stays on the Node major `mise.toml` runs, so the scripts
-type-check against the APIs of the Node that executes them, and
-`scripts/checks/node-types-major.ts` fails when the two majors differ. Renovate bumps
-`mise.toml` and Dependabot bumps `@types/node`, each in its own PR, and `tsc` usually
-passes on either major, so the check is the only thing that notices one moving alone.
+type-check against the APIs of the Node that executes them. Renovate bumps `mise.toml`
+and Dependabot bumps `@types/node`, each in its own PR.
 
 **Fix:** such a PR is eligible for the combined branch only, never landed alone, under
 the combined-branch bar in `SKILL.md` › "Step 3". The combined branch moves the other

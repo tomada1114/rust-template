@@ -28,6 +28,6 @@ jobs:
         # the dependency graph: crates, npm packages, and the actions a workflow uses.
         # - fail-on-severity is unset: its default, `low`, is the strictest.
         # - allow-ghsas lists exactly osv-scanner.toml's GHSA ignores
-        #   (scripts/checks/advisory-ignores-agree.ts), none today.
+        #   (xtask/src/check_harness/advisory_ignores_agree.rs), none today.
         with:
           allow-licenses: 0BSD, Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, Unicode-3.0, Unlicense, Zlib

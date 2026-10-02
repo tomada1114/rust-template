@@ -165,6 +165,57 @@ fn reaches_every_other_task() {
 }
 
 #[test]
+fn prints_each_harness_finding_on_stdout_and_the_verdict_on_stderr() {
+    // scripts/verify-bootstrap.ts parses this split: a finding's four lines on stdout,
+    // ERR_HARNESS_FAILED on stderr.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let root = dir.path().display().to_string();
+    let output = xtask(
+        dir.path(),
+        &[
+            "check-harness",
+            "--check",
+            "product-section",
+            "--root",
+            &root,
+        ],
+        "",
+        &[],
+    );
+    assert_failure(&output, "ERR_HARNESS_FAILED", 1);
+    let stdout = text(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.first().copied(),
+        Some("FAIL  product-section"),
+        "{stdout}"
+    );
+    let finding = lines.get(1..5).unwrap_or_default();
+    assert!(
+        finding
+            .first()
+            .is_some_and(|line| line.starts_with("ERR_CHECK_") && line.contains(": ")),
+        "{stdout}"
+    );
+    for (line, label) in finding
+        .iter()
+        .skip(1)
+        .zip(["Expected: ", "Actual: ", "Next: "])
+    {
+        assert!(line.starts_with(label), "{stdout}");
+    }
+    assert_eq!(finding.len(), 4, "{stdout}");
+    assert!(!stdout.contains("ERR_HARNESS_FAILED"), "{stdout}");
+    assert!(
+        !text(&output.stderr)
+            .lines()
+            .any(|line| line.starts_with("ERR_CHECK_")),
+        "{}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
 fn asks_cargo_for_colour_only_through_clippy_guard() {
     // stdout is a pipe here, so clippy-guard leaves CARGO_TERM_COLOR unset; a fake cargo
     // reports what it was given.

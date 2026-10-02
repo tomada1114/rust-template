@@ -1,0 +1,8 @@
+# The build recipe's `cargo build` without `--locked`: cargo resolves without Cargo.lock.
+expect:
+  workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
+  just-check-matches-ci: []
+edits:
+  - file: justfile
+    from: "    cargo build --locked --release\n"
+    to: "    cargo build --release\n"
