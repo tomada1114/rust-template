@@ -45,7 +45,7 @@ The only pauses: the [stop conditions](#stop-conditions), a tied top two (step 2
 
 A count sets `--max-parallel`, default **2**: every worktree of this Cargo workspace
 builds into its own `target/` from cold, gigabytes each (5.3 GB: observed on this Mac
-with `du -sh target`, 2026-09-29) and a full compile before its baseline says anything.
+with `du -sh target`, 2026-09-29) and a full compile before its first check says anything.
 A `blocked: design` issue ships only when named, or with `--include-design` (step 2b).
 
 ## Working rules
@@ -87,8 +87,8 @@ python3 .agents/skills/shipping-issues/scripts/plan.py --mode <all|single|N> \
 Read the block; do not re-derive it ([plan-output.md](references/plan-output.md),
 [ship-contract.md](references/ship-contract.md)). `preflight: BLOCKED` and
 `existing-worktrees: BLOCKED` stop the run; ask about `tree: DIRTY` now. `verify-check:`
-is a guess to confirm: here the gate is `just check`, as `just test` skips lint, the
-harness, the macOS tests, build, and smoke. `needs-design:` spawns 8b now; `stale-labels:`
+is never run as a baseline: CI is the gate every PR merges through, so nobody runs the
+full `just check` before the PR. `needs-design:` spawns 8b now; `stale-labels:`
 runs unasked; `labels: COMPLETE` skips step 2; `github: write=no` only reports.
 
 ## 2. Label the unlabeled
@@ -113,10 +113,10 @@ never needs asking ([dependency-triage.md](references/dependency-triage.md)).
 
 ## 3. Implement
 
-One issue, one branch, one PR; the plan's `next:` line is the command. Baseline the
-gate first, in the background, since a cold `just check` outlasts a foreground call
-(serial: once on the branch; parallel: `worktree_setup.sh`, the first worktree alone;
-[worktree-parallelism.md](references/worktree-parallelism.md)). Spawn
+One issue, one branch, one PR; the plan's `next:` line is the command (serial: the
+branch; parallel: `worktree_setup.sh` without `--verify`, the first worktree alone;
+[worktree-parallelism.md](references/worktree-parallelism.md)). No baseline, no full
+`just check` before the PR: CI is the gate; implementers run the narrowest check. Spawn
 [agent-implementation.md](references/agent-implementation.md) per issue, a batch in one
 message. A `not-met` `ACCEPTANCE` line, an unaccepted `UNRESOLVED` call, or a
 user-visible change with no `CHANGELOG.md` entry goes back; a third miss is

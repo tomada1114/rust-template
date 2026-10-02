@@ -374,12 +374,12 @@ def main() -> int:
                 for r in lead}
     if plan_mode == "parallel":
         specs = " ".join(f"--spec {n}:{b}" for n, b in branches.items())
-        verify = pre["verify_command"]
+        # No --verify: CI is the gate every pull request merges through, so a
+        # pre-implementation baseline of the full gate only costs a cold build.
         next_cmd = (
             f"{SKILL_DIR}/worktree_setup.sh {specs} "
             f"--base {pre['default_branch']} "
             f"--root {runstate}/worktrees --log-dir {runstate}/verify"
-            + (f' --verify "{verify}"' if verify != "NONE" else "")
         )
     elif lead:
         n = lead[0]["number"]
@@ -457,17 +457,18 @@ def main() -> int:
           f"worktree_viable={pre.get('worktree_viable', 'unknown')} "
           f"(cache {pre.get('profile_cache', 'off')})")
     print(f"github: auth={pre.get('gh_auth', '?')} write={pre.get('gh_write', '?')}")
-    # The verify command is a guess from script names, and it gets executed as
-    # the baseline. Saying where it came from is what lets the caller notice
-    # that `test` was picked in a repo whose real gate is `lint && typecheck &&
-    # test`, or that the chosen script starts a watcher and will never exit.
+    # The verify command is a guess from script names. Nothing runs it as a
+    # baseline: CI is the gate, and implementers run the narrowest check that
+    # can fail. Saying where it came from still lets the caller notice a guess
+    # that is not the repo's real gate.
     verify = pre["verify_command"]
     if verify == "NONE":
-        print("verify-check: NONE found -- decide the baseline command yourself, "
-              "or run without one and say so in the report")
+        print("verify-check: NONE found -- CI is the gate; implementers run the "
+              "narrowest check that can fail")
     else:
         print(f"verify-check: {verify!r} (from {pre.get('verify_source', '?')}) "
-              "-- confirm it is this repo's real gate and that it terminates")
+              "-- not run as a baseline: CI is the gate; implementers run the "
+              "narrowest check that can fail")
     print()
     print(f"backlog: {digest['open_issue_count']} open | "
           f"{digest['open_pr_count']} open PRs | digest-cache {digest.get('cache')}")

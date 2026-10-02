@@ -29,36 +29,33 @@ One issue = one branch = one PR. Step 1's `next:` line is the command.
 git switch <default_branch> && git pull --ff-only && git switch -c <branch>
 ```
 
-Then run the confirmed verification command (`just check` in this repository) **once,
-unmodified, on this branch**, redirected to `<runstate>/verify/<n>-baseline.log`. Read
-the exit code and the log's tail, never the full output. `just check` compiles the
-workspace and runs every test, so it outlasts a foreground tool call: start it with
-`run_in_background` and wait for the completion notice under Claude Code, or give it a
-timeout that covers a full build under Codex CLI. The same holds for
-`worktree_setup.sh --verify` below. Neither opens a window (`AGENTS.md` › "Never taking
-over the developer's Mac").
+No baseline run follows. CI is the gate every pull request merges through, so a full
+`just check` before implementing -- or before opening the PR -- costs a cold build and
+proves nothing CI will not prove again. The implementer runs the narrowest check that
+can fail for what it changed (`AGENTS.md` › "Validating a change"), and CI judges the
+whole.
 
 ### Parallel
 
 The script creates each branch, copies the untracked
 `.claude/settings.local.json` (never a secret-shaped file such as `.env`;
 `worktree-parallelism.md`),
-installs dependencies when a lockfile asks for them, and runs the baseline, bounded. It
-**reports and does not decide**:
+and installs dependencies when a lockfile asks for them. It **reports and does not
+decide**:
 
 ```bash
 git switch <default_branch> && git pull --ff-only   # once, before the batch
 .agents/skills/shipping-issues/scripts/worktree_setup.sh --spec <n>:<branch> \
     --spec <m>:<branch> --base <default_branch> --root <runstate>/worktrees \
-    --log-dir <runstate>/verify --verify "just check"
+    --log-dir <runstate>/verify
 ```
 
 **Provision the first worktree on its own, read its block, then ask for the rest.** That
 one extra call is what stops a repository that cannot carry a worktree from costing
-two cold setups instead of one. Judging the four `baseline:` outcomes is yours, not the
-script's (`recovery.md`; `verdict:` semantics in
-`worktree-parallelism.md`). Whatever the smoke
-run turns up goes to step 8.
+two cold setups instead of one. `--verify` still exists for a run that has a reason to
+baseline (a `main` suspected red); without it there is no `baseline:` outcome to judge
+(`verdict:` semantics in `worktree-parallelism.md`). Whatever the setup turns up goes to
+step 8.
 
 ### Spawning
 
