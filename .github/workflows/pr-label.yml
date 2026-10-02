@@ -73,12 +73,14 @@ jobs:
         run: |
           # `type`, `type(scope)`, either with a breaking `!`, then a colon.
           title_pattern='^([a-z]+)(\([^)]*\))?!?:'
+          # Printed on one line, so a title cannot start a workflow command in the log.
+          shown_title="${PR_TITLE//[$'\r\n']/ }"
           wanted=""
           if [[ "$PR_TITLE" =~ $title_pattern ]]; then
             wanted="$(jq -r --arg type "${BASH_REMATCH[1]}" '.[$type] // empty' <<<"$TYPE_LABELS")"
           fi
           if [[ -z "$wanted" ]]; then
-            printf 'label-pr: nothing to change for "%s"\n' "$PR_TITLE"
+            printf 'label-pr: nothing to change for "%s"\n' "$shown_title"
             exit 0
           fi
 
@@ -105,7 +107,7 @@ jobs:
             | if length == 1 and .[0] != $wanted and .[0] != "dependencies" then .[0] else empty end
           ' <<<"$TYPE_LABELS")"
           if [[ -z "$add" && -z "$remove" ]]; then
-            printf 'label-pr: nothing to change for "%s"\n' "$PR_TITLE"
+            printf 'label-pr: nothing to change for "%s"\n' "$shown_title"
             exit 0
           fi
 

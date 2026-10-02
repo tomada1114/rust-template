@@ -1011,18 +1011,21 @@ fn verify(context: &Context<'_>, exe: &Path) -> TaskResult {
     )
     .and_then(|()| run_bootstrap(context, exe, &clone, &answers))
     .and_then(|()| assert_generated(&clone, &answers, &base, &product_section));
-    if keep {
+    let cleanup = if keep {
         context.log(&format!(
             "verify-bootstrap: kept the scratch copy at {}",
             clone.display()
         ));
+        Ok(())
     } else {
         std::fs::remove_dir_all(&workspace).map_err(|error| {
             ScriptError::unexpected(&format!("removing {}", workspace.display()), &error)
-        })?;
-    }
+        })
+    };
 
+    // The run's own failure outranks a failed cleanup, which would otherwise hide it.
     let violations = outcome?;
+    cleanup?;
     if let Some(first) = violations.first() {
         for other in &violations[1..] {
             context.log(&other.to_string());
