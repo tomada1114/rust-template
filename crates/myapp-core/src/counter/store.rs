@@ -15,8 +15,8 @@ pub struct StoredCounter {
     pub last_changed_at: Option<UnixMillis>,
 }
 
-/// Where the counter lives between launches. Synchronous on purpose: the
-/// shell moves calls onto a blocking thread.
+/// Where the counter lives between runs. Synchronous on purpose: core never meets async,
+/// and the binary calls it from the one thread it runs on.
 pub trait CounterStore: Send + Sync {
     /// The saved counter, or `Ok(None)` when nothing was saved yet — not an error.
     ///
@@ -32,9 +32,10 @@ pub trait CounterStore: Send + Sync {
 
     /// Load, let `change` decide, and save what it returns, as one step: `change` is
     /// called once with what [`load`](Self::load) returns, and a `None` from it saves
-    /// nothing. A store that another process also writes (the app and the helper CLI
-    /// share one file) overrides this to hold a lock from the load to the save, so no
-    /// other writer's save lands in between and neither update is lost. The default
+    /// nothing. A store that another process also writes (two runs of the binary, say
+    /// the TUI and a `counter increment`, share one file) overrides this to hold a lock
+    /// from the load to the save, so no other writer's save lands in between and
+    /// neither update is lost. The default
     /// runs `load` then `save` with no lock, which is enough for a store only one
     /// process uses and whose caller serializes its own updates.
     ///

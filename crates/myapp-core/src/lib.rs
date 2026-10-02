@@ -10,12 +10,10 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 pub mod counter;
-pub mod log;
 pub mod time;
 
 pub use counter::{
     Counter, CounterError, CounterScreen, CounterService, CounterView, ScreenAction, ScreenKey,
     StorageError, StorageErrorKind, StoredCounter, Tuning, TuningError, store::CounterStore,
 };
-pub use log::{UiLogEntry, UiLogLevel};
 pub use time::{Clock, UnixMillis};

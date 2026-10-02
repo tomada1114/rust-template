@@ -1,9 +1,8 @@
-//! The JSON shapes that cross IPC and reach disk are contract (docs/architecture.md).
+//! The JSON shapes core serializes, and the one that reaches disk, which is contract
+//! (docs/architecture.md).
 //! These tests pin them with literal JSON, independent of serde's derive.
 
-use myapp_core::{
-    CounterError, CounterView, StorageErrorKind, StoredCounter, UiLogEntry, UiLogLevel, UnixMillis,
-};
+use myapp_core::{CounterError, CounterView, StorageErrorKind, StoredCounter, UnixMillis};
 use serde_json::json;
 
 #[test]
@@ -70,22 +69,6 @@ fn a_stored_counter_round_trips_through_its_file_format() {
         serde_json::from_value::<StoredCounter>(text).unwrap(),
         stored
     );
-}
-
-#[test]
-fn a_ui_log_entry_reads_from_camel_case_json() {
-    let entry: UiLogEntry =
-        serde_json::from_value(json!({ "level": "error", "message": "boom" })).unwrap();
-    assert_eq!(
-        entry,
-        UiLogEntry {
-            level: UiLogLevel::Error,
-            message: "boom".to_owned()
-        }
-    );
-    let entry: UiLogEntry =
-        serde_json::from_value(json!({ "level": "warn", "message": "hm" })).unwrap();
-    assert_eq!(entry.level, UiLogLevel::Warn);
 }
 
 #[test]

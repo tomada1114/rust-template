@@ -1,6 +1,6 @@
 //! What `JsonFileCounterStore` does beyond the shared contract: its file format, how it
-//! reports a damaged or unreachable file, and how two stores on one file (the app and
-//! the helper CLI) save at once.
+//! reports a damaged or unreachable file, and how two stores on one file (two runs of
+//! the binary) save at once.
 
 use std::fs;
 use std::sync::{Arc, Barrier};
@@ -147,7 +147,7 @@ fn updates_from_two_stores_on_one_file_lose_no_update() {
 
 #[test]
 fn two_services_on_one_file_lose_no_increment() {
-    // The app and the helper CLI: separate services, separate stores, one file.
+    // Two runs of the binary: separate services, separate stores, one file.
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("counter.json");
     let start = Arc::new(Barrier::new(2));
