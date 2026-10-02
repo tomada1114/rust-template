@@ -1099,35 +1099,52 @@ fn validate_field(field: Field, raw: &str) -> Result<String, ScriptError> {
     Ok(value.to_owned())
 }
 
-/// The ASCII letter a common accented Latin letter folds to, as Unicode decomposition
-/// would give it; any other character unchanged.
+/// The ASCII character a common accented Latin letter (Latin-1, Extended-A, the
+/// Vietnamese letters) or a fullwidth ASCII form folds to, as compatibility
+/// decomposition would give it; any other character unchanged.
 fn fold(c: char) -> char {
+    if let Some(ascii) = u32::from(c)
+        .checked_sub(0xFEE0)
+        .filter(|_| ('\u{FF01}'..='\u{FF5E}').contains(&c))
+        .and_then(char::from_u32)
+    {
+        return ascii;
+    }
     match c {
-        'À'..='Å' | 'à'..='å' | 'Ā'..='ą' => 'a',
+        'À'..='Å' | 'à'..='å' | 'Ā'..='ą' | 'Ạ'..='ặ' => 'a',
         'Ç' | 'ç' | 'Ć'..='č' => 'c',
-        'Ď' | 'ď' => 'd',
-        'È'..='Ë' | 'è'..='ë' | 'Ē'..='ě' => 'e',
+        'Ď'..='đ' => 'd',
+        'È'..='Ë' | 'è'..='ë' | 'Ē'..='ě' | 'Ẹ'..='ệ' => 'e',
         'Ĝ'..='ģ' => 'g',
         'Ĥ' | 'ĥ' => 'h',
-        'Ì'..='Ï' | 'ì'..='ï' | 'Ĩ'..='İ' => 'i',
+        'Ì'..='Ï' | 'ì'..='ï' | 'Ĩ'..='İ' | 'Ỉ'..='ị' => 'i',
         'Ĵ' | 'ĵ' => 'j',
         'Ķ' | 'ķ' => 'k',
         'Ĺ'..='ľ' => 'l',
         'Ñ' | 'ñ' | 'Ń'..='ň' => 'n',
-        'Ò'..='Ö' | 'ò'..='ö' | 'Ō'..='ő' => 'o',
+        'Ò'..='Ö' | 'ò'..='ö' | 'Ō'..='ő' | 'Ơ' | 'ơ' | 'Ọ'..='ợ' => 'o',
         'Ŕ'..='ř' => 'r',
         'Ś'..='š' => 's',
         'Ţ'..='ť' => 't',
-        'Ù'..='Ü' | 'ù'..='ü' | 'Ũ'..='ų' => 'u',
+        'Ù'..='Ü' | 'ù'..='ü' | 'Ũ'..='ų' | 'Ư' | 'ư' | 'Ụ'..='ự' => 'u',
         'Ŵ' | 'ŵ' => 'w',
-        'Ý' | 'ý' | 'ÿ' | 'Ŷ'..='Ÿ' => 'y',
+        'Ý' | 'ý' | 'ÿ' | 'Ŷ'..='Ÿ' | 'Ỳ'..='ỹ' => 'y',
         'Ź'..='ž' => 'z',
         other => other,
     }
 }
 
-/// The slug a display name suggests: "Tide Pool" -> "tide-pool".
-fn slug_from(name: &str) -> String {
+/// The slug a display name suggests: "Tide Pool" -> "tide-pool". `None` when a letter in
+/// it has no ASCII fold, so the slug is asked for (or `--slug` required) rather than
+/// suggested with a gap where that letter was.
+fn slug_from(name: &str) -> Option<String> {
+    if name
+        .chars()
+        .map(fold)
+        .any(|c| !c.is_ascii() && c.is_alphanumeric())
+    {
+        return None;
+    }
     let mut slug = String::new();
     let mut gap = false;
     for c in name.chars().map(fold).flat_map(char::to_lowercase) {
@@ -1141,12 +1158,12 @@ fn slug_from(name: &str) -> String {
             gap = true;
         }
     }
-    slug
+    Some(slug)
 }
 
 fn default_for(field: Field, answers: &Answers) -> Option<String> {
     match field {
-        Field::Slug if !answers.name.is_empty() => Some(slug_from(&answers.name))
+        Field::Slug if !answers.name.is_empty() => slug_from(&answers.name)
             .filter(|slug| slug.starts_with(|c: char| c.is_ascii_lowercase())),
         Field::Copyright if !answers.author.is_empty() => Some(answers.author.clone()),
         Field::Name
@@ -2523,11 +2540,22 @@ mod tests {
 
     #[test]
     fn suggests_a_slug_from_the_display_name() {
-        assert_eq!(slug_from("Tide Pool"), "tide-pool");
-        assert_eq!(slug_from("  Café Société 2 "), "cafe-societe-2");
-        assert_eq!(slug_from("Ünïcödé Žebra"), "unicode-zebra");
+        assert_eq!(slug_from("Tide Pool").as_deref(), Some("tide-pool"));
+        assert_eq!(
+            slug_from("  Café Société 2 ").as_deref(),
+            Some("cafe-societe-2")
+        );
+        assert_eq!(slug_from("Ünïcödé Žebra").as_deref(), Some("unicode-zebra"));
+        assert_eq!(slug_from("Hội An").as_deref(), Some("hoi-an"));
+        assert_eq!(
+            slug_from("Đà Nẵng Phở Ứng").as_deref(),
+            Some("da-nang-pho-ung")
+        );
+        assert_eq!(slug_from("Ｔｉｄｅ　２").as_deref(), Some("tide-2"));
         assert_eq!(fold('ŷ'), 'y');
         assert_eq!(fold('京'), '京');
+        // A letter with no ASCII fold suggests no slug, never one with a gap.
+        assert_eq!(slug_from("Tide 京 Pool"), None);
     }
 
     #[test]
@@ -2591,6 +2619,10 @@ mod tests {
         );
         // A name that suggests no slug leaves the slug missing too.
         let parsed = parse_args(&strings(&["--name", "2 Pools"])).expect("parsed");
+        let error =
+            collect_answers(&parsed, &mut terminal(&[], false), &|_| {}).expect_err("missing");
+        assert!(error.details.actual.starts_with("missing: --slug, "));
+        let parsed = parse_args(&strings(&["--name", "東京 Pool"])).expect("parsed");
         let error =
             collect_answers(&parsed, &mut terminal(&[], false), &|_| {}).expect_err("missing");
         assert!(error.details.actual.starts_with("missing: --slug, "));
