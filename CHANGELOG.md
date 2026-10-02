@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code of conduct, architecture, distribution and signing, and getting-started guides, an
   empty architecture-decision index with its template, a roadmap skeleton, issue forms,
   and a pull request template.
-- `just verify-bootstrap` runs `scripts/verify-bootstrap.ts` locally, so a placeholder
+- `just verify-bootstrap` runs `cargo xtask verify-bootstrap` locally, so a placeholder
   spelling or template-only text the bootstrap would leave behind fails before the push
   rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
   names it for a new file or placeholder spelling. The recipe and that row are
@@ -70,6 +70,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Node toolchain), and `workflow-hygiene`'s Tauri build rule, whose subject is gone.
   `scripts/verify-bootstrap.ts` runs the product-section check through `cargo xtask` and
   fails with `ERR_VERIFY_BOOTSTRAP_HARNESS` when that run cannot report.
+- The bootstrap and the GitHub scripts move to Rust: `just bootstrap`,
+  `just verify-bootstrap`, `just labels`, and `just ruleset` run `cargo xtask bootstrap`,
+  `verify-bootstrap`, `sync-labels`, and `apply-ruleset`, keeping their flags, behaviour,
+  and `ERR_*` codes; `scripts/bootstrap.ts`, `verify-bootstrap.ts`, `sync-labels.ts`,
+  `apply-ruleset.ts`, `label-pr.ts`, and `scripts/lib/labels.ts`, `git-env.ts`, and
+  `cargo.ts` are removed with their tests. The bootstrap recognizes the template as
+  `tomada1114/rust-template` (the README, `SECURITY.md`, and the issue chooser now link
+  there), removes its own two xtask modules from an app, and runs Prettier only while the
+  tree has a `package.json`; verify-bootstrap runs the product-section check in-process,
+  so `ERR_VERIFY_BOOTSTRAP_HARNESS` is gone. `.github/workflows/pr-label.yml` labels a
+  pull request from an inline `gh`/`jq` step with no checkout, so its write-scoped job no
+  longer needs a write-scope exception; the labels-declared harness check reads that
+  step's `TYPE_LABELS` map in place of `label-pr.ts`.
 - The committed `.claude/settings.json` is removed: Claude Code permissions and the
   format-on-edit hook now live in each person's user-level `~/.claude/settings.json` or
   the gitignored `.claude/settings.local.json`, and Codex CLI's personal rules in a

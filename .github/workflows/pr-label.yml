@@ -1,10 +1,25 @@
 name: Label PR
 
-# Labels a pull request by its title's Conventional Commit type (scripts/label-pr.ts), for
-# the release-notes categories in .github/release.yml.
+# Labels a pull request by its title's Conventional Commit type, for the release-notes
+# categories in .github/release.yml.
 #
-# The script runs from the base branch's commit, never the pull request's head: a pull
-# request cannot change the code that runs with this workflow's write token. A base commit that predates the script is skipped with a notice.
+# The job holds a write token, so it runs nothing from the repository: no checkout, no
+# mise, no cargo, pnpm, or just — only the inline script below, `gh`, and `jq` (both
+# preinstalled on the runner image). A pull request therefore cannot change the code that
+# runs with the token. The title reaches the script through `env:`, never interpolated
+# into it.
+#
+# TYPE_LABELS maps every type .github/workflows/check-pr-title.yml accepts to its label.
+# The labels-declared harness check (`cargo xtask check-harness`) reads it, so it stays a
+# JSON object of string pairs: each label must be declared in .github/labels.yml and
+# listed by a release category, and every accepted type must be a key.
+#
+# The script adds the title's label and removes a stale type label left by an earlier
+# title, but only when that label is the pull request's one managed label (a value of
+# TYPE_LABELS): with two, either could be a human's. It never removes `dependencies`
+# (Dependabot applies it itself) and never creates a label (`just labels` does). A `gh`
+# failure — a fork's read-only token, a label not created yet — is a notice, never a
+# failed check.
 
 on:
   pull_request:
@@ -34,31 +49,77 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          persist-credentials: false
-
-      - name: Check that the base commit has the script
-        id: script
-        run: |
-          if [[ -f scripts/label-pr.ts ]]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::scripts/label-pr.ts is absent at the base commit; skipping."
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        if: steps.script.outputs.present == 'true'
-        with:
-          install_args: node
-
       - name: Apply the label for the title's type
-        if: steps.script.outputs.present == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: node scripts/label-pr.ts
+          TYPE_LABELS: |
+            {
+              "feat": "enhancement",
+              "perf": "enhancement",
+              "fix": "bug",
+              "docs": "documentation",
+              "style": "chore",
+              "refactor": "chore",
+              "test": "chore",
+              "build": "chore",
+              "chore": "chore",
+              "revert": "chore",
+              "ci": "ci",
+              "deps": "dependencies"
+            }
+        run: |
+          # `type`, `type(scope)`, either with a breaking `!`, then a colon.
+          title_pattern='^([a-z]+)(\([^)]*\))?!?:'
+          # Printed on one line, so a title cannot start a workflow command in the log.
+          shown_title="${PR_TITLE//[$'\r\n']/ }"
+          wanted=""
+          if [[ "$PR_TITLE" =~ $title_pattern ]]; then
+            wanted="$(jq -r --arg type "${BASH_REMATCH[1]}" '.[$type] // empty' <<<"$TYPE_LABELS")"
+          fi
+          if [[ -z "$wanted" ]]; then
+            printf 'label-pr: nothing to change for "%s"\n' "$shown_title"
+            exit 0
+          fi
+
+          current='[]'
+          errors="$(mktemp)"
+          if view="$(gh pr view "$PR_NUMBER" --json labels 2>"$errors")"; then
+            # An unexpected payload counts as no labels.
+            if ! current="$(jq -c '[.labels | arrays | .[] | .name | tostring]' <<<"$view" 2>/dev/null)"; then
+              current='[]'
+            fi
+          else
+            echo "::notice::Could not read the pull request's labels: $(head -n 1 "$errors")"
+          fi
+
+          add="$wanted"
+          if jq -e --arg wanted "$wanted" 'any(.[]; . == $wanted)' <<<"$current" >/dev/null; then
+            add=""
+          fi
+          # The stale type label: the one managed label on the pull request, when it is
+          # not the wanted one and not `dependencies`.
+          remove="$(jq -r --arg wanted "$wanted" --argjson current "$current" '
+            [.[]] as $managed
+            | [$current[] | select(IN($managed[]))]
+            | if length == 1 and .[0] != $wanted and .[0] != "dependencies" then .[0] else empty end
+          ' <<<"$TYPE_LABELS")"
+          if [[ -z "$add" && -z "$remove" ]]; then
+            printf 'label-pr: nothing to change for "%s"\n' "$shown_title"
+            exit 0
+          fi
+
+          changes=()
+          if [[ -n "$add" ]]; then
+            changes+=(--add-label "$add")
+          fi
+          if [[ -n "$remove" ]]; then
+            changes+=(--remove-label "$remove")
+          fi
+          if ! output="$(gh pr edit "$PR_NUMBER" "${changes[@]}" 2>&1)"; then
+            echo "::notice::Could not update labels (add ${add:-none}, remove ${remove:-none}): $(head -n 1 <<<"$output")"
+            exit 0
+          fi
+          echo "label-pr: ${changes[*]}"

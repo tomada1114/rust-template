@@ -146,17 +146,17 @@ agents-check:
 
 # Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
 labels:
-    node scripts/sync-labels.ts
+    cargo xtask sync-labels
 
 # Create or update every ruleset in .github/rulesets/ (main, release-tags) by name; never deletes (repository admin; a human's step)
 ruleset:
-    node scripts/apply-ruleset.ts
+    cargo xtask apply-ruleset
 
 # Turn the template into a new app: rename its placeholders and remove the template-only material (a human's step, run once)
 [positional-arguments]
 bootstrap *args:
-    node scripts/bootstrap.ts "$@"
+    cargo xtask bootstrap "$@"
 
 # Bootstrap a scratch clone in a temp directory and fail on any placeholder, template-only text, or dangling reference left behind (`--keep` keeps the clone)
 verify-bootstrap *args:
-    node scripts/verify-bootstrap.ts {{ args }}
+    cargo xtask verify-bootstrap {{ args }}

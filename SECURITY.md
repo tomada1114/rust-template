@@ -5,7 +5,7 @@
 **Do not open a public issue for a security vulnerability.**
 
 Report it privately through GitHub's private vulnerability reporting: open
-[a new security advisory](https://github.com/tomada1114/tauri-template/security/advisories/new),
+[a new security advisory](https://github.com/tomada1114/rust-template/security/advisories/new),
 or use **Report a vulnerability** on the repository's **Security and quality** tab. How
 it works is described in GitHub's documentation,
 <https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability>

@@ -112,7 +112,7 @@ const EXCEPTIONS: Exceptions = Exceptions {
     ],
     ci_only_jobs: &[(
         "Template Bootstrap Smoke",
-        "template-only (the bootstrap removes the job and the `verify-bootstrap` recipe): it runs scripts/verify-bootstrap.ts, which fails when this tree holds a placeholder spelling, template-only text, or a dangling reference the bootstrap would leave behind, then bootstraps a throwaway copy and runs `just check` there. `just check` leaves it out because it clones the tree, needs cargo's registry, and would run a second `just check`; `just verify-bootstrap` runs the verification locally, and AGENTS.md › Validating a change says when",
+        "template-only (the bootstrap removes the job and the `verify-bootstrap` recipe): it runs `cargo xtask verify-bootstrap`, which fails when this tree holds a placeholder spelling, template-only text, or a dangling reference the bootstrap would leave behind, then bootstraps a throwaway copy and runs `just check` there. `just check` leaves it out because it clones the tree, needs cargo's registry, and would run a second `just check`; `just verify-bootstrap` runs the verification locally, and AGENTS.md › Validating a change says when",
     )],
 };
 

@@ -166,8 +166,8 @@ fn reaches_every_other_task() {
 
 #[test]
 fn prints_each_harness_finding_on_stdout_and_the_verdict_on_stderr() {
-    // scripts/verify-bootstrap.ts parses this split: a finding's four lines on stdout,
-    // ERR_HARNESS_FAILED on stderr.
+    // A finding's four lines go to stdout and ERR_HARNESS_FAILED to stderr, so a reader
+    // of the run (CI's log, an agent) sees each finding apart from the verdict.
     let dir = tempfile::tempdir().expect("temp dir");
     let root = dir.path().display().to_string();
     let output = xtask(

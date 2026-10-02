@@ -1,23 +1,23 @@
 # The bootstrap
 
-The detail behind `starting-an-app`'s rename step: what `scripts/bootstrap.ts`
-(`just bootstrap`) does, how it is proven, and what to do when a placeholder survives.
-In an app cut from the template this page describes a step already taken: the script
-removes itself as its last act.
+The detail behind `starting-an-app`'s rename step: what `cargo xtask bootstrap`
+(`just bootstrap`, `xtask/src/bootstrap.rs`) does, how it is proven, and what to do when
+a placeholder survives. In an app cut from the template this page describes a step
+already taken: the task removes itself as its last act.
 
-## Why a script, and why an explicit list
+## Why a task, and why an explicit list
 
 Renaming an app by hand misses a site, and a global find-and-replace hits sites it
 should not (a word that merely contains the slug, a URL to an upstream project). So the
-script rewrites an **explicit list of placeholder sites**, never a global replace: each
+task rewrites an **explicit list of placeholder sites**, never a global replace: each
 site is a known file and a known spelling, and a site the list does not name is left
 alone and caught by the leftover check below.
 
 ## Before it runs
 
-`just install` first: the script imports its TOML and YAML parsers from `node_modules`
-and fails with `ERR_BOOTSTRAP_NO_DEPS` without them, and it formats with Prettier from
-there too. In a git work tree it refuses uncommitted or untracked changes
+`just install` first: while the tree has a `package.json`, the task formats what it
+rewrote with Prettier from `node_modules`, and without it fails with
+`ERR_BOOTSTRAP_NO_DEPS` before writing anything. In a git work tree it refuses uncommitted or untracked changes
 (`ERR_BOOTSTRAP_DIRTY`), so the rewrite is the only change to review; outside one it
 still runs, without that check and without the closing scan for placeholders outside
 the site list.
@@ -29,15 +29,16 @@ Each value comes from its flag, else from a prompt on a terminal, else from its 
 | Value | Flag | Template placeholder | Where it shows up |
 |---|---|---|---|
 | Display name | `--name` | `MyApp` | README's title, `package.json`'s description |
-| Slug | `--slug` | `myapp` | crate names (`myapp-core`), Rust identifiers (`myapp_core`), the environment variable prefix (`MYAPP_SMOKE`), binary and log file names |
+| Slug | `--slug` | `myapp` | crate names (`myapp-core`), Rust identifiers (`myapp_core`), the upper-case spelling (`MYAPP`), binary and log file names |
 | Bundle identifier | `--bundle-id` | `com.example.myapp` | `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the `justfile`, the data and log directories |
 | GitHub `owner/repo` | `--repo` | this template's repository | the README badges and `SECURITY.md`'s advisory link |
-| Author | `--author` | the template's author | the metadata sites on the script's list |
+| Author | `--author` | the template's author | the metadata sites on the task's list |
 | Copyright holder | `--copyright` | the template's owner | `LICENSE` |
 
 A flag takes its value as the next argument or after `=` (`--name="Tide Pool"`); quote a
-value with spaces, through `just` or `node` alike. `--yes` (`-y`) skips the prompts and
-the confirmation, and so does a run whose standard input is not a terminal: then the
+value with spaces, through `just` or `cargo xtask` alike. `--yes` (`-y`) skips the
+prompts and the confirmation, and so does a run whose standard input is not a terminal:
+then the
 slug defaults to one derived from the name (`Tide Pool` becomes `tide-pool`), the
 copyright holder to the author, and any other missing value fails with
 `ERR_BOOTSTRAP_MISSING_VALUE`. On a terminal it shows every value and asks before it
@@ -75,10 +76,12 @@ Every edit is computed and checked in memory first, so a drifted site list fails
 1. Runs `cargo fetch --locked`, which needs the network once: it downloads the versions
    `Cargo.lock` already pins, and nothing is written if it fails (`ERR_BOOTSTRAP_FETCH`).
 2. Writes the planned edits in one pass: the placeholder sites with the values above;
-   every `<!-- template-only -->` … `<!-- /template-only -->` block, the `bootstrap`
-   recipe, and every passage that names it, removed; the passages outside a block that
-   hold only in the template (`TEXT_EDITS`: the Product section's introduction, the
-   README's first sentence, the checks' exclusion of `docs/template/`) rewritten; the
+   every `<!-- template-only -->` … `<!-- /template-only -->` block, the `bootstrap` and
+   `verify-bootstrap` recipes and tasks (their `mod` lines and entries in
+   `xtask/src/main.rs`), and every passage that names them, removed; the passages
+   outside a block that hold only in the template (`text_edits`: the Product section's
+   introduction, the README's first sentence, the checks' exclusion of `docs/template/`)
+   rewritten; the
    template-only CI job, `Template Bootstrap Smoke`, removed with its required context
    in `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the app runs;
    `CHANGELOG.md` reset to an empty `[Unreleased]` and the version at its two sites to
@@ -90,7 +93,8 @@ Every edit is computed and checked in memory first, so a drifted site list fails
 4. Formats what it rewrote: `cargo fmt --all`, then Prettier on the rewritten files
    that are neither Markdown nor Rust (`ERR_BOOTSTRAP_FORMAT`).
 5. Deletes the template's own material: `docs/template/`, this page in both skill
-   trees, `scripts/bootstrap.ts` and `scripts/verify-bootstrap.ts`, and their tests.
+   trees, and `xtask/src/bootstrap.rs` and `xtask/src/verify_bootstrap.rs`, whose tests
+   live inside them.
 6. Scans for a placeholder left outside the site list and warns about it, then prints
    the next steps: `just install` and commit the rewrite, fill `AGENTS.md` › Product,
    fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
@@ -103,7 +107,7 @@ again" below.
 
 ## How it is proven
 
-- `scripts/verify-bootstrap.ts` bootstraps a temporary copy of the tree and fails on
+- `cargo xtask verify-bootstrap` bootstraps a temporary copy of the tree and fails on
   any leftover placeholder or template-only marker, text that holds only in the
   template (`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT`), a dangling skill reference, a
   mismatch between the names it produced, or a Product section that filling its four
@@ -111,8 +115,8 @@ again" below.
   with `just verify-bootstrap` (`--keep` leaves the copy for a look) after adding a
   file or a placeholder spelling: it opens no window and writes nothing in this
   checkout, but it is not part of `just check`, so nothing else runs it before CI does.
-- CI's `Template Bootstrap Smoke` job (macOS, `timeout-minutes: 60`) runs
-  `scripts/verify-bootstrap.ts` first — the bootstrap itself only warns about a
+- CI's `Template Bootstrap Smoke` job (`ubuntu-24.04`, `timeout-minutes: 30`) runs
+  `just verify-bootstrap` first — the bootstrap itself only warns about a
   placeholder outside its site list, so this is the step that fails on one. It then
   bootstraps a fresh `git clone` with a hyphenated multi-word slug, asserts that
   `just check-harness` **fails** with the Product-section code (the check must fire on
@@ -120,15 +124,17 @@ again" below.
   fills in only the Product section's four bullets, and runs `just check` there. It
   runs on every pull request, so the bootstrap cannot rot unnoticed.
 - The generated tree, not this checkout, is what a bootstrap change is tested against.
-  `scripts/verify-bootstrap.ts` builds the temporary copy with `git clone` of this
+  `cargo xtask verify-bootstrap` builds the temporary copy with `git clone` of this
   checkout, then lays over it every file changed since `HEAD` (`git diff --name-only
   HEAD`, deletions included) and every untracked file git does not ignore (`git
   ls-files --others --exclude-standard`), so an edit is verified before it is
   committed while ignored build output (`target/`, `dist/`) cannot change a verdict;
-  only the installed `node_modules/` is linked in. A test that survives the bootstrap
+  only the installed `node_modules/` is linked in, and the bootstrap that runs there is
+  this checkout's own `xtask` binary. A test that survives the bootstrap
   never asserts a literal that is only true before it runs.
-- A change to the script, to a placeholder site, or to any file the script rewrites is
-  proven by `just verify-bootstrap` and `just test-scripts` locally, and by that job; a
+- A change to the task, to a placeholder site, or to any file the task rewrites is
+  proven by `just verify-bootstrap` and `cargo nextest run -p xtask bootstrap` locally,
+  and by that job; a
   new mention of the app's name in a file the list does not cover fails the leftover
   check there.
 
@@ -144,5 +150,5 @@ and the clean retry is a fresh clone. Nothing here promises that a partial run r
 
 A leftover is either a value you skipped at the prompt or a spelling the site list does
 not cover (a different case, a joined form). Search the three slug forms and the display
-name case-insensitively, fix what you find by hand, and add the site to the script's
+name case-insensitively, fix what you find by hand, and add the site to the task's
 list in the template so the next app does not inherit the same miss.

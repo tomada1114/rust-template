@@ -1,6 +1,6 @@
 //! Every label something in the repository applies is declared exactly once in
-//! `.github/labels.yml`, and every label `scripts/label-pr.ts` applies has a release-notes
-//! category — so `just labels` creates every label the repository expects, never two
+//! `.github/labels.yml`, and every label `.github/workflows/pr-label.yml` applies has a
+//! release-notes category — so `just labels` creates every label the repository expects, never two
 //! conflicting ones, and no merged pull request falls out of the release notes.
 //!
 //! Declared: each item's `name` in `.github/labels.yml` (required); two names differing
@@ -18,20 +18,21 @@
 //! - the Renovate config ([`read_renovate`]): every `labels`/`addLabels` string list; a
 //!   JSON5 config is unreadable, never skipped;
 //! - `.github/release.yml`: the labels its categories and `exclude` name (`*` aside);
-//! - `scripts/label-pr.ts`, when the root has one: the labels of its `TYPE_LABELS` map,
-//!   read from the root's own copy by [`read_type_labels`] (a `new Map([…])` of
-//!   `["type", "label"]` string pairs; any other shape is unreadable), each of which must
-//!   also be listed by a release category.
+//! - `.github/workflows/pr-label.yml`, when the root has one: the labels of the
+//!   `TYPE_LABELS` its steps set in their `env`, read by [`read_type_map`] (a JSON object
+//!   of `"type": "label"` string pairs, each reported at its key's line; any other shape,
+//!   or no step setting it, is unreadable), each of which must also be listed by a release
+//!   category.
 //!
-//! And, when the root has `scripts/label-pr.ts`: every type a PR-title check accepts (the
+//! And, when the root has `.github/workflows/pr-label.yml`: every type a PR-title check accepts (the
 //! `types` of each workflow step using amannn/action-semantic-pull-request, or the
 //! action's defaults) is a key of `TYPE_LABELS`, so no accepted title goes unlabelled and
 //! out of the release notes. Matching is exact, case included.
 //!
 //! Errors: `ERR_CHECK_INPUT_MISSING` (no labels.yml), `ERR_CHECK_INPUT_UNREADABLE` (a file
 //! above does not parse, labels.yml is not a list of named items or fails the checks
-//! `just labels` makes — `scripts/lib/labels.ts`'s `parseLabelManifest` — or label-pr's
-//! map is not a literal it can read), `ERR_CHECK_LABEL_DUPLICATE`,
+//! `just labels` makes — [`parse_label_manifest`], which `cargo xtask sync-labels` runs —
+//! or pr-label.yml's `TYPE_LABELS` cannot be read), `ERR_CHECK_LABEL_DUPLICATE`,
 //! `ERR_CHECK_LABEL_UNDECLARED`, `ERR_CHECK_LABEL_NO_CATEGORY`,
 //! `ERR_CHECK_LABEL_TYPE_UNMAPPED`.
 
@@ -42,16 +43,15 @@ use regex::Regex;
 
 use super::workflows::{Renovate, read_renovate, read_workflows, title_checks};
 use super::yaml::{self, Keys, Node, Yaml};
-use super::{Input, finding, first_line, has_extension, list_dir, pattern, read_file};
+use super::{Input, finding, has_extension, list_dir, pattern, read_file};
 use crate::fail::FailureDetails;
+use crate::sync_labels::parse_label_manifest;
 
 const LABELS: &str = ".github/labels.yml";
 const RELEASE: &str = ".github/release.yml";
 const DEPENDABOT: &str = ".github/dependabot.yml";
-const LABEL_PR: &str = "scripts/label-pr.ts";
+const PR_LABEL: &str = ".github/workflows/pr-label.yml";
 const TYPE_MAP: &str = "TYPE_LABELS";
-/// GitHub's limit on a label description, as `parseLabelManifest` enforces it.
-const MAX_DESCRIPTION: usize = 100;
 
 struct Use {
     /// `path:line`, or a path alone.
@@ -301,7 +301,7 @@ fn renovate_uses(root: &Path, problems: &mut Vec<FailureDetails>) -> Vec<Use> {
         .collect()
 }
 
-/// One `["type", "label"]` entry of label-pr's map, with its line.
+/// One `"type": "label"` pair of pr-label.yml's map, with its line.
 #[derive(Debug, PartialEq, Eq)]
 struct TypeLabel {
     kind: String,
@@ -309,339 +309,85 @@ struct TypeLabel {
     line: usize,
 }
 
+/// pr-label.yml's `TYPE_LABELS` map, as far as it can be read.
 #[derive(Debug, PartialEq, Eq)]
-enum Tok {
-    Ident(String),
-    Str(String),
-    Punct(char),
-    Other,
+enum TypeMap {
+    /// No pr-label.yml: the map rules are skipped.
+    Absent,
+    /// pr-label.yml is not YAML, which the workflow scan already reports.
+    NotYaml,
+    /// Why the map cannot be read.
+    Unreadable(String),
+    /// Every step's pairs, each step's in source order.
+    Read(Vec<TypeLabel>),
 }
 
-/// `count` hex digits at `chars[at..]` as a number, or `None`.
-fn hex_at(chars: &[char], at: usize, count: usize) -> Option<u32> {
-    let digits = chars.get(at..at + count)?;
-    digits
-        .iter()
-        .try_fold(0, |total, digit| Some(total * 16 + digit.to_digit(16)?))
+/// The line of `text` (0-based) whose JSON key is `kind`, written as `"kind"` then `:`.
+fn key_line(text: &str, kind: &str) -> Option<usize> {
+    let quoted = yaml::json_string(kind);
+    text.split('\n').position(|line| {
+        line.match_indices(&quoted)
+            .any(|(at, _)| line[at + quoted.len()..].trim_start().starts_with(':'))
+    })
 }
 
-/// The escape whose backslash is at `at - 1` (`chars[at]` its first character): what it
-/// decodes to (`None` for a line continuation) and the index after it, or `None` for one
-/// JavaScript refuses or a lone surrogate, which no Rust string holds.
-fn escape(chars: &[char], at: usize) -> Option<(Option<char>, usize)> {
-    let unicode = |at: usize| -> Option<(u32, usize)> {
-        if chars.get(at) == Some(&'{') {
-            let close = chars[at..].iter().position(|c| *c == '}')? + at;
-            let digits = close - at - 1;
-            let value = (1..=6)
-                .contains(&digits)
-                .then(|| hex_at(chars, at + 1, digits))??;
-            (value <= 0x10_FFFF).then_some((value, close + 1))
-        } else {
-            Some((hex_at(chars, at, 4)?, at + 4))
-        }
+/// One step's `TYPE_LABELS` value: a JSON object of string labels, its pairs sorted by the
+/// line each key is written on (a key written another way counts as the value's first
+/// line), or why it is not that.
+fn type_labels(value: &Node) -> Result<Vec<TypeLabel>, String> {
+    let start = value.value_start_line();
+    let not_object =
+        || format!("`{TYPE_MAP}` at line {start} is not a JSON object of string labels");
+    let text = value.as_str().ok_or_else(not_object)?;
+    let parsed: serde_json::Value = serde_json::from_str(text)
+        .map_err(|error| format!("`{TYPE_MAP}` at line {start} is not JSON ({error})"))?;
+    let serde_json::Value::Object(map) = parsed else {
+        return Err(not_object());
     };
-    let simple = |c: char| Some((Some(c), at + 1));
-    match *chars.get(at)? {
-        'n' => simple('\n'),
-        't' => simple('\t'),
-        'r' => simple('\r'),
-        'b' => simple('\u{8}'),
-        'f' => simple('\u{c}'),
-        'v' => simple('\u{b}'),
-        '0' if !chars.get(at + 1).is_some_and(char::is_ascii_digit) => simple('\0'),
-        '0'..='9' => None,
-        'x' => Some((Some(char::from_u32(hex_at(chars, at + 1, 2)?)?), at + 3)),
-        'u' => {
-            let (high, after) = unicode(at + 1)?;
-            if (0xD800..0xDC00).contains(&high)
-                && chars.get(after) == Some(&'\\')
-                && chars.get(after + 1) == Some(&'u')
-            {
-                let (low, end) = unicode(after + 2)?;
-                if (0xDC00..0xE000).contains(&low) {
-                    let combined = 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
-                    return Some((Some(char::from_u32(combined)?), end));
-                }
-            }
-            Some((Some(char::from_u32(high)?), after))
-        }
-        '\r' if chars.get(at + 1) == Some(&'\n') => Some((None, at + 2)),
-        '\n' | '\r' | '\u{2028}' | '\u{2029}' => Some((None, at + 1)),
-        other => simple(other),
-    }
-}
-
-/// The string literal (or template) opening at `at`: its token, the index after its
-/// closing quote. A template with a substitution, and a literal with an escape this
-/// cannot decode, is `Other`. `line` counts the newlines inside it.
-fn string_literal(chars: &[char], start: usize, line: &mut usize) -> (Tok, usize) {
-    let quote = chars[start];
-    let mut value = String::new();
-    let mut readable = true;
-    let mut at = start + 1;
-    while let Some(&inner) = chars.get(at) {
-        at += 1;
-        if inner == quote {
-            break;
-        }
-        *line += usize::from(inner == '\n');
-        if inner == '\\' {
-            if let Some((decoded, end)) = escape(chars, at) {
-                *line += chars[at..end].iter().filter(|c| **c == '\n').count();
-                value.extend(decoded);
-                at = end;
-            } else {
-                readable = false;
-                *line += usize::from(chars.get(at) == Some(&'\n'));
-                at += 1;
-            }
-        } else {
-            readable &= !(quote == '`' && inner == '$' && chars.get(at) == Some(&'{'));
-            value.push(inner);
-        }
-    }
-    let tok = if readable {
-        Tok::Str(value)
-    } else {
-        Tok::Other
-    };
-    (tok, at)
-}
-
-/// The index after the regular-expression literal opening at `start`, its flags included.
-fn regex_literal_end(chars: &[char], start: usize) -> usize {
-    let mut class = false;
-    let mut at = start + 1;
-    while let Some(&inner) = chars.get(at) {
-        at += 1;
-        match inner {
-            '\\' => at += 1,
-            '[' => class = true,
-            ']' => class = false,
-            '/' if !class => break,
-            '\n' => break,
-            _ => {}
-        }
-    }
-    while chars.get(at).is_some_and(char::is_ascii_alphabetic) {
-        at += 1;
-    }
-    at
-}
-
-/// TypeScript source as the tokens the map reader needs: identifiers, string literals
-/// (and templates without a substitution), single punctuation, and everything else as
-/// `Other`; comments are skipped, and a regular-expression literal is one `Other`.
-fn tokens(text: &str) -> Vec<(Tok, usize)> {
-    let chars: Vec<char> = text.chars().collect();
-    let mut found: Vec<(Tok, usize)> = Vec::new();
-    let mut line = 1;
-    let mut at = 0;
-    while let Some(&c) = chars.get(at) {
-        let start = line;
-        let next = chars.get(at + 1).copied();
-        if c == '\n' {
-            line += 1;
-            at += 1;
-        } else if c.is_whitespace() {
-            at += 1;
-        } else if c == '/' && next == Some('/') {
-            while chars.get(at).is_some_and(|c| *c != '\n') {
-                at += 1;
-            }
-        } else if c == '/' && next == Some('*') {
-            at += 2;
-            while at < chars.len() && !(chars[at] == '*' && chars.get(at + 1) == Some(&'/')) {
-                line += usize::from(chars[at] == '\n');
-                at += 1;
-            }
-            at += 2;
-        } else if matches!(c, '"' | '\'' | '`') {
-            let (tok, end) = string_literal(&chars, at, &mut line);
-            at = end;
-            found.push((tok, start));
-        } else if c == '/'
-            && !matches!(
-                found.last(),
-                Some((
-                    Tok::Ident(_) | Tok::Str(_) | Tok::Other | Tok::Punct(')' | ']'),
-                    _
-                ))
-            )
-        {
-            at = regex_literal_end(&chars, at);
-            found.push((Tok::Other, start));
-        } else if c.is_alphanumeric() || c == '_' || c == '$' {
-            let begin = at;
-            while chars
-                .get(at)
-                .is_some_and(|c| c.is_alphanumeric() || *c == '_' || *c == '$')
-            {
-                at += 1;
-            }
-            let word: String = chars[begin..at].iter().collect();
-            found.push((
-                if c.is_ascii_digit() {
-                    Tok::Other
-                } else {
-                    Tok::Ident(word)
-                },
-                start,
-            ));
-        } else if c == '=' && matches!(next, Some('=' | '>')) {
-            at += 2;
-            found.push((Tok::Other, start));
-        } else {
-            at += 1;
-            found.push((Tok::Punct(c), start));
-        }
-    }
-    found
-}
-
-/// The index of the `=` of the last `TYPE_LABELS` declaration in `toks`, or why it has
-/// none before its statement ends.
-fn initializer(toks: &[(Tok, usize)]) -> Result<usize, String> {
-    let declaration = toks.windows(2).enumerate().rev().find_map(|(index, pair)| {
-        let keyword = matches!(&pair[0].0, Tok::Ident(word) if word == "const" || word == "let" || word == "var");
-        (keyword && pair[1].0 == Tok::Ident(TYPE_MAP.to_owned())).then_some(index + 2)
-    });
-    let no_value = || format!("no `{TYPE_MAP}` declaration with a value");
-    let mut at = declaration.ok_or_else(no_value)?;
-    let mut depth = 0_usize;
-    loop {
-        let Some((tok, line)) = toks.get(at) else {
-            return Err(no_value());
-        };
-        // At depth 0, a new line ends the declaration unless an annotation carries on.
-        let previous = toks.get(at - 1);
-        let ends = depth == 0
-            && previous.is_some_and(|(before, before_line)| {
-                before_line < line
-                    && !matches!(before, Tok::Punct(':' | '|' | '&' | '<' | ',' | '.'))
-                    && !matches!(tok, Tok::Punct('=' | '|' | '&' | '.' | '<'))
-            });
-        match tok {
-            _ if ends => return Err(no_value()),
-            Tok::Punct('<' | '(' | '[' | '{') => depth += 1,
-            Tok::Punct('>' | ')' | ']' | '}') => depth = depth.saturating_sub(1),
-            Tok::Punct('=') if depth == 0 => break,
-            Tok::Punct(';' | ',') if depth == 0 => return Err(no_value()),
-            _ => {}
-        }
-        at += 1;
-    }
-    Ok(at)
-}
-
-/// Whether the token after `toks[close]` ends the statement: `;`, `}`, the end, or a word
-/// on a later line that cannot carry the expression on.
-fn ends_statement(toks: &[(Tok, usize)], close: usize) -> bool {
-    let close_line = toks.get(close).map_or(0, |(_, line)| *line);
-    match toks.get(close + 1) {
-        None | Some((Tok::Punct(';' | '}'), _)) => true,
-        Some((Tok::Ident(word), line)) => {
-            *line > close_line && !matches!(word.as_str(), "as" | "satisfies" | "in" | "instanceof")
-        }
-        Some(_) => false,
-    }
-}
-
-/// label-pr's `TYPE_LABELS` as written in `text`: the last declaration of it, whose
-/// initializer is a `new Map([…])` of `["type", "label"]` string-literal pairs that ends
-/// the statement, or why it is not that. A declaration with no `=` before its statement
-/// ends has no value; one whose `new Map(…)` is followed by anything but `;` or a new
-/// statement (`.set(…)`, `as`, `satisfies`, `??`) is not that map.
-fn read_type_labels(text: &str) -> Result<Vec<TypeLabel>, String> {
-    let toks = tokens(text);
-    let mut at = initializer(&toks)?;
-    at += 1;
-    let start = toks.get(at).map_or(0, |(_, line)| *line);
-    let not_map =
-        || format!("`{TYPE_MAP}` at line {start} is not `new Map([…])` over an array literal");
-    let tok = |index: usize| toks.get(index).map(|(tok, _)| tok);
-    let is = |index: usize, want: &Tok| tok(index) == Some(want);
-    if !(matches!(tok(at), Some(Tok::Ident(word)) if word == "new")
-        && matches!(tok(at + 1), Some(Tok::Ident(word)) if word == "Map"))
-    {
-        return Err(not_map());
-    }
-    at += 2;
-    if is(at, &Tok::Punct('<')) {
-        let mut depth = 0_usize;
-        loop {
-            match tok(at) {
-                None => return Err(not_map()),
-                Some(Tok::Punct('<')) => depth += 1,
-                Some(Tok::Punct('>')) => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-                Some(_) => {}
-            }
-            at += 1;
-        }
-        at += 1;
-    }
-    if !(is(at, &Tok::Punct('(')) && is(at + 1, &Tok::Punct('['))) {
-        return Err(not_map());
-    }
-    at += 2;
     let mut pairs = Vec::new();
-    loop {
-        if is(at, &Tok::Punct(']')) {
-            break;
-        }
-        let line = toks.get(at).map_or(0, |(_, line)| *line);
-        let not_pair = || {
-            format!(
-                "the `{TYPE_MAP}` entry at line {line} is not a [\"type\", \"label\"] pair of string literals"
-            )
+    for (kind, label) in map {
+        let serde_json::Value::String(label) = label else {
+            return Err(not_object());
         };
-        let (
-            Some(Tok::Punct('[')),
-            Some(Tok::Str(kind)),
-            Some(Tok::Punct(',')),
-            Some(Tok::Str(label)),
-        ) = (tok(at), tok(at + 1), tok(at + 2), tok(at + 3))
-        else {
-            return Err(not_pair());
-        };
-        at += 4;
-        if is(at, &Tok::Punct(',')) {
-            at += 1;
-        }
-        if !is(at, &Tok::Punct(']')) {
-            return Err(not_pair());
-        }
-        pairs.push(TypeLabel {
-            kind: kind.clone(),
-            label: label.clone(),
-            line,
-        });
-        at += 1;
-        if is(at, &Tok::Punct(',')) {
-            at += 1;
-        } else if !is(at, &Tok::Punct(']')) {
-            return Err(not_map());
-        }
+        let line = start + key_line(text, &kind).unwrap_or(0);
+        pairs.push(TypeLabel { kind, label, line });
     }
-    at += 1;
-    if is(at, &Tok::Punct(',')) {
-        at += 1;
-    }
-    if !is(at, &Tok::Punct(')')) {
-        return Err(not_map());
-    }
-    if !ends_statement(&toks, at) {
-        return Err(format!(
-            "`{TYPE_MAP}` at line {start} is followed by more than `;` after its `new Map([…])`, which may change the map"
-        ));
-    }
+    pairs.sort_by_key(|pair| pair.line);
     Ok(pairs)
+}
+
+/// The `TYPE_LABELS` of every step of pr-label.yml that sets one in its `env`.
+fn read_type_map(root: &Path) -> TypeMap {
+    let Some(text) = read_file(root, PR_LABEL) else {
+        return TypeMap::Absent;
+    };
+    let Ok(document) = yaml::parse(&text, Keys::MayRepeat) else {
+        return TypeMap::NotYaml;
+    };
+    let mut pairs = Vec::new();
+    let mut found = false;
+    for (_, job) in document
+        .root
+        .get("jobs")
+        .map(|jobs| jobs.entries().collect::<Vec<_>>())
+        .unwrap_or_default()
+    {
+        for step in job.get("steps").map(Node::items).unwrap_or_default() {
+            let Some(value) = step.get("env").and_then(|env| env.get(TYPE_MAP)) else {
+                continue;
+            };
+            found = true;
+            match type_labels(value) {
+                Ok(read) => pairs.extend(read),
+                Err(problem) => return TypeMap::Unreadable(problem),
+            }
+        }
+    }
+    if found {
+        TypeMap::Read(pairs)
+    } else {
+        TypeMap::Unreadable(format!("no step sets `{TYPE_MAP}` in its `env`"))
+    }
 }
 
 /// The labels release.yml's categories and exclude name, and the categorised ones.
@@ -685,53 +431,10 @@ fn release_labels(
     Some((uses, categorised))
 }
 
-/// What `just labels` (`scripts/lib/labels.ts`'s `parseLabelManifest`) rejects in a
-/// labels.yml, or `None` when it would accept it.
+/// What `just labels` rejects in a labels.yml (the parser `cargo xtask sync-labels`
+/// runs), or `None` when it would accept it.
 fn manifest_problem(text: &str) -> Option<String> {
-    let document = match yaml::parse(text, Keys::Unique) {
-        Ok(document) => document,
-        Err(error) => return Some(first_line(&error.message).to_owned()),
-    };
-    let Yaml::Seq(entries) = &document.root.value else {
-        return Some("the top level is not a list".to_owned());
-    };
-    let mut seen = BTreeSet::new();
-    for (index, entry) in entries.iter().enumerate() {
-        let place = format!("entry {}", index + 1);
-        if !entry.is_map() && !entry.is_seq() {
-            return Some(format!("{place} is not a mapping"));
-        }
-        let Some(name) = entry
-            .get("name")
-            .and_then(Node::as_str)
-            .filter(|name| !name.is_empty())
-        else {
-            return Some(format!("{place} has no name"));
-        };
-        let color = entry.get("color");
-        let hex = color.and_then(Node::as_str).is_some_and(|color| {
-            color.len() == 6
-                && color
-                    .chars()
-                    .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
-        });
-        if !hex {
-            return Some(format!(
-                "{name}: color {}",
-                color.map_or_else(|| "undefined".to_owned(), Node::to_json)
-            ));
-        }
-        let description = entry.get("description").and_then(Node::as_str);
-        if description.is_none_or(|text| text.encode_utf16().count() > MAX_DESCRIPTION) {
-            return Some(format!(
-                "{name}: a missing description, or one over {MAX_DESCRIPTION} characters"
-            ));
-        }
-        if !seen.insert(name) {
-            return Some(format!("{name} is declared twice"));
-        }
-    }
-    None
+    parse_label_manifest(text).err()
 }
 
 /// The declared names with their lines, or `None` when labels.yml is unusable.
@@ -758,7 +461,7 @@ fn declared(root: &Path, problems: &mut Vec<FailureDetails>) -> Option<Vec<(Stri
     Some(names)
 }
 
-/// The PR-title types a title check accepts that label-pr's map does not label.
+/// The PR-title types a title check accepts that pr-label.yml's map does not label.
 fn unmapped_types(root: &Path, pairs: &[TypeLabel]) -> Vec<FailureDetails> {
     let mut found = Vec::new();
     let mut mapped: Vec<&str> = Vec::new();
@@ -780,10 +483,10 @@ fn unmapped_types(root: &Path, pairs: &[TypeLabel]) -> Vec<FailureDetails> {
         {
             found.push(finding(
                 "ERR_CHECK_LABEL_TYPE_UNMAPPED",
-                format!("{} accepts the PR-title type `{kind}`, which {LABEL_PR}'s {TYPE_MAP} does not map to a label", title.place),
-                format!("every type a PR-title check accepts to be a key of {LABEL_PR}'s {TYPE_MAP}, so its pull requests are labelled and reach the release notes"),
+                format!("{} accepts the PR-title type `{kind}`, which {PR_LABEL}'s {TYPE_MAP} does not map to a label", title.place),
+                format!("every type a PR-title check accepts to be a key of {PR_LABEL}'s {TYPE_MAP}, so its pull requests are labelled and reach the release notes"),
                 format!("{TYPE_MAP} maps: {shown}"),
-                format!("add `[\"{kind}\", \"<label>\"]` to {TYPE_MAP} in {LABEL_PR} (a label {RELEASE} categorises), or drop `{kind}` from the title check's `types`"),
+                format!("add `\"{kind}\": \"<label>\"` to {TYPE_MAP} in {PR_LABEL} (a label {RELEASE} categorises), or drop `{kind}` from the title check's `types`"),
             ));
         }
     }
@@ -824,7 +527,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     let mut problems = Vec::new();
     let names = declared(root, &mut problems);
     let mut violations = duplicates(names.iter().flatten());
-    // `just labels` parses through parseLabelManifest; a duplicate is already reported above.
+    // `just labels` parses through parse_label_manifest; a duplicate is already reported above.
     if names.is_some()
         && violations.is_empty()
         && let Some(problem) = manifest_problem(&manifest)
@@ -833,21 +536,21 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     }
 
     let release = release_labels(root, &mut problems);
-    let label_pr_text = read_file(root, LABEL_PR);
-    let type_labels = label_pr_text
-        .as_deref()
-        .map_or_else(|| Ok(Vec::new()), read_type_labels);
-    if let Err(problem) = &type_labels {
-        let mut found = unreadable(LABEL_PR, problem.clone());
+    let type_map = read_type_map(root);
+    if let TypeMap::Unreadable(problem) = &type_map {
+        let mut found = unreadable(PR_LABEL, problem.clone());
         found.expected = format!(
-            "{LABEL_PR}'s `{TYPE_MAP}` to be `new Map([[\"type\", \"label\"], …])` of string literals"
+            "a step in {PR_LABEL} whose `env` sets `{TYPE_MAP}` to a JSON object mapping each PR-title type to a label"
         );
         found.next = format!(
-            "restore that shape in {LABEL_PR}, or update xtask/src/check_harness/labels_declared.rs's reader in the same change"
+            "restore that shape in {PR_LABEL}, or update xtask/src/check_harness/labels_declared.rs's reader in the same change"
         );
         problems.push(found);
     }
-    let pairs = type_labels.as_ref().map_or(&[][..], Vec::as_slice);
+    let pairs = match &type_map {
+        TypeMap::Read(pairs) => pairs.as_slice(),
+        TypeMap::Absent | TypeMap::NotYaml | TypeMap::Unreadable(_) => &[],
+    };
     let mut label_pr: Vec<&TypeLabel> = Vec::new();
     for pair in pairs {
         if !label_pr.iter().any(|seen| seen.label == pair.label) {
@@ -870,7 +573,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     uses.extend(
         label_pr
             .iter()
-            .map(|pair| applies(format!("{LABEL_PR}:{}", pair.line), pair.label.clone())),
+            .map(|pair| applies(format!("{PR_LABEL}:{}", pair.line), pair.label.clone())),
     );
     if let Some(names) = &names {
         let known: BTreeSet<&str> = names.iter().map(|(name, _)| name.as_str()).collect();
@@ -881,7 +584,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             violations.push(finding(
                 "ERR_CHECK_LABEL_UNDECLARED",
                 format!("{} {} `{}`{}, which {LABELS} does not declare", found.place, found.verb, found.label, found.note),
-                format!("every label an issue form, workflow, dependency bot, release category, or scripts/label-pr.ts uses to be declared in {LABELS}"),
+                format!("every label an issue form, workflow, dependency bot, release category, or {PR_LABEL}'s {TYPE_MAP} uses to be declared in {LABELS}"),
                 format!("no item named `{}` (names match exactly, case included)", found.label),
                 format!("declare the label in {LABELS} (name, color, description), or change the file to a declared label; `just labels` then creates it"),
             ));
@@ -899,14 +602,14 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             }
             violations.push(finding(
                 "ERR_CHECK_LABEL_NO_CATEGORY",
-                format!("{LABEL_PR} applies `{}`, which no {RELEASE} category lists", pair.label),
-                format!("every label scripts/label-pr.ts applies to be listed by a category in {RELEASE}, so its pull requests reach the release notes"),
+                format!("{PR_LABEL}:{} applies `{}`, which no {RELEASE} category lists", pair.line, pair.label),
+                format!("every label {PR_LABEL}'s {TYPE_MAP} applies to be listed by a category in {RELEASE}, so its pull requests reach the release notes"),
                 if release.is_none() { format!("no {RELEASE}") } else { format!("no category's labels include `{}`", pair.label) },
-                format!("add `{}` to a category in {RELEASE}, or change the mapping in scripts/label-pr.ts", pair.label),
+                format!("add `{}` to a category in {RELEASE}, or change the mapping in {PR_LABEL}'s {TYPE_MAP}", pair.label),
             ));
         }
     }
-    if label_pr_text.is_some() && type_labels.is_ok() {
+    if matches!(type_map, TypeMap::Read(_)) {
         violations.extend(unmapped_types(root, pairs));
     }
     problems.extend(violations);
@@ -915,7 +618,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TypeLabel, read_type_labels, run};
+    use super::{TypeLabel, TypeMap, read_type_map, run};
     use crate::check_harness::test_support::{codes, run_at, summaries};
     use crate::fail::FailureDetails;
     use crate::test_support::{temp_dir, write};
@@ -964,13 +667,24 @@ mod tests {
         ("deps", "dependencies"),
     ];
 
-    fn label_pr(pairs: &[(&str, &str)]) -> String {
-        let entries: String = pairs
+    const PR_LABEL: &str = ".github/workflows/pr-label.yml";
+
+    /// pr-label.yml with `pairs` as its step's `TYPE_LABELS`; the first pair is on line 10.
+    fn pr_label(pairs: &[(&str, &str)]) -> String {
+        let entries: Vec<String> = pairs
             .iter()
-            .map(|(kind, label)| ["  [\"", kind, "\", \"", label, "\"],\n"].concat())
+            .map(|(kind, label)| format!("              \"{kind}\": \"{label}\""))
             .collect();
+        pr_label_with(&format!(
+            "|\n            {{\n{}\n            }}",
+            entries.join(",\n")
+        ))
+    }
+
+    /// pr-label.yml whose step sets `TYPE_LABELS: <value>` (line 8).
+    fn pr_label_with(value: &str) -> String {
         format!(
-            "import {{ ScriptError }} from \"./lib/fail.ts\";\n\nconst TYPE_LABELS: ReadonlyMap<string, string> = new Map([\n{entries}]);\n"
+            "name: Label PR\non: pull_request\njobs:\n  label:\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          TYPE_LABELS: {value}\n        run: |\n          gh pr edit \"$PR_NUMBER\" --add-label \"$add\"\n"
         )
     }
 
@@ -982,7 +696,7 @@ mod tests {
 
     fn check(overrides: &[(&str, Option<&str>)]) -> Vec<FailureDetails> {
         let labels = all_labels(&[]);
-        let pr = label_pr(&TYPE_PAIRS);
+        let pr = pr_label(&TYPE_PAIRS);
         let mut files: Vec<(&str, Option<&str>)> = vec![
             (".github/labels.yml", Some(&labels)),
             (
@@ -1005,7 +719,7 @@ mod tests {
             (".github/dependabot.yml", Some(DEPENDABOT)),
             (".github/renovate.json", Some(RENOVATE)),
             (".github/release.yml", Some(RELEASE)),
-            ("scripts/label-pr.ts", Some(&pr)),
+            (PR_LABEL, Some(&pr)),
         ];
         for (path, content) in overrides {
             files.retain(|(existing, _)| existing != path);
@@ -1180,7 +894,7 @@ mod tests {
             (".github/renovate.json", None),
             (".github/release.yml", Some(&release)),
             (".github/workflows/label.yml", None),
-            ("scripts/label-pr.ts", None),
+            (PR_LABEL, None),
         ]);
         let default = "applies `dependencies` (Dependabot's default for an entry with no labels key), which .github/labels.yml does not declare";
         assert_eq!(
@@ -1220,14 +934,16 @@ mod tests {
     }
 
     #[test]
-    fn fails_on_a_label_pr_label_undeclared_or_uncategorised() {
-        let pr = label_pr(&[("fix", "bug"), ("feat", "feature")]);
-        let found = check(&[("scripts/label-pr.ts", Some(&pr))]);
+    fn fails_on_a_type_map_label_undeclared_or_uncategorised() {
+        let pr = pr_label(&[("fix", "bug"), ("feat", "feature")]);
+        let found = check(&[(PR_LABEL, Some(&pr))]);
         assert_eq!(
             summaries(&found),
             [
-                undeclared("scripts/label-pr.ts:5", "feature"),
-                "scripts/label-pr.ts applies `feature`, which no .github/release.yml category lists".to_owned(),
+                undeclared(&format!("{PR_LABEL}:11"), "feature"),
+                format!(
+                    "{PR_LABEL}:11 applies `feature`, which no .github/release.yml category lists"
+                ),
             ]
         );
         assert_eq!(
@@ -1237,7 +953,9 @@ mod tests {
         let release = RELEASE.replace("labels: [ci]", "labels: [chore]");
         assert_eq!(
             summaries(&check(&[(".github/release.yml", Some(&release))])),
-            ["scripts/label-pr.ts applies `ci`, which no .github/release.yml category lists"]
+            [format!(
+                "{PR_LABEL}:14 applies `ci`, which no .github/release.yml category lists"
+            )]
         );
         let found = check(&[(".github/release.yml", None)]);
         assert!(!found.is_empty());
@@ -1248,155 +966,95 @@ mod tests {
                     && found.actual == "no .github/release.yml")
         );
         assert_eq!(
-            check(&[("scripts/label-pr.ts", None), (".github/release.yml", None)]),
+            check(&[(PR_LABEL, None), (".github/release.yml", None)]),
             []
         );
     }
 
     #[test]
-    fn fails_when_label_pr_map_cannot_be_read() {
-        for source in [
-            "export const OTHER = 1;\n",
-            "let TYPE_LABELS;\n",
-            "const TYPE_LABELS = build();\n",
-            "const TYPE_LABELS = new Map(PAIRS);\n",
-            "const TYPE_LABELS = new Map([[\"fix\"]]);\n",
-            "const TYPE_LABELS = new Map([[\"fix\", BUG]]);\n",
-            "const TYPE_LABELS = new Map([...MORE]);\n",
-            "const TYPE_LABELS = new Map([[\"fix\", \"bug\"]], extra);\n",
-            "const TYPE_LABELS = new Map([[\"fix\", `${x}`]]);\n",
+    fn fails_when_the_type_map_cannot_be_read() {
+        for workflow in [
+            "name: Label PR\non: pull_request\n".to_owned(),
+            "name: Label PR\non: pull_request\njobs:\n  label:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n".to_owned(),
+            pr_label_with("\"{ nope\""),
+            pr_label_with("\"[]\""),
+            pr_label_with("'{\"fix\": 1}'"),
+            pr_label_with("3"),
+            pr_label_with("{fix: bug}"),
         ] {
-            assert_eq!(
-                codes(&check(&[("scripts/label-pr.ts", Some(source))])),
-                ["ERR_CHECK_INPUT_UNREADABLE"],
-                "{source}"
-            );
+            let found = check(&[(PR_LABEL, Some(&workflow))]);
+            assert_eq!(codes(&found), ["ERR_CHECK_INPUT_UNREADABLE"], "{workflow}");
+            assert!(found[0].summary.contains(PR_LABEL), "{workflow}");
+        }
+        let found = check(&[(PR_LABEL, Some("jobs: [\n"))]);
+        assert_eq!(codes(&found), ["ERR_CHECK_INPUT_UNREADABLE"]);
+    }
+
+    fn read(workflow: &str) -> TypeMap {
+        let dir = temp_dir();
+        write(dir.path(), PR_LABEL, workflow);
+        read_type_map(dir.path())
+    }
+
+    fn pair(kind: &str, label: &str, line: usize) -> TypeLabel {
+        TypeLabel {
+            kind: kind.to_owned(),
+            label: label.to_owned(),
+            line,
         }
     }
 
     #[test]
-    fn reads_each_pair_of_the_map_with_its_line() {
+    fn reads_each_pair_of_the_map_at_its_keys_line_in_source_order() {
         assert_eq!(
-            read_type_labels(&label_pr(&[("fix", "bug")])),
-            Ok(vec![TypeLabel {
-                kind: "fix".to_owned(),
-                label: "bug".to_owned(),
-                line: 4
-            }])
+            read(&pr_label(&[
+                ("fix", "bug"),
+                ("chore", "chore"),
+                ("ci", "ci")
+            ])),
+            TypeMap::Read(vec![
+                pair("fix", "bug", 10),
+                pair("chore", "chore", 11),
+                pair("ci", "ci", 12)
+            ])
         );
-        let source = "// const TYPE_LABELS = 1;\nconst RE = /[\"']/g;\n/* a\n */ const TYPE_LABELS = new Map<string, string>([\n  ['fix', `bug`,],\n],);\nconst x = a / b;\n";
-        assert_eq!(
-            read_type_labels(source),
-            Ok(vec![TypeLabel {
-                kind: "fix".to_owned(),
-                label: "bug".to_owned(),
-                line: 5
-            }])
-        );
-        assert_eq!(
-            read_type_labels("const TYPE_LABELS = new Map([]);\n"),
-            Ok(Vec::new())
-        );
-        assert_eq!(
-            read_type_labels("const TYPE_LABELS = new Map([[\"a\", \"b\"] [\"c\", \"d\"]]);\n")
-                .map_err(|error| error.contains("line 1")),
-            Err(true)
-        );
-        assert!(read_type_labels("const TYPE_LABELS = new Map<string([]);").is_err());
-        assert!(read_type_labels("const TYPE_LABELS = new Map(['\\n\\t\\r\\'', \"x\"").is_err());
-    }
-
-    #[test]
-    fn refuses_a_map_the_statement_goes_on_to_change() {
-        let map = "const TYPE_LABELS = new Map([[\"fix\", \"bug\"]])";
-        for tail in [
-            ";\n",
-            "\n",
-            "",
-            "\nexport const OTHER = 1;\n",
-            ";\nTYPE_LABELS.set(\"x\", \"y\");\n",
-        ] {
-            assert!(
-                read_type_labels(&format!("{map}{tail}")).is_ok(),
-                "{tail:?}"
-            );
-        }
-        for tail in [
-            ".set(\"feat\", \"enhancement\");\n",
-            "\n  .set(\"feat\", \"enhancement\");\n",
-            " as ReadonlyMap<string, string>;\n",
-            "\n  satisfies ReadonlyMap<string, string>;\n",
-            " ?? other;\n",
-            ", OTHER = 1;\n",
-        ] {
-            let found = read_type_labels(&format!("{map}{tail}"));
-            assert!(
-                found
-                    .as_ref()
-                    .is_err_and(|error| error.contains("followed by")),
-                "{tail:?}: {found:?}"
-            );
-        }
-        for source in [
-            "let TYPE_LABELS\nTYPE_LABELS = new Map([[\"fix\", \"bug\"]]);\n",
-            "let TYPE_LABELS;\nTYPE_LABELS = new Map([[\"fix\", \"bug\"]]);\n",
-            "let TYPE_LABELS: Map<string, string>\nconst x = new Map([]);\n",
-        ] {
-            let found = read_type_labels(source);
-            assert!(
-                found
-                    .as_ref()
-                    .is_err_and(|error| error.contains("with a value")),
-                "{source:?}: {found:?}"
-            );
-        }
-        let annotated = "const TYPE_LABELS:\n  ReadonlyMap<\n    string,\n    string\n  >\n  = new Map([[\"fix\", \"bug\"]]);\n";
-        assert!(read_type_labels(annotated).is_ok());
-    }
-
-    #[test]
-    fn decodes_string_escapes_as_javascript_does() {
-        let pair = |literal: &str| {
-            read_type_labels(&format!(
-                "const TYPE_LABELS = new Map([[{literal}, \"x\"]]);\n"
-            ))
-            .map(|pairs| pairs.into_iter().map(|pair| pair.kind).collect::<Vec<_>>())
+        assert_eq!(read(&pr_label_with("'{}'")), TypeMap::Read(Vec::new()));
+        let inline = read(&pr_label_with("'{\"fix\": \"bug\", \"\\u0063i\": \"ci\"}'"));
+        let TypeMap::Read(mut pairs) = inline else {
+            panic!("expected a map, got {inline:?}");
         };
-        for (literal, decoded) in [
-            (r#""a\x41b""#, "aAb"),
-            (r#""\u0041\u{1F600}""#, "A\u{1F600}"),
-            (r#""\uD83D\uDE00""#, "\u{1F600}"),
-            (r#""\0\b\f\v""#, "\0\u{8}\u{c}\u{b}"),
-            (r#""\\ \' \" \q""#, "\\ ' \" q"),
-            ("\"line\\\ncontinued\"", "linecontinued"),
-            ("'\\\r\nx'", "x"),
-            ("`tab\\tdone`", "tab\tdone"),
-        ] {
-            assert_eq!(pair(literal), Ok(vec![decoded.to_owned()]), "{literal}");
-        }
-        for literal in [
-            r#""\x4""#,
-            r#""\u12""#,
-            r#""\u{110000}""#,
-            r#""\u{}""#,
-            r#""\uD83D""#,
-            r#""\1""#,
-            r#""\01""#,
-            "`${x}`",
-        ] {
-            assert!(pair(literal).is_err(), "{literal}");
-        }
-        let lines = read_type_labels(
-            "const TYPE_LABELS = new Map([\n  [\"a\\\nb\", \"x\"],\n  [\"c\", \"y\"],\n]);\n",
-        );
+        pairs.sort_by(|a, b| a.kind.cmp(&b.kind));
+        assert_eq!(pairs, [pair("ci", "ci", 8), pair("fix", "bug", 8)]);
+        let blank_first = pr_label_with("|\n\n            {\"fix\": \"bug\"}");
         assert_eq!(
-            lines.map(|pairs| pairs.iter().map(|pair| pair.line).collect::<Vec<_>>()),
-            Ok(vec![2, 4])
+            read(&blank_first),
+            TypeMap::Read(vec![pair("fix", "bug", 10)])
         );
     }
 
     #[test]
-    fn compares_title_types_with_label_pr_map() {
+    fn reads_every_step_that_sets_the_map() {
+        let workflow = pr_label(&[("fix", "bug")]).replace(
+            "    steps:\n",
+            "    steps:\n      - run: echo first\n      - env:\n          TYPE_LABELS: '{\"ci\": \"ci\"}'\n",
+        );
+        assert_eq!(
+            read(&workflow),
+            TypeMap::Read(vec![pair("ci", "ci", 9), pair("fix", "bug", 13)])
+        );
+        assert_eq!(read_type_map(temp_dir().path()), TypeMap::Absent);
+        assert_eq!(read("jobs: [\n"), TypeMap::NotYaml);
+        let TypeMap::Unreadable(problem) = read(&pr_label_with("\"[1]\"")) else {
+            panic!("expected an unreadable map");
+        };
+        assert_eq!(
+            problem,
+            "`TYPE_LABELS` at line 8 is not a JSON object of string labels"
+        );
+    }
+
+    #[test]
+    fn compares_title_types_with_the_type_map() {
         let types = |extra: &str| {
             title_workflow(&format!(
                 "        with:\n          types: |\n            feat\n            fix\n            {extra}\n"
@@ -1425,7 +1083,7 @@ mod tests {
         assert_eq!(
             check(&[
                 (".github/workflows/title.yml", Some(&title_workflow(""))),
-                ("scripts/label-pr.ts", None)
+                (PR_LABEL, None)
             ]),
             []
         );
