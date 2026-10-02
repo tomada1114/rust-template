@@ -16,7 +16,7 @@ repository, which commands to run, and how a change gets merged.
   actionlint, zizmor, gitleaks, and shellcheck.
 - [Just](https://just.systems/man/en/) to start the first `just install` (mise then
   pins it). mise installs pnpm at the version `package.json`'s
-  `packageManager` also names (a harness check keeps the two equal).
+  `packageManager` also names (Renovate moves the two in one grouped pull request).
 
 Then:
 

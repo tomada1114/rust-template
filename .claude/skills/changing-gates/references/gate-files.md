@@ -43,7 +43,8 @@ current values.
   (a deprecated key, which clippy also only warns about, or an unknown one). Clippy's
   suggested `allow-invalid = true` hides the warning, which makes it weakening a gate;
   fix the path instead. The `clippy-allow-invalid` harness check
-  (`xtask/src/check_harness/clippy_allow_invalid.rs`, run by `just check-harness`) fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` on the key in any `clippy.toml`; an entry
+  (`xtask/src/check_harness/clippy_allow_invalid.rs`, run by `just check-harness`)
+  fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` on the key in any `clippy.toml`; an entry
   that genuinely needs it goes in that check's `EXCEPTIONS` with a human's sign-off.
   CI's Linux and macOS jobs both run the guard, so a path must resolve on both.
 
@@ -81,12 +82,13 @@ Each tool is pinned exactly once — Rust in `rust-toolchain.toml` (rustup reads
 `mise.toml` lists no `rust` tool), Node and every CLI tool in `mise.toml` — except pnpm,
 pinned in `mise.toml` (`aqua:pnpm/pnpm`, which installs it) and in `packageManager`
 (which pnpm reads) at one version, which Renovate's `pnpm` group keeps by moving both in
-one pull request; no check compares them, so a hand edit changes both. Never `latest`, never a range, and prefer
-the prebuilt-binary backends over `cargo:`, which compiles from source. Renovate opens the
-bumps for the first two after its 7-day minimum release age; its `enabledManagers` in
-`.github/renovate.json` are `mise`, `rust-toolchain`, and `npm` limited by `packageRules`
-to the `packageManager` field, with both pnpm pins in one `pnpm` group; every other
-`package.json` dependency is Dependabot's `npm` ecosystem (`.github/dependabot.yml`).
+one pull request; no check compares them, so a hand edit changes both. Never `latest`,
+never a range, and prefer the prebuilt-binary backends over `cargo:`, which compiles
+from source. Renovate opens the bumps for the first two after its 7-day minimum release
+age; its `enabledManagers` in `.github/renovate.json` are `mise`, `rust-toolchain`, and
+`npm` limited by `packageRules` to the `packageManager` field, with both pnpm pins in
+one `pnpm` group; every other `package.json` dependency is Dependabot's `npm` ecosystem
+(`.github/dependabot.yml`).
 `package.json`'s `@types/node` stays on the major of `mise.toml`'s `node`, so the
 scripts type-check against the Node that runs them. No check compares the two majors
 (the harness reads no Node-only pin since it moved to `cargo xtask check-harness`), so a

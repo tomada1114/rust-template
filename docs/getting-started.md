@@ -163,16 +163,15 @@ that touches it says what to keep.
 Then run `just check`, and this search, which should print nothing:
 
 ```bash
-git grep -nIiE 'counter|test-fast increment' -- . ':(exclude)scripts/' \
-  ':(exclude).claude/skills/' ':(exclude,glob).agents/skills/*/scripts/**' \
-  ':(exclude)CHANGELOG.md'
+git grep -nIiE 'counter|test-fast increment' -- . ':(exclude).claude/skills/' \
+  ':(exclude,glob).agents/skills/*/scripts/**' ':(exclude)CHANGELOG.md'
 ```
 
 It uses `git grep`, which needs nothing beyond the prerequisites. The exclusions are
-words that are not the sample: the harness's own tests and fixtures under `scripts/`
-(and the `yaml` library's `LineCounter` there), a skill's bundled scripts,
-`.claude/skills/` (the mirror `just agents-sync` regenerates), and `CHANGELOG.md`, where
-the entry recording the sample's removal names it on purpose.
+words that are not the sample: a skill's bundled scripts, `.claude/skills/` (the mirror
+`just agents-sync` regenerates), and `CHANGELOG.md`, where the entry recording the
+sample's removal names it on purpose. The harness checks under `xtask/` name no counter,
+so the search reads them too.
 
 ## App icon
 

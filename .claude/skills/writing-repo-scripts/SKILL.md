@@ -175,10 +175,9 @@ runs in Vitest's `scripts` project under `just test-scripts`.
   calls: that is how a test proves what would have been sent to GitHub without sending
   it.
 - **A throwaway repository per test.** `mkdtemp` under `os.tmpdir()`, `git init` with
-  `gitEnv(process.env)`, removed in `afterEach` (`scripts/verify-bootstrap.test.ts`;
-  `xtask/src/verify_hooks.rs`'s tests in Rust). Never
-  read or write the real checkout, and never a fixed shared path: Vitest runs files in
-  parallel, and two tests on one path race.
+  `gitEnv(process.env)`, removed in `afterEach` (`xtask/src/verify_hooks.rs`'s tests do
+  the same in Rust). Never read or write the real checkout, and never a fixed shared
+  path: Vitest runs files in parallel, and two tests on one path race.
 - **Assert the code, not the prose**: `expect(error).toMatch(/^ERR_HOOKS_NOT_INSTALLED/)`.
   The code is the contract; the wording may improve.
 - **Secret-shaped fixtures are assembled at runtime** from pieces that do not match on

@@ -4,8 +4,8 @@
 //!
 //! Read:
 //! - `osv-scanner.toml` (optional; absent means no ignores): the `id` of every
-//!   `[[IgnoredVulns]]` entry that starts with `GHSA-` (a RUSTSEC id has no Dependency
-//!   Review counterpart);
+//!   `[[IgnoredVulns]]` entry that starts with `GHSA-` (Dependency Review knows no RUSTSEC
+//!   id);
 //! - `.github/workflows/dependency-review.yml` (optional; absent means nothing to
 //!   compare): the `allow-ghsas` input, comma- or whitespace-separated, of every step that
 //!   uses `actions/dependency-review-action`.
