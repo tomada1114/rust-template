@@ -2,7 +2,8 @@
 paths:
   - "Cargo.toml"
   - "crates/*/Cargo.toml"
-  - "src-tauri/Cargo.toml"
+  - "xtask/Cargo.toml"
+  - "xtask/guard/Cargo.toml"
   - "Cargo.lock"
   - "mise.toml"
   - "rust-toolchain.toml"
@@ -19,10 +20,9 @@ paths:
 
 ## Dependency Policy
 
-- Every new crate and every new npm package — runtime or dev, direct or a Tauri plugin —
-  needs a written reason and a human's sign-off before it is added (`AGENTS.md` ›
-  Security and human approval). It also owes an ADR (`recording-architecture-decisions`),
-  and a Tauri plugin is a capability change as well as a dependency
+- Every new crate — runtime or dev, for a shipped crate or for `xtask` — needs a
+  written reason and a human's sign-off before it is added (`AGENTS.md` › Security and
+  human approval). It also owes an ADR (`recording-architecture-decisions`)
 - The pull request records why the dependency passes each of these (the
   `managing-dependencies` skill has the full review record):
   - **Need** — why the standard library, an existing dependency, or a small
@@ -35,15 +35,17 @@ paths:
   - **Weight** — the crates `cargo tree` adds, and `default-features = false` with only
     the features used
   - **Build-time code** — a crate's `build.rs` or proc-macro runs on the developer's
-    Mac at build time
+    machine at build time
   - **Advisories** — `just deny` and OSV-Scanner report nothing against the version
     being added
 - A crate's version is written once, in the root `Cargo.toml`'s
   `[workspace.dependencies]`; a member says `name = { workspace = true }`. `myapp-core`
-  takes only platform-neutral crates — never tauri, an OS binding crate, or
-  `myapp-platform` (`just deny` and `just check-harness` fail otherwise)
-- The `tauri` crates and the `@tauri-apps/*` npm packages move together at the same
-  minor; `tauri` stays on `2` until a migration ADR moves it to a new major
+  takes only platform-neutral crates — never an OS binding crate or `myapp-platform`
+  (`just deny` and `just check-harness` fail otherwise), and never clap, ratatui, or
+  crossterm, which belong to the binary
+- ratatui and crossterm are pre-1.0, so their minor versions are breaking: such a bump
+  is a migration reviewed on its own pull request (`merging-dependency-prs`); replacing
+  clap or ratatui, or a new major of either, owes an ADR
 - `Cargo.lock` is committed with the manifest change that moved it, never hand-edited:
   `cargo add`/`cargo update -p <crate>` write it. Verify with `just deny`,
   `mise exec -- cargo shear`, and `just check`
@@ -62,8 +64,8 @@ paths:
   release has time to be pulled. The two values stay equal (a harness check)
 - CI on the bot's PR is the gate; landing those PRs is the `merging-dependency-prs`
   skill. A clippy or Rust toolchain bump that fires a new finding is fixed in the
-  code on that PR, never skipped. A Tauri major is a migration issue, never a batch
-  merge
+  code on that PR, never skipped. A major (or a pre-1.0 minor) of a crate the binary is
+  built around is a migration, never a batch merge
 - After changing `mise.toml`, run `mise install`; after changing `rust-toolchain.toml`,
   the next `cargo` call installs the new toolchain through rustup (`RUSTUP_AUTO_INSTALL`,
   on by default: https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).
@@ -76,5 +78,5 @@ paths:
   `test-xtask` recipes), relax a lint level, add to an ignore or exclude list, or loosen
   `deny.toml` or `osv-scanner.toml` without a human's explicit approval
 - An `osv-scanner.toml` ignore needs its reason and an `ignoreUntil` at most 90 days
-  out, and only for a crate that does not ship (absent from
-  `cargo tree --target aarch64-apple-darwin`) or with no fixed release
+  out, and only for a crate that does not ship (absent from `cargo tree --target` for
+  every target `deny.toml`'s `[graph] targets` names) or with no fixed release

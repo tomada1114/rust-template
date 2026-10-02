@@ -22,8 +22,8 @@ body:
       label: Steps to Reproduce
       description: Minimal steps to reproduce the behavior.
       placeholder: |
-        1. Launch the app
-        2. Click ...
+        1. Run `myapp ...` (or open `myapp tui` and press ...)
+        2. ...
         3. Observe ...
     validations:
       required: true
@@ -44,31 +44,24 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: source
-    attributes:
-      label: How You Got the App
-      options:
-        - A release download (.dmg)
-        - A local build (cargo install --path, or cargo run)
-    validations:
-      required: true
-
   - type: input
     id: app-version
     attributes:
-      label: App Version
-      description: The release you downloaded, or the commit you built from.
-      placeholder: "0.1.0"
+      label: Version
+      description: Output of `myapp --version`, and the commit you built from (`git rev-parse --short HEAD` in the checkout you installed from).
+      placeholder: "myapp 0.1.0 (abc1234)"
     validations:
       required: true
 
   - type: input
-    id: macos-version
+    id: os-version
     attributes:
-      label: macOS Version
-      description: Output of `sw_vers -productVersion`. The app supports macOS 14.0 or later on Apple Silicon.
-      placeholder: "26.0"
+      label: Operating System
+      description: >
+        macOS: output of `sw_vers -productVersion`. Linux: the distribution and version
+        (`PRETTY_NAME` in `/etc/os-release`). Include the terminal you ran it in when the
+        problem is in `myapp tui`.
+      placeholder: "macOS 26.0, Terminal"
     validations:
       required: true
 
@@ -77,9 +70,10 @@ body:
     attributes:
       label: Log Excerpt
       description: >
-        The lines around the problem from the newest file in
-        `~/Library/Logs/com.example.myapp/` (`just logs` prints them for a local build).
-        Remove anything personal before pasting.
+        The lines around the problem from the newest log file: in
+        `~/Library/Logs/com.example.myapp/` on macOS, or `$XDG_STATE_HOME/myapp/logs/`
+        (by default `~/.local/state/myapp/logs/`) on Linux. `just logs` prints them from
+        a checkout. Remove anything personal before pasting.
       render: text
     validations:
       required: false

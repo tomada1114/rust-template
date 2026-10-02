@@ -8,19 +8,20 @@ from now — and assumes no context beyond the repository.
 Three places hold the reasoning, and each has one job:
 
 - [`../architecture.md`](../architecture.md) describes the layers every app starts with —
-  the core, platform, test-support, and helper crates, the Tauri shell, and the UI — how
-  they talk, and what is contract. It is the ground the ADRs build on, not a record of
-  choices.
+  the core, platform, and test-support crates and the `myapp` binary with its
+  subcommands and full-screen view — how they talk, and what is contract. It is the
+  ground the ADRs build on, not a record of choices.
 - The repository README's [Design Philosophy](../../README.md#design-philosophy) holds
-  the reasoning behind those starting layers: why a workspace, why ts-rs, why no
-  WebDriver tests. None of it is an ADR.
-- The ADRs below record what the app decided after that: its design system, where it
-  keeps state, what it depends on, whether it needs the App Sandbox or a new
-  entitlement, how it ships, and which permissions it asks for.
+  the reasoning behind those starting layers: why a workspace, why clap and ratatui, why
+  no check runs the real terminal. None of it is an ADR.
+- The ADRs below record what the app decided after that: where it keeps state, what it
+  depends on, which platforms it targets, whether and how it ships releases, and which
+  permissions it asks for.
 
 `AGENTS.md`'s "Before changing the architecture" names the changes that owe an ADR;
-`recording-architecture-decisions` is the skill that writes one. An app's first ADR is
-usually its design lock (`adr/NNNN-design-lock.md`), decided before its first screen.
+`recording-architecture-decisions` is the skill that writes one. An app's first ADRs
+usually settle where its state lives and what its first new dependency is, before the
+first feature that needs them.
 
 Beside the ADRs, [`roadmap.md`](roadmap.md) records the app's direction — which outcomes
 come now, next, and later — and links the issues and ADRs each one needs. It is not an

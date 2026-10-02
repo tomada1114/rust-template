@@ -5,10 +5,11 @@ repository, which commands to run, and how a change gets merged.
 
 ## Prerequisites
 
-- A Mac with Apple Silicon on macOS 14 or later. The core also builds and tests on
-  Linux, but the app, its tests that need macOS, and the launch smoke do not.
-- The Xcode Command Line Tools (`xcode-select --install`). The full Xcode app is not
-  needed.
+- A Mac with Apple Silicon, or Linux. Everything builds and tests on both; CI runs the
+  platform tests on each.
+- On a Mac, the Xcode Command Line Tools (`xcode-select --install`); the full Xcode app
+  is not needed. On Linux, a C toolchain for the linker (`build-essential` on Debian and
+  Ubuntu).
 - [rustup](https://rustup.rs/). It installs the toolchain `rust-toolchain.toml` pins
   (with clippy, rustfmt, and `llvm-tools`) the first time `cargo` runs.
 - [mise](https://mise.jdx.dev/), which installs every other pinned tool from `mise.toml`:
@@ -49,7 +50,8 @@ just check          # the local gate, in CI's order; its steps are listed below
 ```
 
 `just check` runs verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test →
-test-platform. It opens no window, takes no focus, and raises no prompt.
+test-platform. It opens no window, takes no focus, raises no prompt, and takes over no
+terminal.
 
 These recipes are for a human and are never part of `just check`; an agent runs them
 only when you ask:
@@ -57,7 +59,12 @@ only when you ask:
 ```bash
 just test-local         # the #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain
 just logs-follow        # follow the newest log (never ends)
+just install-cli        # install the myapp binary into ~/.cargo/bin
 ```
+
+`myapp tui` (or `cargo run --locked -p myapp -- tui`) is yours to run too: it takes over
+the terminal, so no check and no agent starts it. When you change its terminal loop,
+say in the pull request what you saw.
 
 Run `just test-local` whenever you change an adapter in `crates/myapp-platform` that
 has an `#[ignore]`d test, and paste its output into the pull request: CI cannot run it.
@@ -84,14 +91,14 @@ cargo deny --locked check                        # just deny
 
 | You are adding… | It goes in… |
 |---|---|
-| A rule, a state change, a decision | `crates/myapp-core`, with tests; a new DTO derives `ts_rs::TS` |
+| A rule, a state change, a decision | `crates/myapp-core`, with tests |
 | Access to the OS or the filesystem | an adapter in `crates/myapp-platform` behind a port core declares, plus a fake and a contract function in `crates/myapp-test-support` |
-| A command or an event | `src-tauri/src/commands.rs` and `lib.rs`'s handler list, and the matching wrapper in `ui/src/ipc/commands.ts` or `events.ts` |
-| A screen or a component | `ui/src/`, using the primitives and tokens in `ui/src/design/`; user-facing wording in `ui/src/copy/` |
+| A subcommand or a flag | `crates/myapp/src/main.rs`, its wording in `crates/myapp/src/wording.rs`, and a test of the built binary in `crates/myapp/tests/cli.rs` |
+| Something on the full-screen view | the screen's state and keys in core; drawing in `crates/myapp/src/tui/view.rs`, tested against ratatui's `TestBackend` |
 | Repository automation | a task in `xtask/src/` (run as `cargo xtask <task>`), with its tests beside it |
 
 [docs/architecture.md](docs/architecture.md) explains the layers and what is contract.
-A new crate or npm package needs a reason and a maintainer's sign-off.
+A new crate needs a reason and a maintainer's sign-off.
 
 ## Pull request process
 

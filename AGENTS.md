@@ -19,9 +19,11 @@ keeping a second copy that goes stale.
 
 ## Overview
 
-This is a macOS desktop app built from a strict template: a Rust core, a Tauri v2 shell,
-and a React + Vite + TypeScript screen, distributed as a `.dmg`. The Rust code is a
-Cargo workspace — the logic in `crates/myapp-core`, the OS adapters in
+This is a Rust command-line tool built from a strict template: one binary, `myapp`,
+whose clap subcommands do the work and whose `myapp tui` subcommand opens a full-screen
+ratatui view over the same core. It builds and runs on macOS and Linux, and it is
+installed from its checkout with `cargo install --path`; there is no release pipeline.
+The code is a Cargo workspace — the logic in `crates/myapp-core`, the OS adapters in
 `crates/myapp-platform`, fakes and contract suites in `crates/myapp-test-support`, and the
 `myapp` binary itself in `crates/myapp` — and repository automation is Rust in the
 `xtask/` crate (`cargo xtask <task>`), apart from the Python and shell scripts a skill
@@ -106,7 +108,8 @@ developer's Mac").
 | A fake or a contract function under `crates/myapp-test-support/` | `just test-core` (core runs the contracts against the fakes), then `just test-platform` (platform runs them against the real adapters) |
 | The binary under `crates/myapp/`, or its error wording in `crates/myapp/src/wording.rs` | `just test-core` (it runs the binary's tests), then `just test-platform` |
 | Formatting of any Rust file | `just fmt`, or `just lint` to only check |
-| Behavior only the running app shows (a log line) | `just test-platform` and `just logs` — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
+| The TUI under `crates/myapp/src/tui/`, or a screen's state in core | `just test-core` (the screen's tests in core and the view's `TestBackend` tests), then `just test-platform`; a change to the terminal loop itself carries the human's `myapp tui` run as evidence — an agent never runs it (the `building-tuis` skill) |
+| Behavior only the running tool shows (a log line) | `just test-platform` and `just logs` — no gate asserts it, so the PR carries the evidence (the `running-the-app` skill) |
 | A task under `xtask/` (including the guard's rules in `xtask/guard/`) | `cargo nextest run -p xtask -p xtask-guard` while iterating, then `just test-xtask` (the floors) and `just lint` |
 | `lefthook.yml` or `xtask/src/verify_hooks.rs` | `just test-xtask` (`xtask/tests/lefthook.rs` runs the real hook), then `just verify-hooks` |
 | A harness check under `xtask/src/check_harness/`, or its fixtures under `xtask/tests/fixtures/` | `cargo nextest run -p xtask check_harness` while iterating, then `just test-xtask` (the floors) and `just check-harness` |
@@ -129,8 +132,8 @@ Cargo.toml                  # Virtual workspace: members, resolver = "3", [works
 rust-toolchain.toml         # The one Rust pin
 crates/
 ├── myapp-core/             # Domain logic, state, and the ports (traits) everything outside
-│                           #   the process is reached through. No tauri, no OS APIs, no
-│                           #   direct I/O; built and tested on Linux; coverage-gated
+│                           #   the process is reached through. No OS APIs, no terminal,
+│                           #   no direct I/O; built and tested on Linux; coverage-gated
 │                           #   (lines 80, functions 80)
 ├── myapp-platform/         # Adapters implementing core's ports against the real OS and
 │                           #   file system (JsonFileCounterStore, SystemClock, logging,
@@ -150,18 +153,22 @@ xtask/                      # Repository automation in Rust, run as `cargo xtask
 - New logic goes in `myapp-core` with tests. The adapters and the binary translate; a
   decision found in either belongs in core, where the coverage floor sees it.
 - The dependency direction is one-way: `myapp-platform` → `myapp-core`, and both ←
-  `myapp` (the binary). Core never depends on platform, tauri, or an OS
-  binding crate; `myapp-test-support` is reached only through `[dev-dependencies]`.
+  `myapp` (the binary). Core never depends on platform or an OS binding crate, and
+  never names the binary's front-end crates (clap, ratatui, crossterm), so a screen's
+  state machine is tested inside the floor with plain values; `myapp-test-support` is
+  reached only through `[dev-dependencies]`.
 - A port is a synchronous `Send + Sync` trait core declares; `myapp-platform`
   implements it; the binary constructs the real adapter and hands it to core; a test
   hands core a fake from `myapp-test-support`. Core never meets async.
   The worked example is `CounterStore` / `JsonFileCounterStore` / `InMemoryCounterStore`
   and `Clock` / `SystemClock` / `FixedClock`.
 - The core boundary is enforced three times, so removing one layer leaves the others:
-  core's `Cargo.toml` lists no tauri, OS, or platform crate; `deny.toml`'s `[bans]`
+  core's `Cargo.toml` lists no OS or platform crate; `deny.toml`'s `[bans]`
   `wrappers` let only `myapp` depend on `myapp-platform`; and a harness check fails
   when core's normal and build dependency closure reaches `tauri*`, `wry`, `tao`,
-  `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`. Those lists
+  `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`. The first
+  three are the desktop-GUI crates the template no longer uses, kept forbidden so core
+  cannot gain a GUI; dropping any name is a gate change a human signs off. Those lists
   change together, and `just check-harness` fails when they differ.
 - I/O, time, the environment, and processes reach core only through ports or arguments,
   and core never sleeps or starts a thread that outlives the call:
@@ -183,33 +190,31 @@ xtask/                      # Repository automation in Rust, run as `cargo xtask
   thread before it returns, so none can outlive the call.
   Core denies `clippy::wildcard_enum_match_arm`, so a `match` on a core enum names
   every variant.
-- Errors are one `thiserror` enum per port or core module carrying a typed code
-  (`#[serde(tag = "code")]`); the binary maps each code to wording in
-  `crates/myapp/src/wording.rs`, matched without a wildcard arm. Core never builds a
-  user-facing sentence, and no error or log line carries user data.
+- Errors are one `thiserror` enum per port or core module, with a variant per failure
+  the caller can act on; the binary maps each variant to wording in
+  `crates/myapp/src/wording.rs`, matched without a wildcard arm, and to exit code 1, and
+  `myapp tui` shows the same wording on its error line. An error that leaves the process
+  as data (a `--json` form) also serializes as a typed code (`#[serde(tag = "code")]`).
+  Core never builds a user-facing sentence, and no error or log line carries user data
+  (`designing-errors`).
 - The binary and `myapp-platform` log through the `tracing` macros; `myapp-core` has no
   `tracing` dependency and logs nothing. Only the binary installs a subscriber
   (`myapp_platform::init_logging`). Files go to `~/Library/Logs/com.example.myapp/` as
-  `myapp.YYYY-MM-DD.log`, rotated daily, the last 14 kept; `just logs` prints the newest.
-- Every type that crosses IPC lives in core and derives `ts_rs::TS`, exported to
-  `ui/src/ipc/generated/`. Only `ui/src/ipc/` imports those files or `@tauri-apps/*`;
-  the rest of the UI imports types from `ui/src/ipc/types.ts` and calls the typed
-  wrappers in `commands.ts` and `events.ts`. Command names in `generate_handler!` and
-  event names (a `pub const` per event, such as `COUNTER_CHANGED`) match what
-  `commands.ts` invokes and `events.ts` listens to.
-- The screen uses only the primitives and `var(--…)` tokens in `ui/src/design/`, never
-  a raw color, a `font-family`, or a pixel font size; every string comes from
-  `ui/src/copy/`; every control has an accessible name.
-- Tauri's security posture is deliberate: a restrictive CSP in `tauri.conf.json`,
-  `withGlobalTauri: false`, and one capability granting only `core:default`. The app
-  commands need no capability entry; a plugin does, and adding one is an ADR decision.
+  `myapp.YYYY-MM-DD.log`, rotated daily, the last 14 kept (on Linux, under
+  `$XDG_STATE_HOME/myapp/logs`); `just logs` prints the newest. While `myapp tui` owns
+  the terminal, logging goes to the file only: a line on stdout or stderr would corrupt
+  the frame.
+- Every value a front end shows is a core view type (`CounterView`), so a subcommand's
+  output and a TUI frame read the same model. A subcommand prints data to stdout and
+  diagnostics to stderr (`designing-clis`); the TUI's state and key table live in core
+  and its loop and view in `crates/myapp/src/tui/` (`building-tuis`). Every string a
+  user reads comes from `crates/myapp/src/wording.rs`.
 - Four things are contract rather than private — core's public API, the bundle
   identifier, the command line (subcommands, flags, output streams, and exit codes:
   0 success, 1 a runtime error, 2 a usage error), and on-disk file formats
   (`counter.json` carries a format version) — and each changes only as
   `docs/architecture.md` says.
-- `src-tauri/binaries/`, `src-tauri/gen/`, `target/`, `dist/`, and `coverage/` are
-  build output: never edit or commit them.
+- `target/` and `coverage/` are build output: never edit or commit them.
 
 ## Before changing the architecture
 
@@ -219,29 +224,27 @@ decided and what is only proposed. `docs/architecture.md` describes the layers e
 starts with; the ADRs record what the app decided on top of them. A change to any of
 these owes an ADR, as `recording-architecture-decisions` sets out:
 
-- a new crate, or a new port in core;
-- the app shape — a windowed app, or a menu-bar agent (`ActivationPolicy::Accessory`
-  and a tray icon);
-- the sandbox posture — the App Sandbox on or off, or a new entitlement;
-- persistence — where and in what format the app keeps state;
-- a new crate or npm dependency;
-- a new Tauri plugin or capability, or relaxing the CSP;
-- distribution — Developer ID signing and notarization, an in-app updater, a universal
-  (Intel) build;
-- `minimumSystemVersion` in `tauri.conf.json`, or `rust-version` in `Cargo.toml`;
-- a TCC permission — Accessibility, Input Monitoring, Screen Recording, Full Disk
-  Access, or any other privacy grant;
-- a second UI locale;
+- a new crate in the workspace, or a new port in core;
+- persistence or configuration — where and in what format the tool keeps state, or a
+  settings file or environment variable it reads;
+- a new crate dependency, runtime or dev;
+- a new target platform (Windows, another architecture), or dropping one;
+- distribution — a release workflow, prebuilt or signed binaries, a package-manager
+  tap, crates.io publishing, an updater;
+- `rust-version` in `Cargo.toml`;
+- an OS privacy permission — on macOS a TCC grant such as Accessibility, Input
+  Monitoring, or Full Disk Access;
 - `unsafe` code, which means lifting `unsafe_code = "forbid"` for `myapp-platform`;
-- the bundle identifier (`com.example.myapp` until the bootstrap renames it), which keys
-  the app's data, logs, and privacy grants;
-- the design lock — the app's own design system replacing the template's base values;
-- a CSS framework, a component library, or a state-management library;
-- a Tauri major version.
+- the bundle identifier (`com.example.myapp` until the bootstrap renames it) or the XDG
+  directory name (`myapp`), which key the tool's data and log directories;
+- a second language for the tool's wording;
+- a TUI theme beyond the terminal's own colors;
+- replacing clap or ratatui with another framework, or moving to a new major version of
+  either.
 
 An agent writes an ADR as Proposed; only a human accepts it. An ADR records reasoning and
-grants nothing: an entitlement, a signing change, or a new dependency still needs the
-sign-off "Security and human approval" asks for. The index starts empty: the reasoning
+grants nothing: a release pipeline, a permission grant, or a new dependency still needs
+the sign-off "Security and human approval" asks for. The index starts empty: the reasoning
 behind the layers every app starts with lives in `README.md`'s Design Philosophy, and an
 ADR records only what an app decides on top of them.
 
@@ -260,9 +263,9 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `triaging-issues` | Filing or labelling an issue: type, priority, blocked, tracking |
 | `shipping-issues` | Taking ranked open issues to merged pull requests, with worktrees |
 | `steering-the-roadmap` | Changing `docs/architecture/roadmap.md` (Now / Next / Later) |
-| `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; Tauri minors move together |
-| `managing-dependencies` | Adding or changing a crate or npm package: the review record, features, licences |
-| `changing-gates` | Editing a file that enforces: lints, floors, hooks, workflows, capabilities, entitlements |
+| `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; a pre-1.0 ratatui minor lands alone |
+| `managing-dependencies` | Adding or changing a crate: the review record, features, licences |
+| `changing-gates` | Editing a file that enforces: lints, floors, hooks, harness checks, workflows, the ruleset |
 | `updating-docs` | Deciding which document a change must update |
 | `recording-architecture-decisions` | Writing an ADR under `docs/architecture/` |
 | `writing-repo-scripts` | A `cargo xtask` task or a skill's bundled script, and its test |
@@ -286,8 +289,8 @@ Codex CLI, read the one that matches the file you are changing.
 
 | Rule | Loads when you touch |
 |---|---|
-| `.claude/rules/rust.md` | `crates/**/*.rs`, `src-tauri/**/*.rs` |
-| `.claude/rules/testing.md` | Rust tests (`crates/*/tests/**`, `src-tauri/tests/**`, `crates/myapp-test-support/**`) |
+| `.claude/rules/rust.md` | `crates/**/*.rs` |
+| `.claude/rules/testing.md` | Rust tests (`crates/*/tests/**`, `crates/myapp-test-support/**`) |
 | `.claude/rules/project.md` | manifests, lockfiles, and gate configs: `Cargo.toml` files, `Cargo.lock`, `mise.toml`, `rust-toolchain.toml`, `deny.toml`, `clippy.toml` files, `rustfmt.toml`, `lefthook.yml`, `typos.toml`, `osv-scanner.toml`, `.github/dependabot.yml`, `.github/renovate.json` |
 | `.claude/rules/docs.md` | `docs/**/*.md`, `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md` |
 
@@ -329,18 +332,16 @@ Get a human's sign-off before acting on any of these. This section is the rule i
 not a description of a check that enforces it: a personal permission file may stop a few
 of them on one host, but this repository ships none (see "Enforcement layers").
 
-- Touching `src-tauri/Entitlements.plist`, the signing settings in `tauri.conf.json`'s
-  `bundle.macOS` (`signingIdentity`, `hardenedRuntime`, `entitlements`), or any signing,
-  notarization, or release secret (the `APPLE_*` variables).
-- Relaxing the app's security posture: the CSP or `withGlobalTauri` in
-  `tauri.conf.json`, or a permission added under `src-tauri/capabilities/`.
+- Adding a release pipeline or anything it would need: a workflow that builds or
+  uploads artifacts, signing or notarization, a repository secret, publishing to
+  crates.io or a package-manager tap. The tool has no distribution: it is installed
+  from its checkout with `cargo install --path`.
 - Creating or pushing a release tag.
 - Editing a personal permission file — `.claude/settings.local.json`,
   `~/.claude/settings.json`, or Codex rules under `.codex/` or `~/.codex/rules/` —
   unless the owner asks for it in that session: it decides what an agent may run, so
   changing it changes the agent's own limits, and no review ever sees it.
-- Adding a new crate or npm package — see the dependency policy in
-  `.claude/rules/project.md`.
+- Adding a new crate — see the dependency policy in `.claude/rules/project.md`.
 - Weakening any gate: lowering a coverage floor (the `test-core` and `test-xtask`
   recipes), relaxing a lint (`[workspace.lints]`, `clippy.toml`), or widening a
   workflow's `permissions:`. If a gate looks wrong, say so and let a human decide. In
@@ -387,23 +388,29 @@ its own, or from one the human raised without asking for an issue, is drafted in
 reply and waits for a yes.
 
 None of them covers anything else in the list above: a force push or other history
-rewrite, `--no-verify`, weakening a gate, entitlements or signing, a release tag, a
-new dependency, `just labels`, or `just ruleset`. A skill that reaches one of those
+rewrite, `--no-verify`, weakening a gate, a release pipeline or signing, a release tag,
+a new dependency, `just labels`, or `just ruleset`. A skill that reaches one of those
 stops and asks.
 
 ### Never taking over the developer's Mac
 
 The owner develops on the same Mac the checks run on, often while an agent iterates
-unattended. Nothing a routine check runs — `just check` and every recipe in it, the
-pre-commit hook, a PostToolUse hook an agent registers, and any step an agent runs to
-verify its own work — may show a window, take keyboard focus, move the pointer, add a
-Dock icon, or raise a permission, Keychain, or Gatekeeper prompt.
+unattended in a terminal next to their own. Nothing a routine check runs — `just check`
+and every recipe in it, the pre-commit hook, a PostToolUse hook an agent registers, and
+any step an agent runs to verify its own work — may show a window, take keyboard focus,
+move the pointer, or raise a permission, Keychain, or Gatekeeper prompt; and none may
+take over a terminal.
 
-- For evidence that a change works, use `just test-platform` and `just logs`. Never launch
-  the app with `open`.
+- Never run `myapp tui` (`cargo run -p myapp -- tui` included). No check enables raw
+  mode, enters the alternate screen, reads a key from a real terminal, or needs a TTY:
+  the TUI is tested by drawing into ratatui's `TestBackend` and feeding keys as values.
+  When a change only the real terminal shows needs eyes on it, ask the human to run it
+  (`running-the-app`).
+- For evidence that a change works, use the tests, `just test-platform`, a plain
+  subcommand run against a scratch `HOME`, and `just logs`.
 - `just test-local`, `just logs-follow`, and `just install-cli` are started by a human on
   purpose.
-- A test that needs a GUI session, a TCC grant, or the Keychain is
+- A test that needs a GUI session, a TCC grant, the Keychain, or a real terminal is
   `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`.
 - Never trigger an installer or a `sudo` prompt; report the command for the human to
   run instead (`just install` does this for the Xcode Command Line Tools).
@@ -443,8 +450,8 @@ UIs), the `main` ruleset, the Renovate App, and the label set:
   delete a `v*` tag, so it keeps its admin bypass.
 - The **Renovate** GitHub App (<https://github.com/apps/renovate>, checked 2026-09-30),
   installed on the repository: without it `.github/renovate.json` does nothing, so
-  `mise.toml` and `rust-toolchain.toml` are never bumped — Dependabot covers only cargo,
-  npm, and Actions.
+  `mise.toml` and `rust-toolchain.toml` are never bumped — Dependabot covers only cargo
+  and Actions.
 - The label set, created by `just labels` as soon as the repository exists.
   `.github/dependabot.yml` names its `labels` explicitly, and Dependabot then ignores
   one the repository does not define rather than creating it
@@ -505,7 +512,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | lefthook's pre-commit hook (`lefthook.yml`) | `git commit` | anyone who ran `just install` | check-only and fast, on the staged files: `rustfmt --check`, `typos`, and the staged guard. No clippy or test step — `just check` and CI run those (`cargo xtask` compiles the xtask crate on its first run and after `xtask/` changes, into `target/xtask`, so a commit never waits on a workspace build's lock). On the commit that concludes a conflicted merge, or one made at a rebase stop, the two style jobs skip (CI reruns them over the whole tree) and the staged guard and the skills mirror still run |
 | `cargo xtask check-staged` (the hook's staged guard, `xtask/src/check_staged.rs`; rules in `xtask/guard/`) | `git commit`, whatever is staged, including the commit that concludes a conflicted merge | anyone who ran `just install` | no secret-shaped path (`.env*`, `.envrc.*`, `secrets/`, signing material, SSH keys, `.claude/settings.local.json`) or credential-shaped content (private-key header, GitHub token, AWS keys, Anthropic or OpenAI API key, Slack token, Google API key, Stripe live key, and the rest `credentials.rs` lists) lands in a commit; judged from the index, so a partly staged file is judged as committed; staged deletions are never inspected |
 | `cargo xtask verify-hooks` (`just install`'s last step, `just check`'s first) | `just install`, `just verify-hooks`, and `just check` | anyone who runs one | lefthook's pre-commit hook is installed in this checkout — skips under CI or the `ALLOW_MISSING_GIT_HOOKS` opt-out |
-| The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp` depends on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
+| The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name an OS binding crate, a desktop-GUI crate, or `myapp-platform`; only `myapp` depends on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
 | `crates/myapp-core/clippy.toml`, core's `#![deny(clippy::wildcard_enum_match_arm)]`, `cargo xtask clippy-guard` (every clippy run in `just lint` and CI goes through it), and `cargo xtask check-harness`'s `clippy-allow-invalid` check | `just lint`, `just check`, and CI's clippy steps; the check in `just check-harness` and CI's `Repo Lint & Harness` job | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `std::os::unix::fs`'s `symlink`, `chown`, `fchown`, `lchown`, and `chroot`, `std::net`'s and `std::os::unix::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, the process and parent-process ids, `thread::available_parallelism`, `thread::spawn`, `thread::Builder::spawn`, `thread::sleep`, or `thread::park_timeout` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive; and every `path` in a `clippy.toml` names an item clippy resolves on that job's target — clippy only warns about one that does not, and `-D warnings` lets that pass, so the guard fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead of letting the ban silently do nothing, and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic in a `clippy.toml` (a deprecated or unknown key); and no `clippy.toml` sets `allow-invalid`, which would hide that warning from the guard, so the check fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` apart from its human-approved exception list (empty) |
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
 | Coverage floors | `just test-core`, `just test-xtask`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `xtask` with `xtask-guard` 85 / 90; `xtask/guard/` 90 / 100 |
@@ -582,10 +589,15 @@ removing or narrowing its bullet here:
   runs, and review is what notices when it does not.
 - **Nothing mechanical keeps a routine check from taking over the Mac.** The rule in
   "Never taking over the developer's Mac" holds because every recipe in `just check`
-  was written to it; whether an agent may start a window-opening recipe without a
+  was written to it; whether an agent may start an interactive command without a
   prompt is decided in each person's own permission file, which no gate here reads. A
-  new recipe or test that shows a window, takes focus, or raises a prompt is caught
-  only by review.
+  new recipe or test that shows a window, takes focus, raises a prompt, or takes over a
+  terminal is caught only by review.
+- **No gate runs the real terminal loop.** `myapp tui`'s loop — raw mode, the alternate
+  screen, resize, and restoring the terminal on every way out — runs only when a human
+  starts it. Keeping `crates/myapp/src/tui/mod.rs` thin is the mitigation: the screen's
+  state and keys are core's, and its drawing is `TestBackend`-tested, so a pull request
+  that changes the loop itself carries the human's run as evidence.
 
 ## Review Checklist
 
@@ -597,7 +609,7 @@ Before submitting a PR:
 3. Tests cover the new behavior (happy path AND error path); a change to an adapter
    with an `#[ignore]`d test also carries `just test-local` output, since no gate runs
    it
-4. No new crate or npm package without justification and a human's sign-off (see
+4. No new crate without justification and a human's sign-off (see
    `.claude/rules/project.md`)
 5. User-facing changes have a `CHANGELOG.md` entry under `[Unreleased]`
 6. Commits and the PR title follow Conventional Commits (English)

@@ -1,9 +1,9 @@
 # Architecture
 
 This page describes the layers every app cut from this template starts with, how they
-talk, and what is contract. What an app decides on top of them — its design system,
-where it keeps state, its dependencies, the App Sandbox, the permissions it asks for —
-is recorded as ADRs under [`docs/architecture/`](architecture/README.md), whose
+talk, and what is contract. What an app decides on top of them — where it keeps state,
+its dependencies, the platforms it targets, the permissions it asks for, whether it
+ever ships releases — is recorded as ADRs under [`docs/architecture/`](architecture/README.md), whose
 `README.md` is the index. The reasoning behind the layers themselves is the README's
 [Design Philosophy](../README.md#design-philosophy).
 
@@ -23,8 +23,8 @@ is recorded as ADRs under [`docs/architecture/`](architecture/README.md), whose
       │ implement core's ports; call core's use cases
       ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ crates/myapp-core  rules, state, ports (traits), and the IPC types.          │
-│ No tauri, no OS API, no direct I/O. Builds and tests on Linux.               │
+│ crates/myapp-core  rules, state, ports (traits), and the views and screens   │
+│ the binary shows. No OS API, no terminal, no direct I/O. Builds on Linux.    │
 │ Coverage floor: 80% of lines, 80% of functions.                              │
 └──────────────────────────────────────────────────────────────────────────────┘
   crates/myapp-test-support  fakes and one contract function per port
@@ -33,18 +33,20 @@ is recorded as ADRs under [`docs/architecture/`](architecture/README.md), whose
 
 Dependencies point one way, toward core: `myapp-platform` → core; `myapp` (the binary)
 → platform and core. Core depends on neither, and platform does not know the binary
-exists.
+exists. Everything runs in one process: the subcommands and the full-screen view call
+core directly, so there is no IPC layer and no serialized boundary between them.
 
 ### How the boundaries are enforced
 
 | Layer | What fails |
 |---|---|
-| Compile time | `crates/myapp-core/Cargo.toml` names no Tauri, OS, or platform crate, so code in core cannot call one. |
-| Dependency closure | A harness check (`just check-harness`) reads `cargo metadata` and fails if core's normal dependency closure contains `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`, `security-framework*`, or `myapp-platform`, or if a non-dev edge points at `myapp-test-support`. `deny.toml`'s `[bans]` adds the direct-edge rule: `myapp-platform` may be a direct dependency of `myapp` only. |
+| Compile time | `crates/myapp-core/Cargo.toml` names no OS, terminal, or platform crate, so code in core cannot call one. |
+| Dependency closure | A harness check (`just check-harness`) reads `cargo metadata` and fails if core's normal and build dependency closure contains a crate the boundary sentence in `AGENTS.md` › Architecture forbids — the macOS binding crates, the desktop-GUI crates, and `myapp-platform` — or if a non-dev edge points at `myapp-test-support`. `deny.toml`'s `[bans]` adds the direct-edge rule: `myapp-platform` may be a direct dependency of `myapp` only. |
 | clippy in core | `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`, `std::io::{stdin, stdout, stderr}`, `std::fs::{File, OpenOptions, DirBuilder}` and every `std::fs` free function, `std::os::unix::fs::{symlink, chown, fchown, lchown, chroot}`, `std::path::Path`'s file-system queries (`exists`, `metadata`, `read_dir`, `is_file`, …), `std::net::{TcpStream, TcpListener, UdpSocket}`, `std::os::unix::net::{UnixStream, UnixListener, UnixDatagram}`, and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit, abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`, `Instant::now`, both types' `elapsed`, `std::env`'s argument, variable, and directory functions (including `current_exe` and `home_dir`), and `std::thread::{spawn, sleep, park_timeout, available_parallelism}` and `Builder::spawn`; `std::thread::scope` is allowed, since it joins its threads before it returns and so cannot outlive the call. `clippy::wildcard_enum_match_arm` is denied, so every `match` on a core enum names each variant. A ban whose path clippy cannot resolve would only warn and do nothing, so `just lint` and CI run clippy through `cargo xtask clippy-guard`, which fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead. |
 
 The forbidden-crate lists in `AGENTS.md`, the closure check, and `deny.toml` are kept
-equal by a harness check.
+equal by a harness check. No gate stops core from naming clap, ratatui, or crossterm;
+review holds that line, so a screen's state machine stays testable with plain values.
 
 ## Ports and adapters
 
@@ -61,8 +63,8 @@ has two worked examples:
 
 `crates/myapp-core/tests/contracts.rs` runs each contract against the fake, on Linux,
 inside the coverage floor. `crates/myapp-platform/tests/contracts.rs` runs the same
-function against the real adapter, on the macOS CI runner when it needs only a
-filesystem (each test gets its own temporary directory). An adapter test that needs a
+function against the real adapter, on the Linux and macOS CI runners when it needs only
+a filesystem (each test gets its own temporary directory). An adapter test that needs a
 logged-in GUI session, a TCC grant, or the Keychain is marked
 `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`, which
 a human starts; the sample has none. Core's integration tests live in
@@ -73,11 +75,15 @@ Ports are **synchronous**. Core is plain functions and state, so nothing in it i
 `async`, and the binary calls a port directly. A port that is inherently a stream is
 modelled as a callback or a channel the binary drives, never as async trait methods.
 
-Errors are one `thiserror` enum per port or per core module, carrying typed codes and no
-user data: `CounterError` serializes as `{ "code": "atMaximum" }`, `{ "code":
-"atMinimum" }`, or `{ "code": "storage", "kind": "unavailable" | "corrupt" }`, and the
-binary maps each code to wording in `crates/myapp/src/wording.rs`, one `match` per enum
-with no wildcard arm and a test per variant. Core never produces a user-facing sentence.
+Errors are one `thiserror` enum per port or per core module, with a variant per failure
+the caller can act on and no user data: `CounterError::{AtMaximum, AtMinimum, Storage {
+kind }}`, where `kind` is `Unavailable` or `Corrupt`. The binary maps each variant to
+wording in `crates/myapp/src/wording.rs`, one `match` per enum with no wildcard arm and
+a test per variant, prints it on stderr, and exits 1; `myapp tui` shows the same wording
+on its error line. Core never produces a user-facing sentence. An error that leaves the
+process as data also serializes as a typed code: `CounterError` already does
+(`{ "code": "atMaximum" }`, `{ "code": "storage", "kind": "corrupt" }`), ready for a
+`--json` form.
 
 `crates/myapp/src/main.rs` is the composition root: the only place that constructs an
 adapter and hands it to core (`CounterService::new(store, clock, Tuning::default())`).
@@ -85,51 +91,6 @@ adapter and hands it to core (`CounterService::new(store, clock, Tuning::default
 The platform crate and the binary are outside the coverage floor. That is a
 constraint, not a licence: they translate, so they have no branch worth a numeric gate.
 The moment one needs a decision, the decision moves into core behind the port.
-
-## IPC
-
-| Rust | TypeScript |
-|---|---|
-| `#[tauri::command]` functions in `src-tauri/src/commands.rs`, registered once in `with_commands` (`src-tauri/src/lib.rs`), which the app and the command tests share | one wrapper per command in `ui/src/ipc/commands.ts` |
-| one `pub const` per event name (`COUNTER_CHANGED`), emitted with `app.emit` | one typed `listen` per event in `ui/src/ipc/events.ts` |
-| every DTO lives in core and derives `ts_rs::TS` with `#[cfg_attr(feature = "export-bindings", ts(export))]` | `ui/src/ipc/generated/`, committed, never hand-edited; the rest of the UI imports from `ui/src/ipc/types.ts` |
-
-A command decides nothing: it moves the work to a blocking thread, calls core, emits
-`counter-changed` after a change, in the order the changes were saved, and logs one
-line. `revision` counts the changes this app process has saved; the UI subscribes
-before it loads and keeps the view with the highest revision. The shell watches nothing
-in the sample; a change made by the helper CLI reaches an open window when the window
-next loads or changes the counter (every command returns what the file holds once it
-has run). An app
-that needs to reflect outside changes live adds a file watcher in `myapp-platform`,
-behind a port whose callback the shell turns into the same event.
-
-### Security settings
-
-- `app.security.csp` in `src-tauri/tauri.conf.json`: `default-src 'self'`, IPC only
-  through `ipc:` and `http://ipc.localhost`, no remote origin. It is enforced only in a
-  built app: Tauri attaches the header when it serves the bundled assets over
-  `tauri://` (tauri 2.11.6,
-  <https://docs.rs/crate/tauri/2.11.6/source/src/protocol/tauri.rs>, checked
-  2026-09-30), and the dev server loads `devUrl` (`http://localhost:1420`) from Vite
-  with no CSP, so a violation shows in a built app, never in development.
-  `app.security.devCsp` stays unset, because no setting makes the dev server enforce a
-  CSP on the desktop: in dev the window loads `devUrl` directly, and Tauri applies `devCsp`
-  (or `csp`) only to the assets it serves itself (`get_app_url` and `csp` in
-  <https://docs.rs/crate/tauri/2.11.6/source/src/manager/mod.rs>, checked 2026-09-30).
-  Try a CSP-sensitive change (a new asset origin, an inline style or script) in a built
-  app before relying on it, and weigh any production CSP change when preparing a
-  distribution.
-- `withGlobalTauri: false`: the UI reaches Tauri only through the imports in
-  `ui/src/ipc/`.
-- One capability, `src-tauri/capabilities/default.json`, granting `core:default` to the
-  main window. App commands need no capability entry; a plugin's commands do
-  (<https://v2.tauri.app/security/capabilities/>, checked 2026-09-28), and adding a
-  plugin is an ADR.
-- The isolation pattern is not enabled: it guards the IPC against third-party frontend
-  code, and the app loads none — every script is bundled from `ui/`. An app that starts
-  loading remote or third-party code revisits this in an ADR. Tauri's security model:
-  <https://v2.tauri.app/security/> (checked 2026-09-28).
 
 ## The binary
 
@@ -162,69 +123,45 @@ runs the loop itself; a human running `myapp tui` is its test.
 The binary and `myapp-platform` log through the `tracing` macros; `myapp-core` has no
 `tracing` dependency and logs nothing. Only the binary installs a subscriber
 (`myapp_platform::init_logging`). Its files go to `~/Library/Logs/com.example.myapp/`
-as `myapp.YYYY-MM-DD.log`, one per day, and the newest 14 are kept; retention counts
+on macOS and `$XDG_STATE_HOME/myapp/logs/` (default `~/.local/state/myapp/logs/`) on
+Linux, as `myapp.YYYY-MM-DD.log`, one per day, and the newest 14 are kept; retention counts
 every file in that directory whose name starts with the writer's prefix, so a second
 writer gets its own directory. The writer is synchronous: the volume is low, and an
-early `process::exit` would drop a background writer's last lines. A debug build also
-writes to stderr. Logging is best effort: when the directory cannot be used, the binary
+early `process::exit` would drop a background writer's last lines. A debug build of a
+plain subcommand also writes to stderr; `myapp tui` writes to the file only, since a
+line on the terminal it owns would corrupt the frame. Logging is best effort: when the directory cannot be used, the binary
 prints a warning and still runs the action. No log line carries user data. `just logs`
 prints the newest file's last lines and exits.
-
-## Smoke mode
-
-With `MYAPP_SMOKE=1` (exactly `1`: `0` or an empty value starts the app normally), the
-shell runs the normal startup path with no window, no Dock icon, and no focus change,
-logs `startup complete`, and exits 0. `run()` in `src-tauri/src/lib.rs` works in two
-phases:
-
-- **Before the event loop** (`prepare`): find `HOME`, start logging, compose the state
-  and commands (`compose`: the JSON store under `HOME`, the system clock, every command),
-  build the app, and set the activation policy on the built `App` — `Prohibited` in
-  smoke mode — between `build` and `run`. tao applies it when the app finishes
-  launching, before it would activate as a regular app, so the process registers as
-  background-only (`lsappinfo` reports `type="BackgroundOnly"`), which has no Dock
-  tile.
-- **In setup** (`finish_startup`, once the configured windows exist): require the
-  `main` window, show it unless in smoke mode (it is created with `visible: false`),
-  and log `startup complete`.
-
-Any startup error — no `HOME`, logging, the build, a missing or unshowable main window —
-is logged, printed to stderr, and exits 1; none reaches Tauri's setup panic, which the
-release profile's `panic = "abort"` would turn into a crash. The flag changes
-visibility and lifetime only, never behaviour: `startup_plan` and `smoke_requested`
-(`src-tauri/src/startup.rs`) are unit-tested, and `src-tauri/tests/startup.rs` runs
-`compose` and `finish_startup` under both plans on Tauri's mock runtime and compares the
-state and commands they leave.
 
 ## Where new code goes
 
 | You are adding… | It goes in… | Tested by… |
 |---|---|---|
-| A rule, a state change, a DTO the UI renders | `crates/myapp-core` | unit tests and `crates/myapp-core/tests/` (coverage-gated, Linux) |
+| A rule, a state change, a view a front end shows | `crates/myapp-core` | unit tests and `crates/myapp-core/tests/` (coverage-gated, Linux) |
 | Access to the OS or the filesystem | an adapter in `crates/myapp-platform`, behind a port in core, with a fake and a contract function in `crates/myapp-test-support` | the contract against the fake (core) and against the adapter (`just test-platform`, or `just test-local` when a human is needed) |
-| A command or an event | `src-tauri/src/commands.rs`, `with_commands`, and `ui/src/ipc/` | `src-tauri/tests/commands.rs` through `tauri::test` (`just test-platform`) and `ui/src/ipc/*.test.ts` |
-| A screen, a component, wording | `ui/src/`, built from `ui/src/design/`, wording in `ui/src/copy/` | Vitest and Testing Library, querying by role and accessible name |
-| A subcommand, or the wording for a new error code | `crates/myapp` (wording in `src/wording.rs`) | `crates/myapp/tests/cli.rs` (the built binary, a temporary `HOME`) and a test per variant in `wording.rs` |
-| Startup, windows, wiring | `src-tauri/src/lib.rs` (`compose`, `finish_startup`) | `src-tauri/tests/startup.rs` (`just test-platform`) |
+| A subcommand, or the wording for a new error variant | `crates/myapp` (wording in `src/wording.rs`) | `crates/myapp/tests/cli.rs` (the built binary, a temporary `HOME`) and a test per variant in `wording.rs` |
+| A screen's state, an action, a key | core, beside the model it drives (`CounterScreen`, `ScreenAction`, `ScreenKey`) | core tests with keys and actions as values, over the fakes |
+| How a screen is drawn | `crates/myapp/src/tui/view.rs` | ratatui's `TestBackend` tests in the same file |
+| The terminal loop, wiring | `crates/myapp/src/tui/mod.rs`, `crates/myapp/src/main.rs` (`compose`) | no check runs the loop; a human runs `myapp tui` |
 
 ## What is contract and what is private
 
 Nothing here is published as a library, so the contract is what something outside a
-change can observe: another crate, the UI, a user's Mac that ran an earlier build, a
-launchd job, or the user. These are contract; everything else is private.
+change can observe: another crate, a machine that ran an earlier build, a script or a
+scheduled job that runs `myapp`, or the user. These are contract; everything else is
+private.
 
 | Contract | What depends on it | What changing it requires |
 |---|---|---|
-| **Core's public API** — every `pub` item re-exported from `crates/myapp-core/src/lib.rs` (`Counter`, `CounterService`, `CounterView`, `CounterError`, `CounterStore`, `StoredCounter`, `StorageError`, `StorageErrorKind`, `Tuning`, `TuningError`, `Clock`, `UnixMillis`, `UiLogEntry`, `UiLogLevel`) | `myapp-platform`, `myapp-test-support`, `myapp`, and their tests | Update every caller in the same pull request; the compiler finds them. A new port is an ADR. |
-| **The bundle identifier** — `com.example.myapp`: `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs` and `bundle_id` in the justfile | Everything macOS keys by it on a user's Mac: the data directory `~/Library/Application Support/com.example.myapp/`, the log directory `~/Library/Logs/com.example.myapp/`, and privacy (TCC) grants | Fixed once a build has left your machine: a new identifier is a new app to macOS, and the user's data and grants stay behind under the old one. Changing it is a human's decision, recorded as an ADR; the bootstrap sets it once. |
-| **IPC command and event names, and their payloads** — commands `get_counter`, `increment`, `decrement`, `reset`, `log_from_ui`; event `counter-changed`; the JSON shapes of `CounterView` (`{ value, lastChangedAt, revision }`), `CounterError`'s codes, and `UiLogEntry` (`{ level: "warn" \| "error", message }`) | The UI, which is built separately from the Rust side | Change both sides in one pull request. |
+| **Core's public API** — every `pub` item re-exported from `crates/myapp-core/src/lib.rs` (`Counter`, `CounterService`, `CounterView`, `CounterError`, `CounterScreen`, `ScreenAction`, `ScreenKey`, `CounterStore`, `StoredCounter`, `StorageError`, `StorageErrorKind`, `Tuning`, `TuningError`, `Clock`, `UnixMillis`, `UiLogEntry`, `UiLogLevel`) | `myapp-platform`, `myapp-test-support`, `myapp`, and their tests | Update every caller in the same pull request; the compiler finds them. A new port is an ADR. |
+| **The data and log locations** — the bundle identifier `com.example.myapp` (`BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs` and `bundle_id` in the justfile) and the XDG directory name `myapp` (`XDG_APP_NAME`) | Where the tool's files are on a machine that ran it: on macOS `~/Library/Application Support/com.example.myapp/` and `~/Library/Logs/com.example.myapp/` (and any privacy grant, keyed by the identifier); on Linux `$XDG_DATA_HOME/myapp/` and `$XDG_STATE_HOME/myapp/logs/` | Fixed once the tool has run anywhere but your checkout: a new name leaves the user's data behind under the old one. Changing it is a human's decision, recorded as an ADR; the bootstrap sets both once. |
 | **On-disk file formats** — see below | Files already on a user's disk; `just logs` and anyone reading the logs | A new version still reads the old format: a format version and a migration, with a test that reads a sample of the previous format. |
 | **The command line** — `myapp counter show`, `myapp counter increment`, `--help`, `--version`, what goes to stdout and what to stderr, and the exit codes (0 success, 1 the action failed, 2 a usage error) — see [The binary](#the-binary) | A person, a script, or a scheduled job that runs `myapp` | Keep the old form working, or treat the change as breaking and say so in `CHANGELOG.md`. |
 
 ### On-disk file formats
 
-**`counter.json`**, in `~/Library/Application Support/com.example.myapp/`, shared by
-every `myapp` process:
+**`counter.json`**, in `~/Library/Application Support/com.example.myapp/` on macOS and
+`$XDG_DATA_HOME/myapp/` on Linux, shared by every `myapp` process:
 
 ```json
 {
@@ -247,23 +184,24 @@ from the load to the save, so when two `myapp` processes change the counter at o
 neither change is lost. A load takes no lock. A save removes temporary files a crashed save left,
 including the fixed `counter.json.tmp` of earlier builds. A missing file is a
 fresh counter; an unreadable file or an unknown `version` is a `corrupt` storage error:
-`get_counter`, `increment` and `decrement` fail and leave it untouched, and only `reset`
-— the user's explicit request to start over — replaces it. A field is added with `#[serde(default)]`; renaming or removing
-one bumps `version`, and the reader keeps accepting the old version.
+showing, incrementing, and decrementing fail and leave it untouched, and only a reset
+— the user's explicit request to start over, `r` in `myapp tui` — replaces it. A field
+is added with `#[serde(default)]`; renaming or removing one bumps `version`, and the
+reader keeps accepting the old version.
 
 **Log files**: `myapp.YYYY-MM-DD.log` from the binary in
-`~/Library/Logs/com.example.myapp/`, dated in UTC, one per day, the newest 14 kept. Each line is
-`tracing-subscriber`'s plain text format: an RFC 3339 timestamp, the level, the target,
-the message, and its fields. The message wording is private, with one exception: the
-launch smoke looks for the app's `startup complete` line carrying `pid=<pid>`, so that
-line keeps its message and field.
+`~/Library/Logs/com.example.myapp/` on macOS and `$XDG_STATE_HOME/myapp/logs/` on Linux,
+dated in UTC, one per day, the newest 14 kept. Each line is `tracing-subscriber`'s plain
+text format: an RFC 3339 timestamp, the level, the target, the message, and its fields.
+The message wording is private.
 
 **Private** is everything else: `pub(crate)` and private items, how an adapter talks to
-the OS behind its port, component structure, CSS, file and module layout, test helpers,
-and log wording. Changing any of it needs only the gates that already run.
+the OS behind its port, the full-screen view's layout and styling, file and module
+layout, test helpers, and log wording. Changing any of it needs only the gates that
+already run.
 
 No gate notices every broken contract item. The compiler guards core's public API, and
-the bindings drift check, the IPC-name harness check, and the command tests guard IPC;
-a changed file format or a renamed identifier passes every check and fails on the user's
-Mac, so review is what catches it, and a user-visible change to any contract item owes a
+`crates/myapp/tests/cli.rs` guards the command line; a changed file format or a renamed
+identifier passes every check and fails on the user's machine, so review is what
+catches it, and a user-visible change to any contract item owes a
 `CHANGELOG.md` entry.

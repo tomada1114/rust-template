@@ -2,9 +2,8 @@
 
 # Generated, committed files: GitHub collapses them in pull request diffs, so reviewers
 # read the source instead — .agents/skills/ for the skills mirror (`just agents-sync`),
-# the Rust types in crates/myapp-core for the IPC bindings (`just bindings`).
+# the manifests for the lockfile.
 .claude/skills/** linguist-generated=true
-ui/src/ipc/generated/** linguist-generated=true
 Cargo.lock linguist-generated=true
 
 *.png binary

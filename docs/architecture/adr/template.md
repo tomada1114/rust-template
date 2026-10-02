@@ -23,9 +23,9 @@ A partly settled decision says which part is which: "Accepted: <part>. Proposed:
 ## Context
 
 What forces the decision now: the requirement, the constraint, or the problem, and what
-the code or the platform already fixes. Name the file or symbol it touches (a
-`tauri.conf.json` key, a core port, a crate in `Cargo.toml`, an entitlement, a token in
-`ui/src/design/tokens.css`) rather than a `path:line`.
+the code or the platform already fixes. Name the file or symbol it touches (a core
+port, a crate in `Cargo.toml`, a subcommand, a file format, a directory in
+`crates/myapp-platform/src/paths.rs`) rather than a `path:line`.
 
 ## Decision drivers
 
@@ -67,7 +67,8 @@ and the reason it beat each of the others.
 
 ## Sources
 
-- <https://v2.tauri.app/...> — what it supports — checked YYYY-MM-DD
+- <https://doc.rust-lang.org/...> or a platform's own documentation — what it
+  supports — checked YYYY-MM-DD
 - <https://docs.rs/...> or <https://crates.io/crates/...> — the crate, its version, and
   its licence — checked YYYY-MM-DD
 

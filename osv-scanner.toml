@@ -1,6 +1,6 @@
 # OSV-Scanner ignores, under the same advisory scope as deny.toml's [graph] targets:
-# - an advisory for a crate absent from `cargo tree --target aarch64-apple-darwin` (it
-#   never ships in this macOS-only app) may be ignored, with its reason;
+# - an advisory for a crate absent from `cargo tree --target <triple>` for every triple
+#   deny.toml's [graph] targets names (it never ships) may be ignored, with its reason;
 # - an advisory for a shipped crate is fixed by updating; only when no fixed release
 #   exists may it be ignored, with its reason and a tracking issue.
 # Every entry expires after 90 days and is recorded in docs/template/implementation-notes.md.

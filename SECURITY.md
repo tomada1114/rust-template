@@ -15,23 +15,22 @@ Please include:
 
 - a description of the vulnerability and its impact;
 - the steps to reproduce it;
-- the affected versions (the release, or the commit you built from);
+- the affected versions (the output of `myapp --version`, and the commit you built
+  from);
 - a suggested fix, if you have one.
 
 ## Response
 
 This project is maintained on a best-effort basis and makes no guaranteed response
-time. Reports are acknowledged and assessed as maintainer time allows, and a fix ships
-in the next release once it is ready. A repository created from this template should
+time. Reports are acknowledged and assessed as maintainer time allows, and a fix lands
+on `main` once it is ready. A repository created from this template should
 replace this section with the commitments its own maintainers can keep.
 
 ## Supported versions
 
-| Version | Supported |
-|---|---|
-| The latest release | Yes |
-| The previous minor release | Best effort |
-| Anything older | No |
+There are no release artifacts: the tool is built from a checkout. Only the latest
+commit on `main` is supported; update your checkout and reinstall
+(`cargo install --locked --path crates/myapp`) to pick up a fix.
 
 ## Supply-chain posture
 
@@ -41,9 +40,10 @@ replace this section with the commitments its own maintainers can keep.
   committed, and every cargo command in CI that resolves it is `--locked`.
 - Automated dependency updates (Dependabot for Cargo and Actions; Renovate for
   `mise.toml` and `rust-toolchain.toml`) wait out a 7-day release age.
-- `cargo deny` checks advisories, licences, bans, and sources over the dependency graph
-  of the one shipped target, `aarch64-apple-darwin`. CodeQL, OSV-Scanner, OpenSSF
-  Scorecard, and Dependency Review run in CI, and gitleaks scans the full history weekly.
+- `cargo deny` checks advisories, licences, bans, and sources over the dependency graphs
+  of the two built targets, `aarch64-apple-darwin` and `x86_64-unknown-linux-gnu`.
+  CodeQL, OSV-Scanner, OpenSSF Scorecard, and Dependency Review run in CI, and gitleaks
+  scans the full history weekly.
 
 `main`'s intended protection is defined as code in
 [`.github/rulesets/main.json`](.github/rulesets/main.json) (pull requests required,
@@ -60,4 +60,4 @@ We follow coordinated disclosure. Please:
 2. allow reasonable time for a fix before disclosing it publicly;
 3. not exploit the vulnerability beyond what is needed to demonstrate it.
 
-We credit reporters in the release notes unless they prefer to remain anonymous.
+We credit reporters in `CHANGELOG.md` unless they prefer to remain anonymous.

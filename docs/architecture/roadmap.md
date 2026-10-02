@@ -36,8 +36,8 @@ request, and the change lands only once the owner has approved it.
 The outcomes being worked on, one to three of them. Each has its issues filed.
 
 - TODO: **[an outcome, as what a user can do]** — why it comes first, in one sentence.
-  Issues: [links]. Done when: [what can be observed — a smoke run, a `just` recipe, a
-  behavior in the running app — not a task that was finished].
+  Issues: [links]. Done when: [what can be observed — a subcommand's output, a `just` recipe,
+  a behavior in the running tool — not a task that was finished].
 
 ## Next
 
