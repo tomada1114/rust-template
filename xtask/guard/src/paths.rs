@@ -120,7 +120,7 @@ mod tests {
     fn blocks_secret_shaped_paths() {
         let cases = [
             (".env", "environment file"),
-            ("src-tauri/.env.production", "environment file"),
+            ("app/.env.production", "environment file"),
             (".envrc.local", "direnv"),
             ("config/secrets/token.txt", "`secrets`"),
             (".claude/settings.local.json", "local settings"),
@@ -167,7 +167,7 @@ mod tests {
             "docs/secrets-management.md",
             ".claude/settings.json",
             "settings.local.json",
-            "src-tauri/Entitlements.plist",
+            "resources/Info.plist",
             "Cargo.lock",
             "",
         ];

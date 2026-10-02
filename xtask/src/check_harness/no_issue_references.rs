@@ -9,7 +9,7 @@
 //!
 //! A reference is any of:
 //! - `#` then digits, bare (`#139`) or after this repository's owner/repo
-//!   (`<owner>/<repo>#7`). After another owner/repo (`tauri-apps/tauri#7`) it is an
+//!   (`<owner>/<repo>#7`). After another owner/repo (`ratatui/ratatui#7`) it is an
 //!   upstream project's, and is not a reference, the same as its URL below;
 //! - an issue, pull-request, or merge-request URL (`…/issues/139`, `…/pull/12`) on this
 //!   repository or relative to it. An upstream project's (another owner/repo on
@@ -296,10 +296,10 @@ A body says `Closes #N` and `Depends on #N`.
 Words that are not references: an issue-number rule, issues and PRs in general, the
 `gh issue view` command, `gh issue view <n>`, `gh pr view {n}`, `issue <n>`,
 `/issues/new`, a GH-hosted runner, and the v2 release.
-Sources: https://github.com/tauri-apps/tauri/issues/139 and
+Sources: https://github.com/ratatui/ratatui/issues/139 and
 [an upstream fix](https://github.com/Other/widgets/pull/12), and
 <https://gitlab.com/group/project/-/merge_requests/3>. Upstream shorthand:
-tauri-apps/tauri#1234, (other/repo#12), `Other-Org/some.repo_x#5`.
+ratatui/ratatui#1234, (other/repo#12), `Other-Org/some.repo_x#5`.
 ";
 
     const FORM: &str = "# Issue form: GitHub renders these strings as Markdown.
