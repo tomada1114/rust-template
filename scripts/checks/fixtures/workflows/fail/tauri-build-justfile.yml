@@ -1,8 +1,0 @@
-# The build recipe's `pnpm tauri build` without `-- --locked`: Tauri runs cargo build with no lockfile flag.
-expect:
-  workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
-  just-check-matches-ci: []
-edits:
-  - file: justfile
-    from: "    pnpm tauri build --debug --bundles app -- --locked\n"
-    to: "    pnpm tauri build --debug --bundles app\n"

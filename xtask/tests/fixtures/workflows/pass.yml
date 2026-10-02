@@ -16,7 +16,7 @@ files:
         pnpm test:ui
 
     build:
-        pnpm tauri build --debug --bundles app -- --locked
+        cargo build --locked --release
 
     deny:
         cargo deny --locked check

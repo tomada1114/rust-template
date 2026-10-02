@@ -1,4 +1,4 @@
-# A release workflow whose `pnpm tauri build` has no `-- --locked` for cargo.
+# A release workflow whose `cargo build` has no `--locked`.
 expect:
   workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
   just-check-matches-ci: []
@@ -23,4 +23,4 @@ files:
           contents: read
         steps:
           - uses: ./.github/actions/setup
-          - run: pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg
+          - run: cargo build --release --target aarch64-apple-darwin

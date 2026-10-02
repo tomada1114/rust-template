@@ -11,6 +11,7 @@
 //!
 //! Errors of its own: `ERR_XTASK_USAGE` (no task, or one it does not know).
 
+mod check_harness;
 mod check_staged;
 mod clippy_guard;
 mod context;
@@ -36,7 +37,12 @@ type Task = fn(&Context<'_>) -> TaskResult;
 /// A task's name, what it does, and its entry point.
 type TaskEntry = (&'static str, &'static str, Task);
 
-const TASKS: [TaskEntry; 6] = [
+const TASKS: [TaskEntry; 7] = [
+    (
+        "check-harness",
+        "re-assert the harness's claims about itself (--root DIR, --check NAME)",
+        check_harness::main,
+    ),
     (
         "check-staged",
         "refuse secret-shaped staged paths and content (the pre-commit hook)",
