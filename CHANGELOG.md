@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `~/.local/state/myapp/logs`), following the XDG Base Directory Specification; macOS
   keeps `~/Library/Application Support` and `~/Library/Logs`. `just logs` reads the
   right directory on each system, and CI runs the platform tests on Linux as well.
+- Two skills for the command-line stack: `designing-clis` (a subcommand's clap
+  declaration and thin handler, stdout for data and stderr for diagnostics, exit codes,
+  the wording module, a `--json` form, configuration and environment precedence, and
+  testing the built binary against a temporary `HOME`) and `building-tuis` (a screen's
+  model and update in core, the loop and view in `crates/myapp/src/tui/`, restoring the
+  terminal on every way out, `TestBackend` tests, and never taking over the developer's
+  terminal). `AGENTS.md`'s Skills table lists both.
 
 ### Changed
 
@@ -171,6 +178,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `get_counter`, `increment`, `decrement`, `reset` replies and the `counter-changed`
   payload). Code that builds a `CounterView` literal or destructures one exhaustively
   must name it.
+- The code-writing skills teach the CLI/TUI stack instead of the GUI one:
+  `designing-errors` (wording and exit codes in the binary rather than codes for a UI),
+  `designing-core-logic` (views a subcommand prints and a TUI draws, a screen's state in
+  core), `placing-tests`, `writing-tests`, and `tdd` (the built binary, `TestBackend`,
+  and keys as values in place of `tauri::test` and Testing Library), `running-the-app`
+  (`cargo run -p myapp`, a scratch `HOME`, and `just logs`; `myapp tui` only when the
+  human asks), `integrating-system-apis` (macOS and Linux adapters behind
+  `cfg(target_os)`), and `writing-rust` (clap and ratatui idioms in a new reference).
 
 ### Removed
 

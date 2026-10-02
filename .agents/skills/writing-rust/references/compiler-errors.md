@@ -59,9 +59,9 @@ not implement is required. The common cases here:
   wrapped or mapped to a kind), or map it explicitly with `.map_err(…)`.
 - `` `…` doesn't implement `Debug` `` or `` binary operation `==` cannot be applied ``
   in a test: derive `Debug` and `PartialEq` on the type.
-- ``the trait bound `…: Serialize` is not satisfied`` when returning a value from a
-  command: derive `serde::Serialize` on the core type (and `ts_rs::TS` if it crosses
-  IPC).
+- ``the trait bound `…: Serialize` is not satisfied`` when writing a value as JSON (a
+  stored file, a `--json` output): derive `serde::Serialize` on the core type, with
+  `#[serde(rename_all = "camelCase")]`.
 
 **E0308, mismatched types** (https://doc.rust-lang.org/error_codes/E0308.html). The type
 written and the type produced differ. Two cases worth recognising here:
@@ -95,7 +95,7 @@ look it up in the lint list (https://rust-lang.github.io/rust-clippy/master/inde
 
 | Lint | What it wants | The fix here |
 |---|---|---|
-| `unwrap_used`, `expect_used` | no panic on `None` or `Err` in non-test code | `?`, `ok_or`, `let … else`, or a fallback that is a correct answer. In a helper function under `tests/` that is not itself a `#[test]`, clippy does not count the code as test code (`allow-unwrap-in-tests` covers test functions and `#[cfg(test)]`, https://doc.rust-lang.org/clippy/lint_configuration.html#allow-unwrap-in-tests, checked 2026-09-29), so panic with context instead, as `must` in `src-tauri/tests/commands.rs` does |
+| `unwrap_used`, `expect_used` | no panic on `None` or `Err` in non-test code | `?`, `ok_or`, `let … else`, or a fallback that is a correct answer. In a helper function under `tests/` that is not itself a `#[test]`, clippy does not count the code as test code (`allow-unwrap-in-tests` covers test functions and `#[cfg(test)]`, https://doc.rust-lang.org/clippy/lint_configuration.html#allow-unwrap-in-tests, checked 2026-09-29), so match and panic with context instead, as `output` in `crates/myapp/tests/cli.rs` does |
 | `disallowed_methods`, `disallowed_macros`, `disallowed_types` | core does not read the clock, the environment, or the file system, print, sleep, or start a process (`crates/myapp-core/clippy.toml`) | take the value as an argument or through a port (`designing-core-logic`); never move the call into core behind an `#[allow]` |
 | `wildcard_enum_match_arm` | no `_` in core that stands for a nameable variant, on any enum | name every variant; group with `A \| B =>`; a `#[non_exhaustive]` foreign enum names them all before its `_`, or is tested with `==` or `matches!` |
 | `missing_errors_doc`, `missing_panics_doc` | a `# Errors` / `# Panics` section on a public function that can fail or panic | write the section: which variant, and when |

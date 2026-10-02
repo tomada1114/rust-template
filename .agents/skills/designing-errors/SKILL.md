@@ -1,54 +1,56 @@
 ---
 name: designing-errors
 description: >
-  Covers how an error is shaped in this Rust + Tauri + TypeScript repository: one
-  thiserror enum per core module or port, serialized to the UI as a code with
-  #[serde(tag = "code")] and worded in ui/src/copy/, the rejection guards in
-  ui/src/ipc/errors.ts, what an error payload or a tracing field may carry, how an
-  adapter in myapp-platform maps std::io::Error or an OS failure into a core kind,
-  Option versus Err, no panic across a command (panic = "abort" in release), anyhow,
+  Covers how an error is shaped in this Rust CLI/TUI repository: one thiserror enum per
+  core module or port, variants the caller can act on, a payload of small kinds and
+  never std::io::Error or a path, From impls so ? converts, Option versus Err, the
+  binary mapping each variant to wording in crates/myapp/src/wording.rs and to exit code
+  1, the same wording on the tui screen's error line, an optional serialized code
+  (#[serde(tag = "code")]) for --json output, what an error or a tracing field may
+  carry, how an adapter in myapp-platform maps std::io::Error or an OS failure into a
+  core kind, no panic in a subcommand or the TUI (panic = "abort" in release), anyhow,
   and the ERR_<STAGE>_<WHAT> codes of cargo xtask tasks and skills' scripts. Use when
   adding or changing an error enum or variant, a Result-returning function or port, a
-  From impl, a match on an error, the wording for an error code, a ScriptError code, or
-  when renaming a variant changes the JSON the UI receives.
+  From impl, a match on an error, the wording for an error, a ScriptError code, or when
+  renaming a variant changes the code a --json consumer or a test pins.
 ---
 
 # Designing Errors
 
-**Owns:** the shape of an error type in Rust and TypeScript, the vocabulary of its code,
-what an error and its log line may carry, and the OS-to-core mapping at the adapter
-boundary. **Does not own:** writing the failing test first (`tdd`); how an error is
-asserted (`writing-tests`); `Result`, `?`, and `match` as language features
-(`writing-rust`); the C and TCC mechanics of a failing system API
-(`integrating-system-apis`); the four-line stderr report of a script
+**Owns:** the shape of an error type, the vocabulary of its variants and codes, what an
+error and its log line may carry, and the OS-to-core mapping at the adapter boundary.
+**Does not own:** writing the failing test first (`tdd`); how an error is asserted
+(`writing-tests`); `Result`, `?`, and `match` as language features (`writing-rust`);
+which stream and exit code a failure gets, and the wording module's style
+(`designing-clis`); the C and TCC mechanics of a failing system API
+(`integrating-system-apis`); the four-line stderr report of a task
 (`writing-repo-scripts`).
 
-## The one rule: the code is the contract, the message is not
+## The one rule: the variant is the contract, the message is not
 
-A caller branches on the variant (Rust) or the `code` (TypeScript), because those only
-change on purpose. The text in `#[error("…")]` is for a developer reading a log, and may
-be reworded in any pull request. So a test, a `match`, or a UI branch never compares
-message text: it asserts the variant in Rust and the `code` in TypeScript. In the
-sample, that is `Err(CounterError::AtMaximum)` and `{ code: "atMaximum" }`.
+A caller branches on the variant, because it only changes on purpose. The text in
+`#[error("…")]` is for a developer reading a log, and may be reworded in any pull
+request. So a test, a `match`, or the binary's wording never compares message text: it
+names the variant. In the sample, that is `Err(CounterError::AtMaximum)`.
 `.claude/rules/testing.md` holds the same rule for tests.
 
 ## Where an error type lives, and its shape
 
 - Declare every error a caller can observe in `myapp-core`, beside the module or port
-  that returns it. The shell, the CLI, the UI, and a fake in `myapp-test-support` all
-  name it, and core never depends on `myapp-platform`, so an error declared in an
-  adapter could not be named by core or by a fake.
+  that returns it. The binary, the TUI, and a fake in `myapp-test-support` all name it,
+  and core never depends on `myapp-platform`, so an error declared in an adapter could
+  not be named by core or by a fake.
 - One enum per failure domain, deriving `thiserror::Error`. `thiserror` writes the
   `Display` and `std::error::Error` impls from the `#[error]` attributes, so an error
   type costs a derive rather than two hand-written impls
   (<https://docs.rs/thiserror/latest/thiserror/>, checked 2026-09-30).
 - Variants name what the caller can do something about, not which call failed. In the
-  sample, `CounterError::{AtMaximum, AtMinimum, Storage { kind }}`: the UI says a
+  sample, `CounterError::{AtMaximum, AtMinimum, Storage { kind }}`: the user is told a
   different sentence for each.
 - A payload is a small value the caller decides on: an enum of kinds, a number. Never a
-  `std::io::Error` or a `Box<dyn Error>`, which are neither `PartialEq` (so a test cannot
-  `assert_eq!` on them) nor serializable, and never a `PathBuf` or a `String` from the
-  OS, which can carry a path under the home directory or a user's text.
+  `std::io::Error` or a `Box<dyn Error>`, which are not `PartialEq` (so a test cannot
+  `assert_eq!` on them), and never a `PathBuf` or a `String` from the OS, which can
+  carry a path under the home directory or a user's text.
 - Derive `Debug, Clone, Copy, PartialEq, Eq` where the payload allows. `Copy` is free
   for a unit-only or small-enum error and saves the reader from ownership questions.
 - A port has its own narrow error and the module above it converts with `From`, so `?`
@@ -60,106 +62,92 @@ sample, that is `Err(CounterError::AtMaximum)` and `{ code: "atMaximum" }`.
 first save). An `Err` means "could not find out" or "refused". Turning an expected
 absence into an error makes every caller handle a failure that is not one.
 
-## Crossing IPC: a code, never a sentence
+## Leaving core: wording, an exit code, and maybe a code
 
-An error the UI receives derives `Serialize` and `ts_rs::TS` and is internally tagged:
+Core never builds a user-facing sentence. The binary turns a variant into words in one
+module, `crates/myapp/src/wording.rs`, with one function per error enum that matches
+every variant and no `_ =>` arm (`counter_error` and `storage_error` in the sample).
+`main.rs` denies `clippy::wildcard_enum_match_arm`, so a new core variant fails to
+compile until someone decides what the user is told.
 
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, Serialize, TS)]
-#[serde(tag = "code", rename_all = "camelCase")]
-#[cfg_attr(feature = "export-bindings", ts(export))]
-pub enum CounterError { /* in the sample: AtMaximum, AtMinimum, Storage { kind } */ }
-```
+- A subcommand prints `error: <wording>` on stderr and exits 1 for every runtime error;
+  the `tui` screen shows the same sentence on its error line. One sentence per variant,
+  wherever the user meets it. The streams and codes are `designing-clis`'.
+- An error that may leave the process as data, in a `--json` consumer's output or a
+  file, derives `Serialize` and is internally tagged, so its variant becomes a stable
+  `code`:
 
-`tag = "code"` puts the variant name in a `code` field and flattens the payload beside
-it (`{ "code": "storage", "kind": "corrupt" }`); serde calls this the internally tagged
-representation (<https://serde.rs/enum-representations.html>, checked 2026-09-30).
-Tauri requires a command's error type to implement `Serialize`
-(<https://v2.tauri.app/develop/calling-rust/>, checked 2026-09-29), and this shape is
-what a command rejects with.
+  ```rust
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, Serialize)]
+  #[serde(tag = "code", rename_all = "camelCase")]
+  pub enum CounterError { /* in the sample: AtMaximum, AtMinimum, Storage { kind } */ }
+  ```
 
-- Rust never sends a user-facing sentence. The UI owns the wording in `ui/src/copy/`,
-  one exhaustive `switch` per error type (`describeCounterError` in the sample).
-- A rejection is narrowed before it is read. `ui/src/ipc/errors.ts` holds one guard per
-  error type, checking the code and the fields that code carries (`isCounterError` in
-  the sample: `{ code: "storage" }` without a known `kind` is rejected). The codes and
-  kinds are a table keyed by the generated union, `satisfies Record<<Error>["code"], …>`;
-  `errors.test.ts` gets a case for each code.
-- A rejection that is not a known code (the bridge itself failed) becomes
-  `"unexpected"` in the hook, and is logged through `ui/src/ipc/log.ts` with its type
-  (`errorType`: `TypeError`, `string`), never its message; the screen shows a generic
-  sentence from `ui/src/copy/`, replacing any earlier error.
-- What escapes every handler is logged too: `main.tsx` passes `rootErrorLogging` to
-  `createRoot`, so a render error reaches the log file, and `logUnhandledErrors` catches
-  a window `error` or `unhandledrejection` (both in `ui/src/ipc/log.ts`).
-- An error that never crosses IPC (`StorageError`, `StartupError` in
-  `src-tauri/src/lib.rs`, `LoggingError`) derives neither `Serialize` nor `TS`.
+  `tag = "code"` puts the variant name in a `code` field and flattens the payload beside
+  it (`{ "code": "storage", "kind": "corrupt" }`); serde calls this the internally
+  tagged representation (<https://serde.rs/enum-representations.html>, checked
+  2026-09-30). `crates/myapp-core/tests/serialization.rs` pins each code with literal
+  JSON. An error that never leaves the process (`StorageError`, `LoggingError`) derives
+  no `Serialize`.
 
 ## What an error or a log field may carry
 
-An error travels: into a log file, a test's output, a bug report, and a pull request.
+An error travels: into a log file, a test's output, a terminal a user screenshots, a
+bug report, and a pull request.
 
-- No user data in a payload, a `#[error]` message, or a `tracing` field: no path under
-  the home directory, no file content, nothing a user typed, no other app's name or
-  window title. `StartupError` and `LoggingError` say which directory failed without
-  naming it, because the caller already knows which one it passed.
+- No user data in a payload, a `#[error]` message, a wording sentence, or a `tracing`
+  field: no path under the home directory, no file content, nothing a user typed.
+  `StorageError` and `LoggingError` say what failed without naming the file, because
+  the caller already knows which one it passed.
 - `tracing::warn!(%error, …)` writes the error's `Display`, so the `#[error]` text is
-  held to the same rule as the payload.
-- `UiLogEntry.message` reaches the log through `UiLogEntry::loggable_message`, which
-  keeps it on one line and cuts it to a bounded length but cannot remove user data: the
-  UI sends developer terms (`"get_counter failed without a counter error code:
-  TypeError"`), never what the user entered, and never a thrown error's message, which
-  can carry either.
-- Log once, where the error is handled. A command logs the outcome (`log_outcome` in
-  `src-tauri/src/commands.rs`); core and adapters return the error and do not also log
-  it, or one failure prints three lines.
+  held to the same rule as the payload. `?error` writes its `Debug`, which prints the
+  payload: one more reason it holds only kinds.
+- Log once, where the error is handled. The binary logs the outcome of each action
+  (`counter` in `main.rs`, `log_action` in `tui/mod.rs`); core and adapters return the
+  error and do not also log it, or one failure prints three lines.
 
 ## Mapping OS failures in an adapter
 
 The adapter translates and decides nothing (`AGENTS.md` › "Architecture"). Mapping an
-OS failure to a core kind is translation; what the app then does is core's decision.
+OS failure to a core kind is translation; what the tool then does is core's decision.
 
 - Convert at the call site in `myapp-platform`, into the error the port declares.
-  Nothing OS-typed crosses the port. In the sample, `JsonFileCounterStore::load` maps
-  `io::ErrorKind::NotFound` to `Ok(None)` (absence), any other read error to
+  Nothing OS-typed crosses the port. In the sample, `JsonFileCounterStore` maps
+  `io::ErrorKind::NotFound` on a read to `Ok(None)` (absence), any other I/O error to
   `StorageErrorKind::Unavailable`, and unreadable JSON or an unknown format version to
   `Corrupt`.
 - Match the specific kinds you handle and send everything else to one catch-all kind.
-  Keep a numeric OS status (an exit code, an `OSStatus`) only when a log needs it, as an
-  integer field, never the OS's message text.
-- The test for the mapping is the adapter's contract test against the real thing
+  Keep a numeric OS status (an exit code, an `errno`) only when a log needs it, as an
+  integer field, never the OS's message text, which can quote a path.
+- The test for the mapping is the adapter's own test against the real thing
   (`crates/myapp-platform/tests/`); the test for the decision is a core test with a
   fake that fails on demand (`FailingCounterStore`).
 
-## No panic across a command
+## No panic in a subcommand or the TUI
 
 `[profile.release]` in the root `Cargo.toml` sets `panic = "abort"`: in a release build a
-panic kills the whole app at once, with no error for the UI and no line in the log file
-(<https://doc.rust-lang.org/cargo/reference/profiles.html#panic>, checked 2026-09-30). So:
+panic ends the process at once, with no `error:` line, no log line, and, in the TUI,
+nothing unwound back to the code that restores the terminal
+(<https://doc.rust-lang.org/cargo/reference/profiles.html#panic>, checked 2026-09-30).
+So:
 
 - Never `unwrap()` or `expect()` outside tests (`clippy::unwrap_used`/`expect_used` in
-  `[workspace.lints]`). Return a `Result` and propagate with `?`.
-- A command returns `Result<T, E>` for anything that can fail, and the join error of
-  `spawn_blocking` becomes a core kind, never an unwrap. The error means a panic or a
-  cancellation. `panic = "abort"` removes the panic case from a release build, but not
-  the cancellation: tokio may drop a blocking task that has not started when the
-  runtime shuts down, in any build (tokio 1.53.1, the version `Cargo.lock` pins,
-  <https://docs.rs/crate/tokio/1.53.1/source/src/runtime/blocking/pool.rs>, checked
-  2026-09-30). In the sample, `on_blocking_thread` maps it to
-  `Storage { kind: Unavailable }`.
+  `[workspace.lints]`). Return a `Result` and propagate with `?`; the binary turns the
+  last `Err` into wording and an exit code.
+- Watch for the panics that hide in the standard library: `println!` on a closed stdout
+  (handled with `writeln!` in `main.rs`), `clamp` with a minimum above the maximum
+  (`Tuning::new` refuses that range), slicing past a string's end.
 - A lock that protects no data is taken with `unwrap_or_else(PoisonError::into_inner)`
   (`CounterService`), because a panic on another thread left nothing inconsistent.
+- The TUI's panic hook restores the terminal before the message prints
+  (`building-tuis`); it is the last line of defense, not a reason to panic.
 - An error is handled or returned, never dropped. `let _ = fallible();` carries a
-  comment saying why the failure does not matter (`record_events` in
-  `src-tauri/tests/commands.rs`); a failure worth knowing about is logged instead, as
-  `announce` does when an emit fails, without failing the command.
+  comment saying why the failure does not matter (`let _ = leave();` inside the panic
+  hook, `remove_stale_temps` in `crates/myapp-platform/src/counter_store.rs`).
 
-`anyhow` is not used: every crate here is a library or a composition root with a typed
-error, and the binary maps core's error to its own stderr line and exit code (in the
-sample, `counter_error` in `crates/myapp/src/wording.rs`, the one module that holds every
-stderr sentence, matched without a wildcard arm and tested per variant). Adding it for the binary's `main` is a
-new dependency (`managing-dependencies`), and it stays out of core, platform, and the
-shell.
+`anyhow` is not used: every crate here is a library or a composition root with typed
+errors, and the binary maps each one to its own wording and exit code. Adding it is a
+new dependency (`managing-dependencies`), and it stays out of core and platform.
 
 ## Codes in `xtask/` and skills' scripts
 
@@ -170,23 +158,22 @@ stage is the task or script (`ERR_HOOKS_*`, `ERR_AGENTS_*`, `ERR_SURVEY_*`), so 
 alone says which one to read, and the rest names the failure, not the function
 (`ERR_HOOKS_NOT_INSTALLED`, not `ERR_HOOKS_CHECK_FAILED`). Reuse the existing stage
 before inventing one. A test asserts the code (`outcome.code()` or
-`error.details.code` in a task, `error.code` in Python), never the summary. An error a task did
-not expect (an I/O failure, say) is `ScriptError::unexpected`, reported as
+`error.details.code` in a task, `error.code` in Python), never the summary. An error a
+task did not expect (an I/O failure, say) is `ScriptError::unexpected`, reported as
 `ERR_INTERNAL_UNEXPECTED`. The report's shape and exit codes are
 `writing-repo-scripts`'.
 
-## Changing a code
+## Adding, renaming, or removing a variant
 
-The JSON of an error that crosses IPC is contract (`docs/architecture.md` › "What is
-contract and what is private"). `rename_all = "camelCase"` derives the wire code from the
-variant name, so **renaming a Rust variant renames the code the UI switches on**; keep
-the old wire name with `#[serde(rename = "…")]` when only the Rust name should change.
-Adding, renaming, or removing a code touches, in one pull request:
+`rename_all = "camelCase"` derives a serialized code from the variant name, so
+**renaming a Rust variant renames the code a `--json` consumer reads**; keep the old
+name with `#[serde(rename = "…")]` when only the Rust name should change. In one pull
+request:
 
-1. the enum in core;
-2. the guard's code table in `ui/src/ipc/errors.ts` and its test;
-3. the sentence in `ui/src/copy/`;
-4. the literal-JSON test in `crates/myapp-core/tests/serialization.rs`, and the command
-   test that rejects with it (`src-tauri/tests/commands.rs`);
-5. one line in the pull request naming the old code, the new one, and what the UI now
-   does, and a `CHANGELOG.md` entry when a user sees the difference.
+1. the enum in core, with the core test that reaches the new variant;
+2. its arm in `crates/myapp/src/wording.rs`, and that module's test for its sentence;
+3. a test in `crates/myapp/tests/cli.rs` for each failure a user can now reach, and a
+   `TestBackend` test when the TUI shows it;
+4. the literal-JSON test in `crates/myapp-core/tests/serialization.rs`, when the enum
+   serializes;
+5. a `CHANGELOG.md` entry when a user sees the difference.

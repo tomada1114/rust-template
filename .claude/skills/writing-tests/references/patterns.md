@@ -4,7 +4,7 @@ Each section states the pattern, then shows the sample's version of it. The samp
 counter) is a deletable illustration: when an app replaces it, the pattern still holds
 and its own tests become the examples.
 
-## A core use case over fakes (Rust)
+## A core use case over fakes
 
 Build the service from fakes, act once, assert the returned value and the state the
 fake recorded. Expected values are literals.
@@ -34,7 +34,7 @@ A tiny `Tuning` reaches the bound in one step, and the `const` `match` on
 `Arc::clone` (here `store.clone()`) keeps a handle so the test can read what the service
 saved.
 
-## Moving time without waiting (Rust)
+## Moving time without waiting
 
 Hold the `FixedClock` in an `Arc`, hand a clone to the code, and move time between
 actions. In the sample, `each_change_takes_the_time_the_clock_reads_then`:
@@ -50,7 +50,7 @@ assert_eq!(
 );
 ```
 
-## A table of cases (Rust)
+## A table of cases
 
 The standard harness has no parameterized tests. Loop over the cases and name each in
 the assertion message, so a failure says which case broke. In a unit test beside
@@ -62,9 +62,10 @@ for (value, expected) in [(-5, 0), (2, 2), (40, 3)] {
 }
 ```
 
-`src-tauri/tests/commands.rs` does the same with `for level in ["warn", "error"]`.
+`each_bound_key_maps_to_its_action` in `crates/myapp-core/src/counter/screen.rs` does
+the same over `(ScreenKey, ScreenAction)` pairs.
 
-## The contract suite (Rust)
+## The contract suite
 
 One function per port in `crates/myapp-test-support/`, called once per implementation.
 The function calls `make` again for each group of clauses, so `make` runs several times
@@ -88,88 +89,109 @@ counter_store_contract(|| {
 Inside the contract function, compare `Result`s and name the clause:
 `assert_eq!(store.load(), Ok(Some(saved.clone())), "load returns what save wrote");`.
 
-## A command through the mock runtime (Rust)
+## A screen driven by keys as values
 
-`with_commands(mock_builder())` registers the real handler list;
-`.manage(AppState { … })` holds core's service over fakes; `get_ipc_response` sends
-what the UI would send.
-Assert the JSON, the error code, and the event. In the sample,
-`src-tauri/tests/commands.rs`:
+Fold the keys through the same path the binary's loop takes, with no terminal, and
+compare what the screen shows as one value. In the sample,
+`crates/myapp-core/tests/counter_screen.rs`:
 
 ```rust
+fn after_keys(service: &CounterService, keys: &[ScreenKey]) -> CounterScreen {
+    keys.iter()
+        .filter_map(|key| ScreenAction::for_key(*key))
+        .fold(CounterScreen::load(service), |screen, action| screen.update(action, service))
+}
+
 #[test]
-fn increment_at_the_maximum_rejects_with_a_code_and_emits_nothing() {
-    let (app, window) = app_holding(Some(2));
-    let events = record_events(&app);
-    assert_eq!(invoke(&window, "increment", json!({})), Err(json!({ "code": "atMaximum" })));
-    assert!(events.recv_timeout(Duration::from_millis(200)).is_err(), "no event");
+fn a_sequence_of_keys_drives_the_counter_and_ignores_unbound_keys() {
+    let service = service_holding(0);
+    let screen = after_keys(&service, &[ScreenKey::Char('+'), ScreenKey::Up,
+        ScreenKey::Char('x'), ScreenKey::Down, ScreenKey::Char('+')]);
+    assert_eq!(shown(&screen), (Some(changed_to(2, 4)), None, false));
 }
 ```
 
-The helpers there (`app_holding`, `invoke`, `record_events`, `must`) are the model for a
-new command's tests. `tauri::test` is marked unstable, so a Tauri minor update may need
-edits here ("This module is unstable",
-https://docs.rs/tauri/latest/tauri/test/index.html, checked 2026-09-29).
+`shown` returns `(view, error, finished)`, so one `assert_eq!` covers all three.
 
-## A hook (TypeScript)
+## A terminal key event becoming core's key
 
-`mockCommands` answers each command by name and returns the list of calls;
-`renderHook` mounts the hook; `waitFor` waits for the load; `act` wraps an action. In
-the sample, `ui/src/counter/useCounter.test.tsx`:
+Build the crossterm event as a value and assert the translation; cover a press, a
+release and a repeat, a modifier chord, and a key the screen has no name for. In the
+sample, `crates/myapp/src/tui/mod.rs`:
 
-```ts
-it("keeps the view and holds the error code when Rust rejects a change", async () => {
-  mockCommands({
-    get_counter: () => TWO,
-    increment: () => rejectWith({ code: "atMaximum" }),
-  });
-  const { result } = renderHook(() => useCounter());
-  await waitFor(() => {
-    expect(result.current.state.status).toBe("ready");
-  });
-  await act(() => result.current.increment());
-  expect(result.current.state).toEqual({ status: "ready", view: TWO, error: { code: "atMaximum" } });
-});
-```
+```rust
+fn press(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+    KeyEvent::new_with_kind(code, modifiers, KeyEventKind::Press)
+}
 
-An event from Rust: `await act(() => emitEvent("counter-changed", TWO));`. That the
-hook stops listening on unmount: spy on `eventInternals().unregisterListener`.
-
-## A screen (TypeScript)
-
-Render the component, find controls by role and accessible name, drive them with
-`userEvent`, and read the result through roles such as `status` and `alert`. In the
-sample, `ui/src/counter/CounterScreen.test.tsx`:
-
-```ts
-render(<CounterScreen />);
-await userEvent.click(await screen.findByRole("button", { name: "Decrement" }));
-expect(await screen.findByRole("alert")).toHaveTextContent("already at its lowest value");
-expect(screen.getByRole("status")).toHaveTextContent("0");
-```
-
-Keyboard reachability is a test too: `await userEvent.tab()` then `toHaveFocus()`.
-
-## Wording and formatting (TypeScript)
-
-A function that formats for people takes its locale and time zone as arguments, so the
-test pins both and compares a literal. In the sample, `ui/src/copy/counter.test.ts`:
-
-```ts
-expect(describeLastChanged(1_700_000_000_000, "en-US", "UTC")).toBe(
-  "Last changed Nov 14, 2023, 10:13 PM",
+assert_eq!(
+    screen_key(press(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+    Some(ScreenKey::Interrupt)
 );
 ```
 
-## A binary with a temporary home (Rust)
+## A view drawn into `TestBackend`
+
+Draw one state into an in-memory terminal of a fixed size and compare every cell. Use
+`assert_buffer_lines` when no cell carries a style; build the expected `Buffer` and use
+`assert_buffer` when one does, since that comparison includes styles. In the sample,
+`crates/myapp/src/tui/view.rs`:
+
+```rust
+fn drawn(screen: &CounterScreen, width: u16, height: u16) -> Terminal<TestBackend> {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal.draw(|frame| draw(frame, screen)).unwrap();
+    terminal
+}
+
+let mut expected = Buffer::with_lines([
+    "┌Counter───────────────────────────────────────────────────────┐",
+    "│Value: 99                                                     │",
+    "│Error: the counter is already at its maximum                  │",
+    "│                                                              │",
+    "│+/Up increment  -/Down decrement  r reset  q/Esc/Ctrl+C quit  │",
+    "└──────────────────────────────────────────────────────────────┘",
+]);
+bold(&mut expected, 2, "Error: the counter is already at its maximum");
+drawn(&screen, 64, 6).backend().assert_buffer(&expected);
+```
+
+`bold` sets `ERROR_STYLE` on the run of cells the error occupies. A second test at a
+size smaller than the layout proves the view clips instead of panicking.
+
+## A binary with a temporary home
 
 Run the built executable with `env!("CARGO_BIN_EXE_<name>")`, set `HOME` on the child
-process to a `tempfile::tempdir()`, and assert the exit code and output. In the sample,
+process to a `tempfile::tempdir()` and remove the `XDG_*` variables, then assert the
+exit code, stdout exactly, and the last stderr line. In the sample,
 `crates/myapp/tests/cli.rs`:
 
 ```rust
 let home = tempfile::tempdir().unwrap();
-let output = run(home.path(), &["counter", "show"]);
-assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-assert_eq!(stdout(&output), "0\n");
+write_counter_file(home.path(), &saved_value(99)).unwrap();
+assert_runtime_error(
+    &run(home.path(), &["counter", "increment"]),
+    "the counter is already at its maximum",
+);
+assert_eq!(stdout(&run(home.path(), &["counter", "show"])), "99\n");
+```
+
+`assert_runtime_error` checks exit 1, an empty stdout, and `error: <wording>` as the last
+stderr line. A failure the user cannot cause through arguments is set up on disk (a
+corrupt file, a file where a directory should be) or on the child's streams (a pipe
+whose read end is already closed, for an unwritable stdout).
+
+## Wording, one test per variant
+
+Each variant's sentence is asserted literally, in the module that owns it, so a reworded
+sentence is a visible, reviewed change. In the sample, `crates/myapp/src/wording.rs`:
+
+```rust
+#[test]
+fn at_maximum_says_the_counter_cannot_go_higher() {
+    assert_eq!(
+        counter_error(CounterError::AtMaximum),
+        "the counter is already at its maximum"
+    );
+}
 ```
