@@ -23,13 +23,15 @@
 //! backticks stripped, names one skill, and the rows and the directories must agree.
 //!
 //! Errors: `ERR_CHECK_INPUT_MISSING` (no AGENTS.md or .agents/skills/),
+//! `ERR_CHECK_INPUT_UNREADABLE` (.agents/skills is not a directory, or a path under it
+//! cannot be read),
 //! `ERR_CHECK_SKILL_FRONTMATTER`, `ERR_CHECK_SKILL_DESCRIPTION`, `ERR_CHECK_SKILL_NESTED`,
 //! `ERR_CHECK_SKILL_BODY`, `ERR_CHECK_SKILL_SYMLINK`, `ERR_CHECK_SKILL_INDEX`.
 
 use std::path::Path;
 
 use super::yaml::{self, Keys, Node, Style, Yaml};
-use super::{Input, finding, read_file};
+use super::{Input, finding, list_dir, read_file};
 use crate::fail::FailureDetails;
 
 const SKILLS: &str = ".agents/skills";
@@ -74,31 +76,94 @@ fn name_shape(name: &str) -> bool {
     })
 }
 
-/// The `#…` comment that ends one frontmatter line, given where its value starts, or
-/// `None`. A plain value cannot hold ` #`; a quoted one ends at its last quote.
-fn trailing_comment(line: &str, style: Style) -> Option<String> {
-    let searched = match style {
-        Style::Quoted => line.rfind(['"', '\'']).map_or(line, |at| &line[at + 1..]),
-        Style::Literal | Style::Folded => line.find(['|', '>']).map_or(line, |at| &line[at + 1..]),
-        Style::Plain | Style::Collection => line,
-    };
-    let at = searched.char_indices().find_map(|(at, c)| {
-        (c == '#' && (at == 0 || searched[..at].ends_with(char::is_whitespace))).then_some(at)
+/// The `#…` comment in `text`: a `#` at its start or after whitespace, to the line's end.
+fn comment_in(text: &str) -> Option<String> {
+    let at = text.char_indices().find_map(|(at, c)| {
+        (c == '#' && (at == 0 || text[..at].ends_with(char::is_whitespace))).then_some(at)
     })?;
-    Some(searched[at..].trim_end().to_owned())
+    Some(text[at..].trim_end().to_owned())
 }
 
-/// The comment a top-level value carries on its own lines, if any.
-fn value_comment(lines: &[&str], key_line: usize, end_line: usize, value: &Node) -> Option<String> {
-    let colon = lines[key_line - 1].find(':').map_or(0, |at| at + 1);
-    let first = trailing_comment(&lines[key_line - 1][colon..], value.style);
-    if first.is_some() || value.is_block() {
-        return first;
+/// The comment after a quoted value that opens at `start` (its quote) on `lines[first]`:
+/// the text after the closing quote on its line. A double-quoted value skips `\`
+/// escapes; a single-quoted one reads `''` as a quote. `None` when it never closes.
+fn quoted_comment(lines: &[&str], first: usize, start: usize) -> Option<String> {
+    let quote = lines[first][start..].chars().next()?;
+    let mut from = start + quote.len_utf8();
+    for (index, line) in lines.iter().enumerate().skip(first) {
+        let mut chars = line[from..]
+            .char_indices()
+            .map(|(at, c)| (at + from, c))
+            .peekable();
+        while let Some((at, c)) = chars.next() {
+            let escaped = (quote == '"' && c == '\\')
+                || (quote == '\''
+                    && c == quote
+                    && chars.peek().is_some_and(|(_, next)| *next == '\''));
+            if escaped {
+                chars.next();
+            } else if c == quote {
+                return comment_in(&lines[index][at + c.len_utf8()..]);
+            }
+        }
+        from = 0;
     }
-    lines[key_line..end_line.min(lines.len())]
-        .iter()
-        .filter(|line| line.starts_with(char::is_whitespace))
-        .find_map(|line| trailing_comment(line, value.style))
+    None
+}
+
+/// The comment a YAML parser would attach after a top-level block-mapping value, whose
+/// key is on `lines[key]` and whose own lines end before `lines[end]`, or `None`. A
+/// comment before the value (on the key's line with the value on a later one, or on its
+/// own line) and one after a plain value's last line on its own line are not attached to
+/// the value, and a `#` inside quotes or a block scalar's content is text.
+fn value_comment(lines: &[&str], key: usize, end: usize, value: &Node) -> Option<String> {
+    let region = lines.get(key..end.max(key + 1).min(lines.len()))?;
+    let first = *region.first()?;
+    let colon = first.find(':')? + 1;
+    let rest = &first[colon..];
+    match value.style {
+        Style::Literal | Style::Folded => {
+            let header = rest.find(['|', '>']).map_or(rest, |at| &rest[at + 1..]);
+            comment_in(header)
+        }
+        Style::Quoted => {
+            let (line, start) = std::iter::once((0, rest, colon))
+                .chain(
+                    region
+                        .iter()
+                        .enumerate()
+                        .skip(1)
+                        .map(|(index, line)| (index, *line, 0)),
+                )
+                .find_map(|(index, text, offset)| {
+                    let trimmed = text.trim_start();
+                    let start = text.len() - trimmed.len() + offset;
+                    (trimmed.starts_with(['"', '\''])).then_some((index, start))
+                })?;
+            quoted_comment(region, line, start)
+        }
+        Style::Plain => {
+            let mut started = false;
+            for text in std::iter::once(rest).chain(region.iter().skip(1).copied()) {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if trimmed.starts_with('#') {
+                    if started {
+                        return None;
+                    }
+                    continue;
+                }
+                started = true;
+                if let Some(comment) = comment_in(text) {
+                    return Some(comment);
+                }
+            }
+            None
+        }
+        Style::Collection => None,
+    }
 }
 
 /// Checks one SKILL.md's frontmatter and body length.
@@ -149,6 +214,11 @@ fn skill_file_violations(dir: &str, text: &str) -> Vec<FailureDetails> {
             return found;
         }
     };
+    let flow = block
+        .iter()
+        .map(|line| line.trim())
+        .find(|line| !line.is_empty() && !line.starts_with('#'))
+        .is_some_and(|line| line.starts_with('{'));
     let Yaml::Map(pairs) = &document.root.value else {
         let mut found = vec![frontmatter_violation(
             dir,
@@ -169,10 +239,17 @@ fn skill_file_violations(dir: &str, text: &str) -> Vec<FailureDetails> {
             ));
             continue;
         }
+        // A flow mapping (`{name: x, description: y}`) shares its lines between keys, and
+        // its values carry no comment this reads.
         let end = pairs
             .get(index + 1)
             .map_or(block.len(), |(next, _)| next.line - 1);
-        if let Some(comment) = value_comment(block, key.line, end, value) {
+        let comment = if flow {
+            None
+        } else {
+            value_comment(block, key.line - 1, end, value)
+        };
+        if let Some(comment) = comment {
             violations.push(description_violation(
                 dir,
                 format!("`{label}` is followed by a YAML comment (`{comment}`), which drops that text from the value"),
@@ -241,15 +318,9 @@ fn description_violations(dir: &str, description: Option<&Node>) -> Vec<FailureD
 /// Every path under `dir` (root-relative), without following symbolic links: (path, is a
 /// link, is a file).
 fn walk(root: &Path, dir: &str) -> Vec<(String, bool, bool)> {
-    let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
-        return Vec::new();
-    };
     let mut found = Vec::new();
-    for entry in entries.flatten() {
-        let path = format!("{dir}/{}", entry.file_name().to_string_lossy());
-        let Ok(kind) = entry.file_type() else {
-            continue;
-        };
+    for (name, kind) in list_dir(root, dir) {
+        let path = format!("{dir}/{name}");
         found.push((path.clone(), kind.is_symlink(), kind.is_file()));
         if kind.is_dir() {
             found.extend(walk(root, &path));
@@ -384,7 +455,20 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     if agents.is_none() {
         absent.push("AGENTS.md".to_owned());
     }
-    if !skills_dir.exists() {
+    let skills_kind = match std::fs::symlink_metadata(&skills_dir) {
+        Ok(metadata) => Some(metadata.is_dir()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return vec![finding(
+                "ERR_CHECK_INPUT_UNREADABLE",
+                format!("{SKILLS} cannot be read"),
+                format!("{SKILLS}/ to be a readable directory"),
+                error.to_string(),
+                format!("fix the permissions on {SKILLS}/"),
+            )];
+        }
+    };
+    if skills_kind.is_none() {
         absent.push(format!("{SKILLS}/"));
     }
     let (Some(agents), true) = (agents, absent.is_empty()) else {
@@ -396,23 +480,21 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             "run the check against the repository root (--root DIR)",
         )];
     };
+    if skills_kind == Some(false) {
+        return vec![finding(
+            "ERR_CHECK_INPUT_UNREADABLE",
+            format!("{SKILLS} is not a directory"),
+            format!("{SKILLS}/ to be a directory holding one directory per skill"),
+            "a file or a link",
+            format!("restore {SKILLS}/ from version control"),
+        )];
+    }
 
-    let mut entries: Vec<(String, bool)> = std::fs::read_dir(&skills_dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .filter_map(|entry| {
-                    let kind = entry.file_type().ok()?;
-                    (kind.is_dir() || kind.is_symlink()).then(|| {
-                        (
-                            entry.file_name().to_string_lossy().into_owned(),
-                            kind.is_symlink(),
-                        )
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut entries: Vec<(String, bool)> = list_dir(input.root, SKILLS)
+        .into_iter()
+        .filter(|(_, kind)| kind.is_dir() || kind.is_symlink())
+        .map(|(name, kind)| (name, kind.is_symlink()))
+        .collect();
     entries.sort_by(|a, b| {
         a.0.to_lowercase()
             .cmp(&b.0.to_lowercase())
@@ -601,6 +683,69 @@ mod tests {
             check(&[(".agents/skills/alpha/SKILL.md", Some(&content))]),
             []
         );
+    }
+
+    #[test]
+    fn reads_comments_only_where_a_yaml_parser_attaches_them() {
+        let comment_of = |frontmatter: &str| {
+            let content = skill(frontmatter);
+            check(&[(".agents/skills/alpha/SKILL.md", Some(&content))])
+                .into_iter()
+                .find(|found| found.actual.contains("YAML comment"))
+                .map(|found| found.actual)
+        };
+        for frontmatter in [
+            "name: alpha\ndescription: \"Use when a lint fires,\n  even with #[allow] or #[expect].\"",
+            "name: alpha\ndescription: \"it's #x\n  still text\"",
+            "name: alpha\ndescription: 'it''s # text'",
+            "name: alpha\ndescription: \"a \\\" # quoted\"",
+            "name: alpha\ndescription: # a note before the value\n  Covers alpha.",
+            "name: alpha\ndescription: Covers alpha.\n  # an own-line comment",
+            "{name: alpha, description: Covers alpha.}",
+            "{name: alpha,\n description: Covers alpha.}",
+        ] {
+            assert_eq!(comment_of(frontmatter), None, "{frontmatter}");
+        }
+        for (frontmatter, comment) in [
+            ("name: \"alpha\" # it's\ndescription: x", "# it's"),
+            (
+                "name: alpha\ndescription: \"first\n  second\" # gone",
+                "# gone",
+            ),
+            ("name: alpha\ndescription: 'a ''b''' # gone", "# gone"),
+            ("name: alpha\ndescription:\n  text # gone", "# gone"),
+        ] {
+            let found = comment_of(frontmatter).unwrap_or_default();
+            assert!(
+                found.contains(&format!("(`{comment}`)")),
+                "{frontmatter}: {found}"
+            );
+        }
+    }
+
+    #[test]
+    fn fails_when_the_skills_path_or_a_skill_cannot_be_read() {
+        let dir = temp_dir();
+        let agents = index(&[]);
+        write(dir.path(), "AGENTS.md", &agents);
+        write(dir.path(), ".agents/skills", "not a directory\n");
+        let found = run_at(dir.path(), run);
+        assert_eq!(codes(&found), ["ERR_CHECK_INPUT_UNREADABLE"]);
+        assert!(found[0].summary.contains("not a directory"), "{found:?}");
+
+        let dir = fixture(&[]);
+        let file = dir.path().join(".agents/skills/alpha/SKILL.md");
+        let mut permissions = std::fs::metadata(&file).expect("metadata").permissions();
+        std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o000);
+        std::fs::set_permissions(&file, permissions).expect("chmod");
+        // Root reads a mode-000 file, so the case holds only for an ordinary user.
+        if std::fs::read(&file).is_err() {
+            let found = run_at(dir.path(), run);
+            assert!(
+                codes(&found).contains(&"ERR_CHECK_INPUT_UNREADABLE".to_owned()),
+                "{found:?}"
+            );
+        }
     }
 
     #[test]
