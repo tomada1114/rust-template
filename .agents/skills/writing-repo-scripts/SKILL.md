@@ -7,7 +7,7 @@ description: >
   recipe that calls it, writing main(context: ScriptContext) and the
   import.meta.main / runScript entry point, a script must refuse or skip outside a git
   work tree, git spawned from a hook acts on the wrong repository (an inherited GIT_DIR
-  or GIT_INDEX_FILE; gitEnv, stagedGuardEnv), writing a ScriptError with an
+  or GIT_INDEX_FILE; git_env, staged_guard_env), writing a ScriptError with an
   ERR_<STAGE>_<WHAT> code and Expected/Actual/Next lines, erasableSyntaxOnly or a .ts
   import extension fails, stubbing git, gh, or cargo in a test through the context's
   run function, or a scripts/ coverage floor fails; and the same contract in a
@@ -96,7 +96,7 @@ if (import.meta.main) await runScript(main);
   installs only the tools its `install_args` name, and asking mise for another would start
   a download mid-run instead of failing on the missing tool. `git` and `gh` are assumed on
   PATH, and tests stub both. A missing tool fails with a named code rather than a spawn
-  error (`scripts/apply-ruleset.ts`'s `ERR_RULESET_GH_MISSING`).
+  error (`cargo xtask apply-ruleset`'s `ERR_RULESET_GH_MISSING`).
 
 ## Spawning git
 
@@ -105,17 +105,21 @@ elsewhere must clear them (https://git-scm.com/docs/githooks, checked 2026-09-29
 commit -- <path>` also exports a temporary `GIT_INDEX_FILE`. An inherited `GIT_DIR`
 outranks both the child's working directory and `git -C`, so a git command meant for
 another repository (a test's throwaway repository) writes into the outer one instead.
-Every spawned git therefore gets `gitEnv(env)` from `scripts/lib/git-env.ts`, which drops
+Every spawned git therefore gets `git_env(&env)` from `xtask/src/git_env.rs`, which drops
 every `GIT_*` variable:
 
-```ts
-context.run("git", ["status", "--porcelain"], { cwd: context.root, env: gitEnv(context.env) });
+```rust
+let options = RunOptions {
+    cwd: Some(context.root.clone()),
+    env: Some(git_env(&context.env)),
+    input: None,
+};
+context.run("git", &["status", "--porcelain"], &options);
 ```
 
 The one exception is the staged guard, `cargo xtask check-staged`: it **is** the
 pre-commit check and must judge the index actually being committed, so it uses
-`staged_guard_env(env)` (`stagedGuardEnv` in TypeScript), which keeps `GIT_INDEX_FILE`
-and drops the rest.
+`staged_guard_env(env)`, which keeps `GIT_INDEX_FILE` and drops the rest.
 
 ## Outside a git work tree: refuse or skip
 
@@ -156,9 +160,9 @@ The `Next:` line offers the fix first and the documented opt-out second, so the 
 is never left with only "turn the check off". **BACKGROUND:** `designing-errors`, for
 naming a code consistently with the rest of the repository's error codes.
 
-## A script that writes to GitHub
+## A task that writes to GitHub
 
-`scripts/sync-labels.ts` (`just labels`) and `scripts/apply-ruleset.ts` (`just ruleset`)
+`cargo xtask sync-labels` (`just labels`) and `cargo xtask apply-ruleset` (`just ruleset`)
 only create or update what their manifest declares and never delete, so a run can only
 converge on the file; a known GitHub refusal gets its own code
 (`ERR_RULESET_PLAN_UNSUPPORTED`). Their tests stub `gh`. Running one against the live
@@ -170,12 +174,12 @@ The test sits beside it (`scripts/<name>.test.ts`, `scripts/lib/**/<name>.test.t
 runs in Vitest's `scripts` project under `just test-scripts`.
 
 - **Call `main` with a context you build.** Collect `log` lines in an array and pass a
-  `run` that records each call and answers from a table, as `scripts/sync-labels.test.ts`
-  does for `gh` and `xtask/src/clippy_guard.rs`'s tests for `cargo`. Assert on the recorded
+  `run` that records each call and answers from a table, as `xtask/src/sync_labels.rs`'s
+  tests do for `gh` and `xtask/src/clippy_guard.rs`'s tests for `cargo`. Assert on the recorded
   calls: that is how a test proves what would have been sent to GitHub without sending
   it.
 - **A throwaway repository per test.** `mkdtemp` under `os.tmpdir()`, `git init` with
-  `gitEnv(process.env)`, removed in `afterEach` (`xtask/src/verify_hooks.rs`'s tests do
+  every `GIT_*` variable dropped from `process.env`, removed in `afterEach` (`xtask/src/verify_hooks.rs`'s tests do
   the same in Rust). Never read or write the real checkout, and never a fixed shared
   path: Vitest runs files in parallel, and two tests on one path race.
 - **Assert the code, not the prose**: `expect(error).toMatch(/^ERR_HOOKS_NOT_INSTALLED/)`.

@@ -62,12 +62,12 @@ advisory), which `config.yml` links from the issue chooser. When unsure which it
 is the private route.
 
 `ci` and `dependencies` are pull-request labels, never used for issues.
-`.github/workflows/pr-label.yml` runs `scripts/label-pr.ts`, which labels a pull
-request from its Conventional Commits title type (`feat` and `perf` give `enhancement`,
-`fix` gives `bug`, `docs` gives `documentation`, `ci` gives `ci`, `deps` gives
-`dependencies`, every other accepted type gives `chore`), removes a type label a retitle
-left stale, and never creates a label. Dependabot applies `dependencies` itself, so the
-script never removes that one. `.github/release.yml` files each of these labels, and
+`.github/workflows/pr-label.yml` labels a pull request, through an inline `gh` step and
+its `TYPE_LABELS` map, from its Conventional Commits title type (`feat` and `perf` give
+`enhancement`, `fix` gives `bug`, `docs` gives `documentation`, `ci` gives `ci`, `deps`
+gives `dependencies`, every other accepted type gives `chore`), removes a type label a
+retitle left stale, and never creates a label. Dependabot applies `dependencies` itself, so the
+step never removes that one. `.github/release.yml` files each of these labels, and
 `security`, under a release-notes heading.
 
 `tracking` marks a tracking issue: a checklist of sub-issues (`- [ ] #N`) whose own body
@@ -83,7 +83,7 @@ defaults
 (https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/managing-labels,
 checked 2026-09-29), and an issue form's label that the repository lacks is not added
 (https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms,
-checked 2026-09-29). `just labels` (`scripts/sync-labels.ts`) creates or updates
+checked 2026-09-29). `just labels` (`cargo xtask sync-labels`) creates or updates
 every declared label and never deletes one; running it is a remote write that needs a
 human's sign-off (`AGENTS.md` › "Security and human approval").
 

@@ -108,8 +108,8 @@ sets for a commit subject (no check enforces either). The types are the ones
 `.github/workflows/check-pr-title.yml` accepts: `feat`, `fix`, `docs`, `style`,
 `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, `deps`. With mixed commits,
 use the type of the most significant change. The title becomes the squashed commit on
-`main`, and `scripts/label-pr.ts` labels the PR from its type for the release notes, so
-a wrong type files the change under the wrong heading.
+`main`, and `.github/workflows/pr-label.yml` labels the PR from its type for the release
+notes, so a wrong type files the change under the wrong heading.
 
 ## Step 4: The body
 

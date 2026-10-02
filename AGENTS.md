@@ -121,7 +121,7 @@ developer's Mac").
 | `Cargo.toml`, `Cargo.lock`, `deny.toml`, `package.json`, or `pnpm-lock.yaml` | `just deny`, `mise exec -- cargo shear`, `just lint`, then `just test` — a new dependency is a sign-off change (`.claude/rules/project.md`) |
 | `mise.toml` or `rust-toolchain.toml` | `mise install` for `mise.toml` (rustup installs a new `rust-toolchain.toml` channel on the next `cargo` call: `.claude/rules/project.md` › Tool Pinning), then `just check` |
 | `.github/labels.yml`, or an issue form under `.github/ISSUE_TEMPLATE/` | `mise exec -- typos <file>`, then `just check-harness` (every applied label declared, once) |
-| `.github/rulesets/main.json`, or `scripts/apply-ruleset.ts` | `just test-scripts`; `just check-harness` for `main.json` (every required context names a job that runs on every pull request) |
+| `.github/rulesets/main.json`, or `xtask/src/apply_ruleset.rs` | `cargo nextest run -p xtask apply_ruleset`; `just check-harness` for `main.json` (every required context names a job that runs on every pull request) |
 | A new file, or a new spelling of a placeholder (`MyApp`, `myapp`, `myapp-core`, `myapp_core`, `com.example.myapp`, the template's owner/repo) — template only: the bootstrap removes this row | `just verify-bootstrap` (it bootstraps a scratch clone in a temporary directory and fails on a placeholder the rename misses, template-only text, or a dangling reference) |
 
 ## Architecture
@@ -365,12 +365,12 @@ of them on one host, but this repository ships none (see "Enforcement layers").
   `bash -c '…'`, bundled short flags such as `-anm`, an alias or script wrapper) is
   forbidden. Stop and ask.
 - Any write to a remote: `git push`, `gh pr create`, or any other remote write that
-  is not performed by a script this repository ships. `scripts/sync-labels.ts`
-  (`just labels`) is such a script for labels: it only ever creates or updates a label
+  is not performed by a task this repository ships. `cargo xtask sync-labels`
+  (`just labels`) is such a task for labels: it only ever creates or updates a label
   `.github/labels.yml` declares, and never deletes one — but running it against the
   live repository still needs sign-off before its first run there, the same as any
-  other remote write. `scripts/apply-ruleset.ts` (`just ruleset`) is the same kind of
-  script for branch and tag protection: it only ever creates or updates the rulesets
+  other remote write. `cargo xtask apply-ruleset` (`just ruleset`) is the same kind of
+  task for branch and tag protection: it only ever creates or updates the rulesets
   `.github/rulesets/*.json` name (`main` and `release-tags`), each by its own name,
   never deletes one, needs repository admin permissions to
   succeed, and still needs sign-off before its first run against the live repository.
@@ -467,7 +467,9 @@ function of a faked context (`xtask/src/context.rs`'s `Context`: argv, env, root
 `run` function for child processes, a logger, stdin); spawned git gets `git_env` or, for
 the staged guard and the skills mirror's `--staged`, `staged_guard_env`
 (`xtask/src/git_env.rs`); a failure is a `ScriptError` (`xtask/src/fail.rs`) printed as
-the `ERR_<STAGE>_<WHAT>` report below; its tests sit in a `#[cfg(test)] mod tests`
+the `ERR_<STAGE>_<WHAT>` report below; a task whose job is a GitHub write
+(`sync-labels`, `apply-ruleset`) may also depend on `gh`, which like `git` is assumed on
+PATH rather than pinned by mise; its tests sit in a `#[cfg(test)] mod tests`
 beside it (end-to-end runs of the binary in `xtask/tests/`), in a temporary directory or
 a throwaway repository, never the real checkout. `just test-xtask` (part of `just check`
 and CI's `Repo Lint & Harness` job) holds `xtask` and `xtask-guard` together to lines 85
@@ -489,15 +491,14 @@ behind them, with worked examples, are in the `writing-repo-scripts` skill:
   for child processes, a logger, stdin), so its test calls `main` with fakes instead of
   spawning real tools.
 - Pinned tools are called by bare name; the caller provides PATH (`mise exec -- …`
-  locally, `jdx/mise-action` in CI). A script whose job is a GitHub write
-  (`scripts/sync-labels.ts`, `scripts/apply-ruleset.ts`) may also depend on `gh`: like
-  `git`, it is assumed on PATH, since it is not a mise tool — its tests stub it out,
-  so `just check` never needs the real binary.
-- Spawned git gets an environment with every `GIT_*` variable stripped
-  (`scripts/lib/git-env.ts`'s `gitEnv`): inside a hook, git's exported variables would
-  point a child git at the hook's repository. The staged guard is the one exception —
-  it keeps `GIT_INDEX_FILE` (`stagedGuardEnv`), because it must judge the index being
-  committed.
+  locally, `jdx/mise-action` in CI). A script may also depend on `gh`: like `git`, it is
+  assumed on PATH, since it is not a mise tool — its tests stub it out, so `just check`
+  never needs the real binary.
+- Spawned git gets an environment with every `GIT_*` variable stripped, as
+  `xtask/src/git_env.rs`'s `git_env` does: inside a hook, git's exported variables
+  would point a child git at the hook's repository. The staged guard is the one
+  exception — it keeps `GIT_INDEX_FILE` (`staged_guard_env`), because it must judge the
+  index being committed.
 - Failure contract (`scripts/lib/fail.ts`): the first stderr line is
   `ERR_<STAGE>_<WHAT>: <what failed>`, then `Expected:`, `Actual:`, and `Next:` lines
   (the next safe command); exit 1 (a Claude Code hook exits 2, the code that feeds
@@ -533,7 +534,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | ESLint's `no-console`, `no-restricted-properties`, and `switch-exhaustiveness-check` (`eslint.config.mjs`) | the hook, `just lint`, and CI's `Repo Lint & Harness` job | every author | no `console` (nor `window.console` or `globalThis.console`) outside `scripts/`; a `switch` over a union names every member and has no `default`; an unused disable directive is an error |
 | Coverage floors | `just test-core`, `just test-xtask`, `just test-scripts`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `xtask` with `xtask-guard` 85 / 90; `xtask/guard/` 90 / 100; `scripts/` 85 / 90; `.agents/skills/*/scripts/` 85 / 90 |
 | The skills-mirror check (`just agents-check`; the hook runs `cargo xtask sync-agents --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
-| `cargo xtask check-harness` (`xtask/src/check_harness/`; `just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `scripts/label-pr.ts` applies has a release-notes category; Prettier's, typos', and Vitest's ignore lists agree on excluding `.claude/skills/` (ESLint's is not compared: ESLint leaves with the Node toolchain); the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |
+| `cargo xtask check-harness` (`xtask/src/check_harness/`; `just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked`/`--frozen-lockfile` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `pnpm`, `cargo`, or `just`, apart from a reasoned exception list; the Dependabot, Renovate, and pnpm cooldowns agree; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `.github/workflows/pr-label.yml`'s `TYPE_LABELS` map applies has a release-notes category and every PR-title type a key there; Prettier's, typos', and Vitest's ignore lists agree on excluding `.claude/skills/` (ESLint's is not compared: ESLint leaves with the Node toolchain); the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |
 | CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `just test-platform`, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (tsc, ESLint, Prettier, typos, actionlint, script tests, xtask tests with floors, harness checks), `macOS` (workspace clippy, `just test-platform`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 
@@ -570,7 +571,7 @@ removing or narrowing its bullet here:
 - **Whether `main`'s ruleset is actually in force is invisible from the checkout.**
   The intended ruleset — PR required, checks green, no force-push or deletion — is
   defined as code in `.github/rulesets/main.json`; `just ruleset`
-  (`scripts/apply-ruleset.ts`) creates or updates it, with `release-tags.json`, via the GitHub API for whoever runs
+  (`cargo xtask apply-ruleset`) creates or updates it, with `release-tags.json`, via the GitHub API for whoever runs
   it as a repository admin. Nothing in the checkout verifies that it was applied —
   that is visible only via `gh api repos/{owner}/{repo}/rulesets`. "Use this template"
   does not copy rulesets, so every repository created from this template still needs

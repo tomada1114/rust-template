@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "The repository's automation, run as `cargo xtask <task>`: the staged guard, the hook check, the edit formatter, the clippy guard, the skills mirror, temp pruning, and the harness checks. Never shipped."
+description = "The repository's automation, run as `cargo xtask <task>`: the staged guard, the hook check, the edit formatter, the clippy guard, the skills mirror, temp pruning, the harness checks, and the GitHub label and ruleset sync. Never shipped."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

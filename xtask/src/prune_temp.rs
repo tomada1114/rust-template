@@ -2,7 +2,7 @@
 //! delete, so an agent never needs a raw `rm -rf`:
 //!
 //! - every `verify-bootstrap-*` directory directly under the OS temp directory (what
-//!   `scripts/verify-bootstrap.ts` leaves behind when a run is interrupted);
+//!   `cargo xtask verify-bootstrap` leaves behind when a run is interrupted);
 //! - each Claude Code session's `scratchpad` for this checkout,
 //!   `<claude-base>/<slug>/<session>/scratchpad`, where `<slug>` is the checkout's
 //!   absolute path with every non-alphanumeric character replaced by `-` — only when
@@ -31,7 +31,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::context::{Context, RunOptions};
 use crate::fail::{ScriptError, TaskResult};
 
-/// The prefix `scripts/verify-bootstrap.ts` gives its temporary directories.
+/// The prefix `cargo xtask verify-bootstrap` gives its temporary directories.
 const BOOTSTRAP_PREFIX: &str = "verify-bootstrap-";
 /// How long a session directory must sit untouched before its scratchpad is pruned.
 const SESSION_IDLE_MS: u32 = 24 * 60 * 60 * 1000;
