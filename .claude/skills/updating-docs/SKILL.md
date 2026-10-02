@@ -5,7 +5,7 @@ description: >
   README.md (Quickstart, Design Philosophy, Using This Template), AGENTS.md,
   CONTRIBUTING.md, CHANGELOG.md, docs/architecture.md, docs/getting-started.md, a
   skill under .agents/skills/, a /// rustdoc comment on a pub item in myapp-core, or
-  a TSDoc comment in ui/src/ipc/ or scripts/lib/. Use when triaging whether a pull
+  a TSDoc comment in ui/src/ipc/. Use when triaging whether a pull
   request needs a document changed or a CHANGELOG [Unreleased] entry, when a
   justfile recipe, a gate, an IPC name, or an architecture boundary moved and it is
   unclear which file owns it, when the setup
@@ -20,7 +20,7 @@ description: >
 `CHANGELOG.md` (`.claude/rules/docs.md`); how a skill is written and mirrored
 (`authoring-skills`); whether a change owes an ADR and how one is written
 (`recording-architecture-decisions`); the roadmap (`steering-the-roadmap`); what a `///`
-comment says (`writing-rust`) or a TSDoc comment says (`writing-typescript`).
+comment says (`writing-rust`).
 
 ## Decide on what a reader can observe
 
@@ -48,8 +48,7 @@ or `AGENTS.md` edit, except when the skill set changes shape (see the last bulle
 "Changes that move two files at once").
 
 The mechanical items that fire most often already have a home: `AGENTS.md`'s Review
-Checklist (`///` on new public items, a TSDoc comment on a new IPC wrapper, the
-changelog entry) and the Checklist in `.github/PULL_REQUEST_TEMPLATE.md` (documentation
+Checklist (`///` on new public items, the changelog entry) and the Checklist in `.github/PULL_REQUEST_TEMPLATE.md` (documentation
 and `CHANGELOG.md`). Work from those; this skill does not restate their items.
 
 ## Purpose per file
@@ -68,7 +67,7 @@ another's content: a copy is the half that goes stale.
 | `docs/getting-started.md` | First setup, everyday commands, seeing the app, TCC, removing the example code |
 | a skill under `.agents/skills/` | The conventions of one kind of change, loaded on demand |
 | `///` on a `pub` item in core | That item's contract: why it exists and what it promises |
-| TSDoc in `ui/src/ipc/` and `scripts/lib/` | The same, for an exported wrapper or helper |
+| TSDoc in `ui/src/ipc/` | The same, for an exported wrapper |
 
 ## Changes that move two files at once
 
@@ -92,8 +91,8 @@ app, or by someone building an app from the template: a behaviour, a screen, a f
 format, a recipe, a gate. Write the entry as the behaviour a reader sees, never as the
 files that changed, under a Keep a Changelog heading (`Added`, `Changed`, `Fixed`,
 `Removed`, `Security`, `Deprecated`). The notes GitHub generates from
-`.github/release.yml` are a supplement, not a substitute. Prettier skips `CHANGELOG.md`,
-so keep its wrapping by hand. `CHANGELOG.md` and `docs/` are maintained surfaces, not
+`.github/release.yml` are a supplement, not a substitute. Nothing formats
+`CHANGELOG.md`, so keep its wrapping by hand. `CHANGELOG.md` and `docs/` are maintained surfaces, not
 leftovers: keep them current rather than folding their content into a pull request
 description.
 
@@ -105,9 +104,8 @@ description.
 - Core's `pub` API is contract, so its `///` is the document a caller reads instead of
   the body. When a change alters what an item promises, the comment changes in the same
   commit.
-- An exported wrapper in `ui/src/ipc/` and an exported helper in `scripts/lib/` carry a
-  TSDoc comment. No lint enforces this: the Review Checklist asks for it on an IPC
-  wrapper, and review alone holds it for a `scripts/lib/` helper.
+- An exported wrapper in `ui/src/ipc/` carries a TSDoc comment. No lint or checklist
+  item enforces this: review alone holds it.
 
 ## Template-only material
 
@@ -142,12 +140,11 @@ what the template itself ships or its own reasoning.
   check reads the template's own design record, the roadmap, or the ADRs, which link
   issues and plan recipes by design.
 - `mise exec -- typos <file>` spell-checks Markdown (the hook and CI run it too).
-- Nothing formats Markdown (`.prettierignore` lists `*.md`); wrap prose at about 90
-  columns by hand.
+- Nothing formats Markdown; wrap prose at about 90 columns by hand.
 - No gate compiles or runs a fenced example in a Markdown file. The one exception is in
   Rust: `cargo test --doc` (inside `just test-core`) compiles and runs the examples in
   core's `///` comments. So an example that must stay correct goes where a test runs
-  it (a doc-comment example on a core item, or a test beside a script), and the
+  it (a doc-comment example on a core item, or a script's test), and the
   document points at it instead of copying it. A fenced block in Markdown stays small
   enough to check by eye: a command, a path, a short snippet.
 - Do not write a document that promises a gate this repository does not have; one that

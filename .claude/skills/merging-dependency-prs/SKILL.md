@@ -2,16 +2,15 @@
 name: merging-dependency-prs
 description: >
   Covers landing the Dependabot and Renovate pull requests already open in this
-  repository: Dependabot's cargo (Cargo.lock), npm (package.json, pnpm-lock.yaml), and
-  github-actions bumps, and Renovate's mise.toml and rust-toolchain.toml bumps. Surveys
-  them with scripts/survey_prs.py, runs the security review (release notes, workflow
-  permissions, maintainer changes, crates whose build.rs or proc-macro runs at build
-  time), keeps each tauri crate and its @tauri-apps/* npm package in step and
-  @types/node on mise.toml's Node major, holds a Tauri major as a migration issue, asks
+  repository: Dependabot's cargo (Cargo.lock) and github-actions bumps, and Renovate's
+  mise.toml and rust-toolchain.toml bumps. Surveys them with scripts/survey_prs.py,
+  runs the security review (release notes, workflow permissions, maintainer changes,
+  crates whose build.rs or proc-macro runs at build time), keeps each tauri crate and
+  its @tauri-apps/* npm package in step, holds a Tauri major as a migration issue, asks
   the human for one approval of a listed batch, then merges or builds one combined
   branch. Use when clearing a backlog of bump PRs, when a bot PR fails CI after a
-  clippy, ESLint, TypeScript, or Rust toolchain bump, or when several dependency PRs
-  contest Cargo.lock, pnpm-lock.yaml, or mise.toml.
+  clippy or Rust toolchain bump, or when several dependency PRs contest Cargo.lock or
+  mise.toml.
 ---
 
 # Merging Dependency PRs
@@ -38,7 +37,7 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
    Step 3), which are held and why, every major bump named, every `@dependabot rebase`
    comment and `gh run rerun` the plan already needs (`references/failure-modes.md`
    F7-F9), and any issue the plan would file (a Tauri major, below). A side moved by
-   hand under F11 or F12 is named with its package, from, and to versions.
+   hand under F11 is named with its package, from, and to versions.
 3. Get one explicit approval for the listed batch, then run it without asking per merge.
 
 The approval covers only the listed PRs, only for this invocation. Of the rebase
@@ -54,7 +53,7 @@ python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py
 ```
 
 It lists every open bot PR with its ecosystem, the versions it moves and their level
-(below 1.0.0 a minor move counts as major, as Cargo's and npm's caret ranges treat it),
+(below 1.0.0 a minor move counts as major, as Cargo's caret ranges treat it),
 the check verdict, the merge state, and the touched files; then the files two PRs
 contest, whether the batch keeps each Tauri pair on one minor, and any Tauri major. Add
 `--json` to compute over the rows. With no bot PR open, say so and stop.
@@ -63,10 +62,9 @@ contest, whether the batch keeps each Tauri pair on one minor, and any Tauri maj
 and any other conclusion, including one the script has never seen, is listed under
 `HELD`. An unknown CI state holds a PR; it is never waved through.
 
-Minor and patch bumps arrive grouped and majors one per PR (`.github/dependabot.yml`). For
-cargo and npm, the Tauri family arrives in its own group (`cargo-tauri`, `npm-tauri`) and
-everything else in `cargo-minor-and-patch` / `npm-minor-and-patch`. Dependabot counts a
-0.x minor as a minor
+Minor and patch bumps arrive grouped (`cargo-minor-and-patch`, `actions-minor-and-patch`)
+and majors one per PR (`.github/dependabot.yml`); npm is no longer an ecosystem the bots
+update. Dependabot counts a 0.x minor as a minor
 (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
 `groups` › `update-types`, checked 2026-09-30), so it rides in a group; the survey shows
 that row's level as `major` and marks the bump `(major)`: name it in the plan as a major
@@ -108,18 +106,14 @@ Dependabot opens the cargo and npm sides as separate PRs, so:
   migration issue for it (**REQUIRED:** `triaging-issues`), with the upstream migration
   guide linked; `Cargo.toml` pins `tauri = "2"` until a migration ADR moves it.
 
-## The Node rule
-
-A Node major moves `mise.toml`'s `node` and `@types/node` together, never one (F12).
-
 ## Step 3: Choose the landing mode
 
 Every PR needs a review that found nothing, then meets one of two bars:
 
-- **The bar to land alone:** every check passes, the merge state is `CLEAN`, and it is no
-  lone Node side (F12). Nothing else lands by itself; it may still join a combined branch.
-- **The combined-branch bar:** it misses that bar only by being a lone Node side (F12) or
-  where a failure mode blames its merge or lockfile state, not its change. Every check
+- **The bar to land alone:** every check passes and the merge state is `CLEAN`. Nothing
+  else lands by itself; it may still join a combined branch.
+- **The combined-branch bar:** it misses that bar only where a failure mode blames its
+  merge or lockfile state, not its change. Every check
   passes, or fails only where F2 (a lockfile out of step with its manifest) or F11 (one
   side of a Tauri pair the survey prints as `split` or `MISMATCH`) says, confirmed from
   the run log; and the merge state is `CLEAN`, `BEHIND` or `DIRTY` (F7), or `UNSTABLE` or
@@ -131,8 +125,7 @@ Then land them:
 - **Individually** when PRs that meet the bar to land alone share no file: in practice
   the Actions PRs and a lone mise or rust-toolchain PR.
 - **One combined branch** for every PR that meets only the combined-branch bar, when two
-  eligible PRs touch the same file (two cargo PRs both rewrite `Cargo.lock`; npm PRs
-  both rewrite `pnpm-lock.yaml`), when a Tauri pair needs both sides, or when more than
+  eligible PRs touch the same file (two cargo PRs both rewrite `Cargo.lock`), when a Tauri pair needs both sides, or when more than
   three are eligible and rebase-and-wait cycles would dominate.
 
 Mixed outcomes are fine; the plan says which PR goes which way.
@@ -163,9 +156,7 @@ a lockfile or by merging bot branches:
 - **cargo:** `cargo update -p <crate> --precise <version>` per crate the PRs moved.
   `Cargo.toml` changes only when a PR changed a requirement. Read the `Cargo.lock`
   diff: a crate no PR named that moved too is reverted, since only what the bots
-  proposed was reviewed, except a side the approved plan names under F11 or F12.
-- **npm:** `pnpm add <package>@<range>` (`pnpm add -D` for a devDependency), keeping the
-  range style `package.json` uses (a tilde range for the Tauri packages).
+  proposed was reviewed, except a side the approved plan names under F11.
 - **mise:** edit the pin in `mise.toml`, then `mise install`, so the version exists for
   this platform.
 - **rust-toolchain:** edit `channel` in `rust-toolchain.toml`; rustup installs it on the
@@ -176,9 +167,8 @@ a lockfile or by merging bot branches:
 
 Commit each lockfile with its manifest (**REQUIRED:** `smart-commit`), then run
 `just check`. A new
-clippy, ESLint, or TypeScript finding is fixed in the code on this branch (`just fix`,
-then hand edits), never silenced: an `#[allow]`, an `eslint-disable`, or a relaxed
-config is weakening a gate. Open the PR with **REQUIRED:** `create-pr`, titled
+clippy finding is fixed in the code on this branch (`just fix` for formatting, then hand
+edits), never silenced: an `#[allow]` or a relaxed config is weakening a gate. Open the PR with **REQUIRED:** `create-pr`, titled
 `deps: combine dependency bumps`, listing each superseded PR in the Summary. Opening and
 merging it are inside the approved batch only when the plan named it.
 
@@ -198,8 +188,7 @@ gh pr close <number> --comment "Superseded by #<combined-number>." --delete-bran
 - An Actions bump that widens a workflow's `permissions:`, adds a secret, or changes a
   trigger (`changing-gates`).
 - A maintainer, owner, or source change on any bumped dependency.
-- A new package in `Cargo.lock` or `pnpm-lock.yaml`, a new `allowBuilds` entry, or a bump
-  that needs a new dependency.
+- A new package in `Cargo.lock`, or a bump that needs a new dependency.
 - A bump that goes green only by relaxing a lint, lowering a floor, ignoring an advisory,
   or editing another gate file.
 - A Tauri major, or a Tauri pair that cannot be brought back in step.

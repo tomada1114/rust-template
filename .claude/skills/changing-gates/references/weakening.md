@@ -1,4 +1,4 @@
-# What weakening a gate means here, in Rust and TypeScript
+# What weakening a gate means here, in Rust and in a skill's scripts
 
 The detail behind `changing-gates`. `AGENTS.md` › "Security and human approval" is the
 rule and its list; this page says, for each item, what it does, why no check catches it,
@@ -26,24 +26,19 @@ green.
 | An entry in `deny.toml`'s `ignore`, `exceptions`, or `skip`, or in `osv-scanner.toml` | Stops `cargo deny` or OSV-Scanner reporting an advisory or a licence. | Update the crate. Only an advisory with no fixed release may be ignored, with a reason, a 90-day expiry, and a tracking issue. |
 | Changing `deny.toml`'s `[graph] targets` or its `unmaintained` scope | Changes what counts as shipped, and so which advisories count. | A change to what ships is an ADR (a universal build adds a target). |
 
-## TypeScript
+## A skill's bundled scripts
 
 | Construct | What it does | Do instead |
 |---|---|---|
-| `// eslint-disable…` in any form | Silences ESLint for a line, a block, or a file. `reportUnusedDisableDirectives: "error"` catches only a directive that suppresses nothing. | Fix the finding. |
-| `@ts-ignore` | Silences the next line's type error, and any later one on that line. `ban-ts-comment` rejects it. | Narrow the value (`writing-typescript`). |
-| `@ts-expect-error` | Allowed with a description, and fails once the error goes away; used to silence tsc it is still a suppression. | The same. |
-| A non-null `!` | Tells tsc a value cannot be `null` or `undefined` without checking. | Check it, or change the type so it cannot be absent. |
-| An `as` cast to silence tsc | Asserts a type the value was never checked to have. | Narrow with `typeof`, `in`, or a type guard; `satisfies` for a literal. |
-| `.skip`, `.todo`, `.only` on a failing Vitest test | Removes it from the run (`allowOnly: false` fails `.only`). | Fix the code or the oracle. |
-| Adding to coverage `exclude`, or lowering `thresholds` in `vitest.config.ts` | An untested file stops counting, or the bar drops. | Add tests. |
-| Removing a strict option from a `tsconfig*.json`, or an ESLint rule or preset | Every file gets weaker checking, not only the one that failed. | Fix the file that failed. |
+| `skip` on a failing test (`unittest.skip`, `self.skipTest`) in a skill's `scripts/tests/` | `just test-scripts` reports it as skipped and goes green with the failure still there. | Fix the script, or the test if its oracle is wrong. |
+| `# shellcheck disable=…` to get `just test-scripts` green | Silences that finding for the next command. | Fix the script. A directive that stays carries its reason on the same line, as the one in `shipping-issues`' `worktree_setup.sh` does. |
+| Removing a suite from the `test-scripts` recipe | That skill's scripts stop being tested at all, with nothing reporting it. | Fix the suite. |
 
 ## Everywhere
 
 | Construct | Why it is weakening |
 |---|---|
-| Adding a path to an ignore list (`typos.toml`, `.prettierignore`, ESLint's `globalIgnores`, `deny.toml`, `osv-scanner.toml`) | That path leaves the gate for good, and nothing reports it again. The one deliberate entry shared by the lists is the generated `.claude/skills/` mirror; a harness check keeps `.prettierignore`, `typos.toml`, and Vitest's lists agreeing on it (ESLint's `globalIgnores` is no longer compared). |
+| Adding a path to an ignore list (`typos.toml`, `deny.toml`, `osv-scanner.toml`) | That path leaves the gate for good, and nothing reports it again. The one deliberate entry in `typos.toml` beyond build output and the lockfile is the generated `.claude/skills/` mirror, and a harness check keeps it there and keeps `.agents/skills/` out. |
 | `continue-on-error` on a CI job or step | The job reports success whatever the step did. A step that must not run without a secret is skipped by an `if:` on a step-level condition instead. |
 | `git commit --no-verify` | Skips every pre-commit job, the staged secret guard included, which no CI job reruns. A personal permission file may deny its usual spellings on one host; the rule binds every author. |
 | Widening a workflow's `permissions:` | A compromised step can do more with the token. |

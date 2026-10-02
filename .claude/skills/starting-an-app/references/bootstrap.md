@@ -15,10 +15,8 @@ alone and caught by the leftover check below.
 
 ## Before it runs
 
-`just install` first: while the tree has a `package.json`, the task formats what it
-rewrote with Prettier from `node_modules`, and without it fails with
-`ERR_BOOTSTRAP_NO_DEPS` before writing anything. In a git work tree it refuses uncommitted or untracked changes
-(`ERR_BOOTSTRAP_DIRTY`), so the rewrite is the only change to review; outside one it
+`just install` first, for the pinned `just` that runs it. In a git work tree it refuses
+uncommitted or untracked changes (`ERR_BOOTSTRAP_DIRTY`), so the rewrite is the only change to review; outside one it
 still runs, without that check and without the closing scan for placeholders outside
 the site list.
 
@@ -28,11 +26,11 @@ Each value comes from its flag, else from a prompt on a terminal, else from its 
 
 | Value | Flag | Template placeholder | Where it shows up |
 |---|---|---|---|
-| Display name | `--name` | `MyApp` | README's title, `package.json`'s description |
+| Display name | `--name` | `MyApp` | README's title and the other sites that name the app |
 | Slug | `--slug` | `myapp` | crate names (`myapp-core`), Rust identifiers (`myapp_core`), the upper-case spelling (`MYAPP`), binary and log file names |
 | Bundle identifier | `--bundle-id` | `com.example.myapp` | `BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs`, `bundle_id` in the `justfile`, the data and log directories |
 | GitHub `owner/repo` | `--repo` | this template's repository | the README badges and `SECURITY.md`'s advisory link |
-| Author | `--author` | the template's author | the metadata sites on the task's list |
+| Author | `--author` | the template's author | no site of its own: the copyright holder's default |
 | Copyright holder | `--copyright` | the template's owner | `LICENSE` |
 
 A flag takes its value as the next argument or after `=` (`--name="Tide Pool"`); quote a
@@ -84,19 +82,17 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    rewritten; the
    template-only CI job, `Template Bootstrap Smoke`, removed with its required context
    in `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the app runs;
-   `CHANGELOG.md` reset to an empty `[Unreleased]` and the version at its two sites to
-   `0.1.0`; the author written into `package.json` and the copyright line into
-   `LICENSE`.
+   `CHANGELOG.md` reset to an empty `[Unreleased]` and `Cargo.toml`'s version to
+   `0.1.0`; the copyright line written into `LICENSE`.
 3. Renames the crate directories under `crates/` to the new slug, and updates
    `Cargo.lock` with `cargo update --workspace --offline`, so no new crate version slips
    into the rename (`ERR_BOOTSTRAP_LOCKFILE`).
-4. Formats what it rewrote: `cargo fmt --all`, then Prettier on the rewritten files
-   that are neither Markdown nor Rust (`ERR_BOOTSTRAP_FORMAT`).
+4. Formats the renamed crates with `cargo fmt --all` (`ERR_BOOTSTRAP_FORMAT`).
 5. Deletes the template's own material: `docs/template/`, this page in both skill
    trees, and `xtask/src/bootstrap.rs` and `xtask/src/verify_bootstrap.rs`, whose tests
    live inside them.
 6. Scans for a placeholder left outside the site list and warns about it, then prints
-   the next steps: `just install` and commit the rewrite, fill `AGENTS.md` › Product,
+   the next steps: review and commit the rewrite, fill `AGENTS.md` › Product,
    fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
    to `main`, `just labels` (and `dependencies` added by hand to any Dependabot pull
    request opened earlier), the GitHub security settings and the Renovate GitHub App,
@@ -129,8 +125,7 @@ again" below.
   HEAD`, deletions included) and every untracked file git does not ignore (`git
   ls-files --others --exclude-standard`), so an edit is verified before it is
   committed while ignored build output (`target/`, `dist/`) cannot change a verdict;
-  only the installed `node_modules/` is linked in, and the bootstrap that runs there is
-  this checkout's own `xtask` binary. A test that survives the bootstrap
+  the bootstrap that runs there is this checkout's own `xtask` binary. A test that survives the bootstrap
   never asserts a literal that is only true before it runs.
 - A change to the task, to a placeholder site, or to any file the task rewrites is
   proven by `just verify-bootstrap` and `cargo nextest run -p xtask bootstrap` locally,

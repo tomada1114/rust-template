@@ -45,7 +45,7 @@ just check
 ```
 
 `just check` runs everything a Mac can run without a human (verify-hooks, fmt, lint,
-lint-repo, agents-check, test-scripts, check-harness, test, test-platform, build, smoke);
+lint-repo, agents-check, test-scripts, check-harness, test, test-platform);
 the justfile's `check` recipe is the source of truth for the order. It opens no window
 (`AGENTS.md` › "Never taking over the developer's Mac"). A cold run takes longer than a
 foreground tool call may last, so under Claude Code start it with `run_in_background`
@@ -88,13 +88,12 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
   unchecked.
 - **A new dependency** (a crate or an npm package) needs its reason in the body for the
   human's sign-off (`.claude/rules/project.md` › "Dependency Policy").
-- **A weakened gate**: a lint `allow` or `expect`, an `eslint-disable`, a lowered floor,
-  a coverage exclusion, an `#[ignore]` or `.skip` on a failing test, an ignore-list
-  entry. Any of these leaves "No gate weakened" unchecked, and the PR stops until a
+- **A weakened gate**: a lint `allow` or `expect`, a lowered floor, a coverage
+  exclusion, an `#[ignore]` or a `skip` on a failing test, an ignore-list entry. Any of these leaves "No gate weakened" unchecked, and the PR stops until a
   human decides.
-- **Doc comments.** A new `pub` item without a `///` comment saying why it exists, or a
-  new wrapper in `ui/src/ipc/` without a TSDoc comment (`AGENTS.md` › "Review
-  Checklist"). `missing_docs` catches an absent `///`, not one that only restates the
+- **Doc comments.** A new `pub` item without a `///` comment saying why it exists
+  (`AGENTS.md` › "Review Checklist"), or a new wrapper in `ui/src/ipc/` without a TSDoc
+  comment. `missing_docs` catches an absent `///`, not one that only restates the
   signature, and nothing checks the TSDoc.
 - **CHANGELOG.** A user-visible change without an entry under `[Unreleased]` in
   `CHANGELOG.md` (`AGENTS.md` › "Review Checklist").

@@ -41,10 +41,8 @@ so this skill is where an app still finds them.
    It needs step 1's `just install`. **REQUIRED:**
    [references/bootstrap.md](references/bootstrap.md), for its flags, defaults, and
    validation, before running it, changing it, or chasing a leftover placeholder.
-3. **Commit the rewrite**: `just install` again (the rename changed `package.json`'s
-   name, and pnpm runs nothing until the next install), review the rewrite
-   (`git status`, `git diff`), and commit it as one commit before editing anything, so
-   the rename stays one reviewable diff.
+3. **Commit the rewrite**: review it (`git status`, `git diff`), and commit it as one
+   commit before editing anything, so the rename stays one reviewable diff.
 4. **Write `AGENTS.md`'s `## Product` section**: what the app is and who it is for, the
    core interaction, the non-goals, and where those decisions are recorded. The owner
    decides every line; an agent drafts only from what the owner has said. Delete each

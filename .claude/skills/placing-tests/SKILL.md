@@ -5,21 +5,20 @@ description: >
   tests beside core code vs crates/myapp-core/tests/, fakes and <port>_contract
   functions in crates/myapp-test-support, adapter tests in crates/myapp-platform/tests
   and #[ignore = "local machine: ..."] for ones that need a human's Mac, tauri::test
-  command tests in src-tauri/tests, the binary's tests in crates/myapp/tests, a
-  .test.ts or .test.tsx beside the source in the ui or scripts Vitest project
-  (vitest.config.ts), and which coverage floor governs it (the llvm-cov floors in the
-  justfile's test-core recipe, the per-glob thresholds in vitest.config.ts). Use when
-  adding a test file, choosing between just test-fast, just test-core, just test-platform,
-  and just test-scripts, when a fake from myapp-test-support will not
-  type-check inside core, or when a coverage floor fails.
+  command tests in src-tauri/tests, the binary's tests in crates/myapp/tests, a cargo
+  xtask task's tests, a skill's bundled script suite under its scripts/tests/, and which
+  coverage floor governs it (the llvm-cov floors in the justfile's test-core and
+  test-xtask recipes). Use when adding a test file, choosing between just test-fast,
+  just test-core, just test-platform, just test-xtask, and just test-scripts, when a
+  fake from myapp-test-support will not type-check inside core, or when a coverage
+  floor fails.
 ---
 
 # Placing Tests
 
-**Owns:** where a new test goes, which recipe and Vitest project run it, and which
-coverage floor measures it. **Does not own:** how the test is written, asserted, and
-faked (`writing-tests`); the red-green loop (`tdd`); changing a floor, a project, or an
-include list (`changing-gates`).
+**Owns:** where a new test goes, which recipe runs it, and which coverage floor
+measures it. **Does not own:** how the test is written, asserted, and faked
+(`writing-tests`); the red-green loop (`tdd`); changing a floor (`changing-gates`).
 
 ## The rule: the cheapest place that can fail for it
 
@@ -39,9 +38,7 @@ fewest machines while still able to fail for the behavior:
 | The `myapp` binary's command line | `crates/myapp/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core` | none |
 | The binary's wording for an error code | `#[cfg(test)] mod tests` in `crates/myapp/src/wording.rs`, one test per variant | `just test-core` | none |
 | A repository task in `xtask/` | `#[cfg(test)] mod tests` in the task's file, with fakes for its child processes; a run of the built binary in `xtask/tests/` (`CARGO_BIN_EXE_xtask`, with a temporary directory as its root) | `just test-xtask` | `xtask` 85/90, and `xtask/guard/` 90/100 for the staged guard's rules |
-| A repository script not yet ported | `scripts/<name>.test.ts`, beside the script | `just test-scripts` | `scripts/**` floor |
-| A script bundled with a skill | `.agents/skills/<name>/scripts/<script>.test.ts`, beside it | `just test-scripts` | `.agents/skills/*/scripts/**` floor |
-| A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/shipping-issues/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
+| A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/<name>/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
 
 A domain decision tested only in a row that no floor measures is in the wrong place:
 move it into core and test it there. The platform crate, the shell, and the CLI
@@ -99,36 +96,12 @@ over fakes, so they touch no disk and open no window. This repository builds the
 crate only on macOS (CI's Linux jobs never compile it), so they run in
 `just test-platform` and CI's macOS job, not in `just test-core`.
 
-## The UI and scripts: Vitest projects
-
-`vitest.config.ts` has two projects, chosen by path, never by a test's name:
-
-- **`ui`** — `ui/src/**/*.test.{ts,tsx}`, under jsdom, with `ui/src/test/setup.ts`
-  (Testing Library's matchers and cleanup, then the IPC mocks cleared) and a
-  10-second budget. A test here does no real I/O: the Rust side is `mockCommands`.
-- **`scripts`** — `scripts/**/*.test.ts` and a skill's
-  `.agents/skills/*/scripts/**/*.test.ts`, under Node, with a 60-second budget: script
-  tests create temporary directories and throwaway repositories.
-
-The budgets differ because a hang means different things: a UI test has no I/O, so a
-short budget surfaces an unresolved promise in seconds; a script test legitimately
-waits on a subprocess. Tests sit beside their source; `coverage.exclude` drops
-`**/*.test.{ts,tsx}`, so a test never counts itself as covered source. Test-only
-helpers that must import `@tauri-apps/*` live in `ui/src/ipc/testing.ts`, and
-production code never imports them. A script's data under test goes under
-`scripts/**/fixtures/`, which Vitest, coverage, ESLint, and `typos` all skip, so a
-fixture can be malformed on purpose.
-
-Iterate on one file with `pnpm exec vitest run --project scripts <path>`;
-`just test-scripts` adds the floors.
-
 ## Coverage floors
 
 The numbers live in their configs, not here, because a copied number goes stale the
-moment the config changes: core's in the `--fail-under-lines` and
-`--fail-under-functions` flags of the justfile's `test-core` recipe
-(`cargo llvm-cov nextest -p myapp-core`), the TypeScript ones in `vitest.config.ts`'s
-`coverage.thresholds`.
+moment the config changes: the `--fail-under-lines` and `--fail-under-functions` flags
+of the justfile's `test-core` recipe (`cargo llvm-cov nextest -p myapp-core`) and
+`test-xtask` recipe.
 
 - **Only core's own tests count toward core's floor.** `just test-core` measures the
   test binaries of `myapp-core`; a command test, a CLI test, or a platform test that
@@ -138,10 +111,9 @@ moment the config changes: core's in the `--fail-under-lines` and
   (https://github.com/taiki-e/cargo-llvm-cov, checked 2026-09-29), and this repository
   pins stable. So a missed `else` passes every gate: write the test for each side of
   every conditional yourself.
-- **One floor per tree, no combined number.** Each glob in `coverage.thresholds` is
-  judged on its own, so a well-tested tree cannot subsidize an untested one. Every
-  source file counts from the moment it exists (`coverage.include`), at 0% until
-  tested: write its test in the same pull request.
+- **One floor per tree, no combined number.** Core, `xtask` with `xtask-guard`, and
+  `xtask/guard/` alone are each judged on their own, so a well-tested tree cannot
+  subsidize an untested one: write a new file's tests in the same pull request.
 - **Coverage stops at the process boundary.** A binary a test spawns is not measured,
   so keep a `main` to wiring and put anything with a branch where an in-process test
   reaches it.

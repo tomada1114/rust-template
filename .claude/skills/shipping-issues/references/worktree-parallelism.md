@@ -177,10 +177,10 @@ absent, and `worktree_setup.sh` handles the first two:
   it is tracked. Nothing secret-shaped is copied (`.env`, `.env.*`, `.envrc`,
   `*.local`): `AGENTS.md` › "Security and human approval" forbids reading one even
   to check it, and this app's gates need none.
-- **Dependencies** -- `node_modules` is empty; the script clones the main
-  checkout's with `cp -Rc` (APFS clonefile, cheap) and then runs
-  `pnpm install --frozen-lockfile` from `pnpm-lock.yaml`. Crates need no install
-  step: cargo fetches into the shared `~/.cargo` registry and builds on demand.
+- **Dependencies** -- crates need no install step: cargo fetches into the shared
+  `~/.cargo` registry and builds on demand. (In a repository with a JavaScript
+  lockfile the script also clones `node_modules` with `cp -Rc` and runs that
+  lockfile's install; this one has none.)
 - **A virtualenv can never be copied.** `pyvenv.cfg` and the `bin/` shims
   hold absolute paths; a copied `.venv` is a broken one that fails in
   confusing ways. It is always re-created by the tool.

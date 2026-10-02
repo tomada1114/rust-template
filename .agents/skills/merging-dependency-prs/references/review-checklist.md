@@ -8,13 +8,13 @@ and passes the tests, not that it is the version anyone meant to trust.
 
 - Read the release notes or changelog for every **major** bump and every **0.x minor**
   (the survey already reports a 0.x minor as `major`: below 1.0.0 a minor release is
-  allowed to break, and Cargo's and npm's caret ranges treat it that way). Dependabot's
+  allowed to break, and Cargo's caret ranges treat it that way). Dependabot's
   `update-types` counts a 0.x minor as a minor
   (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
   `groups` › `update-types`, checked 2026-09-30), so it arrives inside a
   `*-minor-and-patch` group, and the survey marks that bump `(major)`. Note removed APIs,
   a raised minimum Rust version (`rust-version` in `Cargo.toml` is `1.90`, and raising it
-  is an ADR decision), a raised Node engine, and new lints.
+  is an ADR decision), and new lints.
 - Where to find them: the PR body's release-notes section, or
   `gh release view <tag> --repo <owner>/<repo>`.
 
@@ -30,7 +30,7 @@ and passes the tests, not that it is the version anyone meant to trust.
 
 ## Maintainer and source
 
-A crate or npm package whose repository moved to another owner, an Action whose
+A crate whose repository moved to another owner, an Action whose
 repository was transferred, or a mise tool whose backend changed is held for the human
 even when green. `cargo deny` (`deny.toml`'s `[sources]`) checks that crates come from
 crates.io only, and the `Dependency Review` check covers licences and known
@@ -39,15 +39,12 @@ vulnerabilities on the PR; confirm both are green.
 ## Supply-chain settings stay as they are
 
 A bot PR changes versions, nothing else. Hold one that touches `.github/dependabot.yml`'s
-`cooldown`, `.github/renovate.json`'s `minimumReleaseAge`, `pnpm-workspace.yaml`
-(`minimumReleaseAge`, `trustPolicy`, `strictDepBuilds`, `allowBuilds`), `deny.toml`,
-`osv-scanner.toml`, or any other gate file. A new `allowBuilds` entry would let an npm
-lifecycle script run on the developer's Mac at install time, so it is always the
-human's call.
+`cooldown`, `.github/renovate.json`'s `minimumReleaseAge`, `deny.toml`,
+`osv-scanner.toml`, or any other gate file.
 
 ## Nothing new
 
-A package in `Cargo.lock` or `pnpm-lock.yaml` that was not there before is a new
+A package in `Cargo.lock` that was not there before is a new
 transitive dependency: name it in the plan. `just deny` and `mise exec -- cargo shear`
 run on the combined branch.
 
@@ -60,16 +57,16 @@ the crates that carry one:
 
 ```bash
 cargo metadata --format-version 1 --locked --filter-platform aarch64-apple-darwin \
-  | node -e 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); for (const p of m.packages) if (p.targets.some((t) => t.kind.some((k) => k === "custom-build" || k === "proc-macro"))) console.log(p.name, p.version);'
+  | python3 -c 'import json, sys; [print(p["name"], p["version"]) for p in json.load(sys.stdin)["packages"] if any(k in ("custom-build", "proc-macro") for t in p["targets"] for k in t["kind"])]'
 ```
 
 For each bumped crate on that list, read what changed in its `build.rs` or macro source
 between the two versions (https://diff.rs/ shows a published crate's changes between
 versions, checked 2026-09-29). A build script that starts fetching from the network,
 writing outside `OUT_DIR`, or running a new program is held for the human. The list
-holds `serde_derive`, `thiserror-impl`, `tauri`, and `tauri-macros` among about sixty
-others (observed on this Mac with the command above, 2026-09-29), so a grouped cargo PR
-almost always contains one.
+holds `serde_derive`, `thiserror-impl`, and `clap_derive` among about thirty (observed
+on this Mac with the command above, 2026-10-01), so a grouped cargo PR almost always
+contains one.
 
 ## The Tauri family
 
@@ -83,16 +80,10 @@ almost always contains one.
 - A new `tauri-plugin-*` crate or `@tauri-apps/plugin-*` package appearing in a bump is
   a new dependency and a new capability, not a bump: stop and ask.
 
-## Node
-
-- A Node major moves `node` in `mise.toml` and `@types/node` together
-  (`merging-dependency-prs` "The Node rule"); the one side a bot PR leaves behind is
-  moved in the combined branch (`failure-modes.md` F12) and reviewed here like a
-  bot-proposed bump.
-
 ## Security updates
 
 Dependabot's cooldown applies only to version updates, never to security updates
 (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
-checked 2026-09-29), so a security PR can propose a version younger than the 7 days pnpm
-enforces. See `failure-modes.md` (F3 there) for what to do.
+checked 2026-09-29), so a security PR can propose a version younger than 7 days. Name
+the advisory, the version, and its publish date in the plan, and let the human choose
+between landing it now and waiting out the remaining days.

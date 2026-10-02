@@ -177,7 +177,7 @@ session's, and this is the whole list:
 
 Before concluding the repository is broken, read the red baseline against what
 is actually in the tree: an untracked build or package-manager cache in the repo
-root can fail the baseline on its own -- here a stale `target/` or `node_modules/`
+root can fail the baseline on its own -- here a stale `target/`
 built by an earlier toolchain or at another path. Seen in practice
 in another repository: a package-manager store holding a unix socket, which a
 test helper that copies untracked files hit with a bare `ENOTSUP`. This is why the

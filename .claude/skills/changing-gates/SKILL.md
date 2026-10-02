@@ -4,24 +4,23 @@ description: >
   Covers editing a file that enforces rather than implements: Cargo.toml's
   [workspace.lints], clippy.toml and crates/myapp-core/clippy.toml, rustfmt.toml,
   deny.toml, osv-scanner.toml, rust-toolchain.toml, mise.toml, lefthook.yml,
-  xtask/src/check_staged.rs and xtask/guard/, eslint.config.mjs, tsconfig*.json,
-  vitest.config.ts thresholds, the test-xtask recipe's floors, .prettierrc.json and .prettierignore, typos.toml,
-  tauri.conf.json's security and bundle.macOS, src-tauri/capabilities/,
-  src-tauri/Entitlements.plist, the test-core recipe's floors, .github/workflows/*.yml,
-  and .github/rulesets/main.json. Use when a lint, a ban, a floor, a pin, an ignore
-  list, a pre-commit job, a CI job or step, or a required check is added, raised,
-  loosened, or removed; when tempted by #[allow], #[expect], #[ignore], eslint-disable,
-  @ts-expect-error, continue-on-error, or --no-verify to get a check green; or when
-  asking which gate would have caught a change, including what none of them sees.
+  xtask/src/check_staged.rs and xtask/guard/, the test-core and test-xtask recipes'
+  floors, typos.toml, tauri.conf.json's security and bundle.macOS,
+  src-tauri/capabilities/, src-tauri/Entitlements.plist, .github/workflows/*.yml, and
+  .github/rulesets/main.json. Use when a lint, a ban, a floor, a pin, an ignore list, a
+  formatter, a pre-commit job, a CI job or step, or a required check is added, raised,
+  loosened, or removed; when tempted by #[allow], #[expect], #[ignore], a skipped test,
+  a shellcheck disable, continue-on-error, or --no-verify to get a check green; or when
+  asking which gate would have caught a change, including what none of them sees, such
+  as JSON, YAML, and Markdown, which no formatter checks.
 ---
 
 # Changing Gates
 
 **Owns:** a change to a file that enforces rather than implements (the list above),
-what weakening a gate means in Rust and TypeScript here, and which gate can see a given
-change at all. **Does not own:** adding a crate or npm package the config then governs
-(`managing-dependencies`); how a script under `scripts/` is written
-(`writing-repo-scripts`); where a test goes and which coverage floor covers it
+what weakening a gate means here, and which gate can see a given change at all. **Does
+not own:** adding a crate the config then governs (`managing-dependencies`); how a
+`cargo xtask` task or a skill's bundled script is written (`writing-repo-scripts`); where a test goes and which coverage floor covers it
 (`placing-tests`); landing a bot's version bump (`merging-dependency-prs`); the label
 set (`triaging-issues`); lifting `unsafe_code = "forbid"` (`integrating-system-apis`).
 
@@ -34,22 +33,22 @@ gate (a new ban, a higher floor, a narrower permission) is the routine direction
 still says the same three things.
 
 **REQUIRED:** [references/weakening.md](references/weakening.md) before reaching for any
-suppression: what each form of weakening does in Rust and TypeScript, why it is caught
-by nothing but review, and the fix that is not a suppression.
+suppression: what each form of weakening does in Rust and in a skill's bundled scripts,
+why it is caught by nothing but review, and the fix that is not a suppression.
 
 ## The one rule every gate change shares
 
 A gate calls the same command every other layer calls; it never defines a rule of its own.
 The `justfile` is the one definition of each check: `just check` runs the local set
 (verify-hooks, fmt, lint, lint-repo, agents-check, test-scripts, check-harness, test,
-test-platform, build, smoke), CI's jobs run the same recipes or the same `cargo` and `pnpm`
-commands as separate steps so a reader sees which step failed, and each `lefthook.yml` job
+test-platform), CI's jobs run the same recipes or the same `cargo` commands as separate
+steps so a reader sees which step failed, and each `lefthook.yml` job
 runs the same executable and flags as its recipe, narrowed to the staged files. A check
 that lives in only one layer passes there and fails in the others, or the reverse.
 
 So a new check is several edits, not one:
 
-1. the tool's config, or a script under `scripts/` with its test;
+1. the tool's config, or a `cargo xtask` task with its test;
 2. the recipe that runs it, and its place in `just check`;
 3. the matching `ci.yml` step (`just check-harness` fails while `just check` and CI's
    steps differ outside a reasoned exception list);
@@ -70,17 +69,18 @@ elsewhere, including this skill. Detail, traps, and the judgment each needs are 
 - **Core's bans** (`crates/myapp-core/clippy.toml`) and core's forbidden-crate lists
   (`deny.toml`'s `wrappers`, the closure check, `AGENTS.md`) change together; adding a
   ban strengthens, removing one weakens.
-- **rustfmt and Prettier**: an option change reformats the tree; land the option and
-  the `just fmt` result in one commit.
+- **rustfmt**: an option change reformats the tree; land the option and the `just fmt`
+  result in one commit. Rust is the only language a formatter checks ("What no gate
+  here sees").
 - **Supply chain**: `deny.toml`'s licence allow-list and `dependency-review.yml`'s
-  `allow-licenses` agree (the workflow adds two licences npm packages use), a per-crate
-  exception goes in both, and an advisory ignore in
+  `allow-licenses` agree (the workflow's list also holds permissive licences no crate
+  uses yet), a per-crate exception goes in both, and an advisory ignore in
   `deny.toml` or `osv-scanner.toml` carries a reason, a 90-day expiry, and, for a
   shipped crate, a tracking issue.
 - **Pins**: `rust-toolchain.toml` and `mise.toml` are bumped by Renovate; a bump that
   fires a new lint is fixed in code on that pull request.
-- **Coverage floors**: the `test-core` recipe's `--fail-under-*` flags and
-  `vitest.config.ts`'s per-glob `thresholds` are the only places a floor is written;
+- **Coverage floors**: the `--fail-under-*` flags in the `test-core` and `test-xtask`
+  recipes are the only places a floor is written;
   a new way to set one from an environment variable, a flag, or a workflow is lowering
   it by another route.
 - **The app's security posture**: `tauri.conf.json`'s `security` and `bundle.macOS`,
@@ -93,8 +93,8 @@ elsewhere, including this skill. Detail, traps, and the judgment each needs are 
 
 ## The pre-commit hook stays check-only and fast
 
-Enforced by: `lefthook.yml` (no job writes a file). It runs `rustfmt --check`,
-`prettier --check`, `eslint`, and `typos` on the staged files, the skills-mirror check
+Enforced by: `lefthook.yml` (no job writes a file). It runs `rustfmt --check` and
+`typos` on the staged files, the skills-mirror check
 when a skill path is staged, and the staged guard on every commit. It never compiles,
 runs clippy or a test, or formats and re-stages. That is a decision, not an omission:
 
@@ -136,15 +136,21 @@ ruleset that may not be applied, and a new recipe that takes over the Mac. A gat
 proposed to close any gap is a real gate change and belongs in its pull request as one,
 with its "Enforcement layers" row updated or removed.
 
+No formatter checks JSON, YAML, or Markdown. Prettier's check over them was dropped with
+the Node toolchain rather than replaced, to keep the toolchain small: `typos` still
+reads those files and `actionlint` the workflows, and their layout is left to review
+(wrap Markdown by hand at the width its neighbors use). Adding a formatter for them is a
+gate change of its own, with every edit "The one rule every gate change shares" lists,
+never a side effect of another pull request.
+
 ## Checking a gate change
 
 Run the check the gate feeds, then the harness, then everything:
 
 ```bash
-just lint            # a lint, format, or tsconfig change
-just test            # core's floors, or vitest.config.ts's ui/src/ thresholds
-just test-scripts    # lefthook.yml, the guard, a gate's script, or a floor on scripts/
-                     # or .agents/skills/*/scripts/ (both 85/90)
+just lint            # a lint or format change
+just test            # core's floors, or xtask's: lefthook.yml, the guard, a gate's task
+just test-scripts    # a skill's bundled Python or shell scripts (no floor)
 just deny            # deny.toml
 just check-harness   # workflows, the ruleset, recipes, cooldowns, ignore lists
 just check

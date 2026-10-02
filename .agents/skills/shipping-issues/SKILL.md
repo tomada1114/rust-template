@@ -106,7 +106,7 @@ before step 3 ([dependency-triage.md](references/dependency-triage.md)).
 ## 2c. Confirm the proposed batch
 
 The plan proposes; this step decides. Look for what a script cannot see: two issues both
-editing `Cargo.toml`, `package.json`, a workflow, `src-tauri/src/lib.rs`'s
+editing `Cargo.toml`, a workflow, `src-tauri/src/lib.rs`'s
 `generate_handler!`, or both regenerating `ui/src/ipc/generated/` (a `CHANGELOG.md`
 entry is not a collision). Take the narrower grouping on any disagreement; shrinking
 never needs asking ([dependency-triage.md](references/dependency-triage.md)).

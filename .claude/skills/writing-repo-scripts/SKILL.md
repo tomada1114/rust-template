@@ -1,102 +1,57 @@
 ---
 name: writing-repo-scripts
 description: >
-  Covers writing or editing a TypeScript script under scripts/ (scripts/*.ts,
-  scripts/lib/) or a skill's bundled script, run directly by Node's
-  type stripping, and its Vitest test beside it. Use when adding a script or the just
-  recipe that calls it, writing main(context: ScriptContext) and the
-  import.meta.main / runScript entry point, a script must refuse or skip outside a git
+  Covers writing or editing repository automation and its tests: a cargo xtask task
+  under xtask/src/ (its Context, RunOptions, git_env and staged_guard_env, ScriptError,
+  test_support::Fake, just test-xtask's floors) and a skill's bundled Python or shell
+  script under .agents/skills/*/scripts/ (header comment, stdlib-only Python, a fake gh,
+  tests in scripts/tests/ run by just test-scripts). Use when adding a task, a skill
+  script, or the just recipe that calls one, a script must refuse or skip outside a git
   work tree, git spawned from a hook acts on the wrong repository (an inherited GIT_DIR
-  or GIT_INDEX_FILE; git_env, staged_guard_env), writing a ScriptError with an
-  ERR_<STAGE>_<WHAT> code and Expected/Actual/Next lines, erasableSyntaxOnly or a .ts
-  import extension fails, stubbing git, gh, or cargo in a test through the context's
-  run function, or a scripts/ coverage floor fails; and the same contract in a
-  cargo xtask task (xtask/src/, its Context, git_env, ScriptError, just test-xtask).
+  or GIT_INDEX_FILE), writing an ERR_<STAGE>_<WHAT> failure with Expected/Actual/Next
+  lines, stubbing git, gh, or cargo in a test, or an xtask coverage floor fails.
 ---
 
 # Writing Repository Scripts
 
-**Owns:** how a repository script is written and tested: why it is TypeScript run by
-Node, what it may depend on, how it spawns git, how it behaves outside a git work tree,
-how it reports failure, and how its test is built. **Does not own:** how a skill is
-authored or mirrored (`authoring-skills`); what a gate checks and which gate runs a
-script (`changing-gates`); the coverage floor values and which Vitest project a test
-joins (`placing-tests`); a new package the script would import
-(`managing-dependencies`).
+**Owns:** how repository automation is written and tested: a `cargo xtask` task, and a
+script a skill bundles: what each may depend on, how it spawns git, how it behaves
+outside a git work tree, how it reports failure, and how its test is built. **Does not
+own:** how a skill is authored or mirrored (`authoring-skills`); what a gate checks and
+which gate runs a task (`changing-gates`); where a test goes and which floor measures it
+(`placing-tests`); a new crate a task would import (`managing-dependencies`).
 
 The rules themselves live once, in `AGENTS.md` › "Repository scripts": read it first.
 This skill carries the reasons behind them and worked examples from the tree; it does
 not restate the list, so the two cannot drift.
 
+## Two homes
+
+- **A `cargo xtask` task** (`xtask/src/<task>.rs`) is what a `just` recipe, a lefthook
+  job, or a CI step runs: the gates, the harness checks, the bootstrap, the GitHub
+  writes. It is Rust, so it costs the clone no second toolchain, gets the workspace's
+  lints, and parses YAML and TOML with real parsers (`yaml-rust2`, `toml`).
+- **A skill's bundled script** (`.agents/skills/<skill>/scripts/`) is a step of that
+  skill's procedure, in Python or shell (`merging-dependency-prs`' `survey_prs.py`,
+  `shipping-issues`' `plan.py` and `worktree_setup.sh`). It travels with the skill, so
+  it uses nothing the skill cannot assume: the Python standard library, `git`, and `gh`.
+
 ## A task in `cargo xtask`
 
-The developer-loop automation has moved to Rust: `xtask/src/<task>.rs`, dispatched by
-name from `xtask/src/main.rs` and run as `cargo xtask <task>` (the alias in
-`.cargo/config.toml`). The contract below carries over one for one, and the Rust
-spellings are:
+A task is dispatched by name from `xtask/src/main.rs`'s `TASKS` table and run as
+`cargo xtask <task>` (the alias in `.cargo/config.toml`).
 
 - `main(context: &Context<'_>) -> TaskResult`, where `Context` (`xtask/src/context.rs`)
-  holds argv, env, root, a `run` function, a logger, and stdin. A unit test builds one
-  with `test_support::Fake` (`Fake::at(root).argv(…).env(…).run(&fake).task(main)`), and
-  a run of the built binary in `xtask/tests/` sets `CARGO_MANIFEST_DIR` to a temporary
-  directory's `xtask/`, which is how the binary finds its root under `cargo run`.
-- `git_env` and `staged_guard_env` (`xtask/src/git_env.rs`) for spawned git.
-- `ScriptError::new(code, summary, expected, actual, next)` (`xtask/src/fail.rs`),
-  `.with_exit_code(2)` for a Claude Code hook, and `ScriptError::unexpected` for an I/O
-  error no code names (`ERR_INTERNAL_UNEXPECTED`).
-- Its tests live in the task's `#[cfg(test)] mod tests`; `just test-xtask` holds the
-  crate to lines 85 and functions 90, and the staged guard's rules (`xtask/guard/`) to
-  lines 90 and functions 100.
-
-## Why TypeScript, run by Node directly
-
-- Node is already required for the UI, so it costs the clone nothing. The scripts need
-  real parsers for YAML, TOML, and JSON (`yaml`, `smol-toml`, `JSON.parse`), which a
-  shell does not have and a regex over YAML or TOML only imitates. Vitest tests them
-  with fixtures. And a reader still learning Rust can maintain TypeScript.
-- Node runs a `.ts` file by stripping its types, with no build step. Stripping only
-  removes types and never rewrites code, so syntax that needs a transform (`enum`, a
-  `namespace` with runtime code, parameter properties) is an error, and an import names
-  the `.ts` file (https://nodejs.org/api/typescript.html, checked 2026-09-29). Enforced
-  by: `scripts/tsconfig.json` "erasableSyntaxOnly" and "module": "NodeNext" (an
-  extensionless relative import is TS2835), so tsc reports both before Node does;
-  "allowImportingTsExtensions" is what lets the `.ts` spelling pass.
-- A script runs after `just install`, so it may import the parsers in `package.json`'s
-  `devDependencies`. A package it would newly need is a new dependency, with the review
-  and sign-off that implies.
-
-## The shape of a script
-
-Every script has a header comment (what it does, its usage line, what it does outside a
-git work tree, and its `Errors:` list), an exported `main` that takes a `ScriptContext`
-(`scripts/lib/script.ts`), and a one-line entry point:
-
-```ts
-import { ScriptError } from "./lib/fail.ts";
-import { runScript, type ScriptContext } from "./lib/script.ts";
-
-export function main(context: ScriptContext): void {
-  // read context.argv, context.env, context.root; spawn through context.run; print through context.log
-}
-
-if (import.meta.main) await runScript(main);
-```
-
-- `import.meta.main` is true only for the module Node was started with, so a test that
-  imports `main` never triggers a run. It arrived in Node 24.2.0, which `mise.toml`'s Node
-  pin passes, and is still marked early development
-  (https://nodejs.org/api/esm.html#importmetamain, checked 2026-09-29). Do not wrap it
-  in a helper: a helper sees its own module, never its caller's.
-- `main` receives everything from the process through the context (argv, env, the
-  repository root, a `run` function for child processes, a logger, stdin), so its test
-  calls it with fakes instead of spawning real tools.
+  holds argv, env, root, a `run` function, a logger, and stdin. Everything from the
+  process reaches the task through it, so a test calls `main` with fakes instead of
+  spawning real tools.
 - Pinned tools are called by bare name; the caller provides PATH: locally the shell that
-  runs `just` (mise activated, or `mise exec -- <command>`), since no recipe calls `mise
-  exec`, and `jdx/mise-action` in CI. A script never calls `mise exec` itself: a CI job
-  installs only the tools its `install_args` name, and asking mise for another would start
-  a download mid-run instead of failing on the missing tool. `git` and `gh` are assumed on
-  PATH, and tests stub both. A missing tool fails with a named code rather than a spawn
-  error (`cargo xtask apply-ruleset`'s `ERR_RULESET_GH_MISSING`).
+  runs `just` (mise activated, or `mise exec -- <command>`), and `jdx/mise-action` in
+  CI. A task never calls `mise exec` itself: a CI job installs only the tools its
+  `install_args` name, and asking mise for another would start a download mid-run
+  instead of failing on the missing tool. `git` and `gh` are assumed on PATH, and tests
+  stub both. A missing tool fails with a named code rather than a spawn error
+  (`cargo xtask apply-ruleset`'s `ERR_RULESET_GH_MISSING`).
 
 ## Spawning git
 
@@ -119,12 +74,14 @@ context.run("git", &["status", "--porcelain"], &options);
 
 The one exception is the staged guard, `cargo xtask check-staged`: it **is** the
 pre-commit check and must judge the index actually being committed, so it uses
-`staged_guard_env(env)`, which keeps `GIT_INDEX_FILE` and drops the rest.
+`staged_guard_env(env)`, which keeps `GIT_INDEX_FILE` and drops the rest. A bundled
+script that spawns git does the same by hand: a copy of `os.environ` without any key
+starting with `GIT_`.
 
 ## Outside a git work tree: refuse or skip
 
-Every header says which, and the choice follows from whether the script's question
-exists outside a checkout:
+Every header says which, and the choice follows from whether the question exists
+outside a checkout:
 
 - **Refuse**, with a named code, when the job is defined over the repository.
   `cargo xtask check-staged` has no index to judge (`ERR_STAGED_NOT_A_REPO`);
@@ -139,12 +96,19 @@ exists outside a checkout:
 A failure is usually read by an agent, which acts on exactly what the message says. So
 it names what failed, what was expected against what was found, and the next command
 that is safe to run, and it never echoes a secret or the matched content (the staged
-guard names a path and a rule, never the text). Throw a `ScriptError`
-(`scripts/lib/fail.ts`); `runScript` prints it and sets the exit code, and turns any
-other exception into `ERR_INTERNAL_UNEXPECTED`. The exit code is 1, or 2 for a Claude
-Code `PostToolUse` hook, the code whose stderr is shown to the agent
-(https://code.claude.com/docs/en/hooks, checked 2026-09-29;
-`cargo xtask format-edited-file`). List every code in the header.
+guard names a path and a rule, never the text).
+
+- In a task, return `ScriptError::new(code, summary, expected, actual, next)`
+  (`xtask/src/fail.rs`); `.with_exit_code(2)` is for a Claude Code `PostToolUse` hook,
+  the code whose stderr is shown to the agent (https://code.claude.com/docs/en/hooks,
+  checked 2026-09-29; `cargo xtask format-edited-file`), and `ScriptError::unexpected`
+  covers an I/O error no code names (`ERR_INTERNAL_UNEXPECTED`).
+- In a bundled Python script, raise a `ScriptError` whose `report()` prints the same
+  four lines to stderr, exit 1, and turn any other exception into
+  `ERR_INTERNAL_UNEXPECTED`; `survey_prs.py` is the worked example. `shipping-issues`'
+  scripts predate the contract and report through their own exit codes; a new script
+  follows the contract.
+- List every code in the header's `Errors:` block.
 
 `cargo xtask verify-hooks` in a clone where `just install` never ran (the checkout's
 absolute path shortened to `<repo>`):
@@ -168,45 +132,59 @@ converge on the file; a known GitHub refusal gets its own code
 (`ERR_RULESET_PLAN_UNSUPPORTED`). Their tests stub `gh`. Running one against the live
 repository is a remote write that needs a human's sign-off first.
 
-## Testing a script
+## Testing a task
 
-The test sits beside it (`scripts/<name>.test.ts`, `scripts/lib/**/<name>.test.ts`) and
-runs in Vitest's `scripts` project under `just test-scripts`.
+Its tests sit in the task's `#[cfg(test)] mod tests`, and end-to-end runs of the built
+binary in `xtask/tests/`.
 
-- **Call `main` with a context you build.** Collect `log` lines in an array and pass a
-  `run` that records each call and answers from a table, as `xtask/src/sync_labels.rs`'s
-  tests do for `gh` and `xtask/src/clippy_guard.rs`'s tests for `cargo`. Assert on the recorded
-  calls: that is how a test proves what would have been sent to GitHub without sending
-  it.
-- **A throwaway repository per test.** `mkdtemp` under `os.tmpdir()`, `git init` with
-  every `GIT_*` variable dropped from `process.env`, removed in `afterEach` (`xtask/src/verify_hooks.rs`'s tests do
-  the same in Rust). Never read or write the real checkout, and never a fixed shared
-  path: Vitest runs files in parallel, and two tests on one path race.
-- **Assert the code, not the prose**: `expect(error).toMatch(/^ERR_HOOKS_NOT_INSTALLED/)`.
-  The code is the contract; the wording may improve.
+- **Run `main` through `test_support::Fake`**:
+  `Fake::at(root).argv(…).env(…).run(&fake).task(main)` collects the logged lines and
+  returns an `Outcome`. Pass a `run` that records each call and answers from a table, as
+  `xtask/src/sync_labels.rs`'s tests do for `gh` and `xtask/src/clippy_guard.rs`'s for
+  `cargo`, and assert on the recorded calls: that is how a test proves what would have
+  been sent to GitHub without sending it.
+- **A throwaway directory or repository per test**: `test_support::temp_dir()` or
+  `committed_repo()`, never the real checkout and never a fixed shared path, since
+  tests run in parallel and two on one path race. A run of the binary in `xtask/tests/`
+  sets `CARGO_MANIFEST_DIR` to a temporary directory's `xtask/`, which is how the binary
+  finds its root under `cargo run`.
+- **Assert the code, not the prose** (`outcome.code()`): the code is the contract; the
+  wording may improve.
 - **Secret-shaped fixtures are assembled at runtime** from pieces that do not match on
   their own, so no committed file, the test included, trips the staged guard or GitHub
-  push protection. Say so in the test's header comment.
+  push protection. Say so in the test's comment.
 
-Enforced by: `vitest.config.ts` "thresholds" (`scripts/**` and a skill's
-`.agents/skills/*/scripts/**` lines 85, functions 90). An untested new file counts as 0%, so
-it pulls the tree's number down from the moment it exists.
+Enforced by: the `test-xtask` recipe's `--fail-under-*` flags (`xtask` with
+`xtask-guard` lines 85, functions 90; `xtask/guard/` alone lines 90, functions 100). An
+untested new file counts as 0%, so it pulls the number down from the moment it exists.
 
-## Adding a script
+## A skill's bundled script
 
-A new script usually lands with more than its own file:
+- **Header comment**: what it does, its usage line, what it needs (`gh`, authenticated;
+  Python's version), what it does outside a git work tree, and its `Errors:` list, as
+  `survey_prs.py`'s header shows.
+- **Standard library only.** A skill cannot install a package, so Python reads TOML
+  with `tomllib` and JSON with `json`, never a regex over YAML or TOML. `python3` and
+  `gh`, like `git`, are assumed on PATH rather than pinned by mise.
+- **Tests under the skill's `scripts/tests/`** (`test_*.py`, `unittest`), with a fake
+  `gh` put on PATH by the suite's `_fakegh.py` (`FakeGh`: an argv-prefix routing table
+  that records every call), so no test reaches GitHub. Run the script's `main()`
+  in-process with the fake's environment; a test that needs files works in a
+  `tempfile.TemporaryDirectory()`, never the real checkout.
+- `just test-scripts` runs each skill's suite with no coverage floor, and shellcheck
+  over `shipping-issues`' shell scripts. A skill that gains its first suite adds its line
+  to the `test-scripts` recipe in the same pull request.
 
-- its test beside it;
+## Adding a task or a script
+
+A new one usually lands with more than its own file:
+
+- its tests, and for a task its row in `xtask/src/main.rs`'s `TASKS`;
 - a `justfile` recipe if people run it by hand, the recipe's line in `AGENTS.md`'s Quick
   Reference, and its command in `CONTRIBUTING.md`'s "Without Just";
 - a "Validating a change" row when no row covers it, and an "Enforcement layers" row
-  when it enforces something. **REQUIRED:** `changing-gates` for a script a gate runs.
+  when it enforces something. **REQUIRED:** `changing-gates` for a task a gate runs.
 
-A script bundled inside a skill follows the same rules, or keeps its own language when
-it was ported with its tests; `just test-scripts` runs those suites too. Keep it a thin
-dispatcher: it parses its arguments, calls into `scripts/lib/`, and prints, with no
-decision of its own beyond choosing the output format. Branching logic belongs in
-`scripts/lib/`, under the `scripts/**` coverage floor, where another script or skill
-can reuse it.
-
-Check the work with `just test-scripts`, then `just lint` (tsc over `scripts/`, ESLint).
+Check a task with `cargo nextest run -p xtask -p xtask-guard` while iterating, then
+`just test-xtask` (the floors) and `just lint`; check a bundled script with
+`just test-scripts`.

@@ -71,7 +71,7 @@ Spend a short, bounded pass gathering evidence for the top 3-5 rows only:
 |---|---|
 | Does it really unblock the issues the table claims? | read both ends' comments; a bare `#N` mention is not a dependency |
 | Is the "damage" still real? | is the failure reproducible now -- check whether CI on `<default>` is actually red, or run `just check` |
-| Does it touch shared ground? | grep the paths/symbols the body names; a change under `crates/myapp-core/`, `Cargo.toml`, `src-tauri/src/`, `ui/src/ipc/`, `scripts/`, or `.github/workflows/` has ripple by construction |
+| Does it touch shared ground? | grep the paths/symbols the body names; a change under `crates/myapp-core/`, `Cargo.toml`, `src-tauri/src/`, `ui/src/ipc/`, `xtask/`, or `.github/workflows/` has ripple by construction |
 | Is it actually specified? | Does the body state a behavior, a file, or an acceptance condition? |
 | Has someone already started? | `HAS-OPEN-PR` flag, plus recent comments claiming the work |
 | Is it stale for a reason? | An issue untouched for a year with no reaction may be dead; check comments before reviving it |

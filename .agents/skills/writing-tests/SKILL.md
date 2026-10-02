@@ -17,10 +17,10 @@ description: >
 
 **Owns:** how one test case is written — its name, the interface it drives, what it
 asserts, how it fakes the world, and what review rejects. **Does not own:** which file
-a test goes in, which Vitest project or recipe runs it, and which floor measures it
-(`placing-tests`); the order of work (`tdd`); the shape of the error types a test
-asserts against (`designing-errors`); how a script's `main` and its fake context are
-built (`writing-repo-scripts`).
+a test goes in, which recipe runs it, and which floor measures it (`placing-tests`);
+the order of work (`tdd`); the shape of the error types a test asserts against
+(`designing-errors`); how a `cargo xtask` task's or a skill script's fakes are built
+(`writing-repo-scripts`).
 
 Worked examples of every pattern below, in both languages, are in
 [references/patterns.md](references/patterns.md).
@@ -32,15 +32,13 @@ Worked examples of every pattern below, in both languages, are in
   `it("keeps the view and holds the error code when Rust rejects a change")`, not
   `it("calls setState")`.
 - One behavior per test; no `if` in a test body. Variations of one behavior go in a
-  table: `it.each([...])` in Vitest, labelled through `%s` in the title; in Rust, a
-  loop over an array of `(input, expected)` pairs whose assertion message names the
+  table: in Rust, a loop over an array of `(input, expected)` pairs whose assertion message names the
   case, since the standard test harness has no parameterized tests. A crate for that
   (`rstest`) is a new dependency (`managing-dependencies`).
 - Cover the happy path and the error path of every public function and every command.
 - Build a case's data with a helper that takes what varies, never a shared mutable
   fixture another test can change. In the sample, `app_holding(Some(2))` in
-  `src-tauri/tests/commands.rs` builds an app whose store holds 2. Files under
-  `scripts/**/fixtures/` are data under test, never imported as modules.
+  `src-tauri/tests/commands.rs` builds an app whose store holds 2.
 
 ## Test through an interface
 
@@ -60,7 +58,9 @@ test green:
 - **The `myapp` binary** as a built executable with `HOME` pointed at a temporary
   directory (`crates/myapp/tests/cli.rs`): its contract is arguments in, exit code,
   stdout, and stderr out.
-- **A script** by calling its `main` with a fake `ScriptContext` (`writing-repo-scripts`).
+- **A `cargo xtask` task** by calling its `main` through `test_support::Fake`, and **a
+  skill's script** by calling its `main()` with a fake `gh` on PATH
+  (`writing-repo-scripts`).
 
 Wanting to reach past an interface to assert something means the code is the wrong
 shape, not that the test needs an exception.
@@ -138,24 +138,18 @@ Do not add a trait, or a fake for it, until something actually varies across it.
 - Time is injected, never waited for. Core reads time only through `Clock`, so a test
   hands it `FixedClock::default()` (the instant `FixedClock::DEFAULT`) and moves it with
   `advance` or `set`. No `std::thread::sleep`, and no assertion on the wall clock.
-- In Vitest, await the promise, `findBy…`, or `waitFor`; fake timers only for code that
-  itself schedules. A Rust test waiting for something that should arrive uses a
+- A Rust test waiting for something that should arrive uses a
   generous timeout that normally returns at once (`recv_timeout` of five seconds); a
   test that something does not arrive keeps its bound short and is rare.
 - A test that touches the file system gets its own directory: `tempfile::tempdir()`,
   bound to a variable that lives until the test ends (the directory is deleted when the
-  `TempDir` is dropped); `mkdtemp` under `os.tmpdir()`, removed in `afterEach`, in
-  TypeScript. Never a fixed path, the checkout, or the real `~/Library`.
+  `TempDir` is dropped); `tempfile.TemporaryDirectory()` in a skill's Python suite.
+  Never a fixed path, the checkout, or the real `~/Library`.
 - Process-wide state is not changed in-process: `std::env::set_var` is `unsafe` in
-  edition 2024 and `unsafe` is forbidden, so a test sets `HOME` on a child process;
-  Vitest stubs go through `vi.stubEnv` and `vi.stubGlobal`, which `vitest.config.ts`
-  restores after every test, as it restores mocks. An `afterEach` whose only job is
-  `vi.restoreAllMocks()` is noise; `ui/src/test/setup.ts` already unmounts and clears
-  the IPC mocks.
+  edition 2024 and `unsafe` is forbidden, so a test sets `HOME` on a child process.
 - Tests are independent: no shared mutable state, no order, and no dependence on the
   machine's time zone, locale, or CPU count. nextest runs each test in its own process
-  (https://nexte.st/docs/design/how-it-works/, checked 2026-09-29), and Vitest runs
-  files in parallel. A flaky test is fixed, never retried or skipped.
+  (https://nexte.st/docs/design/how-it-works/, checked 2026-09-29). A flaky test is fixed, never retried or skipped.
 - What the runner does not clean up (a listener, a child process, a thread) the test
   cleans up itself, on the failure path too.
 
@@ -179,8 +173,7 @@ Do not add a trait, or a fake for it, until something actually varies across it.
 - `is_ok()`, `toBeDefined()`, or `not.toBeNull()` where a specific value is checkable.
 - Testing that a dependency works rather than how this code uses it.
 - Mocking so much that the code under test never runs.
-- `.only` (Vitest's `allowOnly: false` fails the run), and `.skip`, `.todo`, or
-  `#[ignore]` on a failing test. An `#[ignore]` always carries its reason
+- `#[ignore]` on a failing test, or a `skip` in a skill's suite. An `#[ignore]` always carries its reason
   (`#[ignore = "local machine: <what it needs>"]`) and is for a test that needs a human's
   Mac, never one that merely fails.
 - Weakening or deleting an assertion to make a test pass.
