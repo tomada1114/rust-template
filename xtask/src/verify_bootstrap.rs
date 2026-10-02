@@ -1,8 +1,7 @@
 //! `cargo xtask verify-bootstrap`: proves the bootstrap on a scratch copy (`just
 //! verify-bootstrap`). It clones this checkout into its own temporary directory, lays the
 //! work tree's uncommitted changes over the clone (so an edit is verified before it is
-//! committed), links the installed `node_modules` while the tree has a `package.json`,
-//! runs this binary's `bootstrap` task there non-interactively with a hyphenated
+//! committed), runs this binary's `bootstrap` task there non-interactively with a hyphenated
 //! multi-word name, and checks the generated app:
 //!
 //! - no template placeholder is left in any spelling (`MyApp`, `myapp`, `myapp-core`,
@@ -21,7 +20,7 @@
 //!   missing file, a path the bootstrap removed, or `just <recipe>` for a recipe the
 //!   justfile does not define;
 //! - the names agree: the bundle identifier, slug spellings, and version in paths.rs, the
-//!   justfile, Cargo.toml, package.json, LICENSE, and CHANGELOG.md; the crate directories,
+//!   justfile, Cargo.toml, LICENSE, and CHANGELOG.md; the crate directories,
 //!   their package names, the workspace members and dependencies, and Cargo.lock; every
 //!   Rust crate name a valid identifier.
 //!
@@ -31,15 +30,13 @@
 //!
 //! CI's Template Bootstrap Smoke job runs it, so a leftover fails the pull request that
 //! introduced it rather than an app's first release. `--keep` leaves the scratch copy in
-//! place and prints its path. The run needs `just install` first (the bootstrap runs
-//! Prettier from `node_modules`) and cargo's registry (the bootstrap fetches and updates
-//! Cargo.lock).
+//! place and prints its path. The run needs cargo's registry (the bootstrap fetches and
+//! updates Cargo.lock).
 //!
 //! Git work tree: required; outside one it refuses (`ERR_VERIFY_BOOTSTRAP_CLONE`): there
 //! is no checkout to clone.
 //!
-//! Errors: `ERR_VERIFY_BOOTSTRAP_USAGE`, `ERR_VERIFY_BOOTSTRAP_NO_DEPS`,
-//! `ERR_VERIFY_BOOTSTRAP_CLONE`, `ERR_VERIFY_BOOTSTRAP_RUN`, and a generated-tree
+//! Errors: `ERR_VERIFY_BOOTSTRAP_USAGE`, `ERR_VERIFY_BOOTSTRAP_CLONE`, `ERR_VERIFY_BOOTSTRAP_RUN`, and a generated-tree
 //! violation: `ERR_VERIFY_BOOTSTRAP_LEFTOVER`, `ERR_VERIFY_BOOTSTRAP_MARKER`,
 //! `ERR_VERIFY_BOOTSTRAP_TEMPLATE_FILE`, `ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT`,
 //! `ERR_VERIFY_BOOTSTRAP_DANGLING_REFERENCE`, `ERR_VERIFY_BOOTSTRAP_PRODUCT_SECTION`,
@@ -76,8 +73,8 @@ fn verify_answers() -> Answers {
     }
 }
 
-/// Directories a scan skips: version control, dependencies, and build output.
-const SKIPPED_DIRS: [&str; 4] = ["node_modules", ".git", "target", "coverage"];
+/// Directories a scan skips: version control and build output.
+const SKIPPED_DIRS: [&str; 3] = [".git", "target", "coverage"];
 const FIRST_VERSION: &str = "0.1.0";
 /// The prefix of every temporary directory this task makes (`just prune-temp` removes
 /// the ones an interrupted run leaves behind).
@@ -557,9 +554,6 @@ fn captured(text: Option<&str>, pattern: &str) -> Result<Value, ScriptError> {
 fn name_mismatches(root: &Path, answers: &Answers) -> Result<Vec<FailureDetails>, ScriptError> {
     let names = derive_names(answers);
     let text = |path: &str| read_text(&root.join(path));
-    let package: Value = text("package.json")
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or(Value::Null);
     let cargo = parsed_toml(text("Cargo.toml"));
     let lock = parsed_toml(text("Cargo.lock"));
     let crate_dirs: Vec<String> = CRATE_DIRS
@@ -577,7 +571,7 @@ fn name_mismatches(root: &Path, answers: &Answers) -> Result<Vec<FailureDetails>
         .filter(|line| line.starts_with("## ["))
         .count();
 
-    let expectations: [(&str, Value, Value); 8] = [
+    let expectations: [(&str, Value, Value); 5] = [
         (
             "paths.rs BUNDLE_IDENTIFIER",
             captured(paths.as_deref(), r#"BUNDLE_IDENTIFIER: &str = "([^"]*)""#)?,
@@ -595,21 +589,6 @@ fn name_mismatches(root: &Path, answers: &Answers) -> Result<Vec<FailureDetails>
                 &["workspace", "package", "version"],
             )),
             Value::from(FIRST_VERSION),
-        ),
-        (
-            "package.json name",
-            package["name"].clone(),
-            Value::from(names.slug.as_str()),
-        ),
-        (
-            "package.json version",
-            package["version"].clone(),
-            Value::from(FIRST_VERSION),
-        ),
-        (
-            "package.json author",
-            package["author"].clone(),
-            Value::from(answers.author.as_str()),
         ),
         (
             "LICENSE copyright line",
@@ -861,14 +840,9 @@ fn parse_args(argv: &[String]) -> Result<bool, ScriptError> {
     Ok(keep)
 }
 
-/// Clone the checkout into `clone`, lay the work tree over it, link `node_modules`, and
-/// commit, so the bootstrap sees a clean tree.
-fn prepare_clone(
-    context: &Context<'_>,
-    workspace: &Path,
-    clone: &Path,
-    modules: Option<&Path>,
-) -> TaskResult {
+/// Clone the checkout into `clone`, lay the work tree over it, and commit, so the
+/// bootstrap sees a clean tree.
+fn prepare_clone(context: &Context<'_>, workspace: &Path, clone: &Path) -> TaskResult {
     let clone_arg = clone.display().to_string();
     let root_arg = context.root.display().to_string();
     git(
@@ -877,21 +851,6 @@ fn prepare_clone(
         workspace,
     )?;
     overlay(context, clone)?;
-    if let Some(modules) = modules {
-        std::os::unix::fs::symlink(modules, clone.join("node_modules")).map_err(|error| {
-            ScriptError::unexpected("linking node_modules into the clone", &error)
-        })?;
-        // The bootstrap refuses a dirty tree: keep the symlink (which the `node_modules/`
-        // pattern does not match) out of git's view.
-        let exclude = clone.join(".git/info/exclude");
-        let mut text = std::fs::read_to_string(&exclude).unwrap_or_default();
-        text.push_str("\n/node_modules\n");
-        std::fs::create_dir_all(clone.join(".git/info"))
-            .and_then(|()| std::fs::write(&exclude, text))
-            .map_err(|error| {
-                ScriptError::unexpected("excluding node_modules in the clone", &error)
-            })?;
-    }
     git(context, &["add", "-A"], clone)?;
     git(
         context,
@@ -973,21 +932,6 @@ fn run_bootstrap(context: &Context<'_>, exe: &Path, clone: &Path, answers: &Answ
 /// The task with the bootstrap's binary given, so a test can name a fake one.
 fn verify(context: &Context<'_>, exe: &Path) -> TaskResult {
     let keep = parse_args(&context.argv)?;
-    let root = context.root.as_path();
-    let modules = root.join("node_modules");
-    let needs_modules = root.join("package.json").is_file();
-    if needs_modules && !modules.is_dir() {
-        return Err(ScriptError::new(
-            "ERR_VERIFY_BOOTSTRAP_NO_DEPS",
-            "node_modules is missing",
-            format!(
-                "installed dependencies at {} (the bootstrap runs Prettier)",
-                modules.display()
-            ),
-            "no node_modules directory",
-            "run `just install`, then this again",
-        ));
-    }
 
     let base = temp_base(context);
     let workspace = make_temp_dir(&base, TEMP_PREFIX)?;
@@ -1003,14 +947,9 @@ fn verify(context: &Context<'_>, exe: &Path) -> TaskResult {
             },
         )
     };
-    let outcome = prepare_clone(
-        context,
-        &workspace,
-        &clone,
-        needs_modules.then_some(modules.as_path()),
-    )
-    .and_then(|()| run_bootstrap(context, exe, &clone, &answers))
-    .and_then(|()| assert_generated(&clone, &answers, &base, &product_section));
+    let outcome = prepare_clone(context, &workspace, &clone)
+        .and_then(|()| run_bootstrap(context, exe, &clone, &answers))
+        .and_then(|()| assert_generated(&clone, &answers, &base, &product_section));
     let cleanup = if keep {
         context.log(&format!(
             "verify-bootstrap: kept the scratch copy at {}",
@@ -1064,7 +1003,7 @@ mod tests {
     };
     use crate::context::{Context, Env, RunOptions, RunResult, run_command};
     use crate::fail::{FailureDetails, TaskResult};
-    use crate::test_support::{Fake, committed_repo, env_of, git, temp_dir, write};
+    use crate::test_support::{Fake, committed_repo, git, temp_dir, write};
 
     const AGENTS: &str = "# Project Guide\n\n## Product\n\nThis section is the app's own.\n\n- **What it is, and who it is for** — TODO: one paragraph.\n  More of it.\n- **Non-goals** — TODO: the cut list.\n\n## Quick Reference\n\n- **Not a product bullet** — kept.\n";
 
@@ -1126,11 +1065,6 @@ mod tests {
         write(root, "Cargo.lock", format!("version = 4\n\n{lock}"));
         write(
             root,
-            "package.json",
-            "{ \"name\": \"tide-pool\", \"version\": \"0.1.0\", \"author\": \"Ada Lovelace\" }\n",
-        );
-        write(
-            root,
             "LICENSE",
             "MIT License\n\nCopyright (c) 2031 Ada Lovelace\n",
         );
@@ -1151,7 +1085,6 @@ mod tests {
             "docs/guide.md",
             "See [the guide](../AGENTS.md#product), [a site](https://example.com), [a template](adr/NNNN-<title>.md), and `[code](missing.md)`.\nRun `just check`.\n\n```sh\njust check\n[fenced](missing.md)\n```\n",
         );
-        write(root, "node_modules/x/README.md", "MyApp");
         write(root, "target/debug/notes.md", "MyApp");
         dir
     }
@@ -1294,7 +1227,6 @@ mod tests {
             "[workspace]\nmembers = [\"other/*\"]\n\n[workspace.dependencies]\nx = { path = \"crates/y\" }\n",
         );
         write(root, "Cargo.lock", "version = 4\n");
-        write(root, "package.json", "not json");
         write(root, "CHANGELOG.md", "## [Unreleased]\n## [0.1.0]\n");
         std::fs::remove_file(root.join("LICENSE")).expect("remove");
         let found = generated(root, &product_check("starting-an-app", None));
@@ -1302,7 +1234,6 @@ mod tests {
         let actual = &found[0].actual;
         for part in [
             "Cargo.toml [workspace.package] version: null (expected \"0.1.0\")",
-            "package.json name: null (expected \"tide-pool\")",
             "LICENSE copyright line: null (expected \"Ada Lovelace\")",
             "CHANGELOG.md release headings: 2 (expected 1)",
             "crates/tide-pool-test-support: missing",
@@ -1399,15 +1330,11 @@ mod tests {
     }
 
     #[test]
-    fn refuses_bad_arguments_and_a_missing_node_modules() {
+    fn refuses_bad_arguments() {
         let outcome = Fake::at(Path::new("/nonexistent"))
             .argv(&["--bogus"])
             .task(main);
         assert_eq!(outcome.code(), "ERR_VERIFY_BOOTSTRAP_USAGE");
-        let dir = temp_dir();
-        write(dir.path(), "package.json", "{}\n");
-        let outcome = Fake::at(dir.path()).env(env_of(&[])).task(main);
-        assert_eq!(outcome.code(), "ERR_VERIFY_BOOTSTRAP_NO_DEPS");
     }
 
     #[test]
@@ -1435,8 +1362,6 @@ mod tests {
         git(root, &["commit", "-q", "--no-verify", "-m", "more"]);
         write(root, "README.md", "changed\n");
         write(root, "new.txt", "untracked\n");
-        write(root, "package.json", "{}\n");
-        std::fs::create_dir(root.join("node_modules")).expect("mkdir");
         std::fs::remove_file(root.join("gone.txt")).expect("remove");
 
         let tmp = temp_dir();
@@ -1473,12 +1398,8 @@ mod tests {
         );
         assert!(clone.join("new.txt").is_file());
         assert!(!clone.join("gone.txt").exists());
-        assert!(clone.join("node_modules").is_symlink());
         let status = git(&clone, &["status", "--porcelain"]);
-        assert_eq!(
-            status, "",
-            "the overlay is committed and node_modules excluded"
-        );
+        assert_eq!(status, "", "the overlay is committed");
 
         // A bootstrap that changes nothing leaves a tree that is no app.
         let tmp = temp_dir();
@@ -1511,7 +1432,6 @@ mod tests {
                 "crates",
                 "Cargo.toml",
                 "Cargo.lock",
-                "package.json",
                 "LICENSE",
                 "CHANGELOG.md",
                 "justfile",

@@ -1,8 +1,8 @@
-# `cargo check` without --locked.
+# A local composite action that runs `cargo fetch` without --locked.
 expect:
   workflow-hygiene: [ERR_CHECK_WORKFLOW_UNLOCKED]
   just-check-matches-ci: []
 edits:
   - file: .github/actions/setup/action.yml
     from: "run: cargo fetch --locked\n"
-    to: "run: cargo check --workspace\n"
+    to: "run: cargo fetch\n"

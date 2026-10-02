@@ -11,12 +11,11 @@
 //! touched. A `.rs` file goes through rustfmt on standard input, with `--config-path`
 //! naming the nearest `rustfmt.toml` between the file and the root (the one rustfmt would
 //! find from the file), and the result is written back: given a path, rustfmt would also
-//! rewrite every out-of-line `mod` child the file declares. Every extension the
-//! pre-commit hook's Prettier job checks ([`PRETTIER_EXTENSIONS`]) goes through
-//! `prettier --write`, from the root, so `.prettierignore` applies. It does nothing, and
-//! exits 0, when the payload names no file, the file is of another type, no longer
-//! exists, or lies outside the root once symlinks are resolved. The formatters are called
-//! by bare name; the caller provides PATH (`mise exec --`).
+//! rewrite every out-of-line `mod` child the file declares. Rust is the one language the
+//! repository formats, so it does nothing, and exits 0, when the payload names no file,
+//! the file is not a `.rs` file, no longer exists, or lies outside the root once symlinks
+//! are resolved. rustfmt is called by bare name; the caller provides PATH
+//! (`mise exec --`).
 //!
 //! Exit codes: 0 formatted or nothing to do; 2 on failure, because Claude Code feeds a
 //! `PostToolUse` hook's stderr back to the agent only on exit 2.
@@ -24,7 +23,7 @@
 //! Git work tree: not required.
 //!
 //! Errors (exit 2): `ERR_FORMAT_USAGE` (bad arguments, no stdin), `ERR_FORMAT_FAILED`
-//! (the formatter exited non-zero on the edited file).
+//! (rustfmt exited non-zero on the edited file).
 
 use std::path::{Component, Path, PathBuf};
 
@@ -34,21 +33,14 @@ use crate::fail::{ScriptError, TaskResult};
 const USAGE: &str = "cargo xtask format-edited-file [--root DIR] < hook-payload.json";
 const HOOK_FAILURE: u8 = 2;
 
-/// The extensions `lefthook.yml`'s prettier job checks; this hook formats the same set.
-/// No check compares the two, so a change to one changes the other in the same commit.
-pub(crate) const PRETTIER_EXTENSIONS: &[&str] = &[
-    ".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json", ".css", ".html", ".yml", ".yaml",
-];
-
 const RUSTFMT_CONFIGS: [&str; 2] = ["rustfmt.toml", ".rustfmt.toml"];
 
-/// How one file is formatted: a `stdin` formatter reads the file on standard input and
-/// prints the result, which this hook writes back; the others rewrite the file in place.
+/// How one file is formatted: the formatter reads the file on standard input and prints
+/// the result, which this hook writes back.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Formatter {
     pub(crate) command: &'static str,
     pub(crate) args: Vec<String>,
-    pub(crate) stdin: bool,
 }
 
 fn usage_error(summary: &str, actual: &str) -> ScriptError {
@@ -90,29 +82,12 @@ fn extension_of(path: &Path) -> String {
 
 /// The formatter for a file under `root`, or `None` when this hook leaves it alone.
 pub(crate) fn formatter_for(path: &Path, root: &Path) -> Option<Formatter> {
-    let extension = extension_of(path);
-    if extension == ".rs" {
-        let args = rustfmt_config(path, root).map_or_else(Vec::new, |config| {
+    (extension_of(path) == ".rs").then(|| Formatter {
+        command: "rustfmt",
+        args: rustfmt_config(path, root).map_or_else(Vec::new, |config| {
             vec!["--config-path".to_owned(), config.display().to_string()]
-        });
-        return Some(Formatter {
-            command: "rustfmt",
-            args,
-            stdin: true,
-        });
-    }
-    PRETTIER_EXTENSIONS
-        .contains(&extension.as_str())
-        .then(|| Formatter {
-            command: "pnpm",
-            args: vec![
-                "exec".to_owned(),
-                "prettier".to_owned(),
-                "--write".to_owned(),
-                path.display().to_string(),
-            ],
-            stdin: false,
-        })
+        }),
+    })
 }
 
 fn parse_root(argv: &[String], fallback: &Path) -> Result<PathBuf, ScriptError> {
@@ -190,54 +165,32 @@ pub(crate) fn main(context: &Context<'_>) -> TaskResult {
     let Some(formatter) = formatter_for(&real, &root) else {
         return Ok(());
     };
-    let original = if formatter.stdin {
-        Some(
-            std::fs::read_to_string(&real)
-                .map_err(|error| ScriptError::unexpected("reading the edited file", &error))?,
-        )
-    } else {
-        None
-    };
+    let original = std::fs::read_to_string(&real)
+        .map_err(|error| ScriptError::unexpected("reading the edited file", &error))?;
     let args: Vec<&str> = formatter.args.iter().map(String::as_str).collect();
-    let options = match &original {
-        Some(text) => RunOptions {
-            cwd: real.parent().map(Path::to_path_buf),
-            env: None,
-            input: Some(text.clone().into_bytes()),
-        },
-        None => RunOptions {
-            cwd: Some(root.clone()),
-            env: None,
-            input: None,
-        },
+    let options = RunOptions {
+        cwd: real.parent().map(Path::to_path_buf),
+        env: None,
+        input: Some(original.clone().into_bytes()),
     };
     let result = context.run(formatter.command, &args, &options);
     if !result.success() {
-        let next = if formatter.stdin {
-            format!(
-                "fix the syntax error in {inside} (that edit re-runs this hook); to check the file by hand, writing nothing: mise exec -- rustfmt --check {inside}"
-            )
-        } else {
-            format!(
-                "fix the syntax error, then run: mise exec -- pnpm exec prettier --write {inside}"
-            )
-        };
         return Err(ScriptError::new(
             "ERR_FORMAT_FAILED",
             format!("{} could not format the edited file", formatter.command),
             format!("{} exits 0 on {inside}", formatter.command),
             tail(&format!("{}{}", result.stderr_text(), result.stdout_text())),
-            next,
+            format!(
+                "fix the syntax error in {inside} (that edit re-runs this hook); to check the file by hand, writing nothing: mise exec -- rustfmt --check {inside}"
+            ),
         )
         .with_exit_code(HOOK_FAILURE));
     }
     // An empty result is never written back: it would erase the file rather than format it.
-    if let Some(original) = original {
-        let output = result.stdout_text();
-        if !output.is_empty() && output != original {
-            std::fs::write(&real, output)
-                .map_err(|error| ScriptError::unexpected("writing the formatted file", &error))?;
-        }
+    let output = result.stdout_text();
+    if !output.is_empty() && output != original {
+        std::fs::write(&real, output)
+            .map_err(|error| ScriptError::unexpected("writing the formatted file", &error))?;
     }
     Ok(())
 }
@@ -249,7 +202,7 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{Formatter, PRETTIER_EXTENSIONS, formatter_for, main};
+    use super::{Formatter, formatter_for, main};
     use crate::context::{RunOptions, RunResult};
     use crate::test_support::{Fake, Outcome, temp_dir, write};
 
@@ -300,19 +253,6 @@ mod tests {
         RunResult::exited(0, "", "")
     }
 
-    fn prettier(path: &Path) -> Formatter {
-        Formatter {
-            command: "pnpm",
-            args: vec![
-                "exec".to_owned(),
-                "prettier".to_owned(),
-                "--write".to_owned(),
-                path.display().to_string(),
-            ],
-            stdin: false,
-        }
-    }
-
     #[test]
     fn pipes_rust_through_rustfmt_naming_no_path_it_could_follow_into_mod_children() {
         let (_dir, root) = real_temp();
@@ -321,7 +261,6 @@ mod tests {
             Some(Formatter {
                 command: "rustfmt",
                 args: vec![],
-                stdin: true
             })
         );
     }
@@ -355,21 +294,16 @@ mod tests {
     }
 
     #[test]
-    fn formats_every_prettier_extension_with_prettier_in_place() {
-        let expected = [
-            ".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json", ".css", ".html", ".yml",
-            ".yaml",
-        ];
-        assert_eq!(PRETTIER_EXTENSIONS, expected);
-        for extension in PRETTIER_EXTENSIONS {
-            let path = PathBuf::from(format!("/r/a{extension}"));
-            assert_eq!(formatter_for(&path, Path::new("/r")), Some(prettier(&path)));
-        }
-    }
-
-    #[test]
     fn leaves_every_other_file_alone() {
-        for path in ["/r/a.md", "/r/a.toml", "/r/rs", "/r/.ts"] {
+        for path in [
+            "/r/a.md",
+            "/r/a.toml",
+            "/r/rs",
+            "/r/.rs",
+            "/r/a.ts",
+            "/r/a.json",
+            "/r/a.yml",
+        ] {
             assert_eq!(
                 formatter_for(Path::new(path), Path::new("/r")),
                 None,
@@ -424,39 +358,47 @@ mod tests {
     }
 
     #[test]
-    fn formats_an_edited_file_given_relative_to_the_root_with_prettier() {
-        for name in ["ci.yml", "a.tsx"] {
-            let (_dir, root) = real_temp();
-            write(&root, name, "a:   1\n");
-            let (outcome, calls) =
-                hook(&root, &payload(&serde_json::Value::from(name)), &[], &ok());
-            outcome.assert_ok();
-            let expected = prettier(&root.join(name));
-            assert_eq!(
-                calls,
-                vec![Call {
-                    command: expected.command.to_owned(),
-                    args: expected.args,
-                    cwd: Some(root.clone()),
-                    input: None,
-                }]
-            );
-        }
+    fn formats_an_edited_file_given_relative_to_the_root() {
+        let (_dir, root) = real_temp();
+        write(&root, "src/a.rs", "fn a(){}");
+        let (outcome, calls) = hook(
+            &root,
+            &payload(&serde_json::Value::from("src/a.rs")),
+            &[],
+            &ok(),
+        );
+        outcome.assert_ok();
+        assert_eq!(
+            calls,
+            vec![Call {
+                command: "rustfmt".to_owned(),
+                args: vec![],
+                cwd: Some(root.join("src")),
+                input: Some("fn a(){}".to_owned()),
+            }]
+        );
     }
 
     #[test]
     fn takes_the_root_from_the_root_flag() {
         let (_dir, root) = real_temp();
-        write(&root, "a.ts", "");
+        write(&root, "rustfmt.toml", "");
+        write(&root, "a.rs", "");
         let root_text = root.display().to_string();
         let (outcome, calls) = hook(
             Path::new("/elsewhere"),
-            &payload_for(&root.join("a.ts")),
+            &payload(&serde_json::Value::from("a.rs")),
             &["--root", &root_text],
             &ok(),
         );
         outcome.assert_ok();
-        assert_eq!(calls.first().and_then(|call| call.cwd.clone()), Some(root));
+        assert_eq!(
+            calls.first().map(|call| call.args.clone()),
+            Some(vec![
+                "--config-path".to_owned(),
+                root.join("rustfmt.toml").display().to_string()
+            ])
+        );
     }
 
     #[test]
@@ -478,8 +420,9 @@ mod tests {
     fn does_nothing_for_a_file_of_another_type_a_missing_file_or_a_directory() {
         let (_dir, root) = real_temp();
         write(&root, "notes.md", "");
-        std::fs::create_dir(root.join("dir.ts")).expect("mkdir");
-        for name in ["notes.md", "gone.rs", "dir.ts"] {
+        write(&root, "ci.yml", "a:   1\n");
+        std::fs::create_dir(root.join("dir.rs")).expect("mkdir");
+        for name in ["notes.md", "ci.yml", "gone.rs", "dir.rs"] {
             let (outcome, calls) = hook(&root, &payload_for(&root.join(name)), &[], &ok());
             outcome.assert_ok();
             assert!(calls.is_empty(), "{name}");
@@ -524,22 +467,6 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(root.join("bad.rs")).expect("read"),
             "fn ("
-        );
-    }
-
-    #[test]
-    fn names_the_single_file_prettier_command_when_prettier_fails() {
-        let (_dir, root) = real_temp();
-        write(&root, "bad.ts", "export {");
-        let (outcome, _) = hook(
-            &root,
-            &payload_for(&root.join("bad.ts")),
-            &[],
-            &RunResult::exited(2, "", "SyntaxError: '}' expected."),
-        );
-        assert_eq!(
-            outcome.failure().details.next,
-            "fix the syntax error, then run: mise exec -- pnpm exec prettier --write bad.ts"
         );
     }
 

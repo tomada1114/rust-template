@@ -1,7 +1,6 @@
-//! The three supply-chain cooldowns wait the same number of days: Dependabot's
-//! `cooldown`, Renovate's `minimumReleaseAge`, and pnpm's `minimumReleaseAge`. A bot that
-//! waits less than pnpm opens a PR whose install pnpm refuses; one that waits more holds
-//! back a release the other bot already pulled.
+//! The two bots' supply-chain cooldowns wait the same number of days: Dependabot's
+//! `cooldown` and Renovate's `minimumReleaseAge`. One that waits more than the other holds
+//! back a release the other bot already pulled, so the policy is no longer one number.
 //!
 //! Files, each optional (an absent one is not compared):
 //! - `.github/dependabot.yml|.yaml`: every `updates[]` entry's `cooldown.default-days`, a
@@ -12,7 +11,6 @@
 //!   top-level `minimumReleaseAge` (required) and any in `packageRules`, each a duration
 //!   read by [`to_days`] (`7 days`, `1 week`, `168 hours`, `10080 minutes`). A JSON5
 //!   config is unreadable here, never skipped.
-//! - `pnpm-workspace.yaml`: `minimumReleaseAge`, in minutes (10080 = 7 days).
 //!
 //! Every stated value must be a whole number of days, and all of them the same number.
 //!
@@ -28,7 +26,6 @@ use super::yaml::{Key, Node, number_text};
 use super::{Input, finding, read_file};
 use crate::fail::FailureDetails;
 
-const PNPM_WORKSPACE: &str = "pnpm-workspace.yaml";
 const SEMVER_DAYS: [&str; 3] = [
     "semver-major-days",
     "semver-minor-days",
@@ -185,28 +182,10 @@ fn renovate(input: &Input<'_>) -> Reading {
     }
 }
 
-fn pnpm(input: &Input<'_>) -> Reading {
-    let file = match read_yaml(input.root, PNPM_WORKSPACE) {
-        None => return Reading::default(),
-        Some(Err(problem)) => return unreadable(problem),
-        Some(Ok(file)) => file,
-    };
-    let value = file.root.get("minimumReleaseAge");
-    Reading {
-        cooldowns: vec![Cooldown {
-            place: file.at(&[Key::Name("minimumReleaseAge")]),
-            setting: "pnpm minimumReleaseAge".to_owned(),
-            value: value.map(Node::to_json),
-            days: value.and_then(Node::as_number).and_then(whole_days),
-        }],
-        unreadable: Vec::new(),
-    }
-}
-
-const NEXT: &str = "set every value named above to the one cooldown the policy states (7 days: `default-days: 7`, `\"minimumReleaseAge\": \"7 days\"`, pnpm `minimumReleaseAge: 10080`), all in one change";
+const NEXT: &str = "set every value named above to the one cooldown the policy states (7 days: `default-days: 7`, `\"minimumReleaseAge\": \"7 days\"`), all in one change";
 
 pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
-    let readings = [dependabot(input), renovate(input), pnpm(input)];
+    let readings = [dependabot(input), renovate(input)];
     let mut found: Vec<FailureDetails> = readings
         .iter()
         .flat_map(|reading| &reading.unreadable)
@@ -214,7 +193,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             finding(
                 "ERR_CHECK_BOTS_UNREADABLE",
                 "a dependency-cooldown config cannot be parsed",
-                "dependabot.yml and pnpm-workspace.yaml to be YAML, and the Renovate config JSON",
+                "dependabot.yml to be YAML, and the Renovate config JSON",
                 problem.clone(),
                 "fix the file's syntax (a JSON5 Renovate config is not read: rename it to renovate.json)",
             )
@@ -233,7 +212,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
                 cooldown.setting,
                 if cooldown.value.is_none() { "not set" } else { "not a whole number of days" }
             ),
-            "every Dependabot entry's cooldown.default-days (and any semver-*-days), Renovate's minimumReleaseAge, and pnpm's minimumReleaseAge (minutes) set to a whole number of days",
+            "every Dependabot entry's cooldown.default-days (and any semver-*-days) and Renovate's minimumReleaseAge set to a whole number of days",
             cooldown.value.clone().unwrap_or_else(|| "absent".to_owned()),
             NEXT,
         ));
@@ -251,7 +230,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
         found.push(finding(
             "ERR_CHECK_BOTS_COOLDOWN_DISAGREE",
             "the supply-chain cooldowns are not the same number of days",
-            "Dependabot's cooldown (default-days and every semver-*-days), Renovate's minimumReleaseAge, and pnpm's minimumReleaseAge equal",
+            "Dependabot's cooldown (default-days and every semver-*-days) and Renovate's minimumReleaseAge equal",
             stated
                 .iter()
                 .map(|(cooldown, days)| {
@@ -272,15 +251,13 @@ mod tests {
     use crate::fail::FailureDetails;
     use crate::test_support::{temp_dir, write};
 
-    const DEPENDABOT: &str = "version: 2\nupdates:\n  - package-ecosystem: cargo\n    directory: /\n    cooldown:\n      default-days: 7\n  - package-ecosystem: npm\n    directory: /\n    cooldown:\n      default-days: 7\n";
+    const DEPENDABOT: &str = "version: 2\nupdates:\n  - package-ecosystem: cargo\n    directory: /\n    cooldown:\n      default-days: 7\n  - package-ecosystem: github-actions\n    directory: /\n    cooldown:\n      default-days: 7\n";
     const RENOVATE: &str = r#"{"minimumReleaseAge":"7 days","packageRules":[{"matchManagers":["mise"],"minimumReleaseAge":"1 week"},{"enabled":true}]}"#;
-    const PNPM: &str = "verifyDepsBeforeRun: error\nminimumReleaseAge: 10080\n";
 
     fn check(overrides: &[(&str, Option<&str>)]) -> Vec<FailureDetails> {
         let mut files = vec![
             (".github/dependabot.yml", Some(DEPENDABOT)),
             (".github/renovate.json", Some(RENOVATE)),
-            ("pnpm-workspace.yaml", Some(PNPM)),
         ];
         for (path, content) in overrides {
             files.retain(|(existing, _)| existing != path);
@@ -309,7 +286,6 @@ mod tests {
         let none = [
             (".github/dependabot.yml", None),
             (".github/renovate.json", None),
-            ("pnpm-workspace.yaml", None),
         ];
         assert_eq!(check(&none), []);
         let other_files = [
@@ -336,11 +312,9 @@ mod tests {
         assert!(found[0].actual.contains(
             ".github/dependabot.yml:6: Dependabot `cargo` cooldown.default-days = 3 day(s)"
         ));
-        assert!(
-            found[0]
-                .actual
-                .contains("pnpm-workspace.yaml:2: pnpm minimumReleaseAge = 7 day(s)")
-        );
+        assert!(found[0].actual.contains(
+            ".github/dependabot.yml:10: Dependabot `github-actions` cooldown.default-days = 7 day(s)"
+        ));
         assert!(found[0].actual.contains(
             ".github/renovate.json: Renovate packageRules[0].minimumReleaseAge = 7 day(s)"
         ));
@@ -350,7 +324,6 @@ mod tests {
                 ".github/renovate.json",
                 r#"{"minimumReleaseAge":"7 days","packageRules":[{"minimumReleaseAge":"14 days"}]}"#,
             ),
-            ("pnpm-workspace.yaml", "minimumReleaseAge: 1440\n"),
         ] {
             assert_eq!(
                 codes(&check(&[(path, Some(content))])),
@@ -391,8 +364,6 @@ mod tests {
                 ".github/renovate.json",
                 r#"{"minimumReleaseAge":"5 hours"}"#,
             ),
-            ("pnpm-workspace.yaml", "verifyDepsBeforeRun: error\n"),
-            ("pnpm-workspace.yaml", "minimumReleaseAge: 10000\n"),
         ] {
             assert_eq!(
                 codes(&check(&[(path, Some(content))])),
@@ -407,9 +378,8 @@ mod tests {
         let found = check(&[
             (".github/dependabot.yml", Some("updates: [\n")),
             (".github/renovate.json", Some("{ // json5 }")),
-            ("pnpm-workspace.yaml", Some("a: [\n")),
         ]);
-        assert_eq!(codes(&found), ["ERR_CHECK_BOTS_UNREADABLE"; 3]);
+        assert_eq!(codes(&found), ["ERR_CHECK_BOTS_UNREADABLE"; 2]);
         for path in [
             "renovate.json5",
             ".github/renovate.json5",

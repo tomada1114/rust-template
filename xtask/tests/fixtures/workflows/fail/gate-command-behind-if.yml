@@ -1,8 +1,9 @@
-# A gate CI runs as its recipe's line verbatim (`pnpm lint`), only behind an `if:`.
+# A gate CI runs as its recipe's line verbatim (`cargo fmt --all --check`), only behind
+# an `if:`.
 expect:
   workflow-hygiene: []
   just-check-matches-ci: [ERR_CHECK_JUST_CI_DIVERGED]
 edits:
   - file: .github/workflows/ci.yml
-    from: "      - run: pnpm lint\n"
-    to: "      - if: github.ref == 'refs/heads/main'\n        run: pnpm lint\n"
+    from: "      - run: cargo fmt --all --check\n"
+    to: "      - if: github.ref == 'refs/heads/main'\n        run: cargo fmt --all --check\n"

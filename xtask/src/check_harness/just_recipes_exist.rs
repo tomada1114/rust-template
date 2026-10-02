@@ -644,7 +644,7 @@ body:
         let readme = [
             "```",
             "Its CI just failed: fix it.",
-            "pnpm lint  # just bogus-comment",
+            "cargo fmt  # just bogus-comment",
             "run --verify \"just bogus-quoted\"",
             "FOO=1 just bogus-env && mise exec -- just bogus-dashes",
             "then just bogus-then",

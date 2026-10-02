@@ -4,7 +4,7 @@ description: >
   Covers landing the Dependabot and Renovate pull requests already open in this
   repository: Dependabot's cargo (Cargo.lock), npm (package.json, pnpm-lock.yaml), and
   github-actions bumps, and Renovate's mise.toml and rust-toolchain.toml bumps. Surveys
-  them with scripts/survey-prs.ts, runs the security review (release notes, workflow
+  them with scripts/survey_prs.py, runs the security review (release notes, workflow
   permissions, maintainer changes, crates whose build.rs or proc-macro runs at build
   time), keeps each tauri crate and its @tauri-apps/* npm package in step and
   @types/node on mise.toml's Node major, holds a Tauri major as a migration issue, asks
@@ -50,7 +50,7 @@ diff changed beyond a bot rebase, or anything in "Stop and ask" needs a fresh ap
 ## Step 1: Survey (read-only)
 
 ```bash
-node .agents/skills/merging-dependency-prs/scripts/survey-prs.ts
+python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py
 ```
 
 It lists every open bot PR with its ecosystem, the versions it moves and their level

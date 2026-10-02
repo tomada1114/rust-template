@@ -5,7 +5,7 @@
 # on the lock of a workspace build running in target/; lefthook runs every job from the
 # repository root, where that relative path is safe (.cargo/config.toml says why the alias
 # cannot carry it). Each job runs
-# the same executable and flags as the matching `just`/pnpm recipe, narrowed to the staged
+# the same executable and flags as the matching `just` recipe, narrowed to the staged
 # files, so a change cannot pass here and fail there. The one addition is the skills-mirror
 # job's `--staged`: it judges the index about to be committed, where `just agents-check`
 # judges the working tree.
@@ -19,7 +19,7 @@ pre-commit:
   # carries a conflict resolution no hook has seen, so the hook runs for it (lefthook's
   # `merge` state is MERGE_HEAD present, `rebase` a rebase in progress). Only the style jobs
   # skip those states: the staged files then are everything the other side changed, which
-  # they would re-lint slowly, and CI reruns all four over the whole tree. The staged guard
+  # they would re-lint slowly, and CI reruns both over the whole tree. The staged guard
   # and the skills mirror never skip — no CI job reruns the guard over a pull request's
   # diff, and a resolved skill conflict is where the mirror drifts. They judge what is
   # staged against HEAD, so a `reword` or a `git commit --amend` at an `edit` stop now runs
@@ -39,16 +39,6 @@ pre-commit:
       skip: [merge, rebase]
       glob: "*.rs"
       run: rustfmt --check {staged_files}
-
-    - name: prettier
-      skip: [merge, rebase]
-      glob: "*.{ts,tsx,mts,cts,js,mjs,cjs,json,css,html,yml,yaml}"
-      run: pnpm exec prettier --check --ignore-unknown {staged_files}
-
-    - name: eslint
-      skip: [merge, rebase]
-      glob: "*.{ts,tsx,mts,cts,js,mjs,cjs}"
-      run: pnpm exec eslint --max-warnings 0 --no-warn-ignored {staged_files}
 
     - name: typos
       skip: [merge, rebase]

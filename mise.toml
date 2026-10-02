@@ -1,14 +1,10 @@
 # Pinned CLI tool versions — the dev-tool analog of a lockfile.
 # Never use "latest" or bump by hand: Renovate's `mise` manager opens the bump PRs,
 # with a 7-day minimum release age (.github/renovate.json).
-# Rust is pinned once, in rust-toolchain.toml. pnpm is pinned here and in package.json's
-# `packageManager` at the same version (Renovate moves both in one grouped PR).
+# Rust is pinned once, in rust-toolchain.toml.
 # Prebuilt binaries (aqua/github backends) only: the `cargo:` backend compiles from
 # source.
 [tools]
-node = "26.10.0"
-# Node 25 stopped bundling corepack, so mise installs pnpm itself.
-"aqua:pnpm/pnpm" = "12.6.0"
 just = "1.58.0"
 lefthook = "2.1.14"
 "github:taiki-e/cargo-llvm-cov" = "0.9.1"

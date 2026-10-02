@@ -1,11 +1,8 @@
 # Rust build output
 target/
 
-# Node
-node_modules/
+# Coverage reports
 coverage/
-*.tsbuildinfo
-.eslintcache
 
 # IDE
 .vscode/

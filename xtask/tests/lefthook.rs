@@ -260,7 +260,7 @@ fn a_clean_merge_resolution_concludes_skipping_only_the_style_jobs() {
     let (ok, output) = repo.run("git", &["commit", "--no-edit"]);
     assert!(ok, "{output}");
     assert!(output.contains("staged guard"), "{output}");
-    for job in ["rustfmt", "prettier", "eslint", "typos"] {
+    for job in ["rustfmt", "typos"] {
         assert!(
             output.contains(&format!("{job} (skip) by condition")),
             "{job}: {output}"
@@ -325,4 +325,33 @@ fn every_documented_xtask_hook_builds_in_its_own_target_directory() {
         "{}",
         format_hook[0]
     );
+}
+
+/// A `skip:` or `only:` on the hook, or on the staged guard or the skills mirror, would
+/// let a merge or rebase-stop commit through unjudged; the tests above prove the merge
+/// case through a real commit, and this pins every case at the config.
+#[test]
+fn never_skips_the_staged_guard_or_the_skills_mirror() {
+    let text = must(
+        std::fs::read_to_string(checkout().join("lefthook.yml")),
+        "read lefthook.yml",
+    );
+    let docs = must(
+        yaml_rust2::YamlLoader::load_from_str(&text),
+        "parse lefthook.yml",
+    );
+    let hook = &docs[0]["pre-commit"];
+    for key in ["skip", "only"] {
+        assert!(hook[key].is_badvalue(), "pre-commit has `{key}`");
+    }
+    let jobs = hook["jobs"].as_vec().expect("pre-commit has a jobs list");
+    for name in ["staged guard", "skills mirror"] {
+        let job = jobs
+            .iter()
+            .find(|job| job["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("lefthook.yml has no \"{name}\" job"));
+        for key in ["skip", "only"] {
+            assert!(job[key].is_badvalue(), "{name} has `{key}`");
+        }
+    }
 }

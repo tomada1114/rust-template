@@ -1,7 +1,0 @@
-{
-  // This skill's scripts are repository scripts (scripts/tsconfig.json's rules); the
-  // file sits here so ESLint's project service finds a project for them.
-  // `pnpm typecheck` checks them through scripts/tsconfig.json's include.
-  "extends": "../../../../scripts/tsconfig.json",
-  "include": ["*.ts"]
-}

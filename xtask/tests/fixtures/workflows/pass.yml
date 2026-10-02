@@ -7,13 +7,13 @@ files:
   justfile: |
     set shell := ["bash", "-euo", "pipefail", "-c"]
 
-    check: lint test-ui build
+    check: lint test-core build
 
     lint:
-        pnpm lint
+        cargo fmt --all --check
 
-    test-ui:
-        pnpm test:ui
+    test-core:
+        cargo nextest run --locked -p core
 
     build:
         cargo build --locked --release
@@ -32,7 +32,7 @@ files:
       steps:
         - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         - shell: bash --noprofile --norc -euo pipefail {0}
-          run: pnpm install --frozen-lockfile
+          run: cargo fetch --locked
 
   .github/workflows/ci.yml: |
     name: CI
@@ -60,8 +60,8 @@ files:
             with:
               persist-credentials: false
           - uses: ./.github/actions/setup
-          - run: pnpm lint
-          - run: just test-ui
+          - run: cargo fmt --all --check
+          - run: just test-core
       build:
         name: Build
         runs-on: macos-26

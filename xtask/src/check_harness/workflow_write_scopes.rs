@@ -17,7 +17,7 @@
 //!   other than `read` or `none` count as write.
 //! - A job holding a write scope fails when a step uses `actions/checkout` or
 //!   `jdx/mise-action`, or a local action (`uses: ./…`, repository code by definition);
-//!   when a `run:` line names `pnpm`, `cargo`, or `just` as a command word (or a path
+//!   when a `run:` line names `cargo` or `just` as a command word (or a path
 //!   ending in one), also inside `$(…)`, a subshell, or after `;`, `&&`, or `|`; or when
 //!   the job calls a remote reusable workflow, whose steps the check cannot see. A local
 //!   reusable workflow is checked in its own file, with its own permissions. A step's or a
@@ -136,10 +136,10 @@ fn action_hit(uses: &str, line: usize) -> Option<Hit> {
 
 /// A command word: after the line's start or a shell separator (blank, `;`, `&`, `|`, a
 /// backtick, `(` as in `$(…)`, a quote, `=`), optionally behind a path, and ending at one,
-/// so `justfile`, `pnpm-lock.yaml`, and `cargo-nextest` are not commands. The trailing
+/// so `justfile`, `Cargo.lock`, and `cargo-nextest` are not commands. The trailing
 /// separator is matched but never consumed: the next search starts at the tool's end.
 fn command_pattern() -> Result<Regex, FailureDetails> {
-    pattern(r#"(?:^|[\s;&|`("'=])(?:[^\s;&|`("'=]*/)?(pnpm|cargo|just)(?:$|[\s;&|`)"'])"#)
+    pattern(r#"(?:^|[\s;&|`("'=])(?:[^\s;&|`("'=]*/)?(cargo|just)(?:$|[\s;&|`)"'])"#)
 }
 
 /// A run line's repository-code commands, in order of first appearance.
@@ -151,10 +151,10 @@ fn commands_in(line: &str, pattern: &Regex) -> Vec<&'static str> {
             break;
         };
         at = tool.end();
-        let tool = match tool.as_str() {
-            "pnpm" => "pnpm",
-            "cargo" => "cargo",
-            _ => "just",
+        let tool = if tool.as_str() == "cargo" {
+            "cargo"
+        } else {
+            "just"
         };
         if !found.contains(&tool) {
             found.push(tool);
@@ -321,7 +321,7 @@ fn scan(input: &Input<'_>, exceptions: &[WriteException]) -> Vec<FailureDetails>
                 violations.push(finding(
                     "ERR_CHECK_WORKFLOW_WRITE_RUNS_CODE",
                     format!("{}:{}: job `{id}` holds {} and {}", workflow.path, hit.line, scopes.join(", "), hit.what),
-                    format!("no job holding a write scope or `id-token: write` (its own `permissions`, or the workflow's it inherits) checks out the repository, runs jdx/mise-action or a local action, calls a remote reusable workflow, or runs pnpm, cargo, or just, outside EXCEPTIONS in {THIS}"),
+                    format!("no job holding a write scope or `id-token: write` (its own `permissions`, or the workflow's it inherits) checks out the repository, runs jdx/mise-action or a local action, calls a remote reusable workflow, or runs cargo or just, outside EXCEPTIONS in {THIS}"),
                     hit.actual.clone(),
                     "move the write scopes into a job that runs none of these (a publish job downloads the build job's verified artifact instead of checking out); if the job genuinely needs both, add an EXCEPTIONS entry with its reason, which is weakening a gate and needs a human's sign-off",
                 ));
@@ -422,7 +422,7 @@ mod tests {
             &[
                 checkout(),
                 mise(),
-                run_step("pnpm install --frozen-lockfile"),
+                run_step("cargo fetch --locked"),
                 run_step("cargo build --locked"),
                 run_step("just test"),
             ]
@@ -487,32 +487,26 @@ mod tests {
 
     #[test]
     fn finds_each_repository_command_a_write_job_runs() {
-        let steps = [
-            run_step("pnpm install --frozen-lockfile"),
-            run_step("cargo build --locked"),
-            run_step("just test"),
-        ]
-        .concat();
+        let steps = [run_step("cargo build --locked"), run_step("just test")].concat();
         let prefix = ".github/workflows/w.yml";
         let held = "job `build` holds contents: write and runs";
         assert_eq!(
             summaries(&one(&job("build", WRITE, &steps), TOP, &[])),
             [
-                format!("{prefix}:11: {held} `pnpm`"),
-                format!("{prefix}:12: {held} `cargo`"),
-                format!("{prefix}:13: {held} `just`")
+                format!("{prefix}:11: {held} `cargo`"),
+                format!("{prefix}:12: {held} `just`")
             ]
         );
         let steps = [
-            run_step("echo \"path=$(pnpm store path)\""),
-            run_step("(cd ui && cargo build --locked)"),
+            run_step("echo \"dir=$(just --evaluate log_dir)\""),
+            run_step("(cd crates && cargo build --locked)"),
             run_step("true;just test"),
         ]
         .concat();
         assert_eq!(
             summaries(&one(&job("build", WRITE, &steps), TOP, &[])),
             [
-                format!("{prefix}:11: {held} `pnpm`"),
+                format!("{prefix}:11: {held} `just`"),
                 format!("{prefix}:12: {held} `cargo`"),
                 format!("{prefix}:13: {held} `just`")
             ]
@@ -554,7 +548,7 @@ mod tests {
         );
         // A separator ends one command word and starts the next, so neither hides the other.
         for (line, first, second) in [
-            ("pnpm;just x", "pnpm", "just"),
+            ("cargo;just x", "cargo", "just"),
             ("cargo|just x", "cargo", "just"),
         ] {
             assert_eq!(
@@ -567,9 +561,9 @@ mod tests {
             );
         }
         let quiet = [
-            run_step("node scripts/x.ts"),
+            run_step("python3 tools/x.py"),
             run_step("gh release create \"$TAG\""),
-            run_step("cat justfile pnpm-lock.yaml"),
+            run_step("cat justfile Cargo.lock"),
             run_step("cargo-nextest --version"),
         ]
         .concat();
@@ -789,15 +783,7 @@ mod tests {
 
     #[test]
     fn ships_exceptions_keyed_by_a_workflow_and_a_job_each_with_a_reason() {
-        let triggers = [
-            CHECKOUT,
-            MISE,
-            "pnpm",
-            "cargo",
-            "just",
-            LOCAL_ACTION,
-            REUSABLE,
-        ];
+        let triggers = [CHECKOUT, MISE, "cargo", "just", LOCAL_ACTION, REUSABLE];
         for (key, allows, reason) in EXCEPTIONS {
             let (path, id) = key.split_once(' ').expect("a space");
             assert!(

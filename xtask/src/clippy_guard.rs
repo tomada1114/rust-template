@@ -547,7 +547,7 @@ warning: `app-core` (lib) generated 1 warning
     fn refuses_what_is_not_a_cargo_clippy_command() {
         for argv in [
             &[][..],
-            &["pnpm", "clippy"][..],
+            &["make", "clippy"][..],
             &["cargo", "build", "--locked"][..],
             &["cargo", "test", "--", "clippy"][..],
         ] {
@@ -557,8 +557,8 @@ warning: `app-core` (lib) generated 1 warning
         }
         assert_eq!(guard(&[], &stderr(0, "")).actual(), Some("no arguments"));
         assert_eq!(
-            guard(&["pnpm", "clippy"], &stderr(0, "")).actual(),
-            Some("`pnpm clippy`")
+            guard(&["make", "clippy"], &stderr(0, "")).actual(),
+            Some("`make clippy`")
         );
     }
 

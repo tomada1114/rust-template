@@ -80,19 +80,11 @@ const EXCEPTIONS: Exceptions = Exceptions {
         ),
         (
             "fmt",
-            "rewrites files; CI checks the same formatting read-only through `just lint`'s `cargo fmt --all --check` and `pnpm format:check` lines, which this check matches verbatim",
+            "rewrites files; CI checks the same formatting read-only through `just lint`'s `cargo fmt --all --check` line, which this check matches verbatim",
         ),
     ],
     ci_only_recipes: &[],
     ci_only_commands: &[
-        (
-            "echo \"path=$(pnpm store path)\" >> \"$GITHUB_OUTPUT\"",
-            "hands the pnpm store path to actions/cache: CI plumbing with no local meaning",
-        ),
-        (
-            "pnpm install --frozen-lockfile",
-            "dependency install: `just install` runs it once on a developer's Mac, not on every `just check`",
-        ),
         (
             "cargo deny --locked check",
             "`just deny`: fetches the RustSec advisory database over the network, so it stays out of the offline local gate; AGENTS.md › Validating a change runs it when a manifest or lockfile changes",
@@ -635,14 +627,14 @@ pub(super) mod tests {
         )
     }
 
-    const JUSTFILE: &str = "set shell := [\"bash\", \"-euo\", \"pipefail\", \"-c\"]\nflag := \"x\"\n\n# List the recipes\ndefault:\n    @just --list\n\n# The gate\ncheck: hooks fmt lint test build # trailing comment\n\nhooks:\n    node scripts/verify-hooks.ts\n\nfmt:\n    cargo fmt --all\n\nlint: (prep \"a\")\n    cargo fmt --all --check\n\n    -pnpm lint\n\nprep arg:\n    echo {{ arg }}\n\ntest: test-core && test-ui\n\ntest-core:\n    cargo nextest run --locked \\\n      -p core\n\ntest-ui:\n    pnpm test:ui\n\nbuild:\n    #!/usr/bin/env bash\n    set -euo pipefail\n    just helper\n\nhelper:\n    @cargo build --locked\n\nextra:\n    cargo shear\n\ngen:\n    cargo test --locked export_bindings\n";
+    const JUSTFILE: &str = "set shell := [\"bash\", \"-euo\", \"pipefail\", \"-c\"]\nflag := \"x\"\n\n# List the recipes\ndefault:\n    @just --list\n\n# The gate\ncheck: hooks fmt lint test build # trailing comment\n\nhooks:\n    cargo xtask verify-hooks\n\nfmt:\n    cargo fmt --all\n\nlint: (prep \"a\")\n    cargo fmt --all --check\n\n    -typos\n\nprep arg:\n    echo {{ arg }}\n\ntest: test-core && test-ui\n\ntest-core:\n    cargo nextest run --locked \\\n      -p core\n\ntest-ui:\n    cargo nextest run --locked -p ui\n\nbuild:\n    #!/usr/bin/env bash\n    set -euo pipefail\n    just helper\n\nhelper:\n    @cargo build --locked\n\nextra:\n    cargo shear\n\ngen:\n    cargo test --locked export_bindings\n";
 
-    const CI: &str = "on: [push, pull_request]\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@abc\n      - run: corepack enable pnpm\n      - run: cargo   fmt --all --check\n      - run: |\n          # a comment\n          pnpm lint\n          just --quiet prep a\n      - run: just test-core\n      - run: just test-ui\n      - run: just build\n      - name: Drift\n        run: |\n          just gen\n          git diff --exit-code\n  bootstrap:\n    name: Template Bootstrap Smoke\n    steps:\n      - run: cp -R . \"$RUNNER_TEMP/copy\"\n";
+    const CI: &str = "on: [push, pull_request]\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@abc\n      - run: rustup show\n      - run: cargo   fmt --all --check\n      - run: |\n          # a comment\n          typos\n          just --quiet prep a\n      - run: just test-core\n      - run: just test-ui\n      - run: just build\n      - name: Drift\n        run: |\n          just gen\n          git diff --exit-code\n  bootstrap:\n    name: Template Bootstrap Smoke\n    steps:\n      - run: cp -R . \"$RUNNER_TEMP/copy\"\n";
 
     const EXCEPTIONS: Exceptions = Exceptions {
         local_only: &[("hooks", "no hooks on CI"), ("fmt", "rewrites files")],
         ci_only_recipes: &[("gen", "writes files; CI diffs them")],
-        ci_only_commands: &[("corepack enable pnpm", "runner setup")],
+        ci_only_commands: &[("rustup show", "runner setup")],
         ci_only_jobs: &[(
             "Template Bootstrap Smoke",
             "tests the bootstrap, not this tree",
@@ -713,10 +705,7 @@ pub(super) mod tests {
         };
         assert_eq!(get("check").deps, ["hooks", "fmt", "lint", "test", "build"]);
         assert_eq!(get("lint").deps, ["prep"]);
-        assert_eq!(
-            get("lint").commands,
-            ["cargo fmt --all --check", "pnpm lint"]
-        );
+        assert_eq!(get("lint").commands, ["cargo fmt --all --check", "typos"]);
         assert_eq!(get("test").deps, ["test-core", "test-ui"]);
         assert_eq!(
             get("test-core").commands,
@@ -748,8 +737,8 @@ pub(super) mod tests {
         assert!(found[0].actual.contains("cargo shear"));
         assert_eq!(
             codes(&with_justfile(
-                "    -pnpm lint\n",
-                "    -pnpm lint\n    pnpm typecheck\n"
+                "    -typos\n",
+                "    -typos\n    actionlint\n"
             )),
             ["ERR_CHECK_JUST_CI_DIVERGED"]
         );
@@ -858,12 +847,10 @@ pub(super) mod tests {
                 }
                 "ci_only_recipes" => exceptions.ci_only_recipes = &[("gen", "x"), ("gone", "old")],
                 "ci_only_commands_gone" => {
-                    exceptions.ci_only_commands =
-                        &[("corepack enable pnpm", "x"), ("cargo gone", "old")];
+                    exceptions.ci_only_commands = &[("rustup show", "x"), ("cargo gone", "old")];
                 }
                 _ => {
-                    exceptions.ci_only_commands =
-                        &[("corepack enable pnpm", "x"), ("pnpm lint", "old")];
+                    exceptions.ci_only_commands = &[("rustup show", "x"), ("typos", "old")];
                 }
             }
             exceptions
@@ -914,7 +901,7 @@ pub(super) mod tests {
             codes(&check_with(Some(JUSTFILE), Some("on: push\n"), &EXCEPTIONS)),
             ["ERR_CHECK_JUST_CI_INPUT"]
         );
-        let found = check_with(Some("lint:\n    pnpm lint\n"), Some(CI), &EXCEPTIONS);
+        let found = check_with(Some("lint:\n    typos\n"), Some(CI), &EXCEPTIONS);
         assert_eq!(codes(&found), ["ERR_CHECK_JUST_CI_NO_CHECK"]);
         assert_eq!(found[0].actual, "recipes: lint");
         assert_eq!(
@@ -929,7 +916,7 @@ pub(super) mod tests {
         write(
             dir.path(),
             "justfile",
-            "check: verify-hooks fmt\nverify-hooks:\n    node scripts/verify-hooks.ts\nfmt:\n    cargo fmt --all\n",
+            "check: verify-hooks fmt\nverify-hooks:\n    cargo xtask verify-hooks\nfmt:\n    cargo fmt --all\n",
         );
         write(
             dir.path(),
