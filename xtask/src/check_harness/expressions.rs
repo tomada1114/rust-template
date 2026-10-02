@@ -247,19 +247,75 @@ pub(super) fn truthy(value: &Value, event: Event) -> Option<bool> {
     }
 }
 
+/// A string as JavaScript's `Number()` reads one, as the original check did: trimmed of
+/// JavaScript white space, empty as 0, `0x`/`0o`/`0b` integers (unsigned), `Infinity`
+/// with an optional sign, else a decimal literal; anything else (`inf`, `nan`, `1_0`) is
+/// `NaN`.
+fn js_number(text: &str) -> f64 {
+    let js_space = |c: char| c != '\u{85}' && (c.is_whitespace() || c == '\u{feff}');
+    let text = text.trim_matches(js_space);
+    if text.is_empty() {
+        return 0.0;
+    }
+    let prefixed = [
+        ("0x", 16),
+        ("0X", 16),
+        ("0o", 8),
+        ("0O", 8),
+        ("0b", 2),
+        ("0B", 2),
+    ]
+    .into_iter()
+    .find_map(|(prefix, base)| text.strip_prefix(prefix).map(|digits| (digits, base)));
+    if let Some((digits, base)) = prefixed {
+        if digits.is_empty() {
+            return f64::NAN;
+        }
+        return digits
+            .chars()
+            .try_fold(0.0, |total: f64, digit| {
+                digit
+                    .to_digit(base)
+                    .map(|value| total * f64::from(base) + f64::from(value))
+            })
+            .unwrap_or(f64::NAN);
+    }
+    let (sign, unsigned) = match text.strip_prefix('-') {
+        Some(rest) => (-1.0, rest),
+        None => (1.0, text.strip_prefix('+').unwrap_or(text)),
+    };
+    if unsigned == "Infinity" {
+        return sign * f64::INFINITY;
+    }
+    let (mantissa, exponent) = match unsigned.find(['e', 'E']) {
+        Some(at) => (&unsigned[..at], Some(&unsigned[at + 1..])),
+        None => (unsigned, None),
+    };
+    let digits = |part: &str| part.bytes().all(|byte| byte.is_ascii_digit());
+    let mantissa_ok = match mantissa.split_once('.') {
+        Some((whole, fraction)) => {
+            digits(whole) && digits(fraction) && !(whole.is_empty() && fraction.is_empty())
+        }
+        None => !mantissa.is_empty() && digits(mantissa),
+    };
+    let exponent_ok = exponent.is_none_or(|power| {
+        let power = power.strip_prefix(['-', '+']).unwrap_or(power);
+        !power.is_empty() && digits(power)
+    });
+    if !(mantissa_ok && exponent_ok) {
+        return f64::NAN;
+    }
+    unsigned
+        .parse::<f64>()
+        .map_or(f64::NAN, |value| sign * value)
+}
+
 fn to_number(literal: &Literal) -> f64 {
     match literal {
         Literal::Null => 0.0,
         Literal::Bool(value) => f64::from(u8::from(*value)),
         Literal::Number(number) => *number,
-        Literal::Str(text) => {
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
-                0.0
-            } else {
-                trimmed.parse::<f64>().unwrap_or(f64::NAN)
-            }
-        }
+        Literal::Str(text) => js_number(text),
     }
 }
 
@@ -442,7 +498,8 @@ pub(super) fn condition_on(event: Event, value: &Node) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Event, Literal, Value, condition_on, evaluate_on, is_whole_expression, template_on, truthy,
+        Event, Literal, Value, condition_on, evaluate_on, is_whole_expression, js_number,
+        template_on, truthy,
     };
     use crate::check_harness::yaml::{Keys, parse};
 
@@ -507,6 +564,36 @@ mod tests {
         assert_eq!(push("github.foo == 'x'"), Some(Value::Unknown));
         assert_eq!(push("github.sha && 'x'"), Some(string("x")));
         assert_eq!(push("0 && 'x'"), Some(Value::Literal(Literal::Number(0.0))));
+    }
+
+    #[test]
+    fn reads_a_string_as_a_number_the_way_javascript_does() {
+        for (text, expected) in [
+            ("", 0.0),
+            (" \t\n", 0.0),
+            (" 12 ", 12.0),
+            ("\u{feff}3\u{2028}", 3.0),
+            ("0x1f", 31.0),
+            ("0O17", 15.0),
+            ("0b101", 5.0),
+            ("Infinity", f64::INFINITY),
+            ("+Infinity", f64::INFINITY),
+            ("-Infinity", f64::NEG_INFINITY),
+            ("-1.5e2", -150.0),
+            ("1.", 1.0),
+            (".5", 0.5),
+            ("+7", 7.0),
+        ] {
+            assert_eq!(js_number(text).to_bits(), expected.to_bits(), "{text:?}");
+        }
+        for text in [
+            "inf", "-inf", "infinity", "nan", "NaN", "1_0", "0x", "-0x10", "0x1g", "1e", ".", "e5",
+            "1.2.3", "\u{85}1", "12px",
+        ] {
+            assert!(js_number(text).is_nan(), "{text:?}");
+        }
+        assert_eq!(push("'inf' == 0"), Some(boolean(false)));
+        assert_eq!(push("'0x10' == 16"), Some(boolean(true)));
     }
 
     #[test]

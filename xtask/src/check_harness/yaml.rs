@@ -2,7 +2,10 @@
 //! keeps the line it starts on, so a finding can point at `path:line`. Plain scalars
 //! resolve by the YAML 1.2 core schema (`null`, `true`, `12`, `1.5`); a quoted or block
 //! scalar is a string. A duplicate mapping key is an error unless the caller allows it,
-//! and so is a second document. Anchors and aliases resolve to copies.
+//! and so is a second document. Anchors and aliases resolve to copies, capped as the
+//! JavaScript `yaml` package caps them (`maxAliasCount` 100), so a document that expands
+//! an anchor exponentially is refused rather than copied. A leading byte order mark is
+//! dropped, as that package drops it.
 
 use yaml_rust2::parser::{Event, MarkedEventReceiver, Parser};
 use yaml_rust2::scanner::{Marker, TScalarStyle};
@@ -249,36 +252,63 @@ pub(crate) struct YamlError {
     pub(crate) message: String,
 }
 
+/// The `yaml` package's `maxAliasCount`: an anchor's uses times the aliasing nested in it.
+const MAX_ALIAS_COUNT: usize = 100;
+
 enum Frame {
     Seq {
         items: Vec<Node>,
         line: usize,
         anchor: usize,
+        weight: usize,
     },
     Map {
         pairs: Vec<(Node, Node)>,
         key: Option<Node>,
         line: usize,
         anchor: usize,
+        weight: usize,
     },
+}
+
+/// An anchored node, how often an alias has used it, and the aliasing nested in it (the
+/// package's `count` and `aliasCount`).
+struct Anchor {
+    id: usize,
+    node: Node,
+    uses: usize,
+    weight: usize,
 }
 
 struct Builder {
     keys: Keys,
     stack: Vec<Frame>,
     documents: Vec<Node>,
-    anchors: Vec<(usize, Node)>,
+    anchors: Vec<Anchor>,
     error: Option<YamlError>,
 }
 
 impl Builder {
-    fn remember(&mut self, anchor: usize, node: &Node) {
+    fn remember(&mut self, anchor: usize, node: &Node, weight: usize) {
         if anchor > 0 {
-            self.anchors.push((anchor, node.clone()));
+            self.anchors.push(Anchor {
+                id: anchor,
+                node: node.clone(),
+                uses: 0,
+                weight,
+            });
         }
     }
 
-    fn insert(&mut self, node: Node) {
+    /// Insert `node`, whose nested aliasing is `weight` (a scalar's is 1, an empty
+    /// collection's 0, a collection's the largest of its children's).
+    fn insert(&mut self, node: Node, weight: usize) {
+        match self.stack.last_mut() {
+            Some(Frame::Seq { weight: most, .. } | Frame::Map { weight: most, .. }) => {
+                *most = (*most).max(weight);
+            }
+            None => {}
+        }
         match self.stack.last_mut() {
             None => self.documents.push(node),
             Some(Frame::Seq { items, .. }) => items.push(node),
@@ -372,6 +402,9 @@ fn is_core_number(text: &str) -> bool {
 
 impl MarkedEventReceiver for Builder {
     fn on_event(&mut self, event: Event, mark: Marker) {
+        if self.error.is_some() {
+            return;
+        }
         let line = mark.line();
         match event {
             Event::Scalar(text, style, anchor, tag) => {
@@ -389,42 +422,63 @@ impl MarkedEventReceiver for Builder {
                     TScalarStyle::Folded => (Yaml::Str(text), Style::Folded),
                 };
                 let node = Node { value, line, style };
-                self.remember(anchor, &node);
-                self.insert(node);
+                self.remember(anchor, &node, 1);
+                self.insert(node, 1);
             }
             Event::Alias(anchor) => {
-                let node = self
+                let Some(found) = self
                     .anchors
-                    .iter()
+                    .iter_mut()
                     .rev()
-                    .find(|(id, _)| *id == anchor)
-                    .map_or(NULL, |(_, node)| node.clone());
-                self.insert(Node { line, ..node });
+                    .find(|found| found.id == anchor)
+                else {
+                    self.insert(Node { line, ..NULL }, 1);
+                    return;
+                };
+                found.uses += 1;
+                let weight = found.uses.saturating_mul(found.weight);
+                if weight > MAX_ALIAS_COUNT {
+                    self.error = Some(YamlError {
+                        line,
+                        message: "Excessive alias count indicates a resource exhaustion attack"
+                            .to_owned(),
+                    });
+                    return;
+                }
+                let node = Node {
+                    line,
+                    ..found.node.clone()
+                };
+                self.insert(node, weight);
             }
             Event::SequenceStart(anchor, _) => self.stack.push(Frame::Seq {
                 items: Vec::new(),
                 line,
                 anchor,
+                weight: 0,
             }),
             Event::MappingStart(anchor, _) => self.stack.push(Frame::Map {
                 pairs: Vec::new(),
                 key: None,
                 line,
                 anchor,
+                weight: 0,
             }),
             Event::SequenceEnd | Event::MappingEnd => {
-                let (value, line, anchor) = match self.stack.pop() {
+                let (value, line, anchor, weight) = match self.stack.pop() {
                     Some(Frame::Seq {
                         items,
                         line,
                         anchor,
-                    }) => (Yaml::Seq(items), line, anchor),
+                        weight,
+                    }) => (Yaml::Seq(items), line, anchor, weight),
                     Some(Frame::Map {
                         pairs,
                         line,
                         anchor,
+                        weight,
                         ..
-                    }) => (Yaml::Map(pairs), line, anchor),
+                    }) => (Yaml::Map(pairs), line, anchor, weight),
                     None => return,
                 };
                 let node = Node {
@@ -432,8 +486,8 @@ impl MarkedEventReceiver for Builder {
                     line,
                     style: Style::Collection,
                 };
-                self.remember(anchor, &node);
-                self.insert(node);
+                self.remember(anchor, &node, weight);
+                self.insert(node, weight);
             }
             Event::Nothing
             | Event::StreamStart
@@ -453,6 +507,7 @@ pub(crate) fn parse(text: &str, keys: Keys) -> Result<Document, YamlError> {
         anchors: Vec::new(),
         error: None,
     };
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut parser = Parser::new_from_str(text);
     parser.load(&mut builder, true).map_err(|error| YamlError {
         line: error.marker().line(),
@@ -608,5 +663,40 @@ mod tests {
             Some(r#"{"x":1}"#)
         );
         assert_eq!(doc.get("copy").map(|copy| copy.line), Some(2));
+    }
+
+    #[test]
+    fn refuses_a_document_that_aliases_past_the_cap() {
+        let uses = |count: usize| format!("a: &a x\nb: [{}]\n", vec!["*a"; count].join(", "));
+        assert!(parse(&uses(100), Keys::Unique).is_ok());
+        let error = parse(&uses(101), Keys::Unique).expect_err("101 uses of one anchor");
+        assert!(
+            error.message.contains("Excessive alias count"),
+            "{}",
+            error.message
+        );
+        assert_eq!(error.line, 2);
+        // Each level multiplies the one below; the cap refuses it long before the copies
+        // would exhaust memory.
+        let names = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+        let mut lines = vec!["a: &a [x, x, x, x, x, x, x, x, x, x]".to_owned()];
+        for pair in names.windows(2) {
+            let refs = vec![format!("*{}", pair[0]); 10].join(", ");
+            lines.push(format!("{0}: &{0} [{refs}]", pair[1]));
+        }
+        let laughs = lines.join("\n");
+        let error = parse(&laughs, Keys::Unique).expect_err("exponential expansion");
+        assert!(
+            error.message.contains("Excessive alias count"),
+            "{}",
+            error.message
+        );
+    }
+
+    #[test]
+    fn drops_a_leading_byte_order_mark() {
+        let doc = root("\u{feff}a: 1\nb:\n  - x\n");
+        assert_eq!(doc.get("a").and_then(super::Node::as_number), Some(1.0));
+        assert_eq!(doc.locate(&[Key::Name("b"), Key::Index(0)]).line, 3);
     }
 }
