@@ -4,6 +4,9 @@ target/
 # Coverage reports
 coverage/
 
+# Kept for checkouts made before the Node toolchain was removed: their install left it behind
+node_modules/
+
 # IDE
 .vscode/
 .idea/

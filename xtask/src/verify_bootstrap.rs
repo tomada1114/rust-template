@@ -73,8 +73,9 @@ fn verify_answers() -> Answers {
     }
 }
 
-/// Directories a scan skips: version control and build output.
-const SKIPPED_DIRS: [&str; 3] = [".git", "target", "coverage"];
+/// Directories a scan skips: version control, build output, and the `node_modules/` a
+/// checkout made before the Node toolchain was removed still holds (`.gitignore` keeps it).
+const SKIPPED_DIRS: [&str; 4] = ["node_modules", ".git", "target", "coverage"];
 const FIRST_VERSION: &str = "0.1.0";
 /// The prefix of every temporary directory this task makes (`just prune-temp` removes
 /// the ones an interrupted run leaves behind).

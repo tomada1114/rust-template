@@ -11,7 +11,6 @@ paths:
   - "clippy.toml"
   - "crates/*/clippy.toml"
   - "rustfmt.toml"
-  - "vite.config.ts"
   - "lefthook.yml"
   - "typos.toml"
   - ".github/dependabot.yml"

@@ -247,6 +247,17 @@ class ParseBumpsTest(unittest.TestCase):
             sp.parse_bumps("deps: bump the cargo-minor-and-patch group with 2 updates", body),
             [b("tauri", "2.11.6", "2.12.0"), b("serde", "1.0.228", "1.0.229")])
 
+    def test_reads_a_grouped_body_with_crlf_line_endings(self):
+        body = "\r\n".join([
+            "Updates `tauri` from 2.11.6 to 2.12.0",
+            "- [Release notes](https://example.invalid)",
+            "Updates `serde` from 1.0.228 to 1.0.229.",
+            "",
+        ])
+        self.assertEqual(
+            sp.parse_bumps("deps: bump the cargo-minor-and-patch group with 2 updates", body),
+            [b("tauri", "2.11.6", "2.12.0"), b("serde", "1.0.228", "1.0.229")])
+
     def test_reads_a_renovate_table_row_with_either_arrow(self):
         body = "\n".join([
             "| Package | Update | Change |",
@@ -451,6 +462,8 @@ class TauriReportTest(unittest.TestCase):
 
 
 class CurrentTauriVersionsTest(TempRoots):
+    # Reading Cargo.lock needs tomllib; on Python 3.9-3.10 the fallback test below runs.
+    @unittest.skipIf(sp.tomllib is None, "Cargo.lock needs tomllib (Python 3.11+)")
     def test_reads_the_tauri_family_from_cargo_lock_and_package_json(self):
         versions = sp.current_tauri_versions(
             self.temp_root({"Cargo.lock": CARGO_LOCK, "package.json": PACKAGE_JSON}))
@@ -460,6 +473,23 @@ class CurrentTauriVersionsTest(TempRoots):
             ("@tauri-apps/api", "~2.11.1"),
             ("@tauri-apps/cli", "~2.11.5"),
         ])
+
+    def test_skips_the_cargo_lock_baseline_with_a_notice_when_python_has_no_tomllib(self):
+        root = self.temp_root({"Cargo.lock": CARGO_LOCK, "package.json": PACKAGE_JSON})
+        err = io.StringIO()
+        with patch.object(sp, "tomllib", None), redirect_stderr(err):
+            versions = sp.current_tauri_versions(root)
+        self.assertEqual(list(versions.items()), [
+            ("@tauri-apps/api", "~2.11.1"),
+            ("@tauri-apps/cli", "~2.11.5"),
+        ])
+        self.assertIn("Python 3.11+ (tomllib) is needed to read Cargo.lock", err.getvalue())
+
+    def test_says_nothing_without_tomllib_when_there_is_no_cargo_lock(self):
+        err = io.StringIO()
+        with patch.object(sp, "tomllib", None), redirect_stderr(err):
+            self.assertEqual(len(sp.current_tauri_versions(self.temp_root())), 0)
+        self.assertEqual(err.getvalue(), "")
 
     def test_is_empty_when_neither_file_exists_or_parses(self):
         self.assertEqual(len(sp.current_tauri_versions(self.temp_root())), 0)

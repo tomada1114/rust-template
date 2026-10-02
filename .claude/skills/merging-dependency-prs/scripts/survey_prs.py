@@ -17,7 +17,9 @@ Usage:
 Needs `gh`, authenticated against this repository. It works in any directory `gh`
 resolves a repository from; outside one, `gh` fails and so does this script.
 
-Standard library only (Python 3.11+, `tomllib` for Cargo.lock).
+Standard library only, Python 3.9 or later. `tomllib` (3.11+) reads Cargo.lock for the
+Tauri crates' baseline; on an older Python that baseline is skipped with a notice on
+stderr, and the rest of the survey is unchanged.
 
 Errors (first stderr line `ERR_<STAGE>_<WHAT>: <summary>`, then `Expected:`, `Actual:`,
 and `Next:` lines; exit 1):
@@ -31,9 +33,13 @@ import json
 import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any, Callable
+
+try:
+    import tomllib
+except ImportError:  # Python < 3.11: no TOML parser in the standard library.
+    tomllib = None  # type: ignore[assignment]
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
@@ -50,7 +56,8 @@ TITLE_BUMP = re.compile(
     re.IGNORECASE,
 )
 # Dependabot, a group: one "Updates `name` from A to B" line per dependency in the body.
-BODY_BUMP = re.compile(r"^Updates `(?P<name>[^`]+)` from (?P<from>\S+) to (?P<to>\S+?)\.?$", re.MULTILINE)
+# `\r?` before `$`: Python's MULTILINE `$` matches only before `\n`, so a CRLF body needs it.
+BODY_BUMP = re.compile(r"^Updates `(?P<name>[^`]+)` from (?P<from>\S+) to (?P<to>\S+?)\.?\r?$", re.MULTILINE)
 # Renovate: a table row "| name | minor | `A` -> `B` |", the name often a Markdown link.
 TABLE_BUMP = re.compile(
     r"^\|\s*\[?(?P<name>[^\]|]+?)\]?(?:\([^)]*\))?\s*\|[^|\n]*\|\s*`(?P<from>[^`]+)`\s*(?:->|→)\s*`(?P<to>[^`]+)`\s*\|",
@@ -293,7 +300,13 @@ def current_tauri_versions(root: Path) -> dict[str, str]:
     """The Tauri family's versions in this checkout: locked crates, and npm ranges as written."""
     versions: dict[str, str] = {}
     lock = _read_text(Path(root) / "Cargo.lock")
-    if lock is not None:
+    if lock is not None and tomllib is None:
+        print(
+            "survey: Python 3.11+ (tomllib) is needed to read Cargo.lock; "
+            "the Tauri crates' baseline is skipped",
+            file=sys.stderr,
+        )
+    elif lock is not None:
         try:
             for pkg in _list(tomllib.loads(lock), "package"):
                 name, version = _text(pkg, "name"), _text(pkg, "version")
