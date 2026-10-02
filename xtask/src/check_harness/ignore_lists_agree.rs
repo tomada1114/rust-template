@@ -16,15 +16,17 @@
 //!   to reach dot-directories, the cautious reading. It skips the source when an exclude
 //!   names `.agents/skills/` or a directory containing it.
 //!
-//! The linter's ignores (`eslint.config.mjs`) are not compared: that config is code, and
-//! reading it would mean evaluating JavaScript, which this Rust check does not do.
+//! The linter's ignores (`eslint.config.mjs`) are not compared: `ESLint` leaves with the
+//! Node toolchain, so the check keeps only the tools that stay in step.
 //!
 //! An entry excludes a directory when, with a leading `/`, `./`, or `**/` and a trailing
 //! `/`, `/*`, or `/**` removed, it names that directory or one containing it
 //! (`.claude/skills/**` and `.claude/` both exclude `.claude/skills/`).
 //!
 //! Errors: `ERR_CHECK_INPUT_MISSING`, `ERR_CHECK_INPUT_UNREADABLE` (`typos.toml` or
-//! `package.json` does not parse), `ERR_CHECK_IGNORE_MIRROR` (a tool reads the mirror),
+//! `package.json` does not parse, `package.json` is not an object, `vitest.config.ts` has
+//! no `include` or `exclude` list to read, or a glob does not compile),
+//! `ERR_CHECK_IGNORE_MIRROR` (a tool reads the mirror),
 //! `ERR_CHECK_IGNORE_SOURCE` (a tool skips the real skills).
 
 use regex::Regex;
@@ -120,59 +122,129 @@ fn undotted(path: &str) -> String {
         .join("/")
 }
 
+/// The index of the `}` closing the `{` at `open`, if any.
+fn brace_close(chars: &[char], open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, c) in chars.iter().enumerate().skip(open) {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// A glob class's content as a regex class's: a `-` between two other characters stays a
+/// range, and each character a regex class would read as syntax (`&&`, `--`, `~~`, a
+/// nested `[`, `^`, `\`) is escaped.
+fn class_source(content: &[char]) -> String {
+    let mut source = String::new();
+    for (index, &c) in content.iter().enumerate() {
+        let range = c == '-'
+            && index > 0
+            && index + 1 < content.len()
+            && content[index - 1] != '-'
+            && content[index + 1] != '-';
+        if !range && ['\\', '[', ']', '&', '~', '-', '^'].contains(&c) {
+            source.push('\\');
+        }
+        source.push(c);
+    }
+    source
+}
+
 /// A glob as a regex, the way Node's `path.matchesGlob` reads one: `**` as a whole segment
-/// matches any number of segments, `*` any text within one, `?` one character in one,
-/// `{a,b}` either, and `[...]` a class.
-fn glob_regex(glob: &str) -> Option<Regex> {
+/// matches any number of segments (elsewhere it is `*`), `*` any text within one, `?` one
+/// character in one, `{a,b}` either, and `[...]` a class. An unclosed `{` or `[` is a
+/// literal character. The error is the regex's own when the result does not compile.
+fn glob_regex(glob: &str) -> Result<Regex, String> {
     let chars: Vec<char> = glob.chars().collect();
     let mut source = String::from("^");
-    let mut braces = 0usize;
+    let mut closes: Vec<usize> = Vec::new();
     let mut index = 0;
     while let Some(&c) = chars.get(index) {
         let at_start = index == 0 || chars.get(index - 1) == Some(&'/');
         match c {
-            '*' if chars.get(index + 1) == Some(&'*') && at_start => {
+            '*' if chars.get(index + 1) == Some(&'*') => {
                 index += 2;
-                if chars.get(index) == Some(&'/') {
+                let segment_end = matches!(chars.get(index), None | Some('/'));
+                if at_start && segment_end && chars.get(index) == Some(&'/') {
                     index += 1;
                     source.push_str("(?:[^/]*/)*");
-                } else {
+                } else if at_start && segment_end {
                     source.push_str(".*");
+                } else {
+                    source.push_str("[^/]*");
                 }
                 continue;
             }
             '*' => source.push_str("[^/]*"),
             '?' => source.push_str("[^/]"),
-            '{' => {
-                braces += 1;
-                source.push_str("(?:");
-            }
-            '}' if braces > 0 => {
-                braces -= 1;
+            '{' => match brace_close(&chars, index) {
+                Some(close) => {
+                    closes.push(close);
+                    source.push_str("(?:");
+                }
+                None => source.push_str(&regex::escape("{")),
+            },
+            '}' if closes.last() == Some(&index) => {
+                closes.pop();
                 source.push(')');
             }
-            ',' if braces > 0 => source.push('|'),
+            ',' if !closes.is_empty() => source.push('|'),
             '[' => {
-                let end = chars[index..].iter().position(|&close| close == ']')?;
-                let class: String = chars[index + 1..index + end].iter().collect();
-                let class = class
-                    .strip_prefix('!')
-                    .map_or(class.clone(), |rest| format!("^{rest}"));
-                source.push('[');
-                source.push_str(&class.replace('\\', "\\\\"));
-                source.push(']');
-                index += end + 1;
-                continue;
+                let negated = chars.get(index + 1) == Some(&'!');
+                let first = index + 1 + usize::from(negated);
+                // The first character is content, so `[]]` is a class of `]`.
+                let close = chars
+                    .get(first + 1..)
+                    .and_then(|rest| rest.iter().position(|&end| end == ']'))
+                    .map(|at| at + first + 1);
+                if let Some(close) = close {
+                    source.push('[');
+                    if negated {
+                        source.push('^');
+                    }
+                    source.push_str(&class_source(&chars[first..close]));
+                    source.push(']');
+                    index = close + 1;
+                    continue;
+                }
+                source.push_str(&regex::escape("["));
             }
             other => source.push_str(&regex::escape(&other.to_string())),
         }
         index += 1;
     }
-    if braces > 0 {
-        return None;
-    }
     source.push('$');
-    Regex::new(&source).ok()
+    Regex::new(&source).map_err(|error| first_line(&error.to_string()).to_owned())
+}
+
+/// Each glob of `globs`, undotted and compiled; a glob that does not compile is an
+/// unreadable `path`, never one that matches nothing.
+fn compile(path: &str, globs: &[String]) -> Result<Vec<Regex>, FailureDetails> {
+    globs
+        .iter()
+        .map(|glob| {
+            glob_regex(&undotted(glob)).map_err(|error| {
+                finding(
+                    "ERR_CHECK_INPUT_UNREADABLE",
+                    format!("a glob in {path} cannot be read"),
+                    format!(
+                        "every glob in {path} to compile, so the check can tell what it reaches"
+                    ),
+                    format!("`{glob}`: {error}"),
+                    format!("fix the glob in {path}"),
+                )
+            })
+        })
+        .collect()
 }
 
 /// The patterns this check reads the configs with.
@@ -202,12 +274,9 @@ struct Globs {
 }
 
 /// Whether `file` is reached by an include glob and not removed by an exclude glob.
-fn reached(file: &str, include: &[String], exclude: &[String]) -> bool {
+fn reached(file: &str, include: &[Regex], exclude: &[Regex]) -> bool {
     let file = undotted(file);
-    let matches = |list: &[String]| {
-        list.iter()
-            .any(|glob| glob_regex(&undotted(glob)).is_some_and(|pattern| pattern.is_match(&file)))
-    };
+    let matches = |list: &[Regex]| list.iter().any(|pattern| pattern.is_match(&file));
     matches(include) && !matches(exclude)
 }
 
@@ -301,6 +370,9 @@ fn typos_excludes(text: &str) -> Result<Vec<String>, String> {
 fn coverage_includes(text: &str, flag: &Regex) -> Result<Vec<String>, String> {
     let parsed: serde_json::Value =
         serde_json::from_str(text).map_err(|error| error.to_string())?;
+    if !parsed.is_object() {
+        return Err("the document is JSON, but not an object".to_owned());
+    }
     let commands = parsed
         .get("scripts")
         .and_then(serde_json::Value::as_object)
@@ -362,19 +434,20 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
         Some(Ok(list)) => list,
         Some(Err(message)) => return vec![unreadable("package.json", &message)],
     };
-    let (coverage, projects) = split_coverage(vitest, &patterns.coverage);
-    let collected = globs(&projects, &patterns);
-    let measured = globs(&coverage, &patterns);
+    let vitest = match read_vitest(vitest, &coverage_flags, &patterns) {
+        Ok(vitest) => vitest,
+        Err(invalid) => return vec![invalid],
+    };
     // A test file Vitest would collect, and a source file its coverage would measure.
     let vitest_reads = |dir: &str| {
         reached(
             &format!("{dir}/probe/scripts/probe.test.ts"),
-            &collected.include,
-            &collected.exclude,
+            &vitest.test_include,
+            &vitest.test_exclude,
         ) || reached(
             &format!("{dir}/probe/scripts/probe.ts"),
-            &measured.include,
-            &measured.exclude,
+            &vitest.coverage_include,
+            &vitest.coverage_exclude,
         )
     };
     let mirror = [
@@ -388,8 +461,8 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             "package.json",
             !reached(
                 &format!("{MIRROR}/probe/scripts/probe.ts"),
-                &coverage_flags,
-                &measured.exclude,
+                &vitest.flag_include,
+                &vitest.coverage_exclude,
             ),
         ),
     ];
@@ -401,11 +474,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
         ),
         (
             "vitest.config.ts",
-            collected
-                .exclude
-                .iter()
-                .chain(&measured.exclude)
-                .any(|entry| covers(entry, SOURCE)),
+            vitest.excludes.iter().any(|entry| covers(entry, SOURCE)),
         ),
     ];
     let mut violations: Vec<FailureDetails> = mirror
@@ -420,6 +489,47 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
             .map(|(path, _)| source_violation(path)),
     );
     violations
+}
+
+/// What Vitest reads: every exclude as written, and each list compiled.
+struct Vitest {
+    excludes: Vec<String>,
+    test_include: Vec<Regex>,
+    test_exclude: Vec<Regex>,
+    coverage_include: Vec<Regex>,
+    coverage_exclude: Vec<Regex>,
+    flag_include: Vec<Regex>,
+}
+
+fn read_vitest(
+    vitest: &str,
+    coverage_flags: &[String],
+    patterns: &Patterns,
+) -> Result<Vitest, FailureDetails> {
+    if !patterns.include.is_match(vitest) && !patterns.exclude.is_match(vitest) {
+        return Err(finding(
+            "ERR_CHECK_INPUT_UNREADABLE",
+            "vitest.config.ts has no include or exclude list to read",
+            "vitest.config.ts to name its globs in `include: [...]` and `exclude: [...]` lists of string literals",
+            "no such list",
+            "write the globs as literal lists, or change this check to read the new form",
+        ));
+    }
+    let (coverage, projects) = split_coverage(vitest, &patterns.coverage);
+    let collected = globs(&projects, patterns);
+    let measured = globs(&coverage, patterns);
+    Ok(Vitest {
+        test_include: compile("vitest.config.ts", &collected.include)?,
+        test_exclude: compile("vitest.config.ts", &collected.exclude)?,
+        coverage_include: compile("vitest.config.ts", &measured.include)?,
+        coverage_exclude: compile("vitest.config.ts", &measured.exclude)?,
+        flag_include: compile("package.json", coverage_flags)?,
+        excludes: collected
+            .exclude
+            .into_iter()
+            .chain(measured.exclude)
+            .collect(),
+    })
 }
 
 #[cfg(test)]
@@ -604,10 +714,33 @@ export default defineConfig({
                 "{path}"
             );
         }
-        assert_eq!(
-            check(&[("vitest.config.ts", Some("export default {};\n"))]),
-            []
-        );
+        for (path, content) in [
+            ("package.json", "[]"),
+            ("package.json", "null"),
+            ("vitest.config.ts", "export default {};\n"),
+        ] {
+            let found = check(&[(path, Some(content))]);
+            assert_eq!(
+                codes(&found),
+                ["ERR_CHECK_INPUT_UNREADABLE"],
+                "{path} {content}"
+            );
+        }
+        let huge = format!("\"{}\"", "?".repeat(100_000));
+        for (path, content) in [
+            (
+                "vitest.config.ts",
+                VITEST.replace("'**/fixtures/**'", &huge),
+            ),
+            (
+                "package.json",
+                PACKAGE.replace("'scripts/**/*.ts'", &huge.replace('"', "'")),
+            ),
+        ] {
+            let found = check(&[(path, Some(&content))]);
+            assert_eq!(codes(&found), ["ERR_CHECK_INPUT_UNREADABLE"], "{path}");
+            assert_eq!(found[0].summary, format!("a glob in {path} cannot be read"));
+        }
     }
 
     #[test]
@@ -627,13 +760,39 @@ export default defineConfig({
             ("a.b", "axb", false),
         ] {
             assert_eq!(
-                glob_regex(glob).is_some_and(|pattern| pattern.is_match(path)),
+                glob_regex(glob).is_ok_and(|pattern| pattern.is_match(path)),
                 matches,
                 "{glob} {path}"
             );
         }
-        assert!(glob_regex("{a,b").is_none());
-        assert!(glob_regex("[ab").is_none());
+        for (glob, path, matches) in [
+            // `**` is a globstar only as a whole segment.
+            ("**.ts", "a/b.ts", false),
+            ("**.ts", "b.ts", true),
+            ("a/x**/b", "a/x/y/b", false),
+            ("a/x**/b", "a/xyz/b", true),
+            // A class's content is characters, never a regex class operator.
+            ("[a&&b].ts", "&.ts", true),
+            ("[a--b].ts", "-.ts", true),
+            ("[a~~b].ts", "~.ts", true),
+            ("[[a].ts", "[.ts", true),
+            ("[a-c].ts", "b.ts", true),
+            ("[a-c].ts", "-.ts", false),
+            ("[]].ts", "].ts", true),
+            ("[^a].ts", "^.ts", true),
+            // An unclosed `{` or `[` is a literal character.
+            ("{a,b", "{a,b", true),
+            ("[ab", "[ab", true),
+            ("{a,{b,c}}.ts", "c.ts", true),
+        ] {
+            assert_eq!(
+                glob_regex(glob).is_ok_and(|pattern| pattern.is_match(path)),
+                matches,
+                "{glob} {path}"
+            );
+        }
+        let error = glob_regex(&"?".repeat(100_000)).expect_err("too large to compile");
+        assert!(!error.is_empty());
         assert_eq!(
             undotted(".claude/skills/.x/..y/.*"),
             "claude/skills/x/..y/.*"

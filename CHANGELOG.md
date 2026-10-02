@@ -66,10 +66,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xtask/tests/fixtures/`. `scripts/checks/` and `scripts/check-harness.ts` are removed.
   Dropped with the move: `pnpm-pin` (Renovate's `pnpm` group still moves both pnpm
   pins together), `node-types-major` (`merging-dependency-prs` still holds a lone Node
-  side), `formatter-glob`, the ESLint side of `ignore-lists-agree`, and
-  `workflow-hygiene`'s Tauri build rule, whose subject is gone. `scripts/verify-bootstrap.ts`
-  runs the product-section check through `cargo xtask` and fails with
-  `ERR_VERIFY_BOOTSTRAP_HARNESS` when that run cannot report.
+  side), `formatter-glob`, the ESLint side of `ignore-lists-agree` (ESLint leaves with
+  the Node toolchain), and `workflow-hygiene`'s Tauri build rule, whose subject is gone.
+  `scripts/verify-bootstrap.ts` runs the product-section check through `cargo xtask` and
+  fails with `ERR_VERIFY_BOOTSTRAP_HARNESS` when that run cannot report.
 - The committed `.claude/settings.json` is removed: Claude Code permissions and the
   format-on-edit hook now live in each person's user-level `~/.claude/settings.json` or
   the gitignored `.claude/settings.local.json`, and Codex CLI's personal rules in a
