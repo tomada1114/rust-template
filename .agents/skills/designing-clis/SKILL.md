@@ -40,8 +40,11 @@ translates and decides nothing (`AGENTS.md` › "Architecture").
   `CounterAction::{Show, Increment}` give `myapp counter show`.
 - The `///` comment on a variant is its line in `--help`, so it says what the command
   does for its user, in one sentence ending with a period. `#[command(version, about)]`
-  takes the version from `[workspace.package]` and the about text from the `///` on the
-  struct.
+  takes the version from `[workspace.package]` and, because `about` is given bare, the
+  about text from the crate's `Cargo.toml` `description`, not from the `///` on the
+  struct: the sample's `myapp --help` opens with `crates/myapp/Cargo.toml`'s description
+  (observed with a debug build, 2026-10-02). Dropping `about` from the attribute makes
+  clap use the struct's doc comment instead.
 - A handler is translation only: build the service, call one core method, print the
   result or the error. A `match` arm that holds an `if` about the domain is a decision
   in the wrong crate; move it into core, where the coverage floor sees it. In the
@@ -68,8 +71,9 @@ binary" and a `CHANGELOG.md` entry, because a user can now type something new.
   A test reads the diagnostic as the last stderr line for that reason.
 - Write stdout with `writeln!(io::stdout().lock(), …)` and handle the `Err`. `println!`
   panics when stdout is closed (`myapp counter show | true` once `true` has exited), and
-  the release profile's `panic = "abort"` turns that panic into a crash with no message.
-  The sample maps the failure to `wording::STDOUT_UNAVAILABLE` and exit 1.
+  under the release profile's `panic = "abort"` the process then prints only the panic
+  message and aborts: no `error: …` line and no exit 1 for a script to read. The sample
+  maps the failure to `wording::STDOUT_UNAVAILABLE` and exit 1.
 - No color and no terminal control in a subcommand's output: the workspace builds clap
   without its `color` feature (`Cargo.toml`'s `[workspace.dependencies]`), and logs are
   written with `with_ansi(false)`. Output that may land in a file or a pipe stays plain.

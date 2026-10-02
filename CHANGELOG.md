@@ -183,8 +183,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `designing-core-logic` (views a subcommand prints and a TUI draws, a screen's state in
   core), `placing-tests`, `writing-tests`, and `tdd` (the built binary, `TestBackend`,
   and keys as values in place of `tauri::test` and Testing Library), `running-the-app`
-  (`cargo run -p myapp`, a scratch `HOME`, and `just logs`; `myapp tui` only when the
-  human asks), `integrating-system-apis` (macOS and Linux adapters behind
+  (`cargo run -p myapp`, a scratch `HOME`, and `just logs`; `myapp tui` run by the
+  human, never by an agent), `integrating-system-apis` (macOS and Linux adapters behind
   `cfg(target_os)`), and `writing-rust` (clap and ratatui idioms in a new reference).
 
 ### Removed

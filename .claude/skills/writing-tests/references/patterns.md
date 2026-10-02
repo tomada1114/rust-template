@@ -41,7 +41,8 @@ actions. In the sample, `each_change_takes_the_time_the_clock_reads_then`:
 
 ```rust
 let clock = Arc::new(FixedClock::default());
-let service = CounterService::new(Arc::default(), clock.clone(), TUNING);
+let store = Arc::new(InMemoryCounterStore::default());
+let service = CounterService::new(store, clock.clone(), TUNING);
 assert_eq!(service.increment().map(|v| v.last_changed_at), Ok(Some(T0)));
 clock.advance(1_000);
 assert_eq!(

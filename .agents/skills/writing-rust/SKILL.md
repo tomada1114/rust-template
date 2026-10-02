@@ -105,13 +105,13 @@ formats. None of them opens a window or takes over a terminal.
   variants with `A | B =>`. A new variant then fails to compile (E0004) at every place
   that must decide what it means, instead of falling silently into a default. Enforced
   by: `#![deny(clippy::wildcard_enum_match_arm)]` in `crates/myapp-core/src/lib.rs`
-  (core only; follow the same rule in the other crates). In core the lint fires on an
-  enum a foreign crate owns too, whenever a `_` stands for a variant the match could
+  and `crates/myapp/src/main.rs` (follow the same rule in the other crates). Where it
+  is denied, the lint fires on an enum a foreign crate owns too, whenever a `_` stands for a variant the match could
   have named (observed on this Mac with `cargo clippy`, rustc 1.98.1, 2026-09-30). A
   `#[non_exhaustive]` foreign enum needs a `_` arm (E0004), which the lint accepts once
   every variant is named before it; `std::io::ErrorKind` has unstable variants no match
-  can name (E0658), so test it with `==` or `matches!` instead. Outside core a match on
-  a `#[non_exhaustive]` foreign enum ends with `_ =>`. In the sample, `counter_error` in
+  can name (E0658), so test it with `==` or `matches!` instead. In a crate without the
+  deny, a match on a `#[non_exhaustive]` foreign enum ends with `_ =>`. In the sample, `counter_error` in
   `crates/myapp/src/wording.rs` matches every `CounterError` and every
   `StorageErrorKind` inside it.
 
@@ -163,11 +163,13 @@ enum's derives, `ExitCode`, let chains, `Layout::areas`, `const` styles), are in
 ## Output, logging, and `unsafe`
 
 - Log with the `tracing` macros and structured fields (`tracing::warn!(?action,
-  %error, "…")`), never `println!`, `eprintln!`, or `dbg!` for diagnostics: stdout is a
+  %error, "…")`) rather than an ad-hoc `println!`, `eprintln!`, or `dbg!`: stdout is a
   subcommand's data and, under `myapp tui`, the screen itself, so a stray line breaks a
-  pipe or a frame, while the log file stays. A subcommand's own output to its user is
-  the exception, written with `writeln!` to a locked stdout so a closed pipe is an
-  error rather than a panic (`designing-clis`).
+  pipe or a frame, while the log file stays. The binary's own output to its user is
+  the exception: its result is written with `writeln!` to a locked stdout so a closed
+  pipe is an error rather than a panic, and its `error: …`/`warning: …` wording is
+  printed with `eprintln!` in `main.rs`, the sentence taken from `wording.rs`
+  (`designing-clis`). The ban is on diagnostics printed anywhere else.
 - `unsafe` is forbidden in every crate (`unsafe_code = "forbid"`) and is never the fix
   for a borrow-checker error. Edition 2024 makes `std::env::set_var` unsafe
   (https://doc.rust-lang.org/edition-guide/rust-2024/newly-unsafe-functions.html,

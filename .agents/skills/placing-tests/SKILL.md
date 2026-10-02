@@ -34,7 +34,7 @@ fewest machines while still able to fail for the behavior:
 | A port's contract against the fake | the `<port>_contract` function in `crates/myapp-test-support/src/<port>.rs`, called from `crates/myapp-core/tests/contracts.rs` | `just test-core` | core's floors (the core code it drives) |
 | The same contract against the real adapter | `crates/myapp-platform/tests/contracts.rs` | `just test-core` and `just test-platform` | none |
 | What one adapter does beyond the contract | `crates/myapp-platform/tests/<adapter>.rs`, or the adapter's own `#[cfg(test)]` module for a pure helper (`paths.rs`) | `just test-core`, `just test-platform` | none |
-| An adapter behavior that needs a GUI session, a TCC grant, the Keychain, or a real terminal | the same file, `#[ignore = "local machine: <what it needs>"]` | `just test-local`, a human's recipe | none |
+| An adapter behavior that needs a GUI session, a TCC grant, or the Keychain | the same file, `#[ignore = "local machine: <what it needs>"]` | `just test-local`, a human's recipe | none |
 | The `myapp` command line: arguments, streams, exit codes | `crates/myapp/tests/cli.rs`, the built binary with a temporary `HOME` | `just test-core`, `just test-platform` | none |
 | The binary's wording for each error variant | `#[cfg(test)] mod tests` in `crates/myapp/src/wording.rs`, one test per variant | `just test-core`, `just test-platform` | none |
 | How a terminal key event becomes core's key | `#[cfg(test)] mod tests` in `crates/myapp/src/tui/mod.rs` | `just test-core`, `just test-platform` | none |
@@ -88,11 +88,12 @@ of glue.
 - A test of macOS-only or Linux-only behavior carries the same `#[cfg(target_os = …)]`
   as the code it tests, so it runs on the CI job for that OS
   (`macos_selects_the_macos_directories` in `paths.rs`; the XDG test in `cli.rs`).
-- A test that needs a logged-in GUI session, a TCC grant, the Keychain, or a real
-  terminal carries `#[ignore = "local machine: <what it needs>"]`. It is reported as
-  ignored everywhere else, and only `just test-local` runs it — a human's recipe,
-  because it may raise a prompt or take over a terminal (`AGENTS.md` › "Never taking
-  over the developer's Mac"). A pull request that changes such an adapter carries that
+- A test that needs a logged-in GUI session, a TCC grant, or the Keychain carries
+  `#[ignore = "local machine: <what it needs>"]`. It is reported as ignored everywhere
+  else, and only `just test-local` runs it — a human's recipe, because it may raise a
+  prompt (`AGENTS.md` › "Never taking over the developer's Mac"). A real terminal is
+  not among what it can supply: the TUI's terminal loop has no automated test at all
+  (`building-tuis`). A pull request that changes such an adapter carries that
   output. Never an `#[ignore]` without the reason, and never one on a test that merely
   fails.
 - A local-machine test is never the only test of a decision: nobody runs it for a pull

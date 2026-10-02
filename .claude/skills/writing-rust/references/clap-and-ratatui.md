@@ -29,6 +29,8 @@ decide is `designing-clis` and `building-tuis`; this file is only the language s
   dependency, so the backend and the event types always come from the version ratatui
   was built with (`building-tuis`).
 - A test draws with `Terminal::new(TestBackend::new(w, h))`, which returns a
-  `Result`; in a `#[test]` `unwrap` is allowed, in a helper outside one it is not
-  (`writing-tests` › "Rejected in review").
+  `Result`. `unwrap` is allowed anywhere in a `#[cfg(test)]` module, helpers included
+  (`drawn` and `bold` in `tui/view.rs`), because `allow-unwrap-in-tests` covers it;
+  only a helper in a `tests/*.rs` file that is not itself a `#[test]` must match and
+  panic with context instead (`writing-tests` › "Rejected in review").
 

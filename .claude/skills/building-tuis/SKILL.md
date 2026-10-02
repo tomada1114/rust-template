@@ -129,7 +129,8 @@ handed to core as a value; core still never sleeps or reads the clock
 hook, or step an agent runs on its own enables raw mode, enters the alternate screen,
 reads a key from a real terminal, or runs `myapp tui`. Running the screen is a human's
 step: when a change shows only in a real terminal (the restore after a crash, a resize,
-how it looks), ask the human once to run `cargo run --locked -p myapp -- tui` and say
-what to press and what to look for (**REQUIRED:** `running-the-app`). A test that needs
-a real terminal would be `#[ignore = "local machine: an interactive terminal"]`; the
-sample has none, because everything but the loop is tested above.
+how it looks), ask the human once to run it and say what to press and what to look for
+(**REQUIRED:** `running-the-app`). The real-terminal loop has no automated test, not
+even an `#[ignore]`d one: `just test-local` runs under nextest, which gives a test no
+interactive terminal, so such a test could never pass there. It stays a human's manual
+run, which is why the loop is kept small and everything else is tested above.

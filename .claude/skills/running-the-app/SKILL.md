@@ -6,8 +6,8 @@ description: >
   evidence; cargo run --locked -p myapp -- <subcommand> for a read-only run, and the
   built binary against a scratch HOME for anything that writes; the log line a debug
   build echoes to stderr; reading the daily log files (~/Library/Logs on macOS,
-  $XDG_STATE_HOME/myapp/logs on Linux); myapp tui only when the human asks, since it
-  takes over the terminal; what to ask a human for, once; and the evidence a pull
+  $XDG_STATE_HOME/myapp/logs on Linux); myapp tui run by the human, never by an agent,
+  since it takes over the terminal; what to ask a human for, once; and the evidence a pull
   request carries for behavior no gate asserts. Use when asked to run, launch, start,
   try, or look at the tool or its TUI, when a change must be verified in the running
   binary rather than in tests, when a log line is the only observable, or when deciding
@@ -47,9 +47,13 @@ just logs            # the newest log file's last 50 lines, then exit
   cargo run --locked -p myapp -- counter show
   ```
 
-  It reads the developer's own data and adds a line to their log, nothing else. A debug
-  build also echoes each log line to stderr, so the run itself shows what was logged:
-  `<UTC timestamp>  INFO myapp: counter action succeeded action=Show value=1` (observed
+  It reads the developer's own data and writes to their log directory: logging starts
+  as in any run, so it creates the directory if missing, appends a line, and lets the
+  appender delete the oldest files beyond `LOG_FILES_KEPT`. When even that should not
+  touch the developer's files, use a scratch `HOME` as below. A debug build also echoes
+  each log line to stderr, so the run itself shows what was logged:
+  `<UTC timestamp>  INFO <crate>: counter action succeeded action=Show value=1`, where
+  `<crate>` is the binary crate's name with underscores, the `tracing` target (observed
   on this Mac with a debug build, 2026-10-01).
 - **A subcommand that writes** runs against a scratch `HOME`, so it changes a
   throwaway store and log instead of the developer's own. Build first, then run the
@@ -77,27 +81,29 @@ just logs            # the newest log file's last 50 lines, then exit
   on macOS, `$XDG_STATE_HOME/myapp/logs` (default `~/.local/state/myapp/logs`) on
   Linux. A log line is often the cheapest observable for a wiring change: add the
   `tracing` event in the binary, run, then read it.
-- **`myapp tui` refuses without a terminal**, so running it from an agent's shell
-  proves only that refusal (`error: tui needs an interactive terminal …`, exit 1). Do
-  not try to give it one: the screen is the human's to run.
 
 ## When only a real terminal can show it: ask once
 
 Some changes are only visible in an interactive terminal: how the screen looks, a key
 that does nothing, a resize, the terminal left broken after an error or a crash. An
-agent never runs `myapp tui` itself; it asks the human, once, in one message, before
+agent never runs `myapp tui`, not even to see it refuse: in an agent shell backed by a
+terminal it would take that terminal over and block. Its refusal without a terminal is
+already tested (`tui_without_a_terminal_fails_with_exit_code_1_and_touches_nothing` in
+`crates/myapp/tests/cli.rs`). The agent asks the human, once, in one message, before
 iterating:
 
-- the exact command (`cargo run --locked -p myapp -- tui`) and whether to point `HOME`
-  at a scratch directory first;
+- the exact commands: `cargo build --locked -p myapp` first, then, against a scratch
+  `HOME` so the run touches none of their data, `HOME="$scratch" target/debug/myapp tui`
+  (not `HOME="$scratch" cargo run …`, which makes rustup fetch a toolchain into it);
 - the keys to press, in order, and what to look for after each, including leaving
   with `q` and checking that the shell prompt and the cursor came back;
 - any privacy grant or System Settings step, all at once (`integrating-system-apis`);
 - what to send back: what they saw, and a screenshot when it matters.
 
-Then read `just logs` yourself for what the run recorded (`tui opened`, each action,
-`tui closed`). `just logs-follow` never ends and is the human's; an agent reads the
-file with `just logs` or `tail` after the fact.
+Then read what the run recorded (`tui opened`, each action, `tui closed`) yourself,
+with `tail` on the log under the scratch directory (`$scratch/Library/Logs/<bundle id>/`
+on macOS, `$scratch/.local/state/myapp/logs/` on Linux); `just logs` reads the real
+`HOME`'s directory instead. `just logs-follow` never ends and is the human's.
 
 ## Putting the tool in a known state
 

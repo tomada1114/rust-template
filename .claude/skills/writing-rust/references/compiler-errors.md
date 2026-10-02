@@ -77,11 +77,11 @@ written and the type produced differ. Two cases worth recognising here:
 **E0004, non-exhaustive patterns** (https://doc.rust-lang.org/error_codes/E0004.html).
 A `match` does not cover a variant, usually because one was added a moment ago. Add an
 arm that decides what the new variant means at this place. Do not add `_ =>`: in core
-clippy's `wildcard_enum_match_arm` rejects a `_` that stands for a variant the match
+and in the binary (both deny it) clippy's `wildcard_enum_match_arm` rejects a `_` that stands for a variant the match
 could name, on any enum, a foreign one included, and anywhere else it hides the next
 variant the same way. The exception is a `#[non_exhaustive]` enum from another crate,
-which rustc never lets a match cover without `_`: outside core end that match with
-`_ =>`; in core name every variant before the `_`, or, for an enum with unstable
+which rustc never lets a match cover without `_`: in a crate without the deny end that
+match with `_ =>`; where it is denied name every variant before the `_`, or, for an enum with unstable
 variants no match can name (`std::io::ErrorKind`, E0658), test the value with `==` or
 `matches!` instead.
 

@@ -276,7 +276,7 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `building-tuis` | The `myapp tui` screen: model and update in core, the loop and view in `crates/myapp/src/tui/`, `TestBackend` |
 | `designing-errors` | Error enums, wording and exit codes in the binary, adapter mapping, `ERR_*` script codes |
 | `integrating-system-apis` | Calling macOS and Linux from `myapp-platform`: `cfg`, commands, `objc2`, TCC |
-| `running-the-app` | Seeing a change work: `cargo run -p myapp`, `just test-platform`, and `just logs`; `myapp tui` only when the human asks |
+| `running-the-app` | Seeing a change work: `cargo run -p myapp`, `just test-platform`, and `just logs`; `myapp tui` run by the human, never by an agent |
 
 ### Rules
 
