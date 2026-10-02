@@ -2,7 +2,7 @@
 name: writing-repo-scripts
 description: >
   Covers writing or editing a TypeScript script under scripts/ (scripts/*.ts,
-  scripts/lib/, scripts/checks/) or a skill's bundled script, run directly by Node's
+  scripts/lib/) or a skill's bundled script, run directly by Node's
   type stripping, and its Vitest test beside it. Use when adding a script or the just
   recipe that calls it, writing main(context: ScriptContext) and the
   import.meta.main / runScript entry point, a script must refuse or skip outside a git
@@ -126,8 +126,9 @@ exists outside a checkout:
   `cargo xtask check-staged` has no index to judge (`ERR_STAGED_NOT_A_REPO`);
   `cargo xtask verify-hooks` checks this checkout's hook (`ERR_HOOKS_NOT_A_REPO`).
 - **Skip with a one-line notice** when the question is meaningless there, and exit 0.
-- A harness check under `scripts/checks/` takes `--root <dir>` and needs no git to find
-  its tree, which is what lets its test point it at a fixture per failure mode.
+- A harness check (`cargo xtask check-harness`, under `xtask/src/check_harness/`) takes
+  `--root <dir>` and needs no git to find its tree, which is what lets its test point it
+  at a fixture per failure mode.
 
 ## The failure contract
 
@@ -174,7 +175,7 @@ runs in Vitest's `scripts` project under `just test-scripts`.
   calls: that is how a test proves what would have been sent to GitHub without sending
   it.
 - **A throwaway repository per test.** `mkdtemp` under `os.tmpdir()`, `git init` with
-  `gitEnv(process.env)`, removed in `afterEach` (`scripts/checks/ruleset-contexts.test.ts`;
+  `gitEnv(process.env)`, removed in `afterEach` (`scripts/verify-bootstrap.test.ts`;
   `xtask/src/verify_hooks.rs`'s tests in Rust). Never
   read or write the real checkout, and never a fixed shared path: Vitest runs files in
   parallel, and two tests on one path race.

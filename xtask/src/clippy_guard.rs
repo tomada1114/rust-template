@@ -9,7 +9,7 @@
 //! crate whose `clippy.toml` changed, so a warm build reports the warning too.
 //!
 //! The command is spelled out, not implied, so the lockfile check in
-//! `scripts/checks/workflow-hygiene.ts` still sees `cargo clippy … --locked`. Clippy's
+//! `xtask/src/check_harness/workflow_hygiene.rs` still sees `cargo clippy … --locked`. Clippy's
 //! output is captured, then printed to stdout once it exits; when stdout is a terminal and
 //! `CARGO_TERM_COLOR` is unset, cargo is asked for colour anyway. A diagnostic counts as a
 //! configuration one when its primary location is a `clippy.toml` or `.clippy.toml`, or

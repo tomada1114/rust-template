@@ -44,9 +44,9 @@ what was built; each entry says what the design said, what was done, and why.
 - **pnpm reaches `PATH` through mise.** Node 25 stopped bundling corepack, so
   `mise.toml` pins pnpm (`aqua:pnpm/pnpm`, a prebuilt binary) and CI installs it through
   `jdx/mise-action`'s `install_args`. `package.json` keeps `packageManager`, which pnpm
-  itself reads, so pnpm is pinned twice — the one exception to D9 —
-  and `scripts/checks/pnpm-pin.ts` fails when the two differ; Renovate bumps both in one
-  grouped pull request.
+  itself reads, so pnpm is pinned twice — the one exception to D9 — and Renovate bumps
+  both in one grouped pull request. (A harness check compared the two until the harness
+  moved to `cargo xtask check-harness`, which reads no Node-only pin.)
 - **`trustPolicyExclude: semver@6.3.1`.** `eslint-plugin-react-hooks` 7 (required by
   D8) depends on `@babel/core`, which depends on `semver@6.3.1`, published before npm
   provenance existed; pnpm's `trustPolicy: no-downgrade` reads that as a downgrade from
@@ -82,8 +82,8 @@ what was built; each entry says what the design said, what was done, and why.
     only, since OSV matches that first and reports the RUSTSEC entry as unused) and
     RUSTSEC-2024-0370 (`proc-macro-error`): Linux-only crates of Tauri's GTK stack,
     absent from `cargo tree --target aarch64-apple-darwin`. `dependency-review.yml`'s
-    `allow-ghsas` lists the same GHSA ids, and `scripts/checks/advisory-ignores-agree.ts`
-    fails when the two diverge.
+    `allow-ghsas` lists the same GHSA ids, and
+    `xtask/src/check_harness/advisory_ignores_agree.rs` fails when the two diverge.
   - RUSTSEC-2025-0075, -0080, -0081, -0098, -0100 (`unic-*`): shipped through
     `tauri-utils` → `urlpattern`, unmaintained, no fixed release; tracked in
     https://github.com/tomada1114/tauri-template/issues/3.

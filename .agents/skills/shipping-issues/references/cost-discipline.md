@@ -62,7 +62,7 @@ user launches, not a step a run takes on its own.
 
 `low` was observed to **skip test and fixture hunks** (in the reference template this
 skill came from). That is wrong whenever a file under
-`crates/*/tests/`, a `*.test.ts`, or `scripts/checks/` *is* the gate rather than a
+`crates/*/tests/`, a `*.test.ts`, or `xtask/src/check_harness/` *is* the gate rather than a
 consumer of one -- a contract function in `crates/myapp-test-support`, a harness
 check, a script test that pins a failure contract -- and it fails silently: a diff
 confined to such a file comes back `(none)` in a few seconds, which reads exactly like a

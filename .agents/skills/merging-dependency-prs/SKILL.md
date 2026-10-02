@@ -110,19 +110,19 @@ Dependabot opens the cargo and npm sides as separate PRs, so:
 
 ## The Node rule
 
-A Node major moves `node` in `mise.toml` and `@types/node` together (F12).
+A Node major moves `mise.toml`'s `node` and `@types/node` together, never one (F12).
 
 ## Step 3: Choose the landing mode
 
 Every PR needs a review that found nothing, then meets one of two bars:
 
-- **The bar to land alone:** every check passes and the merge state is `CLEAN`. Nothing
-  else ever lands by itself; a PR that meets it may still join a combined branch.
+- **The bar to land alone:** every check passes, the merge state is `CLEAN`, and it is no
+  lone Node side (F12). Nothing else lands by itself; it may still join a combined branch.
 - **The combined-branch bar:** it misses that bar only where a failure mode blames its
   merge or lockfile state, not its change. Every check passes or fails only where F2 (a
-  lockfile out of step with its manifest), F11 (one side of a Tauri pair the survey
-  prints as `split` or `MISMATCH`), or F12 (a lone Node side) says, confirmed from the
-  run log; and the merge state is `CLEAN`, `BEHIND` or `DIRTY` (F7), or `UNSTABLE` or
+  lockfile out of step with its manifest) or F11 (one side of a Tauri pair the survey
+  prints as `split` or `MISMATCH`) says, confirmed from the run log, or F12 (a lone Node
+  side) applies; and the merge state is `CLEAN`, `BEHIND` or `DIRTY` (F7), or `UNSTABLE` or
   `BLOCKED` only by those checks. A pending, missing, or held check still holds it (F8,
   F9). The combined branch's own PR lands only when `CLEAN` with every check green.
 

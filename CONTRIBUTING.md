@@ -40,7 +40,7 @@ just test-fast increment   # one core test or a group of them, no coverage
 just test-platform  # platform adapters and the CLI against the real OS (macOS or Linux)
 just test-scripts   # Vitest over scripts/ and skills' scripts with their floors, plus
                     #   the bundled Python tests and shellcheck
-just check-harness  # the harness's checks about itself (scripts/checks/)
+just check-harness  # the harness's checks about itself (cargo xtask check-harness)
 just deny           # cargo deny: advisories, licences, bans, sources
 just logs           # print the end of the newest app log and exit
 just check          # the local gate, in CI's order; its steps are listed below

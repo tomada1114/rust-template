@@ -135,8 +135,8 @@ A version written twice drifts. Rust is pinned in `rust-toolchain.toml`, Node an
 other CLI in `mise.toml`, preferring prebuilt binaries to the `cargo:` backend, which compiles from
 source. Nothing is `latest`; bumps arrive as Renovate or Dependabot pull requests after
 a 7-day release age. pnpm is the one exception: `mise.toml` installs it and
-`package.json`'s `packageManager` names it for pnpm itself, and a harness check
-(`scripts/checks/pnpm-pin.ts`) fails when the two differ.
+`package.json`'s `packageManager` names it for pnpm itself, and Renovate moves the two
+in one grouped pull request.
 
 ### Why Just?
 
@@ -172,7 +172,8 @@ weakening any gate needs a human's sign-off.
 ### Why does the harness check itself?
 
 Documentation that lists what is enforced goes stale, so the claims are checks instead.
-`just check-harness` runs `scripts/checks/`: every `just` recipe a document names exists;
+`just check-harness` runs `cargo xtask check-harness`, one module per claim under
+`xtask/src/check_harness/`: every `just` recipe a document names exists;
 every workflow pins actions by SHA with a version comment, sets timeouts and job-level
 permissions, and never uses `pull_request_target`; the dependency cooldowns agree; each
 required status check names a real job; the boundary lists agree; every label an issue
