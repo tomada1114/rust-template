@@ -254,6 +254,17 @@ fn help_lists_the_tui_subcommand() {
 }
 
 #[test]
+fn help_opens_with_the_tools_about_line() {
+    let home = tempfile::tempdir().unwrap();
+    let output = run(home.path(), &["--help"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        stdout(&output).lines().next(),
+        Some("Read and change the counter")
+    );
+}
+
+#[test]
 fn version_prints_the_workspace_version_on_stdout() {
     let home = tempfile::tempdir().unwrap();
     let output = run(home.path(), &["--version"]);

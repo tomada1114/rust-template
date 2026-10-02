@@ -39,12 +39,12 @@ translates and decides nothing (`AGENTS.md` › "Architecture").
   reads `myapp <noun> <verb>`. In the sample: `Cli`, `Command::{Counter, Tui}`, and
   `CounterAction::{Show, Increment}` give `myapp counter show`.
 - The `///` comment on a variant is its line in `--help`, so it says what the command
-  does for its user, in one sentence ending with a period. `#[command(version, about)]`
-  takes the version from `[workspace.package]` and, because `about` is given bare, the
-  about text from the crate's `Cargo.toml` `description`, not from the `///` on the
-  struct: the sample's `myapp --help` opens with `crates/myapp/Cargo.toml`'s description
-  (observed with a debug build, 2026-10-02). Dropping `about` from the attribute makes
-  clap use the struct's doc comment instead.
+  does for its user, in one sentence ending with a period. `#[command(version)]` takes
+  the version from `[workspace.package]`, and with no `about` key clap uses the `///` on
+  the `Cli` struct as the first line of `myapp --help` (without its final period;
+  `help_opens_with_the_tools_about_line` in `crates/myapp/tests/cli.rs` pins it). A bare
+  `about` would take the crate's `Cargo.toml` `description` instead, which is written
+  for maintainers, not for the tool's user.
 - A handler is translation only: build the service, call one core method, print the
   result or the error. A `match` arm that holds an `if` about the domain is a decision
   in the wrong crate; move it into core, where the coverage floor sees it. In the
