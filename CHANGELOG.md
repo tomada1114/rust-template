@@ -246,6 +246,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `just bootstrap`'s suggested slug folds Vietnamese letters and fullwidth ASCII
+  ("Hội An" -> `hoi-an`, "Ｔｉｄｅ" -> `tide`), and a name with a letter it cannot
+  fold suggests no slug (so `--slug` is asked for) instead of one with a gap.
+
 - `myapp --help` opens with the tool's own one-line summary ("Read and change the
   counter") instead of the binary crate's `Cargo.toml` description.
 
