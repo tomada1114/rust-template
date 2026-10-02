@@ -119,7 +119,7 @@ clean:
     cargo clean
     rm -rf coverage
 
-# Remove stale verify-bootstrap-* temp dirs and this checkout's idle Claude Code scratchpads: `just prune-temp --dry-run`
+# Remove temp dirs a bootstrap check left behind (`verify-bootstrap-*`) and this checkout's idle Claude Code scratchpads: `just prune-temp --dry-run`
 prune-temp *args:
     cargo xtask prune-temp {{ args }}
 

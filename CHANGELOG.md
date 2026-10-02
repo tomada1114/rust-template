@@ -250,6 +250,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A bootstrapped app no longer names the template-only `verify-bootstrap` task: the
+  `prune-temp` task, its recipe, and `AGENTS.md`'s Quick Reference describe the
+  `verify-bootstrap-*` directories without it, and `cargo xtask verify-bootstrap` fails
+  on `cargo xtask verify-bootstrap` or `just verify-bootstrap` left in the generated app.
 - `just bootstrap`'s suggested slug folds Vietnamese letters and fullwidth ASCII
   ("Hội An" -> `hoi-an`, "Ｔｉｄｅ" -> `tide`), and a name with a letter it cannot
   fold suggests no slug (so `--slug` is asked for) instead of one with a gap.
