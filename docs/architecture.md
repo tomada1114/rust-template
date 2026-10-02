@@ -34,14 +34,14 @@ ever ships releases — is recorded as ADRs under [`docs/architecture/`](archite
 Dependencies point one way, toward core: `myapp-platform` → core; `myapp` (the binary)
 → platform and core. Core depends on neither, and platform does not know the binary
 exists. Everything runs in one process: the subcommands and the full-screen view call
-core directly, so there is no IPC layer and no serialized boundary between them.
+core directly and share its view types.
 
 ### How the boundaries are enforced
 
 | Layer | What fails |
 |---|---|
 | Compile time | `crates/myapp-core/Cargo.toml` names no OS, terminal, or platform crate, so code in core cannot call one. |
-| Dependency closure | A harness check (`just check-harness`) reads `cargo metadata` and fails if core's normal and build dependency closure contains a crate the boundary sentence in `AGENTS.md` › Architecture forbids — the macOS binding crates, the desktop-GUI crates, and `myapp-platform` — or if a non-dev edge points at `myapp-test-support`. `deny.toml`'s `[bans]` adds the direct-edge rule: `myapp-platform` may be a direct dependency of `myapp` only. |
+| Dependency closure | A harness check (`just check-harness`) reads `cargo metadata` and fails if core's normal and build dependency closure contains a crate the boundary sentence in `AGENTS.md` › Architecture forbids — the macOS binding crates and `myapp-platform` — or if a non-dev edge points at `myapp-test-support`. `deny.toml`'s `[bans]` adds the direct-edge rule: `myapp-platform` may be a direct dependency of `myapp` only. |
 | clippy in core | `crates/myapp-core/clippy.toml` bans `print!`/`println!`/`eprint!`/`eprintln!`/`dbg!`, `std::io::{stdin, stdout, stderr}`, `std::fs::{File, OpenOptions, DirBuilder}` and every `std::fs` free function, `std::os::unix::fs::{symlink, chown, fchown, lchown, chroot}`, `std::path::Path`'s file-system queries (`exists`, `metadata`, `read_dir`, `is_file`, …), `std::net::{TcpStream, TcpListener, UdpSocket}`, `std::os::unix::net::{UnixStream, UnixListener, UnixDatagram}`, and `ToSocketAddrs::to_socket_addrs`, `std::process::{Command, exit, abort, id}`, `std::os::unix::process::parent_id`, `SystemTime::now`, `Instant::now`, both types' `elapsed`, `std::env`'s argument, variable, and directory functions (including `current_exe` and `home_dir`), and `std::thread::{spawn, sleep, park_timeout, available_parallelism}` and `Builder::spawn`; `std::thread::scope` is allowed, since it joins its threads before it returns and so cannot outlive the call. `clippy::wildcard_enum_match_arm` is denied, so every `match` on a core enum names each variant. A ban whose path clippy cannot resolve would only warn and do nothing, so `just lint` and CI run clippy through `cargo xtask clippy-guard`, which fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead. |
 
 The forbidden-crate lists in `AGENTS.md`, the closure check, and `deny.toml` are kept

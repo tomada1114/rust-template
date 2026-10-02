@@ -10,7 +10,7 @@ publish.workspace = true
 # Only platform-neutral crates belong here. A harness check fails if this crate's normal
 # or build dependency closure reaches a crate on the boundary list in AGENTS.md ›
 # Architecture: the macOS binding crates (objc2*, core-foundation*,
-# security-framework*), the desktop-GUI crates, or myapp-platform. clap, ratatui, and
+# security-framework*) or myapp-platform. clap, ratatui, and
 # crossterm belong to the binary too, but only review keeps them out of here.
 [dependencies]
 serde = { workspace = true }

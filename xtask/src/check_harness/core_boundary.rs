@@ -3,7 +3,7 @@
 //! 1. `myapp-core`'s dependency closure over normal and build edges (no dev-dependency,
 //!    across every target, from `cargo metadata`'s resolved graph) contains none of
 //!    [`FORBIDDEN_IN_CORE`]. A build edge counts because a `[build-dependencies]` crate
-//!    compiles and runs on every build of core, so `tauri-build` or `objc2` there ties
+//!    compiles and runs on every build of core, so `objc2` there ties
 //!    core to the platform as surely as a normal edge. The walk stops at the first
 //!    forbidden crate on a path, so each violation names the crate to remove and how core
 //!    reaches it, marking a build edge `-(build)->`.
@@ -36,10 +36,7 @@ use crate::context::RunOptions;
 use crate::fail::FailureDetails;
 
 /// What core's normal and build dependency closure must never contain; `x*` is a prefix.
-const FORBIDDEN_IN_CORE: [&str; 7] = [
-    "tauri*",
-    "wry",
-    "tao",
+const FORBIDDEN_IN_CORE: [&str; 4] = [
     "objc2*",
     "core-foundation*",
     "security-framework*",
@@ -396,7 +393,7 @@ fn agents_violations(input: &Input<'_>) -> Vec<FailureDetails> {
     if listed.is_empty() {
         return vec![unparsed(
             "AGENTS.md's forbidden-crate list could not be read",
-            "a sentence in AGENTS.md › Architecture: \"… normal and build dependency closure reaches `tauri*`, `wry`, … or `myapp-platform`.\"",
+            "a sentence in AGENTS.md › Architecture: \"… normal and build dependency closure reaches `objc2*`, … or `myapp-platform`.\"",
             "no such sentence, or one naming no backticked crate",
         )];
     }
@@ -580,7 +577,7 @@ mod tests {
         "/tests/fixtures/core-boundary/pass"
     );
     const REG: &str = "registry+https://github.com/rust-lang/crates.io-index";
-    const AGENTS_MD: &str = "## Architecture\n\n- The core boundary is enforced three times, so removing one layer leaves the others:\n  core's `Cargo.toml` lists no tauri, OS, or platform crate; `deny.toml`'s `[bans]`\n  `wrappers` let only `myapp` depend on `myapp-platform`; and a harness check fails when core's\n  normal and build dependency closure reaches `tauri*`, `wry`, `tao`, `objc2*`, `core-foundation*`,\n  `security-framework*`, or `myapp-platform`. Those lists change together.";
+    const AGENTS_MD: &str = "## Architecture\n\n- The core boundary is enforced three times, so removing one layer leaves the others:\n  core's `Cargo.toml` lists no OS or platform crate; `deny.toml`'s `[bans]`\n  `wrappers` let only `myapp` depend on `myapp-platform`; and a harness check fails when core's\n  normal and build dependency closure reaches `objc2*`, `core-foundation*`,\n  `security-framework*`, or `myapp-platform`. Those lists change together.";
 
     fn copy_pass() -> tempfile::TempDir {
         let dir = temp_dir();
@@ -712,21 +709,27 @@ mod tests {
             "myapp-platform",
             "objc2*",
             "security-framework*",
-            "tao",
-            "tauri*",
-            "wry",
         ];
         expected.sort_unstable();
         assert_eq!(actual, expected);
     }
 
     #[test]
+    fn allows_dependencies_outside_the_os_boundary() {
+        for (from, kind) in [
+            ("myapp-core", None),
+            ("serde", None),
+            ("myapp-core", Some("build")),
+        ] {
+            let dir = copy_pass();
+            edit_metadata(dir.path(), |m| add_edge(m, from, "renderer", kind, false));
+            assert_eq!(check(dir.path()), []);
+        }
+    }
+
+    #[test]
     fn fails_when_the_closure_reaches_a_forbidden_crate() {
         for krate in [
-            "tauri-utils",
-            "tauri",
-            "wry",
-            "tao",
             "objc2-foundation",
             "core-foundation-sys",
             "security-framework",
@@ -747,22 +750,22 @@ mod tests {
         }
         let dir = copy_pass();
         edit_metadata(dir.path(), |m| {
-            add_edge(m, "myapp-core", "tauri", None, false);
-            add_edge(m, "myapp-core", "wry", None, false);
+            add_edge(m, "myapp-core", "objc2", None, false);
+            add_edge(m, "myapp-core", "security-framework", None, false);
         });
         let found = check(dir.path());
         assert_eq!(codes(&found), ["ERR_CHECK_CORE_BOUNDARY_CLOSURE"; 2]);
-        assert!(text(&found).contains("myapp-core -> wry"));
+        assert!(text(&found).contains("myapp-core -> security-framework"));
     }
 
     #[test]
     fn follows_normal_and_build_edges_but_no_dev_edge() {
-        for (from, to) in [("myapp-core", "tauri"), ("serde", "tauri")] {
+        for (from, to) in [("myapp-core", "objc2"), ("serde", "objc2")] {
             let dir = copy_pass();
             edit_metadata(dir.path(), |m| add_edge(m, from, to, Some("dev"), false));
             assert_eq!(check(dir.path()), []);
         }
-        for krate in ["tauri", "tauri-build", "objc2"] {
+        for krate in ["objc2", "security-framework", "myapp-platform"] {
             let dir = copy_pass();
             edit_metadata(dir.path(), |m| {
                 add_edge(m, "myapp-core", krate, Some("build"), false);
@@ -814,15 +817,15 @@ mod tests {
     #[test]
     fn fails_when_agents_md_and_the_check_disagree() {
         let dir = copy_pass();
-        edit_file(dir.path(), "AGENTS.md", "`tao`, ", "`tao`, `libc`, ");
+        edit_file(dir.path(), "AGENTS.md", "`objc2*`, ", "`objc2*`, `libc`, ");
         let found = check(dir.path());
         assert_eq!(codes(&found), ["ERR_CHECK_CORE_BOUNDARY_DIVERGED"]);
         assert!(text(&found).contains("`libc`"));
         let dir = copy_pass();
-        edit_file(dir.path(), "AGENTS.md", "`wry`, ", "");
+        edit_file(dir.path(), "AGENTS.md", "`objc2*`, ", "");
         let found = check(dir.path());
         assert_eq!(codes(&found), ["ERR_CHECK_CORE_BOUNDARY_DIVERGED"]);
-        assert!(text(&found).contains("`wry`"));
+        assert!(text(&found).contains("`objc2*`"));
         let dir = copy_pass();
         edit_file(
             dir.path(),

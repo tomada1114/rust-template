@@ -1522,13 +1522,13 @@ mod tests {
     fn flags_each_fail_open_line_and_leaves_fail_closed_ones() {
         let patterns = Patterns::new().expect("patterns");
         for line in [
-            "just test-ui || true",
-            "just test-ui || :",
-            "just test-ui || exit 0",
-            "just test-ui ||   exit  0 ;",
-            "just test-ui || echo skipped",
-            "just test-ui || printf 'x'",
-            "x=\"$(just test-ui || true)\"",
+            "just test-platform || true",
+            "just test-platform || :",
+            "just test-platform || exit 0",
+            "just test-platform ||   exit  0 ;",
+            "just test-platform || echo skipped",
+            "just test-platform || printf 'x'",
+            "x=\"$(just test-platform || true)\"",
             "just a || true; just b",
             "set +e",
             "set -x +u",
@@ -1539,16 +1539,16 @@ mod tests {
             assert!(fail_open_line(line, &patterns).is_some(), "{line}");
         }
         for line in [
-            "just test-ui || { echo failed; exit 1; }",
+            "just test-platform || { echo failed; exit 1; }",
             "echo 'run a || true'",
-            "just test-ui # not || true",
+            "just test-platform # not || true",
             "set +x",
             "set -euo pipefail",
             "[[ -n \"$a\" || -n \"$b\" ]]",
-            "just test-ui || truer",
-            "just test-ui || exit 1",
-            "just test-ui || exit",
-            "just test-ui || echoes",
+            "just test-platform || truer",
+            "just test-platform || exit 1",
+            "just test-platform || exit",
+            "just test-platform || echoes",
         ] {
             assert_eq!(fail_open_line(line, &patterns), None, "{line}");
         }

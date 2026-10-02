@@ -136,7 +136,7 @@ jobs:
     # Template-only: `cargo xtask bootstrap` removes this job, and its required context in
     # .github/rulesets/main.json, from every app it generates. A hyphenated
     # multi-word slug exercises every spelling the rename writes: tide-pool-core,
-    # tide_pool, and TIDE_POOL. Nothing it runs needs macOS since the GUI left.
+    # tide_pool, and TIDE_POOL. The scratch app's checks run on Linux.
     name: Template Bootstrap Smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 30

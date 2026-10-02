@@ -627,9 +627,9 @@ pub(super) mod tests {
         )
     }
 
-    const JUSTFILE: &str = "set shell := [\"bash\", \"-euo\", \"pipefail\", \"-c\"]\nflag := \"x\"\n\n# List the recipes\ndefault:\n    @just --list\n\n# The gate\ncheck: hooks fmt lint test build # trailing comment\n\nhooks:\n    cargo xtask verify-hooks\n\nfmt:\n    cargo fmt --all\n\nlint: (prep \"a\")\n    cargo fmt --all --check\n\n    -typos\n\nprep arg:\n    echo {{ arg }}\n\ntest: test-core && test-ui\n\ntest-core:\n    cargo nextest run --locked \\\n      -p core\n\ntest-ui:\n    cargo nextest run --locked -p ui\n\nbuild:\n    #!/usr/bin/env bash\n    set -euo pipefail\n    just helper\n\nhelper:\n    @cargo build --locked\n\nextra:\n    cargo shear\n\ngen:\n    cargo test --locked export_bindings\n";
+    const JUSTFILE: &str = "set shell := [\"bash\", \"-euo\", \"pipefail\", \"-c\"]\nflag := \"x\"\n\n# List the recipes\ndefault:\n    @just --list\n\n# The gate\ncheck: hooks fmt lint test build # trailing comment\n\nhooks:\n    cargo xtask verify-hooks\n\nfmt:\n    cargo fmt --all\n\nlint: (prep \"a\")\n    cargo fmt --all --check\n\n    -typos\n\nprep arg:\n    echo {{ arg }}\n\ntest: test-core && test-platform\n\ntest-core:\n    cargo nextest run --locked \\\n      -p core\n\ntest-platform:\n    cargo nextest run --locked -p platform\n\nbuild:\n    #!/usr/bin/env bash\n    set -euo pipefail\n    just helper\n\nhelper:\n    @cargo build --locked\n\nextra:\n    cargo shear\n\ngen:\n    cargo xtask agents-sync\n";
 
-    const CI: &str = "on: [push, pull_request]\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@abc\n      - run: rustup show\n      - run: cargo   fmt --all --check\n      - run: |\n          # a comment\n          typos\n          just --quiet prep a\n      - run: just test-core\n      - run: just test-ui\n      - run: just build\n      - name: Drift\n        run: |\n          just gen\n          git diff --exit-code\n  bootstrap:\n    name: Template Bootstrap Smoke\n    steps:\n      - run: cp -R . \"$RUNNER_TEMP/copy\"\n";
+    const CI: &str = "on: [push, pull_request]\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@abc\n      - run: rustup show\n      - run: cargo   fmt --all --check\n      - run: |\n          # a comment\n          typos\n          just --quiet prep a\n      - run: just test-core\n      - run: just test-platform\n      - run: just build\n      - name: Drift\n        run: |\n          just gen\n          git diff --exit-code\n  bootstrap:\n    name: Template Bootstrap Smoke\n    steps:\n      - run: cp -R . \"$RUNNER_TEMP/copy\"\n";
 
     const EXCEPTIONS: Exceptions = Exceptions {
         local_only: &[("hooks", "no hooks on CI"), ("fmt", "rewrites files")],
@@ -689,7 +689,7 @@ pub(super) mod tests {
                 "prep",
                 "test",
                 "test-core",
-                "test-ui",
+                "test-platform",
                 "build",
                 "helper",
                 "extra",
@@ -706,7 +706,7 @@ pub(super) mod tests {
         assert_eq!(get("check").deps, ["hooks", "fmt", "lint", "test", "build"]);
         assert_eq!(get("lint").deps, ["prep"]);
         assert_eq!(get("lint").commands, ["cargo fmt --all --check", "typos"]);
-        assert_eq!(get("test").deps, ["test-core", "test-ui"]);
+        assert_eq!(get("test").deps, ["test-core", "test-platform"]);
         assert_eq!(
             get("test-core").commands,
             ["cargo nextest run --locked -p core"]
@@ -747,15 +747,15 @@ pub(super) mod tests {
     #[test]
     fn rejects_a_step_only_ci_runs() {
         let found = with_ci(
-            "      - run: just test-ui\n",
-            "      - run: just test-ui\n      - run: just extra\n",
+            "      - run: just test-platform\n",
+            "      - run: just test-platform\n      - run: just extra\n",
         );
         assert_eq!(codes(&found), ["ERR_CHECK_JUST_CI_DIVERGED"]);
         assert!(found[0].summary.contains(".github/workflows/ci.yml:"));
         assert_eq!(
             codes(&with_ci(
-                "      - run: just test-ui\n",
-                "      - run: just test-ui\n      - run: cargo deny check\n"
+                "      - run: just test-platform\n",
+                "      - run: just test-platform\n      - run: cargo deny check\n"
             )),
             ["ERR_CHECK_JUST_CI_DIVERGED"]
         );
@@ -767,8 +767,8 @@ pub(super) mod tests {
             ["ERR_CHECK_JUST_CI_DIVERGED"]
         );
         let found = with_ci(
-            "      - run: just test-ui\n",
-            "      - run: just test-ui\n      - run: just check\n",
+            "      - run: just test-platform\n",
+            "      - run: just test-platform\n      - run: just check\n",
         );
         assert_eq!(codes(&found), ["ERR_CHECK_JUST_CI_STALE"; 2]);
         let found = summaries(&found);
@@ -778,16 +778,19 @@ pub(super) mod tests {
     #[test]
     fn names_where_ci_runs_a_gate_only_conditionally() {
         let found = with_ci(
-            "      - run: just test-ui\n",
-            "      - run: just test-ui || true\n",
+            "      - run: just test-platform\n",
+            "      - run: just test-platform || true\n",
         );
         assert_eq!(codes(&found), ["ERR_CHECK_JUST_CI_DIVERGED"]);
         assert!(found[0].summary.contains("only conditionally"));
         assert!(found[0].actual.contains("with an `||` fallback"));
-        for line in ["if just test-ui; then echo ok; fi", "! just test-ui"] {
+        for line in [
+            "if just test-platform; then echo ok; fi",
+            "! just test-platform",
+        ] {
             assert_eq!(
                 codes(&with_ci(
-                    "      - run: just test-ui\n",
+                    "      - run: just test-platform\n",
                     &format!("      - run: '{line}'\n")
                 )),
                 ["ERR_CHECK_JUST_CI_DIVERGED"],
@@ -795,8 +798,8 @@ pub(super) mod tests {
             );
         }
         let found = with_ci(
-            "      - run: just test-ui\n",
-            "      - run: just test-ui\n        if: always()\n      - run: just test-ui\n        continue-on-error: false\n",
+            "      - run: just test-platform\n",
+            "      - run: just test-platform\n        if: always()\n      - run: just test-platform\n        continue-on-error: false\n",
         );
         assert_eq!(found, []);
         let found = with_ci(
@@ -827,8 +830,8 @@ pub(super) mod tests {
                 .contains("in a job with `continue-on-error`")
         );
         let step_continues = with_ci(
-            "      - run: just test-ui\n",
-            "      - run: just test-ui\n        continue-on-error: true\n",
+            "      - run: just test-platform\n",
+            "      - run: just test-platform\n        continue-on-error: true\n",
         );
         assert!(
             step_continues[0]
@@ -869,8 +872,8 @@ pub(super) mod tests {
         }
         assert_eq!(
             codes(&with_ci(
-                "      - run: just test-ui\n",
-                "      - run: just test-ui\n      - run: just fmt\n"
+                "      - run: just test-platform\n",
+                "      - run: just test-platform\n      - run: just fmt\n"
             )),
             ["ERR_CHECK_JUST_CI_STALE"]
         );
