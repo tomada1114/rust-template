@@ -442,8 +442,9 @@ enum Gated {
 }
 
 /// Whether a GitHub branch filter pattern matches `branch`: `**` matches any text, `*` any
-/// text but `/`, `?` one character.
-fn branch_matches(pattern: &str, branch: &str) -> bool {
+/// text but `/`, `?` one character. The error is the regex's own when the pattern, read
+/// from a workflow, does not compile.
+fn branch_matches(pattern: &str, branch: &str) -> Result<bool, String> {
     let mut source = String::from("^");
     let mut chars = pattern.chars().peekable();
     while let Some(c) = chars.next() {
@@ -458,7 +459,9 @@ fn branch_matches(pattern: &str, branch: &str) -> bool {
         }
     }
     source.push('$');
-    Regex::new(&source).is_ok_and(|pattern| pattern.is_match(branch))
+    Regex::new(&source)
+        .map(|pattern| pattern.is_match(branch))
+        .map_err(|error| super::first_line(&error.to_string()).to_owned())
 }
 
 /// The branch `refs/remotes/origin/HEAD` names when the root is the top of a git work tree
@@ -670,25 +673,41 @@ fn branch_judgement(trigger: &Node, target: &Gated, path: &str, judgement: &mut 
             .needs_default
             .push(format!("{path}: its pull_request trigger filters branches")),
         Gated::Name(branch) => {
+            let mut uncompiled = Vec::new();
+            let mut matches = |pattern: &str| {
+                branch_matches(pattern, branch).unwrap_or_else(|error| {
+                    uncompiled.push(format!(
+                        "{path}: its pull_request trigger's branch pattern `{pattern}` cannot be compiled ({error})"
+                    ));
+                    false
+                })
+            };
+            let mut reasons = Vec::new();
             if let Some(branches) = &branches {
-                let included = branches
-                    .iter()
-                    .any(|pattern| !pattern.starts_with('!') && branch_matches(pattern, branch));
-                let negated = branches.iter().any(|pattern| {
-                    pattern
-                        .strip_prefix('!')
-                        .is_some_and(|pattern| branch_matches(pattern, branch))
-                });
+                let mut included = false;
+                let mut negated = false;
+                for pattern in branches {
+                    match pattern.strip_prefix('!') {
+                        Some(pattern) => negated |= matches(pattern),
+                        None => included |= matches(pattern),
+                    }
+                }
                 if !included || negated {
-                    judgement
-                        .skips
-                        .push(format!("{path}: its pull_request trigger's `branches` do not match `{branch}`"));
+                    reasons.push(format!("{path}: its pull_request trigger's `branches` do not match `{branch}`"));
                 }
             }
-            if ignored.is_some_and(|ignored| ignored.iter().any(|pattern| branch_matches(pattern, branch))) {
-                judgement
-                    .skips
-                    .push(format!("{path}: its pull_request trigger's `branches-ignore` match `{branch}`"));
+            let mut ignored_match = false;
+            for pattern in ignored.iter().flatten() {
+                ignored_match |= matches(pattern);
+            }
+            if ignored_match {
+                reasons.push(format!("{path}: its pull_request trigger's `branches-ignore` match `{branch}`"));
+            }
+            // A pattern that cannot be read leaves the trigger unjudged, never firing.
+            if uncompiled.is_empty() {
+                judgement.skips.extend(reasons);
+            } else {
+                judgement.skips.extend(uncompiled);
             }
         }
     }
@@ -1500,6 +1519,33 @@ mod tests {
             ]),
             []
         );
+        // The single literal branch among ci.yml's push branches is the default.
+        let found = check(&[
+            (".github/workflows/ci.yml", Some(&patterned)),
+            (
+                ".github/workflows/docs.yml",
+                Some(&with_docs("    branches: [trunk]\n")),
+            ),
+            (RULESET, Some(&docs_ruleset)),
+        ]);
+        assert_eq!(codes(&found), ["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+        assert!(
+            found[0].actual.contains("do not match `main`"),
+            "{}",
+            found[0].actual
+        );
+        // A branch pattern that does not compile leaves the job uncounted, with the reason.
+        let huge = format!("    branches: [\"{}\"]\n", "?".repeat(100_000));
+        let found = check(&[
+            (".github/workflows/docs.yml", Some(&with_docs(&huge))),
+            (RULESET, Some(&docs_ruleset)),
+        ]);
+        assert_eq!(codes(&found), ["ERR_CHECK_RULESET_CONTEXT_SKIPPED"]);
+        assert!(
+            found[0].actual.contains("cannot be compiled"),
+            "{}",
+            found[0].actual
+        );
     }
 
     #[test]
@@ -1809,10 +1855,11 @@ mod tests {
         ] {
             assert_eq!(
                 branch_matches(pattern, branch),
-                matches,
+                Ok(matches),
                 "{pattern} {branch}"
             );
         }
+        assert!(branch_matches(&"?".repeat(100_000), "main").is_err());
     }
 
     fn origin_of(root: &Path) -> Option<String> {
