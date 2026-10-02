@@ -557,6 +557,20 @@ mod tests {
                 format!("{prefix}:11: {held} `just`")
             ]
         );
+        // A separator ends one command word and starts the next, so neither hides the other.
+        for (line, first, second) in [
+            ("pnpm;just x", "pnpm", "just"),
+            ("cargo|just x", "cargo", "just"),
+        ] {
+            assert_eq!(
+                summaries(&one(&job("build", WRITE, &run_step(line)), TOP, &[])),
+                [
+                    format!("{prefix}:11: {held} `{first}`"),
+                    format!("{prefix}:11: {held} `{second}`")
+                ],
+                "{line}"
+            );
+        }
         let quiet = [
             run_step("node scripts/x.ts"),
             run_step("gh release create \"$TAG\""),

@@ -208,7 +208,8 @@ impl Patterns {
             errexit_off: compile(
                 r"^set\s(?:.*\s)?(?:\+[A-Za-z]*[eu][A-Za-z]*|\+o\s+(?:errexit|nounset|pipefail))(?:\s|$)",
             )?,
-            fail_open_split: compile(r"&&|\|\||;|\||\bthen\b|\bdo\b")?,
+            // ASCII word boundaries, as in the JavaScript original.
+            fail_open_split: compile(r"&&|\|\||;|\||(?-u:\b)(?:then|do)(?-u:\b)")?,
             command_separators: compile(r"&&|\|\||;|\|")?,
             single_quoted: compile(r"'[^']*'")?,
             trailing_comment: compile(r"(?:^|\s)#.*$")?,
@@ -616,7 +617,12 @@ fn check_shell(site: &StepSite<'_>, patterns: &Patterns) -> Option<FailureDetail
     let first_word = shell.as_deref().map_or("bash", |shell| {
         shell.split_whitespace().next().unwrap_or_default()
     });
-    let program = first_word.rsplit('/').next().unwrap_or_default();
+    // The basename, as Node's `path.basename` takes it: trailing slashes dropped first.
+    let program = first_word
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or_default();
     if !SH_FAMILY.contains(&program) {
         return None;
     }
@@ -1484,6 +1490,13 @@ mod tests {
             )
             .replacen("run: |\n", "run: |\n          set -euo pipefail\n", 1);
         assert_eq!(check(&[(CI, Some(&other_shells))]), []);
+        assert_eq!(
+            ci_codes(
+                "      - run: just test-core\n",
+                "      - run: just test-core\n        shell: /bin/bash/\n"
+            ),
+            ["ERR_CHECK_WORKFLOW_SHELL"]
+        );
         let job_default = no_defaults(&ci_text()).replacen(
             "    timeout-minutes: 10\n",
             "    timeout-minutes: 10\n    defaults:\n      run:\n        shell: bash --noprofile --norc -euo pipefail {0}\n",
@@ -1562,6 +1575,24 @@ mod tests {
             ),
             ["ERR_CHECK_WORKFLOW_FAIL_OPEN"]
         );
+        // `then` and `do` split at ASCII word boundaries, so `\u{e9}then` still starts one.
+        let text = ci(
+            "cargo fmt --all --check\n",
+            "cargo fmt --all --check\n          if true; \u{e9}then set +e; fi\n",
+        );
+        let line = text
+            .lines()
+            .position(|line| line.contains("\u{e9}then"))
+            .expect("the line")
+            + 1;
+        let found = check(&[(CI, Some(&text))]);
+        assert_eq!(codes(&found), ["ERR_CHECK_WORKFLOW_FAIL_OPEN"]);
+        assert!(
+            found[0].summary.starts_with(&format!("{CI}:{line}: ")),
+            "{}",
+            found[0].summary
+        );
+        assert!(fail_open_line("for x in a; \u{e9}do set +e; done", &patterns).is_some());
     }
 
     #[test]
