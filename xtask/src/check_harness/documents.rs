@@ -7,7 +7,7 @@ use std::path::Path;
 use regex::Regex;
 
 use super::yaml::{self, Keys, Node};
-use super::{finding, has_extension, read_file};
+use super::{finding, has_extension, list_dir, read_file};
 use crate::fail::FailureDetails;
 
 /// Documents neither check reads. The template's own design record (`docs/template/`)
@@ -25,20 +25,10 @@ pub(super) const UNCHECKED_DOCUMENTS: &[&str] = &[
 /// `/`-separated paths in byte order, leaving out each path in [`UNCHECKED_DOCUMENTS`]
 /// and what is under it.
 pub(super) fn markdown_files(root: &Path, dir: &str) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
-        return Vec::new();
-    };
-    let mut entries: Vec<(String, std::fs::FileType)> = entries
-        .flatten()
-        .filter_map(|entry| {
-            let path = format!("{dir}/{}", entry.file_name().to_string_lossy());
-            let kind = entry.file_type().ok()?;
-            (!UNCHECKED_DOCUMENTS.contains(&path.as_str())).then_some((path, kind))
-        })
-        .collect();
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
-    entries
+    list_dir(root, dir)
         .into_iter()
+        .map(|(name, kind)| (format!("{dir}/{name}"), kind))
+        .filter(|(path, _)| !UNCHECKED_DOCUMENTS.contains(&path.as_str()))
         .flat_map(|(path, kind)| {
             if kind.is_dir() {
                 markdown_files(root, &path)
@@ -59,13 +49,10 @@ const ISSUE_TEMPLATES: &str = ".github/ISSUE_TEMPLATE";
 /// root-relative paths in byte order. GitHub reads no subdirectory there, so neither does
 /// this.
 pub(super) fn issue_templates(root: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(root.join(ISSUE_TEMPLATES)) else {
-        return Vec::new();
-    };
-    let mut found: Vec<String> = entries
-        .flatten()
-        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+    let mut found: Vec<String> = list_dir(root, ISSUE_TEMPLATES)
+        .into_iter()
+        .filter(|(_, kind)| kind.is_file())
+        .map(|(name, _)| name)
         .filter(|name| {
             [".md", ".yml", ".yaml"]
                 .iter()
@@ -186,6 +173,9 @@ mod tests {
             "docs/a/z.md",
             "docs/notes.txt",
             "docs/architecture/README.md",
+            // Named literally too, so dropping either from UNCHECKED_DOCUMENTS fails here.
+            "docs/architecture/roadmap.md",
+            "docs/architecture/adr/0001-a-choice.md",
         ];
         files.extend(unchecked.iter().map(String::as_str));
         let dir = tree(&files);

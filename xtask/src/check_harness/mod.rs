@@ -46,6 +46,9 @@ mod workflow_write_scopes;
 mod workflows;
 mod yaml;
 
+use std::cell::RefCell;
+use std::fs::FileType;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use crate::context::{Context, Env, Run};
@@ -99,16 +102,94 @@ pub(crate) fn finding(
     }
 }
 
-/// A file under the root as text (invalid UTF-8 replaced), or `None` when it is not a
-/// regular file there.
+thread_local! {
+    /// The I/O errors met on paths that exist while the current check reads the tree.
+    /// [`read_file`] and [`list_dir`] note them here rather than make every caller carry a
+    /// third outcome; [`run_check`] reports each as a violation of the check that met it,
+    /// so an unreadable file never reads as an absent one.
+    static UNREADABLE: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+fn note_unreadable(path: &Path, error: &std::io::Error) {
+    UNREADABLE.with(|found| {
+        found
+            .borrow_mut()
+            .push(format!("{}: {error}", path.display()));
+    });
+}
+
+/// `check` against `input`, with every I/O error it met on an existing path reported as
+/// `ERR_CHECK_INPUT_UNREADABLE`.
+pub(crate) fn run_check(check: CheckFn, input: &Input<'_>) -> Vec<FailureDetails> {
+    UNREADABLE.with(|found| found.borrow_mut().clear());
+    let mut violations = check(input);
+    let unreadable = UNREADABLE.with(|found| std::mem::take(&mut *found.borrow_mut()));
+    violations.extend(unreadable.into_iter().map(|error| {
+        finding(
+            "ERR_CHECK_INPUT_UNREADABLE",
+            "a path the check reads exists but cannot be read",
+            "every file and directory the check reads to be readable",
+            error,
+            "fix the path's permissions or type, then run the check again",
+        )
+    }));
+    violations
+}
+
+/// A file under the root as text (invalid UTF-8 replaced), or `None` when it is absent or
+/// not a regular file there. A file that exists but cannot be read is noted for
+/// [`run_check`] to report.
 pub(crate) fn read_file(root: &Path, path: &str) -> Option<String> {
     let full = root.join(path);
-    if !full.is_file() {
-        return None;
+    match std::fs::metadata(&full) {
+        Ok(metadata) if metadata.is_file() => {}
+        Ok(_) => return None,
+        Err(error) if error.kind() == ErrorKind::NotFound => return None,
+        Err(error) => {
+            note_unreadable(&full, &error);
+            return None;
+        }
     }
-    std::fs::read(full)
-        .ok()
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+    match std::fs::read(&full) {
+        Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+        Err(error) => {
+            note_unreadable(&full, &error);
+            None
+        }
+    }
+}
+
+/// The entries of the directory `dir` under the root, as (name, type) sorted by name; none
+/// when it is absent or not a directory. A directory, entry, or type that exists but
+/// cannot be read is noted for [`run_check`] to report.
+pub(crate) fn list_dir(root: &Path, dir: &str) -> Vec<(String, FileType)> {
+    let full = root.join(dir);
+    match std::fs::metadata(&full) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => return Vec::new(),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Vec::new(),
+        Err(error) => {
+            note_unreadable(&full, &error);
+            return Vec::new();
+        }
+    }
+    let entries = match std::fs::read_dir(&full) {
+        Ok(entries) => entries,
+        Err(error) => {
+            note_unreadable(&full, &error);
+            return Vec::new();
+        }
+    };
+    let mut found = Vec::new();
+    for entry in entries {
+        let kind = entry.and_then(|entry| Ok((entry.file_name(), entry.file_type()?)));
+        match kind {
+            Ok((name, kind)) => found.push((name.to_string_lossy().into_owned(), kind)),
+            Err(error) => note_unreadable(&full, &error),
+        }
+    }
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+    found
 }
 
 /// A pattern a check writes as a literal, compiled. One that does not compile is a bug in
@@ -208,7 +289,7 @@ pub(crate) fn main(context: &Context<'_>) -> TaskResult {
         .collect();
     let mut failures = 0;
     for (name, check) in &selected {
-        let violations = check(&input);
+        let violations = run_check(*check, &input);
         if violations.is_empty() {
             context.log(&format!("ok    {name}"));
             continue;
@@ -261,11 +342,14 @@ pub(crate) mod test_support {
         check: fn(&Input<'_>) -> Vec<FailureDetails>,
     ) -> Vec<FailureDetails> {
         let env = Env::new();
-        check(&Input {
-            root,
-            run: &no_run,
-            env: &env,
-        })
+        super::run_check(
+            check,
+            &Input {
+                root,
+                run: &no_run,
+                env: &env,
+            },
+        )
     }
 
     /// The codes of `violations`.

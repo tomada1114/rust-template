@@ -42,7 +42,7 @@ use regex::Regex;
 
 use super::workflows::{Renovate, read_renovate, read_workflows, title_checks};
 use super::yaml::{self, Keys, Node, Yaml};
-use super::{Input, finding, first_line, has_extension, pattern, read_file};
+use super::{Input, finding, first_line, has_extension, list_dir, pattern, read_file};
 use crate::fail::FailureDetails;
 
 const LABELS: &str = ".github/labels.yml";
@@ -151,13 +151,10 @@ fn run_labels(node: Option<&Node>, flag: &Regex) -> Vec<(String, usize)> {
 }
 
 fn yaml_files(root: &Path, dir: &str) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
-        return Vec::new();
-    };
-    let mut names: Vec<String> = entries
-        .flatten()
-        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+    let mut names: Vec<String> = list_dir(root, dir)
+        .into_iter()
+        .filter(|(_, kind)| kind.is_file())
+        .map(|(name, _)| name)
         .filter(|name| has_extension(name, &["yml", "yaml"]))
         .collect();
     names.sort();

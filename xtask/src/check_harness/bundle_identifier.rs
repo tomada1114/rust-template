@@ -11,7 +11,7 @@
 
 use regex::Regex;
 
-use super::{Input, finding, read_file};
+use super::{Input, finding, pattern, read_file};
 use crate::fail::FailureDetails;
 
 const PATHS: &str = "crates/myapp-platform/src/paths.rs";
@@ -33,11 +33,11 @@ pub(super) fn justfile_bundle_id(text: &str) -> Option<String> {
     })
 }
 
-fn rust_bundle_id(text: &str) -> Option<String> {
-    let pattern = Regex::new(
-        r#"\bconst\s+BUNDLE_IDENTIFIER\s*:\s*&\s*(?:'static\s+)?str\s*=\s*"([^"\\]*)"\s*;"#,
-    )
-    .ok()?;
+/// `pub const BUNDLE_IDENTIFIER: &str = "…";`, its value captured.
+const RUST_CONST: &str =
+    r#"\bconst\s+BUNDLE_IDENTIFIER\s*:\s*&\s*(?:'static\s+)?str\s*=\s*"([^"\\]*)"\s*;"#;
+
+fn rust_bundle_id(pattern: &Regex, text: &str) -> Option<String> {
     pattern
         .captures(text)
         .and_then(|captures| captures.get(1))
@@ -45,16 +45,25 @@ fn rust_bundle_id(text: &str) -> Option<String> {
 }
 
 /// Where a bundle identifier is written: the file, the shape it is written in, and its reader.
-type Site = (&'static str, &'static str, fn(&str) -> Option<String>);
+type Site<'a> = (
+    &'static str,
+    &'static str,
+    &'a dyn Fn(&str) -> Option<String>,
+);
 
 pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
-    let sites: [Site; 2] = [
+    let rust_const = match pattern(RUST_CONST) {
+        Ok(rust_const) => rust_const,
+        Err(invalid) => return vec![invalid],
+    };
+    let read_rust = |text: &str| rust_bundle_id(&rust_const, text);
+    let sites: [Site<'_>; 2] = [
         (
             PATHS,
             "pub const BUNDLE_IDENTIFIER: &str = \"…\";",
-            rust_bundle_id,
+            &read_rust,
         ),
-        (JUSTFILE, "bundle_id := \"…\"", justfile_bundle_id),
+        (JUSTFILE, "bundle_id := \"…\"", &justfile_bundle_id),
     ];
     let mut violations = Vec::new();
     let mut found: Vec<(&str, String)> = Vec::new();

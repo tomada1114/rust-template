@@ -33,7 +33,7 @@
 use regex::Regex;
 
 use super::documents::{Repository, repository, standing_documents};
-use super::{Input, finding, read_file};
+use super::{Input, finding, pattern, read_file};
 use crate::fail::FailureDetails;
 
 /// `\w` as JavaScript reads it.
@@ -201,15 +201,17 @@ fn issue_urls(line: &str) -> Vec<(usize, String)> {
     found
 }
 
-/// The spellings that name no URL.
-fn word_forms() -> Vec<Regex> {
+/// The spellings that name no URL. Word boundaries, digits, and case folding are ASCII,
+/// as in the JavaScript originals (no `u` flag), so `参照issue 12` is still a reference;
+/// `\s` is Unicode whitespace in both.
+fn word_forms() -> Result<Vec<Regex>, FailureDetails> {
     [
-        r"(?i)\b(?:issues?|PRs?|pull[ -]requests?|merge[ -]requests?)(?:[ -]?|\s+(?:numbers?|no\.)\s*)\d+",
-        r"(?i)\bGH-\d+",
-        r"\bgh\s+(?:issue|pr)\s+[a-z][a-z-]*\s+\d+",
+        r"(?-u:\b)(?i-u:issues?|PRs?|pull[ -]requests?|merge[ -]requests?)(?:[ -]?|\s+(?i-u:numbers?|no\.)\s*)[0-9]+",
+        r"(?-u:\b)(?i-u:GH-)[0-9]+",
+        r"(?-u:\b)gh\s+(?:issue|pr)\s+[a-z][a-z-]*\s+[0-9]+",
     ]
     .into_iter()
-    .filter_map(|pattern| Regex::new(pattern).ok())
+    .map(pattern)
     .collect()
 }
 
@@ -253,7 +255,10 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
         Ok(own) => own,
         Err(failure) => return vec![failure],
     };
-    let forms = word_forms();
+    let forms = match word_forms() {
+        Ok(forms) => forms,
+        Err(invalid) => return vec![invalid],
+    };
     let mut violations = Vec::new();
     for path in standing_documents(input.root) {
         let Some(text) = read_file(input.root, &path) else {
@@ -492,6 +497,28 @@ contact_links:
             "see https://example.org/acme/widgets/issues/9 and https://github.com/x/y/issues/1",
             "&#12; and #1a and #-2",
         ] {
+            let content = format!("{text}\n");
+            assert_eq!(check(&[("docs/x.md", Some(&content))]), [], "{text}");
+        }
+    }
+
+    #[test]
+    fn reads_word_boundaries_digits_and_case_as_ascii() {
+        for (text, cited) in [
+            ("参照issue 12", "issue 12"),
+            ("見てPR 7", "PR 7"),
+            ("詳細はGH-3", "GH-3"),
+            ("実行: gh pr view 9", "gh pr view 9"),
+        ] {
+            let content = format!("{text}\n");
+            let found = check(&[("docs/x.md", Some(&content))]);
+            assert_eq!(
+                summaries(&found),
+                [format!("docs/x.md:1 cites `{cited}`")],
+                "{text}"
+            );
+        }
+        for text in ["issue １２", "PRſ 4", "xissue 12"] {
             let content = format!("{text}\n");
             assert_eq!(check(&[("docs/x.md", Some(&content))]), [], "{text}");
         }

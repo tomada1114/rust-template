@@ -22,7 +22,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use super::{Input, finding, first_line, read_file};
+use super::{Input, finding, first_line, list_dir, read_file};
 use crate::fail::FailureDetails;
 
 const THIS: &str = "xtask/src/check_harness/clippy_allow_invalid.rs";
@@ -37,19 +37,12 @@ const EXCEPTIONS: [(&str, &str); 0] = [];
 
 /// Every clippy configuration file under `root`, as sorted `/`-separated relative paths.
 fn config_files(root: &Path, dir: &str) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
-        return Vec::new();
-    };
     let mut found = Vec::new();
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
+    for (name, kind) in list_dir(root, dir) {
         let path = if dir.is_empty() {
             name.clone()
         } else {
             format!("{dir}/{name}")
-        };
-        let Ok(kind) = entry.file_type() else {
-            continue;
         };
         if kind.is_file() && CONFIG_FILES.contains(&name.as_str()) {
             found.push(path);
@@ -245,6 +238,26 @@ mod tests {
                 "tools/clippy.toml sets extra.deeper.allow-invalid",
             ]
         );
+    }
+
+    #[test]
+    fn fails_on_a_directory_it_cannot_list() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = fixture(&[("clippy.toml", ROOT_CONFIG), (CORE, &core_config(""))]);
+        let locked = dir.path().join("crates/core");
+        let set = |mode| {
+            std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(mode))
+                .expect("chmod");
+        };
+        set(0o000);
+        // Root lists a mode-000 directory, so the case holds only for an ordinary user.
+        let listable = std::fs::read_dir(&locked).is_ok();
+        let found = run_at(dir.path(), run);
+        set(0o755);
+        if !listable {
+            assert_eq!(codes(&found), ["ERR_CHECK_INPUT_UNREADABLE"]);
+            assert!(found[0].actual.contains("crates/core"), "{found:?}");
+        }
     }
 
     #[test]

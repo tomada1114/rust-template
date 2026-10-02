@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use super::yaml::{self, Key, Keys, Node, Yaml};
-use super::{finding, has_extension, read_file};
+use super::{finding, has_extension, list_dir, read_file};
 use crate::fail::FailureDetails;
 
 const WORKFLOWS_DIR: &str = ".github/workflows";
@@ -114,12 +114,9 @@ pub(super) fn read_yaml(root: &Path, path: &str) -> Option<Result<YamlFile, Stri
 
 /// The workflow files under the root, as repository-relative paths, sorted.
 fn workflow_paths(root: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(root.join(WORKFLOWS_DIR)) else {
-        return Vec::new();
-    };
-    let mut names: Vec<String> = entries
-        .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+    let mut names: Vec<String> = list_dir(root, WORKFLOWS_DIR)
+        .into_iter()
+        .map(|(name, _)| name)
         .filter(|name| {
             std::path::Path::new(name)
                 .extension()
@@ -168,20 +165,18 @@ pub(super) fn read_workflows(root: &Path) -> (Vec<YamlFile>, Vec<FailureDetails>
 }
 
 fn action_files_under(root: &Path, dir: &str) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
-        return Vec::new();
-    };
-    let mut entries: Vec<_> = entries.flatten().collect();
-    entries.sort_by_key(|entry| entry.file_name().to_string_lossy().to_lowercase());
+    let mut entries = list_dir(root, dir);
+    entries.sort_by_key(|(name, _)| name.to_lowercase());
     entries
         .into_iter()
-        .flat_map(|entry| {
-            let name = entry.file_name().to_string_lossy().into_owned();
+        .flat_map(|(name, kind)| {
             let path = format!("{dir}/{name}");
-            match entry.file_type() {
-                Ok(kind) if kind.is_dir() => action_files_under(root, &path),
-                Ok(kind) if kind.is_file() && ACTION_FILES.contains(&name.as_str()) => vec![path],
-                _ => Vec::new(),
+            if kind.is_dir() {
+                action_files_under(root, &path)
+            } else if kind.is_file() && ACTION_FILES.contains(&name.as_str()) {
+                vec![path]
+            } else {
+                Vec::new()
             }
         })
         .collect()
