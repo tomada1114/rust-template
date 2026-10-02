@@ -267,14 +267,16 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `recording-architecture-decisions` | Writing an ADR under `docs/architecture/` |
 | `writing-repo-scripts` | A `cargo xtask` task or a skill's bundled script, and its test |
 | `starting-an-app` | Turning the template into a new app: bootstrap, design system first, app shape |
-| `writing-rust` | Rust in `crates/*` and `src-tauri`: ownership, errors, compiler messages, clippy |
+| `writing-rust` | Rust in `crates/*`: ownership, errors, clap and ratatui idioms, compiler messages, clippy |
 | `tdd` | Red-green-refactor with `just test-fast` |
-| `writing-tests` | The body of one test in either language: oracles, fakes, contracts, clocks |
+| `writing-tests` | The body of one Rust test: oracles, fakes, contracts, clocks, the built binary, `TestBackend` |
 | `placing-tests` | Where a new test goes and which floor measures it |
-| `designing-core-logic` | Shaping logic in `myapp-core`: ports, `Tuning`, transitions, views |
-| `designing-errors` | Error enums, codes for the UI, adapter mapping, `ERR_*` script codes |
-| `integrating-system-apis` | Calling macOS from `myapp-platform`: commands, `objc2`, TCC |
-| `running-the-app` | Seeing a change work: `just test-platform` and `just logs`; the human's recipes |
+| `designing-core-logic` | Shaping logic in `myapp-core`: ports, `Tuning`, transitions, views, a TUI screen's state |
+| `designing-clis` | A subcommand, its flags and output: stdout and stderr, exit codes, `wording.rs`, `--json`, configuration |
+| `building-tuis` | The `myapp tui` screen: model and update in core, the loop and view in `crates/myapp/src/tui/`, `TestBackend` |
+| `designing-errors` | Error enums, wording and exit codes in the binary, adapter mapping, `ERR_*` script codes |
+| `integrating-system-apis` | Calling macOS and Linux from `myapp-platform`: `cfg`, commands, `objc2`, TCC |
+| `running-the-app` | Seeing a change work: `cargo run -p myapp`, `just test-platform`, and `just logs`; `myapp tui` only when the human asks |
 
 ### Rules
 
