@@ -317,13 +317,68 @@ enum Tok {
     Other,
 }
 
-/// The string literal (or template) opening at `at`: its token, a template with a
-/// substitution being `Other`, and the index after its closing quote. `line` counts the
-/// newlines inside it.
+/// `count` hex digits at `chars[at..]` as a number, or `None`.
+fn hex_at(chars: &[char], at: usize, count: usize) -> Option<u32> {
+    let digits = chars.get(at..at + count)?;
+    digits
+        .iter()
+        .try_fold(0, |total, digit| Some(total * 16 + digit.to_digit(16)?))
+}
+
+/// The escape whose backslash is at `at - 1` (`chars[at]` its first character): what it
+/// decodes to (`None` for a line continuation) and the index after it, or `None` for one
+/// JavaScript refuses or a lone surrogate, which no Rust string holds.
+fn escape(chars: &[char], at: usize) -> Option<(Option<char>, usize)> {
+    let unicode = |at: usize| -> Option<(u32, usize)> {
+        if chars.get(at) == Some(&'{') {
+            let close = chars[at..].iter().position(|c| *c == '}')? + at;
+            let digits = close - at - 1;
+            let value = (1..=6)
+                .contains(&digits)
+                .then(|| hex_at(chars, at + 1, digits))??;
+            (value <= 0x10_FFFF).then_some((value, close + 1))
+        } else {
+            Some((hex_at(chars, at, 4)?, at + 4))
+        }
+    };
+    let simple = |c: char| Some((Some(c), at + 1));
+    match *chars.get(at)? {
+        'n' => simple('\n'),
+        't' => simple('\t'),
+        'r' => simple('\r'),
+        'b' => simple('\u{8}'),
+        'f' => simple('\u{c}'),
+        'v' => simple('\u{b}'),
+        '0' if !chars.get(at + 1).is_some_and(char::is_ascii_digit) => simple('\0'),
+        '0'..='9' => None,
+        'x' => Some((Some(char::from_u32(hex_at(chars, at + 1, 2)?)?), at + 3)),
+        'u' => {
+            let (high, after) = unicode(at + 1)?;
+            if (0xD800..0xDC00).contains(&high)
+                && chars.get(after) == Some(&'\\')
+                && chars.get(after + 1) == Some(&'u')
+            {
+                let (low, end) = unicode(after + 2)?;
+                if (0xDC00..0xE000).contains(&low) {
+                    let combined = 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
+                    return Some((Some(char::from_u32(combined)?), end));
+                }
+            }
+            Some((Some(char::from_u32(high)?), after))
+        }
+        '\r' if chars.get(at + 1) == Some(&'\n') => Some((None, at + 2)),
+        '\n' | '\r' | '\u{2028}' | '\u{2029}' => Some((None, at + 1)),
+        other => simple(other),
+    }
+}
+
+/// The string literal (or template) opening at `at`: its token, the index after its
+/// closing quote. A template with a substitution, and a literal with an escape this
+/// cannot decode, is `Other`. `line` counts the newlines inside it.
 fn string_literal(chars: &[char], start: usize, line: &mut usize) -> (Tok, usize) {
     let quote = chars[start];
     let mut value = String::new();
-    let mut substituted = false;
+    let mut readable = true;
     let mut at = start + 1;
     while let Some(&inner) = chars.get(at) {
         at += 1;
@@ -332,29 +387,29 @@ fn string_literal(chars: &[char], start: usize, line: &mut usize) -> (Tok, usize
         }
         *line += usize::from(inner == '\n');
         if inner == '\\' {
-            let escaped = chars.get(at).copied().unwrap_or_default();
-            at += 1;
-            *line += usize::from(escaped == '\n');
-            value.push(match escaped {
-                'n' => '\n',
-                't' => '\t',
-                'r' => '\r',
-                other => other,
-            });
+            if let Some((decoded, end)) = escape(chars, at) {
+                *line += chars[at..end].iter().filter(|c| **c == '\n').count();
+                value.extend(decoded);
+                at = end;
+            } else {
+                readable = false;
+                *line += usize::from(chars.get(at) == Some(&'\n'));
+                at += 1;
+            }
         } else {
-            substituted |= quote == '`' && inner == '$' && chars.get(at) == Some(&'{');
+            readable &= !(quote == '`' && inner == '$' && chars.get(at) == Some(&'{'));
             value.push(inner);
         }
     }
-    let tok = if substituted {
-        Tok::Other
-    } else {
+    let tok = if readable {
         Tok::Str(value)
+    } else {
+        Tok::Other
     };
     (tok, at)
 }
 
-/// The index after the regular-expression literal opening at `start`, and its flags.
+/// The index after the regular-expression literal opening at `start`, its flags included.
 fn regex_literal_end(chars: &[char], start: usize) -> usize {
     let mut class = false;
     let mut at = start + 1;
@@ -377,7 +432,7 @@ fn regex_literal_end(chars: &[char], start: usize) -> usize {
 
 /// TypeScript source as the tokens the map reader needs: identifiers, string literals
 /// (and templates without a substitution), single punctuation, and everything else as
-/// `Other`; comments and regular-expression literals are skipped.
+/// `Other`; comments are skipped, and a regular-expression literal is one `Other`.
 fn tokens(text: &str) -> Vec<(Tok, usize)> {
     let chars: Vec<char> = text.chars().collect();
     let mut found: Vec<(Tok, usize)> = Vec::new();
@@ -445,10 +500,9 @@ fn tokens(text: &str) -> Vec<(Tok, usize)> {
     found
 }
 
-/// label-pr's `TYPE_LABELS` as written in `text`: a `new Map([…])` whose entries are
-/// `["type", "label"]` string-literal pairs, or why it is not that.
-fn read_type_labels(text: &str) -> Result<Vec<TypeLabel>, String> {
-    let toks = tokens(text);
+/// The index of the `=` of the last `TYPE_LABELS` declaration in `toks`, or why it has
+/// none before its statement ends.
+fn initializer(toks: &[(Tok, usize)]) -> Result<usize, String> {
     let declaration = toks.windows(2).enumerate().rev().find_map(|(index, pair)| {
         let keyword = matches!(&pair[0].0, Tok::Ident(word) if word == "const" || word == "let" || word == "var");
         (keyword && pair[1].0 == Tok::Ident(TYPE_MAP.to_owned())).then_some(index + 2)
@@ -457,16 +511,51 @@ fn read_type_labels(text: &str) -> Result<Vec<TypeLabel>, String> {
     let mut at = declaration.ok_or_else(no_value)?;
     let mut depth = 0_usize;
     loop {
-        match toks.get(at).map(|(tok, _)| tok) {
-            None => return Err(no_value()),
-            Some(Tok::Punct('<' | '(' | '[' | '{')) => depth += 1,
-            Some(Tok::Punct('>' | ')' | ']' | '}')) => depth = depth.saturating_sub(1),
-            Some(Tok::Punct('=')) if depth == 0 => break,
-            Some(Tok::Punct(';' | ',')) if depth == 0 => return Err(no_value()),
-            Some(_) => {}
+        let Some((tok, line)) = toks.get(at) else {
+            return Err(no_value());
+        };
+        // At depth 0, a new line ends the declaration unless an annotation carries on.
+        let previous = toks.get(at - 1);
+        let ends = depth == 0
+            && previous.is_some_and(|(before, before_line)| {
+                before_line < line
+                    && !matches!(before, Tok::Punct(':' | '|' | '&' | '<' | ',' | '.'))
+                    && !matches!(tok, Tok::Punct('=' | '|' | '&' | '.' | '<'))
+            });
+        match tok {
+            _ if ends => return Err(no_value()),
+            Tok::Punct('<' | '(' | '[' | '{') => depth += 1,
+            Tok::Punct('>' | ')' | ']' | '}') => depth = depth.saturating_sub(1),
+            Tok::Punct('=') if depth == 0 => break,
+            Tok::Punct(';' | ',') if depth == 0 => return Err(no_value()),
+            _ => {}
         }
         at += 1;
     }
+    Ok(at)
+}
+
+/// Whether the token after `toks[close]` ends the statement: `;`, `}`, the end, or a word
+/// on a later line that cannot carry the expression on.
+fn ends_statement(toks: &[(Tok, usize)], close: usize) -> bool {
+    let close_line = toks.get(close).map_or(0, |(_, line)| *line);
+    match toks.get(close + 1) {
+        None | Some((Tok::Punct(';' | '}'), _)) => true,
+        Some((Tok::Ident(word), line)) => {
+            *line > close_line && !matches!(word.as_str(), "as" | "satisfies" | "in" | "instanceof")
+        }
+        Some(_) => false,
+    }
+}
+
+/// label-pr's `TYPE_LABELS` as written in `text`: the last declaration of it, whose
+/// initializer is a `new Map([…])` of `["type", "label"]` string-literal pairs that ends
+/// the statement, or why it is not that. A declaration with no `=` before its statement
+/// ends has no value; one whose `new Map(…)` is followed by anything but `;` or a new
+/// statement (`.set(…)`, `as`, `satisfies`, `??`) is not that map.
+fn read_type_labels(text: &str) -> Result<Vec<TypeLabel>, String> {
+    let toks = tokens(text);
+    let mut at = initializer(&toks)?;
     at += 1;
     let start = toks.get(at).map_or(0, |(_, line)| *line);
     let not_map =
@@ -546,6 +635,11 @@ fn read_type_labels(text: &str) -> Result<Vec<TypeLabel>, String> {
     }
     if !is(at, &Tok::Punct(')')) {
         return Err(not_map());
+    }
+    if !ends_statement(&toks, at) {
+        return Err(format!(
+            "`{TYPE_MAP}` at line {start} is followed by more than `;` after its `new Map([…])`, which may change the map"
+        ));
     }
     Ok(pairs)
 }
@@ -1210,6 +1304,95 @@ mod tests {
         );
         assert!(read_type_labels("const TYPE_LABELS = new Map<string([]);").is_err());
         assert!(read_type_labels("const TYPE_LABELS = new Map(['\\n\\t\\r\\'', \"x\"").is_err());
+    }
+
+    #[test]
+    fn refuses_a_map_the_statement_goes_on_to_change() {
+        let map = "const TYPE_LABELS = new Map([[\"fix\", \"bug\"]])";
+        for tail in [
+            ";\n",
+            "\n",
+            "",
+            "\nexport const OTHER = 1;\n",
+            ";\nTYPE_LABELS.set(\"x\", \"y\");\n",
+        ] {
+            assert!(
+                read_type_labels(&format!("{map}{tail}")).is_ok(),
+                "{tail:?}"
+            );
+        }
+        for tail in [
+            ".set(\"feat\", \"enhancement\");\n",
+            "\n  .set(\"feat\", \"enhancement\");\n",
+            " as ReadonlyMap<string, string>;\n",
+            "\n  satisfies ReadonlyMap<string, string>;\n",
+            " ?? other;\n",
+            ", OTHER = 1;\n",
+        ] {
+            let found = read_type_labels(&format!("{map}{tail}"));
+            assert!(
+                found
+                    .as_ref()
+                    .is_err_and(|error| error.contains("followed by")),
+                "{tail:?}: {found:?}"
+            );
+        }
+        for source in [
+            "let TYPE_LABELS\nTYPE_LABELS = new Map([[\"fix\", \"bug\"]]);\n",
+            "let TYPE_LABELS;\nTYPE_LABELS = new Map([[\"fix\", \"bug\"]]);\n",
+            "let TYPE_LABELS: Map<string, string>\nconst x = new Map([]);\n",
+        ] {
+            let found = read_type_labels(source);
+            assert!(
+                found
+                    .as_ref()
+                    .is_err_and(|error| error.contains("with a value")),
+                "{source:?}: {found:?}"
+            );
+        }
+        let annotated = "const TYPE_LABELS:\n  ReadonlyMap<\n    string,\n    string\n  >\n  = new Map([[\"fix\", \"bug\"]]);\n";
+        assert!(read_type_labels(annotated).is_ok());
+    }
+
+    #[test]
+    fn decodes_string_escapes_as_javascript_does() {
+        let pair = |literal: &str| {
+            read_type_labels(&format!(
+                "const TYPE_LABELS = new Map([[{literal}, \"x\"]]);\n"
+            ))
+            .map(|pairs| pairs.into_iter().map(|pair| pair.kind).collect::<Vec<_>>())
+        };
+        for (literal, decoded) in [
+            (r#""a\x41b""#, "aAb"),
+            (r#""\u0041\u{1F600}""#, "A\u{1F600}"),
+            (r#""\uD83D\uDE00""#, "\u{1F600}"),
+            (r#""\0\b\f\v""#, "\0\u{8}\u{c}\u{b}"),
+            (r#""\\ \' \" \q""#, "\\ ' \" q"),
+            ("\"line\\\ncontinued\"", "linecontinued"),
+            ("'\\\r\nx'", "x"),
+            ("`tab\\tdone`", "tab\tdone"),
+        ] {
+            assert_eq!(pair(literal), Ok(vec![decoded.to_owned()]), "{literal}");
+        }
+        for literal in [
+            r#""\x4""#,
+            r#""\u12""#,
+            r#""\u{110000}""#,
+            r#""\u{}""#,
+            r#""\uD83D""#,
+            r#""\1""#,
+            r#""\01""#,
+            "`${x}`",
+        ] {
+            assert!(pair(literal).is_err(), "{literal}");
+        }
+        let lines = read_type_labels(
+            "const TYPE_LABELS = new Map([\n  [\"a\\\nb\", \"x\"],\n  [\"c\", \"y\"],\n]);\n",
+        );
+        assert_eq!(
+            lines.map(|pairs| pairs.iter().map(|pair| pair.line).collect::<Vec<_>>()),
+            Ok(vec![2, 4])
+        );
     }
 
     #[test]
