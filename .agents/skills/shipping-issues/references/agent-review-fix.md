@@ -33,7 +33,8 @@ matters`. Findings I rejected are not listed here and must not be inferred.}
 
 Project conventions: read {workdir}/CLAUDE.md and {workdir}/AGENTS.md before
 changing anything.
-Verification command: {verify_command}
+Verification: the narrowest checks that can fail for what you change
+(AGENTS.md › "Validating a change"); CI runs the full gate.
 
 Do:
 1. Fix each finding at its cause, not at its symptom.

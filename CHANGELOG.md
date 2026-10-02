@@ -180,6 +180,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The `cargo xtask` hooks no longer wait on the lock of a workspace build running
+  meanwhile (a cold clippy, nextest's build, a background `just check`): lefthook's
+  staged guard and skills-mirror jobs build xtask into `target/xtask` with
+  `CARGO_TARGET_DIR=target/xtask`, and a personal `PostToolUse` format hook should now
+  run `cd "$CLAUDE_PROJECT_DIR" && CARGO_TARGET_DIR=target/xtask mise exec -- cargo xtask format-edited-file`.
+  The `cargo xtask` alias itself is unchanged, so it still works from any subdirectory
+  without creating a `target/` there.
 - `just run` and `just install-app` find the app bundle under the target directory `cargo
   metadata` reports, through `scripts/bundle-path.ts`, so they work with `CARGO_TARGET_DIR`
   or `build.target-dir` instead of assuming `./target`; a missing bundle stops the recipe

@@ -13,24 +13,19 @@ the two fields that carry a duty for the calling session.
 ## Fields
 
 - `preflight:` -- `BLOCKED` stops the run. `tree: DIRTY` is a question to ask
-  **now**, before any baseline. `existing-worktrees:` with a `BLOCKED` verdict
+  **now**, before any worktree is provisioned. `existing-worktrees:` with a `BLOCKED` verdict
   means worktrees already sit under this run's own root: an earlier run that did
   not clean up, or one happening right now. That is a stop condition, not a
   leftover to reuse -- the branches inside are stale, and provisioning over them
   would implement on top of a branch this run never created. Confirm nothing is
   running in them, remove them with
   `cleanup_run.sh --worktree-root <runstate>/worktrees`, and re-plan.
-- `profile:` / `verify-check:` -- the package and hook managers, and a
-  **suggested** verification command. **The calling session must confirm that
-  suggestion before step 3 executes it** (SKILL.md step 1 states the duty). The
-  suggestion is a guess from recipe names: the justfile first (here it finds
-  `just check`), then `package.json` scripts, a Makefile, or a language default.
-  Two ways it goes wrong: a recipe that runs only the unit tests (`just test`
-  here) while lint and the build are separate gates gives a baseline that passes
-  while CI will fail; a recipe that starts a watcher or streams (`just logs`)
-  never returns at all.
-  Overriding it is a one-word decision -- say which command was used, in the
-  step 10 report.
+- `profile:` / `verify-check:` -- the package and hook managers, and the
+  repository's detected full gate, a guess from recipe names: the justfile first
+  (here it finds `just check`), then `package.json` scripts, a Makefile, or a
+  language default. It is **informational**: nothing runs it as a baseline, and
+  no implementer runs it before the PR, because CI is the gate every pull request
+  merges through. The `next:` command provisions worktrees without `--verify`.
 - `github:` -- `write=no` means the label and follow-up writes will exit 2: rank
   from `~P<n>` suggestions and report findings instead of filing them.
 - `labels:` -- `COMPLETE` means every tier is settled, so step 2 is skipped.

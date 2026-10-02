@@ -5,7 +5,8 @@
 //!
 //! The throwaway repository gets the checkout's `lefthook.yml` (read, never written) and
 //! a `cargo` first on PATH that runs this build's `xtask` for `cargo xtask …`, with the
-//! throwaway repository as its root, as `cargo run` there would.
+//! throwaway repository as its root, as `cargo run` there would — and only when the job
+//! set `CARGO_TARGET_DIR=target/xtask`, so a hook never waits on a workspace build's lock.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -30,13 +31,18 @@ fn github_token() -> String {
 
 const SKILL: &str = "demo/SKILL.md";
 
-/// A directory holding a `cargo` that runs this build's `xtask` and nothing else.
+/// The target directory every `cargo xtask` hook command builds into, away from the
+/// workspace's `target/`, whose lock a concurrent build holds.
+const HOOK_TARGET_DIR: &str = "CARGO_TARGET_DIR=target/xtask";
+
+/// A directory holding a `cargo` that runs this build's `xtask` and nothing else, and
+/// refuses a `cargo xtask` run without the hooks' own target directory.
 fn cargo_shim(dir: &Path) -> PathBuf {
     let bin = dir.join("bin");
     must(std::fs::create_dir_all(&bin), "mkdir");
     let cargo = bin.join("cargo");
     let script = format!(
-        "#!/bin/sh\nif [ \"$1\" = xtask ]; then\n  shift\n  CARGO_MANIFEST_DIR=\"$PWD/xtask\" exec '{}' \"$@\"\nfi\necho \"unexpected: cargo $*\" >&2\nexit 1\n",
+        "#!/bin/sh\nif [ \"$1\" = xtask ] && [ \"$CARGO_TARGET_DIR\" = target/xtask ]; then\n  shift\n  CARGO_MANIFEST_DIR=\"$PWD/xtask\" exec '{}' \"$@\"\nfi\necho \"unexpected: CARGO_TARGET_DIR=$CARGO_TARGET_DIR cargo $*\" >&2\nexit 1\n",
         env!("CARGO_BIN_EXE_xtask")
     );
     must(std::fs::write(&cargo, script), "write the shim");
@@ -121,13 +127,16 @@ impl Repo {
     }
 }
 
-/// The process environment without `GIT_*` or `LEFTHOOK*` (either would change the run),
-/// with no global or system git config (a user's `core.hooksPath` or `merge.ff=only`
-/// would), and the shim and lefthook first on PATH.
+/// The process environment without `GIT_*` or `LEFTHOOK*` (either would change the run)
+/// or a `CARGO_TARGET_DIR` the test runner set (the hook must set its own), with no global
+/// or system git config (a user's `core.hooksPath` or `merge.ff=only` would), and the
+/// shim and lefthook first on PATH.
 fn hook_env(shim: &Path) -> BTreeMap<String, String> {
     let mut env: BTreeMap<String, String> = std::env::vars_os()
         .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
-        .filter(|(name, _)| !name.starts_with("GIT_") && !name.starts_with("LEFTHOOK"))
+        .filter(|(name, _)| {
+            !name.starts_with("GIT_") && !name.starts_with("LEFTHOOK") && name != "CARGO_TARGET_DIR"
+        })
         .collect();
     let mut path = vec![shim.display().to_string()];
     path.extend(lefthook_dir().map(|dir| dir.display().to_string()));
@@ -279,4 +288,41 @@ fn a_rebase_stop_resolution_with_a_credential_shaped_line_is_refused() {
         "{output}"
     );
     assert!(!output.contains(&github_token()));
+}
+
+#[test]
+fn every_documented_xtask_hook_builds_in_its_own_target_directory() {
+    let lefthook = must(
+        std::fs::read_to_string(checkout().join("lefthook.yml")),
+        "read lefthook.yml",
+    );
+    let jobs: Vec<&str> = lefthook
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("run:") && line.contains("cargo xtask"))
+        .collect();
+    assert_eq!(jobs.len(), 2, "{jobs:?}");
+    for job in jobs {
+        assert!(
+            job.starts_with(&format!("run: {HOOK_TARGET_DIR} cargo xtask ")),
+            "{job}"
+        );
+    }
+
+    let agents = must(
+        std::fs::read_to_string(checkout().join("AGENTS.md")),
+        "read AGENTS.md",
+    );
+    let format_hook: Vec<&str> = agents
+        .lines()
+        .filter(|line| line.contains("cd \"$CLAUDE_PROJECT_DIR\""))
+        .collect();
+    assert_eq!(format_hook.len(), 1, "{format_hook:?}");
+    assert!(
+        format_hook[0].contains(&format!(
+            "cd \"$CLAUDE_PROJECT_DIR\" && {HOOK_TARGET_DIR} mise exec -- cargo xtask format-edited-file`"
+        )),
+        "{}",
+        format_hook[0]
+    );
 }
