@@ -53,7 +53,7 @@ jobs:
       # The guard fails on a clippy.toml path clippy cannot resolve, which `-D warnings`
       # lets pass; this job resolves core's unix-only bans on Linux.
       - name: Clippy (whole workspace)
-        run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Core tests with coverage floors, doctests, and the Linux-buildable crates' tests
         run: just test-core
@@ -127,7 +127,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Clippy (whole workspace)
-        run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Platform tests (real adapters, the CLI) on macOS
         run: just test-platform

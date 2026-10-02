@@ -60,7 +60,7 @@ fix:
 # Check formatting and lints
 lint:
     cargo fmt --all --check
-    cargo xtask clippy-guard cargo clippy --workspace --all-targets --locked -- -D warnings
+    cargo xtask clippy-guard cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
 # Every test that runs anywhere: the Rust core and the xtask crate, each with its coverage floors
 test: test-core test-xtask
@@ -70,6 +70,7 @@ test-core:
     cargo llvm-cov nextest --locked -p myapp-core --fail-under-lines 80 --fail-under-functions 80
     cargo test --doc --locked -p myapp-core
     cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
+    cargo nextest run --locked --all-features -p myapp-test-support -p myapp-platform -p myapp
 
 # The xtask crate with its coverage floors: lines 85, functions 90 over xtask and its guard; the guard's rules alone (xtask/guard/) lines 90, functions 100
 test-xtask:
@@ -84,6 +85,7 @@ test-fast filter:
 # Platform adapter and binary tests against the real OS (macOS or Linux), needing no human
 test-platform:
     cargo nextest run --locked -p myapp-platform -p myapp
+    cargo nextest run --locked --all-features -p myapp-platform -p myapp
 
 # The #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain (a human's recipe)
 test-local:

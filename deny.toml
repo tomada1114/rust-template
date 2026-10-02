@@ -5,6 +5,7 @@
 # What ships. Cargo.lock lists every platform's dependencies; setting the target defines
 # what is shipped, and it ignores nothing within it.
 targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu"]
+all-features = true
 
 [advisories]
 version = 2

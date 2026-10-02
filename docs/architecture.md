@@ -18,7 +18,7 @@ ever ships releases — is recorded as ADRs under [`docs/architecture/`](archite
       │ constructs the adapters, hands them to core
       ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ crates/myapp-platform  adapters: the real OS and filesystem, behind ports    │
+│ crates/myapp-platform  adapters: OS, filesystem, optional HTTPS, behind ports │
 └──────────────────────────────────────────────────────────────────────────────┘
       │ implement core's ports; call core's use cases
       ▼
@@ -50,21 +50,21 @@ review holds that line, so a screen's state machine stays testable with plain va
 
 ## Ports and adapters
 
-Anything outside the process — the filesystem, the clock, and later the OS APIs an app
-needs — reaches core through a port. It is always the same four pieces, and the sample
-has two worked examples:
+Anything outside the process — the filesystem, the clock, model providers, and later
+the OS APIs an app needs — reaches core through a port. Each has the same four pieces:
 
-| Piece | Where | `CounterStore` | `Clock` |
-|---|---|---|---|
-| The port: a `Send + Sync` trait over types core owns | `crates/myapp-core` | `counter::store::CounterStore` | `time::Clock` |
-| The adapter: translates OS results into core's types and OS failures into core's error kinds, and decides nothing | `crates/myapp-platform` | `JsonFileCounterStore` | `SystemClock` |
-| The fake: a real implementation answering from memory | `crates/myapp-test-support` | `InMemoryCounterStore`, `FailingCounterStore` | `FixedClock` |
-| The contract: the behaviour every implementation must have | `crates/myapp-test-support` | `counter_store_contract` | `clock_contract` |
+| Piece | Where | `CounterStore` | `Clock` | `TextGenerator` |
+|---|---|---|---|---|
+| The port: a synchronous `Send + Sync` trait over types core owns | `crates/myapp-core` | `counter::store::CounterStore` | `time::Clock` | `generation::TextGenerator` |
+| The adapter: translates external results and failures into core's types | `crates/myapp-platform` | `JsonFileCounterStore` | `SystemClock` | `OpenRouterClient` (optional feature) |
+| The fake: an implementation answering from memory | `crates/myapp-test-support` | `InMemoryCounterStore`, `FailingCounterStore` | `FixedClock` | `StubTextGenerator` |
+| The contract: the behaviour every implementation must have | `crates/myapp-test-support` | `counter_store_contract` | `clock_contract` | `text_generator_contract` |
 
-`crates/myapp-core/tests/contracts.rs` runs each contract against the fake, on Linux,
-inside the coverage floor. `crates/myapp-platform/tests/contracts.rs` runs the same
-function against the real adapter, on the Linux and macOS CI runners when it needs only
-a filesystem (each test gets its own temporary directory). An adapter test that needs a
+Core's `tests/contracts.rs` and `tests/generation_service.rs` run the contracts against
+the fakes, on Linux, inside the coverage floor. Platform's `tests/contracts.rs` and
+`src/openrouter/tests.rs` run the same functions against the real adapters, using local
+HTTP fixtures for OpenRouter, on the Linux and macOS CI runners. Each filesystem test
+gets its own temporary directory. An adapter test that needs a
 logged-in GUI session, a TCC grant, or the Keychain is marked
 `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`, which
 a human starts; the sample has none. Core's integration tests live in
@@ -85,8 +85,13 @@ process as data also serializes as a typed code: `CounterError` already does
 (`{ "code": "atMaximum" }`, `{ "code": "storage", "kind": "corrupt" }`), ready for a
 `--json` form.
 
-`crates/myapp/src/main.rs` is the composition root: the only place that constructs an
-adapter and hands it to core (`CounterService::new(store, clock, Tuning::default())`).
+The binary is the composition root: `crates/myapp/src/main.rs` constructs the counter
+adapters (`CounterService::new(store, clock, Tuning::default())`), and `src/llm.rs`
+constructs the optional generator. `GenerationService` owns prompt/settings validation;
+`OpenRouterClient` owns HTTPS, lazy credential resolution, transport bounds, and provider
+response translation. The `openrouter` feature is off by default in both the binary
+and platform crate. Model choices live in source; `OPENROUTER_KEY` takes precedence
+over `.env.local` in the working directory. See [OpenRouter](openrouter.md).
 
 The platform crate and the binary are outside the coverage floor. That is a
 constraint, not a licence: they translate, so they have no branch worth a numeric gate.
@@ -99,7 +104,8 @@ The moment one needs a decision, the decision moves into core behind the port.
 checkout, so it is a human's recipe. The command-line contract, which
 `crates/myapp/tests/cli.rs` runs against the built binary with a temporary `HOME`:
 
-- **Streams.** Data — the counter's value — goes to stdout, one line; diagnostics go to
+- **Streams.** The counter's value goes to stdout, one line; `llm ask` prints the final
+  model answer with a trailing newline when the optional feature is enabled. Diagnostics go to
   stderr: `error: <wording>` for a failed action, `warning: <wording>` for a degraded run
   (logging unavailable), and, in a debug build, a copy of each log line.
 - **Exit codes.** 0 on success (including `--help` and `--version`), 1 when the action
@@ -157,6 +163,12 @@ private.
 | **The data and log locations** — the bundle identifier `com.example.myapp` (`BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs` and `bundle_id` in the justfile) and the XDG directory name `myapp` (`XDG_APP_NAME`) | Where the tool's files are on a machine that ran it: on macOS `~/Library/Application Support/com.example.myapp/` and `~/Library/Logs/com.example.myapp/` (and any privacy grant, keyed by the identifier); on Linux `$XDG_DATA_HOME/myapp/` and `$XDG_STATE_HOME/myapp/logs/` | Fixed once the tool has run anywhere but your checkout: a new name leaves the user's data behind under the old one. Changing it is a human's decision, recorded as an ADR; the bootstrap sets both once. |
 | **On-disk file formats** — see below | Files already on a user's disk; `just logs` and anyone reading the logs | A new version still reads the old format: a format version and a migration, with a test that reads a sample of the previous format. |
 | **The command line** — `myapp counter show`, `myapp counter increment`, `myapp tui`, `--help`, `--version`, what goes to stdout and what to stderr, and the exit codes (0 success, 1 the action failed, 2 a usage error) — see [The binary](#the-binary) | A person, a script, or a scheduled job that runs `myapp` | Keep the old form working, or treat the change as breaking and say so in `CHANGELOG.md`. |
+
+The public generation types (`TextGenerator`, `GenerationService`, `GenerationSettings`,
+`GenerationRequest`, `GenerationView`, `GenerationError`, `ReasoningEffort`) and the
+feature-enabled `myapp llm ask <prompt>` command are contracts too. The local credential
+file is configuration, not persisted application state; it is never written by the
+running app.
 
 ### On-disk file formats
 

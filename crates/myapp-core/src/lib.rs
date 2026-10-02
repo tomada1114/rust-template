@@ -10,10 +10,15 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 pub mod counter;
+pub mod generation;
 pub mod time;
 
 pub use counter::{
     Counter, CounterError, CounterScreen, CounterService, CounterView, ScreenAction, ScreenKey,
     StorageError, StorageErrorKind, StoredCounter, Tuning, TuningError, store::CounterStore,
+};
+pub use generation::{
+    GenerationError, GenerationRequest, GenerationService, GenerationSettings, GenerationView,
+    ReasoningEffort, TextGenerator,
 };
 pub use time::{Clock, UnixMillis};

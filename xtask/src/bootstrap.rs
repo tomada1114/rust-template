@@ -17,11 +17,13 @@
 //!   template ([`text_edits`]);
 //! - resets CHANGELOG.md to an empty [Unreleased] and Cargo.toml's version to 0.1.0, and
 //!   writes the copyright line into LICENSE (the holder defaults to the author);
+//! - with `--env-from DIR`, copies that checkout's `.env.local` privately, preserving
+//!   an existing destination and never parsing or logging its contents;
 //! - formats the renamed crates (`cargo fmt --all`), and prints the next steps.
 //!
 //! ```text
 //! cargo xtask bootstrap [--name N] [--slug S] [--bundle-id ID] [--repo OWNER/REPO]
-//!                       [--author A] [--copyright C] [--yes]
+//!                       [--author A] [--copyright C] [--env-from DIR] [--yes]
 //! ```
 //!
 //! A missing value is asked for on the terminal; with --yes, or when standard input is not
@@ -40,11 +42,12 @@
 //! `ERR_BOOTSTRAP_ABORTED`, `ERR_BOOTSTRAP_NOT_TEMPLATE`,
 //! `ERR_BOOTSTRAP_DIRTY`, `ERR_BOOTSTRAP_SITE_MISSING`, `ERR_BOOTSTRAP_SITE_INCOMPLETE`,
 //! `ERR_BOOTSTRAP_MARKER`, `ERR_BOOTSTRAP_REWRITE`, `ERR_BOOTSTRAP_FETCH`,
-//! `ERR_BOOTSTRAP_LOCKFILE`, `ERR_BOOTSTRAP_FORMAT`.
+//! `ERR_BOOTSTRAP_LOCKFILE`, `ERR_BOOTSTRAP_FORMAT`, `ERR_BOOTSTRAP_ENV_COPY`.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{BufRead, IsTerminal, Write};
-use std::path::Path;
+use std::io::{self, BufRead, IsTerminal, Write};
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
@@ -380,7 +383,7 @@ const SKILL_SITES: [(&str, &[Form]); 36] = [
 /// Every placeholder site outside the skills. Keep this list explicit: a new file that
 /// names the app is added here, and `just verify-bootstrap` (which CI's Template
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
-const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
+const REPOSITORY_SITES: [(&str, &[Form]); 55] = [
     (".claude/rules/project.md", &[Slug]),
     (".claude/rules/rust.md", &[SlugSnake, Slug]),
     (".claude/rules/testing.md", &[Slug]),
@@ -395,6 +398,7 @@ const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
     ("SECURITY.md", &[Repo, Slug]),
     ("clippy.toml", &[Slug]),
     ("crates/myapp/Cargo.toml", &[Slug]),
+    ("crates/myapp/src/llm.rs", &[SlugSnake]),
     ("crates/myapp/src/main.rs", &[SlugSnake, Slug]),
     ("crates/myapp/src/tui/mod.rs", &[SlugSnake, Slug]),
     ("crates/myapp/src/tui/view.rs", &[SlugSnake]),
@@ -409,11 +413,20 @@ const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
         &[SlugSnake, Slug],
     ),
     ("crates/myapp-core/tests/counter_service.rs", &[SlugSnake]),
+    (
+        "crates/myapp-core/tests/generation_service.rs",
+        &[SlugSnake],
+    ),
     ("crates/myapp-core/tests/serialization.rs", &[SlugSnake]),
     ("crates/myapp-platform/Cargo.toml", &[Slug]),
     ("crates/myapp-platform/src/clock.rs", &[SlugSnake]),
     ("crates/myapp-platform/src/counter_store.rs", &[SlugSnake]),
     ("crates/myapp-platform/src/lib.rs", &[Slug]),
+    ("crates/myapp-platform/src/openrouter.rs", &[SlugSnake]),
+    (
+        "crates/myapp-platform/src/openrouter/tests.rs",
+        &[SlugSnake],
+    ),
     ("crates/myapp-platform/src/paths.rs", &[BundleId, Slug]),
     (
         "crates/myapp-platform/tests/contracts.rs",
@@ -431,11 +444,16 @@ const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
         &[SlugSnake],
     ),
     ("crates/myapp-test-support/src/lib.rs", &[Slug]),
+    (
+        "crates/myapp-test-support/src/text_generator.rs",
+        &[SlugSnake],
+    ),
     ("deny.toml", &[Slug]),
     ("docs/architecture.md", &[BundleId, SlugSnake, Slug]),
     ("docs/architecture/README.md", &[Slug]),
     ("docs/architecture/adr/template.md", &[Slug]),
     ("docs/getting-started.md", &[BundleId, Slug]),
+    ("docs/openrouter.md", &[SlugSnake, Slug]),
     ("justfile", &[BundleId, Slug]),
     (
         "xtask/src/check_harness/bundle_identifier.rs",
@@ -855,12 +873,13 @@ const FORBIDDEN_TOKENS: [&str; 2] = [TEMPLATE_SLUG, TEMPLATE_REPO_NAME];
 
 const USAGE: &str = "usage: cargo xtask bootstrap [--name NAME] [--slug SLUG] [--bundle-id ID]
                              [--repo OWNER/REPO] [--author AUTHOR]
-                             [--copyright HOLDER] [--yes]
+                             [--copyright HOLDER] [--env-from DIR] [--yes]
 
 Turns this template into a new app, once. A missing value is asked for on a terminal;
 with --yes (or without a terminal) the slug defaults to the name and the copyright
 holder to the author, and any other missing value is an error. Quote a value with
-spaces, through just or cargo alike.";
+spaces, through just or cargo alike. With --env-from DIR, copy DIR/.env.local into
+this checkout only if .env.local is absent; its contents are never printed.";
 
 /// A pattern this file writes as a literal, compiled; one that does not compile is a bug
 /// here, reported rather than panicking.
@@ -877,6 +896,7 @@ fn quoted(value: &str) -> String {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct ParsedArgs {
     values: BTreeMap<Field, String>,
+    env_from: Option<PathBuf>,
     yes: bool,
     help: bool,
 }
@@ -911,7 +931,8 @@ fn parse_args(argv: &[String]) -> Result<ParsedArgs, ScriptError> {
             Some((flag, value)) if arg.starts_with("--") => (flag, Some(value.to_owned())),
             _ => (arg.as_str(), None),
         };
-        let Some(spec) = FIELDS.iter().find(|spec| spec.flag == flag) else {
+        let spec = FIELDS.iter().find(|spec| spec.flag == flag);
+        if spec.is_none() && flag != "--env-from" {
             if arg.starts_with('-') {
                 return Err(usage_error(
                     format!("unknown flag '{flag}'"),
@@ -924,7 +945,7 @@ fn parse_args(argv: &[String]) -> Result<ParsedArgs, ScriptError> {
                     "'{arg}' follows no flag (an unquoted value with spaces splits into words)"
                 ),
             ));
-        };
+        }
         let value = match inline {
             Some(value) => value,
             None => match argv.get(index) {
@@ -940,13 +961,22 @@ fn parse_args(argv: &[String]) -> Result<ParsedArgs, ScriptError> {
                 }
             },
         };
-        if parsed.values.contains_key(&spec.field) {
+        if flag == "--env-from" {
+            if parsed.env_from.is_some() || value.is_empty() {
+                return Err(usage_error(
+                    "--env-from needs one nonempty directory".to_owned(),
+                    "--env-from repeated or empty".to_owned(),
+                ));
+            }
+            parsed.env_from = Some(PathBuf::from(value));
+        } else if let Some(spec) = spec
+            && parsed.values.insert(spec.field, value).is_some()
+        {
             return Err(usage_error(
                 format!("{flag} is given twice"),
                 format!("{flag} repeated"),
             ));
         }
-        parsed.values.insert(spec.field, value);
     }
     Ok(parsed)
 }
@@ -1980,13 +2010,92 @@ const NEXT_STEPS: [&str; 21] = [
     "     tag ruleset.",
 ];
 
+enum LocalEnvCopy {
+    NotRequested,
+    AlreadyPresent,
+    From(std::fs::File),
+}
+
+fn env_copy_error(operation: &str, error: &io::Error) -> ScriptError {
+    ScriptError::new(
+        "ERR_BOOTSTRAP_ENV_COPY",
+        "the local environment file could not be copied",
+        "a readable .env.local in --env-from DIR and a writable destination checkout",
+        format!("{operation}: {:?}", error.kind()),
+        "check the source directory and file permissions, then bootstrap a fresh clone",
+    )
+}
+
+/// Open the source before any writes, treating its contents as opaque bytes.
+fn plan_env_copy(root: &Path, from: Option<&Path>) -> Result<LocalEnvCopy, ScriptError> {
+    let Some(from) = from else {
+        return Ok(LocalEnvCopy::NotRequested);
+    };
+    match std::fs::symlink_metadata(root.join(".env.local")) {
+        Ok(_) => return Ok(LocalEnvCopy::AlreadyPresent),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(env_copy_error("checking the destination", &error)),
+    }
+    let source = std::fs::File::open(root.join(from).join(".env.local"))
+        .map_err(|error| env_copy_error("opening the source", &error))?;
+    if !source
+        .metadata()
+        .map_err(|error| env_copy_error("checking the source", &error))?
+        .is_file()
+    {
+        return Err(env_copy_error(
+            "checking the source",
+            &io::ErrorKind::InvalidInput.into(),
+        ));
+    }
+    Ok(LocalEnvCopy::From(source))
+}
+
+fn copy_local_env(context: &Context<'_>, copy: LocalEnvCopy) -> TaskResult {
+    let mut source = match copy {
+        LocalEnvCopy::NotRequested => return Ok(()),
+        LocalEnvCopy::AlreadyPresent => {
+            context.log("bootstrap: preserved existing .env.local");
+            return Ok(());
+        }
+        LocalEnvCopy::From(source) => source,
+    };
+    let path = context.root.join(".env.local");
+    let mut destination = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            context.log("bootstrap: preserved existing .env.local");
+            return Ok(());
+        }
+        Err(error) => return Err(env_copy_error("creating the destination", &error)),
+    };
+    if let Err(error) = io::copy(&mut source, &mut destination) {
+        drop(destination);
+        let _ = std::fs::remove_file(path);
+        return Err(env_copy_error("copying the file", &error));
+    }
+    context.log("bootstrap: copied .env.local (owner read/write only)");
+    Ok(())
+}
+
 /// Rewrite `context.root` from the template into the app `answers` describe.
-fn run_bootstrap(context: &Context<'_>, answers: &Answers, year: i64) -> TaskResult {
+fn run_bootstrap(
+    context: &Context<'_>,
+    answers: &Answers,
+    year: i64,
+    env_from: Option<&Path>,
+) -> TaskResult {
     let root = context.root.as_path();
     assert_template(root)?;
     assert_slug_free(root, &answers.slug)?;
     let writes = plan(root, answers, year)?;
     assert_clean(context)?;
+    let env_copy = plan_env_copy(root, env_from)?;
 
     run_step(
         context,
@@ -1997,6 +2106,7 @@ fn run_bootstrap(context: &Context<'_>, answers: &Answers, year: i64) -> TaskRes
         "check the network and `cargo fetch --locked`, then run the bootstrap again",
     )?;
 
+    copy_local_env(context, env_copy)?;
     for (file, content) in &writes {
         let path = root.join(file);
         std::fs::write(&path, content).map_err(|error| io_error("writing", &path, &error))?;
@@ -2117,7 +2227,7 @@ fn run(context: &Context<'_>, terminal: &mut dyn Terminal, year: i64) -> TaskRes
         return Ok(());
     }
     let answers = collect_answers(&parsed, terminal, &|line| context.log(line))?;
-    run_bootstrap(context, &answers, year)
+    run_bootstrap(context, &answers, year, parsed.env_from.as_deref())
 }
 
 pub(crate) fn main(context: &Context<'_>) -> TaskResult {
@@ -2140,6 +2250,7 @@ mod tests {
 
     use std::cell::RefCell;
     use std::io::Cursor;
+    use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
 
     use super::{
@@ -2406,12 +2517,28 @@ mod tests {
             &["--name", "--yes"],
             &["--slug", "a", "--slug", "b"],
             &["--yes=1"],
+            &["--env-from"],
+            &["--env-from="],
+            &["--env-from", "--yes"],
+            &["--env-from", "a", "--env-from=b"],
         ] {
             let error = parse_args(&strings(argv)).expect_err("refused");
             assert_eq!(error.code(), "ERR_BOOTSTRAP_USAGE", "{argv:?}");
         }
         let error = parse_args(&strings(&["--name", "Tide", "Pool"])).expect_err("refused");
         assert_eq!(error.details.summary, "unexpected argument 'Pool'");
+    }
+
+    #[test]
+    fn accepts_a_copy_directory_with_spaces_in_both_flag_forms() {
+        for argv in [
+            &["--env-from", "../template checkout"][..],
+            &["--env-from=../template checkout"],
+        ] {
+            let parsed = parse_args(&strings(argv)).expect("parsed");
+            assert_eq!(parsed.env_from, Some(PathBuf::from("../template checkout")));
+            assert!(parsed.values.is_empty());
+        }
     }
 
     #[test]
@@ -2727,6 +2854,113 @@ mod tests {
     }
 
     #[test]
+    fn copies_the_local_environment_from_the_named_checkout_without_logging_it() {
+        let dir = template_tree();
+        let source = temp_dir();
+        let contents = "OPENROUTER_KEY=fixture-only\nOTHER_SETTING=preserved\n";
+        write(source.path(), ".env.local", contents);
+        let mut argv = flags(&answers());
+        argv.extend([
+            "--yes".to_owned(),
+            "--env-from".to_owned(),
+            source.path().display().to_string(),
+        ]);
+        let ran = bootstrap(dir.path(), &argv, &mut terminal(&[], false), &ok);
+        assert!(ran.result.is_ok(), "{}", ran.output());
+        assert_eq!(read(dir.path(), ".env.local"), contents);
+        assert_eq!(read(source.path(), ".env.local"), contents);
+        assert!(!ran.output().contains("fixture-only"));
+        assert!(ran.output().contains("copied .env.local"));
+        let permissions = std::fs::metadata(dir.path().join(".env.local"))
+            .expect("metadata")
+            .permissions();
+        assert_eq!(permissions.mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn preserves_an_existing_local_environment_without_requiring_the_source() {
+        let dir = template_tree();
+        write(
+            dir.path(),
+            ".env.local",
+            "OPENROUTER_KEY=destination-fixture\n",
+        );
+        let mut argv = flags(&answers());
+        argv.extend(["--yes".to_owned(), "--env-from=missing-checkout".to_owned()]);
+        let ran = bootstrap(dir.path(), &argv, &mut terminal(&[], false), &ok);
+        assert!(ran.result.is_ok(), "{}", ran.output());
+        assert_eq!(
+            read(dir.path(), ".env.local"),
+            "OPENROUTER_KEY=destination-fixture\n"
+        );
+        assert!(ran.output().contains("preserved existing .env.local"));
+        assert!(!ran.output().contains("destination-fixture"));
+    }
+
+    #[test]
+    fn resolves_a_relative_copy_source_from_the_destination_checkout() {
+        let dir = template_tree();
+        write(
+            dir.path(),
+            "template checkout/.env.local",
+            "OPENROUTER_KEY=relative-fixture\n",
+        );
+        let mut argv = flags(&answers());
+        argv.extend([
+            "--yes".to_owned(),
+            "--env-from=template checkout".to_owned(),
+        ]);
+        let ran = bootstrap(dir.path(), &argv, &mut terminal(&[], false), &ok);
+        assert!(ran.result.is_ok());
+        assert_eq!(
+            read(dir.path(), ".env.local"),
+            "OPENROUTER_KEY=relative-fixture\n"
+        );
+    }
+
+    #[test]
+    fn a_missing_or_non_file_source_fails_before_fetch_or_any_edit() {
+        for source_is_directory in [false, true] {
+            let dir = template_tree();
+            let source = temp_dir();
+            if source_is_directory {
+                std::fs::create_dir(source.path().join(".env.local")).expect("directory");
+            }
+            let before = read(dir.path(), "Cargo.toml");
+            let mut argv = flags(&answers());
+            argv.extend([
+                "--yes".to_owned(),
+                format!("--env-from={}", source.path().display()),
+            ]);
+            let ran = bootstrap(dir.path(), &argv, &mut terminal(&[], false), &ok);
+            assert_eq!(ran.code(), "ERR_BOOTSTRAP_ENV_COPY");
+            assert_eq!(read(dir.path(), "Cargo.toml"), before);
+            assert!(dir.path().join("crates/myapp").is_dir());
+            assert!(!dir.path().join(".env.local").exists());
+            assert!(
+                !ran.commands
+                    .iter()
+                    .any(|command| command.starts_with("cargo"))
+            );
+        }
+    }
+
+    #[test]
+    fn preserves_a_broken_destination_symlink() {
+        let dir = template_tree();
+        let path = dir.path().join(".env.local");
+        std::os::unix::fs::symlink("absent-env-file", &path).expect("symlink");
+        let mut argv = flags(&answers());
+        argv.extend(["--yes".to_owned(), "--env-from=missing-checkout".to_owned()]);
+        let ran = bootstrap(dir.path(), &argv, &mut terminal(&[], false), &ok);
+        assert!(ran.result.is_ok());
+        assert_eq!(
+            std::fs::read_link(path).expect("link"),
+            PathBuf::from("absent-env-file")
+        );
+    }
+
+    #[test]
     fn rewrites_every_site_renames_the_crates_and_resets_the_history() {
         let dir = template_tree();
         let root = dir.path();
@@ -2734,6 +2968,10 @@ mod tests {
         if let Err(error) = &ran.result {
             panic!("{error}");
         }
+        assert!(
+            !root.join(".env.local").exists(),
+            "credentials are optional"
+        );
 
         let cargo = read(root, "Cargo.toml");
         assert!(cargo.contains("version = \"0.1.0\" # the version site"));

@@ -12,7 +12,7 @@ coverage floors, architecture boundaries that fail a build, and supply-chain-har
 CI, all from the first commit.
 
 It runs on macOS (Apple Silicon) and Linux. Windows, any graphical interface, a release
-pipeline or release artifacts, crates.io publishing, localization, and an in-app LLM are
+pipeline or release artifacts, crates.io publishing, and localization are
 non-goals.
 
 <!-- template-only -->
@@ -42,6 +42,10 @@ runs (`RUSTUP_AUTO_INSTALL`, on by default:
 `just install` needs no `sudo` and opens no installer; a missing Command Line Tools
 install is reported with the command to run. `cargo run --locked -p myapp -- tui` opens
 the full-screen view in the terminal you run it from; `q` quits.
+
+For apps that need a model, enable the optional `openrouter` Cargo feature. See
+[OpenRouter](docs/openrouter.md) for the key setup, `myapp llm ask`, and reuse from a
+CLI or TUI action. The default build needs no API key.
 
 ## Design Philosophy
 
@@ -207,6 +211,22 @@ proves it on every pull request by bootstrapping a fresh clone with a hyphenated
 multi-word name and running `just check` in the result.
 <!-- /template-only -->
 
+### Why an optional OpenRouter adapter?
+
+Some apps need model calls; the counter does not. The `openrouter` feature keeps the
+HTTP and credential-file dependencies out of default builds, and an explicit call is
+the only place that looks up a key or contacts a provider. Core's synchronous
+`TextGenerator` port, `GenerationService`, and `GenerationView` work for either front
+end and are tested with a fake; the platform adapter translates blocking HTTPS into
+those values. `ureq` supplies HTTPS without an async runtime, and `dotenvy` parses a
+local credential file without changing the process environment.
+
+The composition root selects `openai/gpt-6-luna`, Max reasoning effort, and a bounded
+token budget in source. `OPENROUTER_KEY` comes from the environment, falling back to
+`.env.local` in the working directory. There are no implicit calls, automatic retries,
+or conversation history. [OpenRouter](docs/openrouter.md) describes the bounds, error
+behavior, and how a TUI can schedule a call without blocking its event loop.
+
 ### Why AGENTS.md and skills, but no committed agent permissions?
 
 The repository is developed with coding agents, often unattended. `AGENTS.md` gives them
@@ -215,8 +235,7 @@ the architecture, the gates, and the hard prohibitions; path-scoped rules under
 `just agents-sync`) carry the procedures. Which commands an agent runs without a prompt
 is each person's choice, so no `.claude/settings.json` is committed: permissions and the
 format-on-edit hook live in a user-level or gitignored local settings file, and the
-gates and `AGENTS.md`, not a permission list, are what bind every author. The app itself
-calls no LLM.
+gates and `AGENTS.md`, not a permission list, are what bind every author.
 
 ### Why an ADR tree that ships empty?
 
@@ -249,6 +268,12 @@ view is yours to run.
    holder, and rewrites exactly those placeholder sites. It then removes
    `docs/template/` and this section, resets `CHANGELOG.md` and the version to 0.1.0,
    deletes itself, and prints the steps below.
+   To also copy your template checkout's `.env.local` automatically, use
+   `just bootstrap --env-from /path/to/template-checkout`. It copies the whole file
+   without displaying its contents, creates it with owner-only read/write permissions,
+   and preserves an existing destination. Relative paths are resolved from the new
+   checkout; a missing or unreadable source fails before the rename. Git ignores this
+   local file. Omit the option for apps that need no credentials.
 3. Review the rewrite (`git status`, `git diff`), and commit it as one commit before
    you edit anything, so the rename stays one reviewable diff.
 4. Fill in `AGENTS.md`'s `## Product` section: what the app is and who it is for, the
@@ -328,6 +353,7 @@ just install-cli  # install the myapp binary into ~/.cargo/bin (a human's step)
 
 - [Getting Started](docs/getting-started.md)
 - [Architecture](docs/architecture.md)
+- [OpenRouter](docs/openrouter.md)
 - [Architecture Decisions](docs/architecture/README.md) and the
   [Roadmap](docs/architecture/roadmap.md)
 - [Contributing](CONTRIBUTING.md), [Security Policy](SECURITY.md),

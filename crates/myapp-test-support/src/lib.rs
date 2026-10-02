@@ -11,6 +11,8 @@
 
 mod clock;
 mod counter_store;
+mod text_generator;
 
 pub use clock::{FixedClock, clock_contract};
 pub use counter_store::{FailingCounterStore, InMemoryCounterStore, counter_store_contract};
+pub use text_generator::{StubTextGenerator, text_generator_contract};

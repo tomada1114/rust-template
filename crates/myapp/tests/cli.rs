@@ -21,10 +21,95 @@ fn command(home: &Path, args: &[&str]) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_myapp"));
     command
         .args(args)
+        .current_dir(home)
         .env("HOME", home)
+        .env_remove("OPENROUTER_KEY")
         .env_remove("XDG_DATA_HOME")
         .env_remove("XDG_STATE_HOME");
     command
+}
+
+#[cfg(feature = "openrouter")]
+#[test]
+fn llm_without_a_key_is_a_runtime_error_and_touches_nothing() {
+    let home = tempfile::tempdir().unwrap();
+    assert_runtime_error(
+        &run(home.path(), &["llm", "ask", "Explain Rust"]),
+        "set OPENROUTER_KEY in the environment or .env.local before calling a model",
+    );
+    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 0);
+}
+
+#[cfg(feature = "openrouter")]
+#[test]
+fn llm_with_a_blank_prompt_never_looks_up_a_credential() {
+    let home = tempfile::tempdir().unwrap();
+    assert_runtime_error(
+        &run(home.path(), &["llm", "ask", "  \n"]),
+        "the model prompt must contain text",
+    );
+}
+
+#[cfg(feature = "openrouter")]
+#[test]
+fn llm_rejects_an_unsafe_environment_key_without_a_network_call() {
+    let home = tempfile::tempdir().unwrap();
+    let mut command = command(home.path(), &["llm", "ask", "Explain Rust"]);
+    command.env("OPENROUTER_KEY", "fixture-key\nprivate content");
+    let result = output(command);
+    assert_runtime_error(&result, "the OpenRouter key is invalid or was rejected");
+    assert!(!stderr(&result).contains("private content"));
+}
+
+#[cfg(feature = "openrouter")]
+#[test]
+fn llm_reports_a_malformed_local_env_file_without_its_contents() {
+    let home = tempfile::tempdir().unwrap();
+    fs::write(
+        home.path().join(".env.local"),
+        "OPENROUTER_KEY='private unterminated content\n",
+    )
+    .unwrap();
+    let result = run(home.path(), &["llm", "ask", "Explain Rust"]);
+    assert_runtime_error(
+        &result,
+        "the model configuration or .env.local could not be read",
+    );
+    assert!(!stderr(&result).contains("private unterminated content"));
+}
+
+#[cfg(feature = "openrouter")]
+#[test]
+fn llm_help_and_usage_errors_need_no_key_or_files() {
+    let home = tempfile::tempdir().unwrap();
+    let help = run(home.path(), &["llm", "--help"]);
+    assert_eq!(help.status.code(), Some(0));
+    assert!(stdout(&help).contains("ask"));
+    assert_eq!(run(home.path(), &["llm", "ask"]).status.code(), Some(2));
+    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 0);
+}
+
+#[cfg(feature = "openrouter")]
+#[test]
+fn counter_does_not_read_a_malformed_model_configuration() {
+    let home = tempfile::tempdir().unwrap();
+    fs::write(
+        home.path().join(".env.local"),
+        "OPENROUTER_KEY='private unterminated content\n",
+    )
+    .unwrap();
+    let result = run(home.path(), &["counter", "show"]);
+    assert_eq!(result.status.code(), Some(0));
+    assert_eq!(stdout(&result), "0\n");
+}
+
+#[cfg(not(feature = "openrouter"))]
+#[test]
+fn the_default_build_has_no_model_command() {
+    let home = tempfile::tempdir().unwrap();
+    let result = run(home.path(), &["llm", "ask", "Explain Rust"]);
+    assert_eq!(result.status.code(), Some(2));
+    assert_eq!(fs::read_dir(home.path()).unwrap().count(), 0);
 }
 
 fn output(mut command: Command) -> Output {

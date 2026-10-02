@@ -15,6 +15,10 @@ myapp-core = { path = "crates/myapp-core" }
 myapp-platform = { path = "crates/myapp-platform" }
 myapp-test-support = { path = "crates/myapp-test-support" }
 clap = { version = "4.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+# Optional OpenRouter adapter: parse a local credential file without changing process
+# environment, and use blocking HTTPS/JSON without an async runtime or compression.
+dotenvy = { version = "0.15", default-features = false }
+ureq = { version = "3.4", default-features = false, features = ["native-tls-no-default", "json"] }
 # Only the crossterm backend: the default widget set, macros, and layout cache go unused.
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 # The staged guard's credential shapes (xtask only), with its default features spelled
