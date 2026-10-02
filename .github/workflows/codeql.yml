@@ -29,8 +29,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # No build step: CodeQL extracts both from source (build-mode: none).
-        language: [rust, actions]
+        # No build step: CodeQL extracts each from source (build-mode: none). `python`
+        # covers the skills' bundled scripts, which call `gh` and parse untrusted PR text.
+        language: [rust, actions, python]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

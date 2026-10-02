@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CodeQL also analyzes `python`, covering the skills' bundled scripts (the
+  `shipping-issues` and `merging-dependency-prs` scripts call `gh` and parse pull-request
+  text); it analyzed them as TypeScript before the Node toolchain was removed.
+
 - `just test-macos` is renamed `just test-platform`: it runs the platform adapters and
   the CLI against the real OS, in CI's `Rust Core` (Linux) and `macOS` jobs.
 - The command-line tool is the app: `crates/myapp-cli` becomes `crates/myapp`, building
