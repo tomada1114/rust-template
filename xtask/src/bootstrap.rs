@@ -320,12 +320,18 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder; each is listed for both skill trees.
-const SKILL_SITES: [(&str, &[Form]); 31] = [
+const SKILL_SITES: [(&str, &[Form]); 36] = [
+    ("authoring-skills/SKILL.md", &[Slug]),
+    (
+        "authoring-skills/references/convention-examples.md",
+        &[Slug],
+    ),
     ("building-tuis/SKILL.md", &[Slug]),
     ("changing-gates/SKILL.md", &[Slug]),
     ("changing-gates/references/gate-files.md", &[Slug]),
     ("changing-gates/references/weakening.md", &[Slug]),
     ("create-pr/SKILL.md", &[Slug]),
+    ("create-pr/references/release-impact.md", &[Slug]),
     ("designing-clis/SKILL.md", &[SlugSnake, Slug, SlugUpper]),
     ("designing-core-logic/SKILL.md", &[Slug]),
     ("designing-errors/SKILL.md", &[Slug]),
@@ -339,9 +345,14 @@ const SKILL_SITES: [(&str, &[Form]); 31] = [
         &[Slug],
     ),
     ("managing-dependencies/SKILL.md", &[Slug]),
+    ("merging-dependency-prs/SKILL.md", &[Slug]),
     ("placing-tests/SKILL.md", &[Slug]),
-    ("recording-architecture-decisions/SKILL.md", &[Slug]),
+    (
+        "recording-architecture-decisions/SKILL.md",
+        &[BundleId, Slug],
+    ),
     ("running-the-app/SKILL.md", &[SlugSnake, Slug]),
+    ("shipping-issues/SKILL.md", &[Slug]),
     (
         "shipping-issues/references/agent-implementation.md",
         &[Slug],
@@ -352,7 +363,7 @@ const SKILL_SITES: [(&str, &[Form]); 31] = [
     ("shipping-issues/references/pr-ci-merge.md", &[Slug]),
     ("shipping-issues/references/priority-rubric.md", &[Slug]),
     ("shipping-issues/references/ship-contract.md", &[Slug]),
-    ("starting-an-app/references/app-shapes.md", &[Slug]),
+    ("starting-an-app/SKILL.md", &[Slug]),
     ("tdd/SKILL.md", &[Slug]),
     ("triaging-issues/SKILL.md", &[Slug]),
     ("updating-docs/SKILL.md", &[Slug]),
@@ -369,23 +380,19 @@ const SKILL_SITES: [(&str, &[Form]); 31] = [
 /// Every placeholder site outside the skills. Keep this list explicit: a new file that
 /// names the app is added here, and `just verify-bootstrap` (which CI's Template
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
-const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
+const REPOSITORY_SITES: [(&str, &[Form]); 50] = [
     (".claude/rules/project.md", &[Slug]),
     (".claude/rules/rust.md", &[SlugSnake, Slug]),
     (".claude/rules/testing.md", &[Slug]),
-    (".gitattributes", &[Slug]),
-    (".github/ISSUE_TEMPLATE/bug_report.yml", &[BundleId]),
+    (".github/ISSUE_TEMPLATE/bug_report.yml", &[BundleId, Slug]),
     (".github/ISSUE_TEMPLATE/config.yml", &[Repo]),
     (".github/PULL_REQUEST_TEMPLATE.md", &[Slug]),
     ("AGENTS.md", &[BundleId, SlugSnake, Slug]),
     ("CODE_OF_CONDUCT.md", &[Owner]),
     ("CONTRIBUTING.md", &[Slug]),
     ("Cargo.toml", &[Slug]),
-    (
-        "README.md",
-        &[BundleId, Repo, RepoName, Name, Slug, SlugUpper],
-    ),
-    ("SECURITY.md", &[Repo]),
+    ("README.md", &[BundleId, Repo, RepoName, Name, Slug]),
+    ("SECURITY.md", &[Repo, Slug]),
     ("clippy.toml", &[Slug]),
     ("crates/myapp/Cargo.toml", &[Slug]),
     ("crates/myapp/src/main.rs", &[SlugSnake, Slug]),
@@ -426,10 +433,9 @@ const REPOSITORY_SITES: [(&str, &[Form]); 49] = [
     ),
     ("crates/myapp-test-support/src/lib.rs", &[Slug]),
     ("deny.toml", &[Slug]),
-    (
-        "docs/architecture.md",
-        &[BundleId, SlugSnake, Slug, SlugUpper],
-    ),
+    ("docs/architecture.md", &[BundleId, SlugSnake, Slug]),
+    ("docs/architecture/README.md", &[Slug]),
+    ("docs/architecture/adr/template.md", &[Slug]),
     ("docs/getting-started.md", &[BundleId, Slug]),
     ("justfile", &[BundleId, Slug]),
     (
@@ -489,25 +495,23 @@ const STARTING_AN_APP_DESCRIPTION: &str = "description: >
   (cargo xtask bootstrap), its prompts or flags (display name, slug, bundle identifier,
   owner/repo, author, copyright holder), the placeholders it rewrites (MyApp, myapp,
   myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
-  Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the design
-  system first (design-lock ADR, ui/src/design/tokens.css); the app shape, a window or
-  a menu-bar agent (ActivationPolicy::Accessory, tray-icon, no Dock icon); the sandbox
-  posture; the first ADRs; removing the sample counter; just labels, just ruleset, the
-  GitHub security settings, and private-repository steps. Use when starting an app from
-  this repository, running or changing the bootstrap, a placeholder survived the
-  rename, just check-harness fails on the Product section, or setting up a repository
-  created from the template.
+  Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the tool's
+  shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
+  and the first ADRs; removing the sample counter; installing it with just install-cli;
+  just labels, just ruleset, the GitHub security settings, and private-repository
+  steps. Use when starting an app from this repository, running or changing the
+  bootstrap, a placeholder survived the rename, just check-harness fails on the Product
+  section, or setting up a repository created from the template.
 ";
 
 const STARTING_AN_APP_DESCRIPTION_IN_AN_APP: &str = "description: >
   Covers the first decisions of this app, cut from the template by its bootstrap:
-  AGENTS.md's Product section and the roadmap; the design system first (design-lock
-  ADR, ui/src/design/tokens.css); the app shape, a window or a menu-bar agent
-  (ActivationPolicy::Accessory, tray-icon, no Dock icon); the sandbox posture; the
-  first ADRs; removing the sample counter; just labels, just ruleset, the GitHub
-  security settings, and private-repository steps. Use when starting the app's first
-  feature, a name the rename missed turns up, just check-harness fails on the Product
-  section, or setting up the repository on GitHub.
+  AGENTS.md's Product section and the roadmap; the tool's shape, subcommands only or
+  subcommands plus the myapp tui screen; where it keeps state and the first ADRs;
+  removing the sample counter; installing it with just install-cli; just labels, just
+  ruleset, the GitHub security settings, and private-repository steps. Use when
+  starting the app's first feature, a name the rename missed turns up, just
+  check-harness fails on the Product section, or setting up the repository on GitHub.
 ";
 
 const STARTING_AN_APP_RENAME_STEP: &str =
@@ -548,7 +552,7 @@ The bootstrap removes every `<!-- template-only -->` … `<!-- /template-only --
 and the template's own design notes, so an app never inherits text about the template.
 Text only a template reader needs (why the bootstrap exists, how to use the template)
 goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
-distribution flow) goes outside. A standing document outside a block never links into
+install steps) goes outside. A standing document outside a block never links into
 the template's design notes: that link dangles in every app. A sentence outside a block
 is worded to hold in an app too (\"the index starts empty\", not \"the template ships the
 index empty\"), or, where it cannot, rewritten for the app by an entry in `TEXT_EDITS`
@@ -714,8 +718,8 @@ fn skill_edits() -> Vec<TextEdit> {
         edits.extend([
             edit(
                 &file,
-                "rejects, how the\ntemplate becomes an app (`just bootstrap`), how a release is built and signed, and",
-                "rejects, how a\nrelease is built and signed, and",
+                "rejects, how the\ntemplate becomes an app (`just bootstrap`), how the tool is installed, and",
+                "rejects, how the\ntool is installed, and",
             ),
             edit(&file, UPDATING_DOCS_TEMPLATE_SECTION, ""),
             edit(
@@ -753,8 +757,8 @@ fn source_edits() -> Vec<TextEdit> {
     vec![
         edit(
             "README.md",
-            "A template for personal macOS desktop apps with a modest UI: a Rust core, a Tauri v2\nshell,",
-            "A personal macOS desktop app with a modest UI: a Rust core, a Tauri v2\nshell,",
+            "A template for personal Rust command-line tools: one binary, `myapp`, whose clap\nsubcommands",
+            "A personal Rust command-line tool: one binary, `myapp`, whose clap\nsubcommands",
         ),
         edit(
             "xtask/src/check_harness/just_check_matches_ci.rs",
@@ -2196,7 +2200,7 @@ mod tests {
         )
     }
 
-    const README: &str = "# MyApp\n\nIntro for MyApp.\n\n<!-- template-only -->\n**Starting from the template?** See below.\n<!-- /template-only -->\n\n## Quickstart\n\n```bash\ngit clone https://github.com/tomada1114/rust-template.git\ncd rust-template\n```\n\nThe data lives in ~/Library/Application Support/com.example.myapp/, MYAPP_SMOKE=1 runs\nmyapp-core's smoke.\n\n<!-- template-only -->\n## Using This Template\n\nEverything about `just bootstrap`.\n<!-- /template-only -->\n\n## License\n";
+    const README: &str = "# MyApp\n\nIntro for MyApp.\n\n<!-- template-only -->\n**Starting from the template?** See below.\n<!-- /template-only -->\n\n## Quickstart\n\n```bash\ngit clone https://github.com/tomada1114/rust-template.git\ncd rust-template\n```\n\nThe data lives in ~/Library/Application Support/com.example.myapp/, and\nmyapp-core holds the logic.\n\n<!-- template-only -->\n## Using This Template\n\nEverything about `just bootstrap`.\n<!-- /template-only -->\n\n## License\n";
 
     /// A template tree holding every site the task lists: each listed form, each text
     /// edit's anchor, the marker files, the paths it removes, and the crate directories.
@@ -2715,7 +2719,7 @@ mod tests {
         assert!(agents.contains("cargo test -p tide-pool-core && pkill -x tide-pool"));
         assert!(agents.contains("use tide_pool_core::Counter; tide_pool_lib::run();"));
         assert!(agents.contains("~/Library/Logs/com.example.tide-pool/"));
-        assert!(read(root, "docs/architecture.md").contains("TIDE_POOL_SMOKE=1"));
+        assert!(read(root, ".agents/skills/designing-clis/SKILL.md").contains("TIDE_POOL_SMOKE=1"));
         assert!(read(root, "CODE_OF_CONDUCT.md").contains("[@ada](https://github.com/ada)"));
         assert!(read(root, "SECURITY.md").contains("https://github.com/ada/tide-pool/security"));
         // The Product section's introduction holds no marker of its own in an app.
@@ -3084,7 +3088,7 @@ mod tests {
         assert!(ran.output().contains("not a git work tree"));
     }
 
-    const CARGO_LOCK: &str = "version = 4\n\n[[package]]\nname = \"myapp-core\"\nversion = \"0.4.2\"\n\n[[package]]\nname = \"tauri\"\nversion = \"2.0.0\"\n\n[[package]]\nname = \"serde_json\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"clap\"\nversion = \"4.0.0\"\n";
+    const CARGO_LOCK: &str = "version = 4\n\n[[package]]\nname = \"myapp-core\"\nversion = \"0.4.2\"\n\n[[package]]\nname = \"ratatui\"\nversion = \"0.30.0\"\n\n[[package]]\nname = \"serde_json\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"clap\"\nversion = \"4.0.0\"\n";
 
     /// A template tree with a lockfile and a dependency only `[workspace.dependencies]`
     /// names.
@@ -3101,7 +3105,7 @@ mod tests {
 
     #[test]
     fn refuses_a_slug_that_names_a_dependency_or_whose_crates_would() {
-        for slug in ["tauri", "serde", "clap", "tracing", "serde-json"] {
+        for slug in ["ratatui", "serde", "clap", "tracing", "serde-json"] {
             let dir = tree_with_dependencies();
             let ran = with_answers(
                 dir.path(),
@@ -3122,7 +3126,7 @@ mod tests {
         let dir = tree_with_dependencies();
         let names = dependency_names(dir.path()).expect("names");
         assert!(
-            names.contains("tauri") && names.contains("serde-json") && names.contains("tracing")
+            names.contains("ratatui") && names.contains("serde-json") && names.contains("tracing")
         );
         assert!(!names.contains("myapp-core"));
     }

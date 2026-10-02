@@ -51,12 +51,14 @@ run on the combined branch.
 ## Code that runs at build time
 
 A crate with a build script (`build.rs`) or a procedural macro runs its own code inside
-`cargo build`, on the developer's Mac and on the CI runners, before any test has a say.
+`cargo build`, on the developer's machine and on the CI runners, before any test has a
+say.
 Review a version change to such a crate as code that runs, not as a data update. List
 the crates that carry one:
 
 ```bash
-cargo metadata --format-version 1 --locked --filter-platform aarch64-apple-darwin \
+cargo metadata --format-version 1 --locked \
+  --filter-platform aarch64-apple-darwin --filter-platform x86_64-unknown-linux-gnu \
   | python3 -c 'import json, sys; [print(p["name"], p["version"]) for p in json.load(sys.stdin)["packages"] if any(k in ("custom-build", "proc-macro") for t in p["targets"] for k in t["kind"])]'
 ```
 
@@ -65,20 +67,24 @@ between the two versions (https://diff.rs/ shows a published crate's changes bet
 versions, checked 2026-09-29). A build script that starts fetching from the network,
 writing outside `OUT_DIR`, or running a new program is held for the human. The list
 holds `serde_derive`, `thiserror-impl`, and `clap_derive` among about thirty (observed
-on this Mac with the command above, 2026-10-01), so a grouped cargo PR almost always
-contains one.
+with the command above, 2026-10-02; the two targets are `deny.toml`'s `[graph]`
+`targets`), so a grouped cargo PR almost always contains one.
 
-## The Tauri family
+## Migrations: ratatui, crossterm, clap
 
-- The survey's Tauri section says `aligned` for every pair the batch moves (`tauri`
-  and `@tauri-apps/api`/`cli` on one minor, a plugin crate and its package on one exact
-  version), or the combined branch moves the missing side (`merging-dependency-prs`
-  "The Tauri rule"). A pair the survey marks `split across` goes into the combined
-  branch as a whole (`failure-modes.md` F11). A Tauri side the plan moves by hand
-  under F11 is reviewed here like a bot-proposed bump.
-- A Tauri major is held and becomes a migration issue; it is never merged in a batch.
-- A new `tauri-plugin-*` crate or `@tauri-apps/plugin-*` package appearing in a bump is
-  a new dependency and a new capability, not a bump: stop and ask.
+- A ratatui or crossterm minor (pre-1.0, so the survey marks it `(major)`), a clap major,
+  or ratatui reaching 1.0 is a migration (`merging-dependency-prs` "Migrations: ratatui,
+  crossterm, clap"), named as one in the plan however Dependabot grouped it.
+- Read its changelog for what the binary crate's TUI module or its clap definitions
+  use: a renamed or removed widget, style, or layout item; a changed default in how
+  text, borders, or colors render; a change to crossterm's raw mode, alternate screen,
+  or key-event reading; a derive attribute or parser behavior clap changed. Note which
+  of these a `TestBackend` test covers and which only a real terminal shows.
+- crossterm is reached only through `ratatui::crossterm`. A direct `crossterm`
+  requirement in a manifest is a new dependency, not a bump: stop and ask. A
+  `Cargo.lock` diff that leaves two crossterm versions behind is named in the plan.
+- A clap major or ratatui 1.0 owes an ADR before it lands
+  (`recording-architecture-decisions`); a pre-1.0 ratatui minor does not.
 
 ## Security updates
 

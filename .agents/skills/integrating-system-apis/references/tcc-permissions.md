@@ -14,7 +14,7 @@ the user. Apple: "Prompting occurs asynchronously and does not affect the return
 (<https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions>,
 checked 2026-09-29). So:
 
-- **The answer to a prompting call is from before the user reacted.** Never store it as
+- **The answer to a prompting call is from before the user answered.** Never store it as
   the new state; ask again later.
 - **Prompt when the user first reaches for the feature that needs it, never at
   launch.** Before the user knows what the tool is for, the prompt reads as a demand.

@@ -64,7 +64,7 @@ edges only appear on reading:
   that read those settings.
 - **Port-before-adapter** -- a port in `myapp-core` (a trait such as `Clock`) lands
   before the `myapp-platform` adapter, the fake in `myapp-test-support`, and the
-  shell wiring in `src-tauri/src/` that use it.
+  wiring in the `myapp` binary (`crates/myapp/src/main.rs`) that use it.
 - **Append-target collision** -- a changelog, release-notes file, decision log,
   or generated index that every PR appends to conflicts both-added even when
   the code paths are disjoint. Find such files once, before grouping (what did
@@ -104,8 +104,8 @@ at the same time; the PR, CI watch and merge stay serialized regardless.
 
 **Every parallel batch passes through step 2c** -- the plan proposes, that step
 decides. A script can tell you two issues declare no overlapping paths and no
-dependency edge; it cannot tell you both will end up editing `Cargo.toml` or
-`src-tauri/src/lib.rs`'s `generate_handler!`, that one is a refactor whose blast radius is
+dependency edge; it cannot tell you both will end up editing `Cargo.toml` or the
+subcommand enum in `crates/myapp/src/main.rs`, that one is a refactor whose blast radius is
 wider than its `touches=` admits, or that a generated file makes any two concurrent
 branches conflict. Thoroughness scales with the grouping verdict: `MECHANICAL` means
 read each issue's real reach against its declared `touches=`; `PARTIAL` means
@@ -126,7 +126,7 @@ Two issues may share a batch only when **all** of these hold:
   check that prevents a conflict pileup nobody wants to unpick later.
 - Neither changes shared infrastructure -- `Cargo.toml` and `Cargo.lock`,
   `mise.toml`, `rust-toolchain.toml`, the
-  `justfile`, CI config, `ui/src/ipc/generated/`, a persisted file format.
+  `justfile`, CI config, a persisted file format.
   Anything touching those is serialized, always, even when the code paths are
   disjoint. An append-only list is not shared infrastructure: every user-facing
   change adds a `CHANGELOG.md` entry, and a new skill adds a row to `AGENTS.md`'s

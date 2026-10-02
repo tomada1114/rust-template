@@ -5,7 +5,7 @@ The detail behind `smart-commit`'s last section.
 `lefthook.yml` defines the pre-commit hook, installed by `just install` and checked by
 `just verify-hooks`. Its jobs run in parallel over the staged files and only check:
 none rewrites a file, so a failure leaves the commit unmade and the index as it was. The
-skill does not re-run these checks itself; it reacts to the one that failed.
+skill does not re-run these checks itself; it responds to the one that failed.
 
 ## Recovery, whatever failed
 
@@ -35,6 +35,7 @@ only what you meant to commit; leave any other file it touched for the user to s
 
 ## What the hook does not run
 
-No clippy, no compile, no test runs in the hook: those are `just check` and CI. A
-commit the hook accepts can still fail `just lint` or `just test`, which is why
-`create-pr` runs `just check` before opening a pull request.
+No clippy, no test, and no build of the tool's crates runs in the hook (only `xtask`,
+which its jobs run, is built): those are `just check` and CI. A commit the hook accepts
+can still fail `just lint` or `just test`, which is why `create-pr` runs `just check`
+before opening a pull request.

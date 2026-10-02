@@ -29,7 +29,7 @@ or weakened to get there. Green CI is the go-ahead: merge in the same turn.
 on open issues; branches and their pushes; the pull request; merging it once CI passes;
 the follow-up issues and comments the run files; and removing the branches and worktrees
 the run created. Nothing else on that list: a force push, `--no-verify`, a weakened
-gate, entitlements or signing, a release tag, a new dependency, `just labels`, and
+gate, a release pipeline or signing, a release tag, a new dependency, `just labels`, and
 `just ruleset` stop the run and go to the human.
 
 The only pauses: the [stop conditions](#stop-conditions), a tied top two (step 2),
@@ -106,9 +106,9 @@ before step 3 ([dependency-triage.md](references/dependency-triage.md)).
 ## 2c. Confirm the proposed batch
 
 The plan proposes; this step decides. Look for what a script cannot see: two issues both
-editing `Cargo.toml`, a workflow, `src-tauri/src/lib.rs`'s
-`generate_handler!`, or both regenerating `ui/src/ipc/generated/` (a `CHANGELOG.md`
-entry is not a collision). Take the narrower grouping on any disagreement; shrinking
+editing `Cargo.toml`, a workflow, the subcommand enum in `crates/myapp/src/main.rs`, or
+core's re-exports in `crates/myapp-core/src/lib.rs` (a `CHANGELOG.md` entry is not a
+collision). Take the narrower grouping on any disagreement; shrinking
 never needs asking ([dependency-triage.md](references/dependency-triage.md)).
 
 ## 3. Implement
@@ -150,8 +150,8 @@ ticking only checklist items that actually ran. Record `--event pr-created`, the
 ## 6. CI to green
 
 Once the new head commit shows among the PR's runs, run `ci_watch.sh <pr> --timeout
-3600` into `<runstate>/ci/<pr>.log` with `run_in_background` (`macOS Build & Smoke` may
-take its full 60 minutes), or in the foreground under 540 s, re-run on `TIMEOUT`
+3600` into `<runstate>/ci/<pr>.log` with `run_in_background` (a required job may take
+its full 30-minute timeout after it waits in a runner queue), or in the foreground under 540 s, re-run on `TIMEOUT`
 ([pr-ci-merge.md](references/pr-ci-merge.md)). `FAIL` goes to
 [agent-ci-repair.md](references/agent-ci-repair.md), 3 attempts at most; anything else to
 [recovery.md](references/recovery.md). `PASS` goes to step 7 in the same turn.

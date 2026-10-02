@@ -5,24 +5,24 @@ description: >
   (cargo xtask bootstrap), its prompts or flags (display name, slug, bundle identifier,
   owner/repo, author, copyright holder), the placeholders it rewrites (MyApp, myapp,
   myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
-  Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the design
-  system first (design-lock ADR, ui/src/design/tokens.css); the app shape, a window or
-  a menu-bar agent (ActivationPolicy::Accessory, tray-icon, no Dock icon); the sandbox
-  posture; the first ADRs; removing the sample counter; just labels, just ruleset, the
-  GitHub security settings, and private-repository steps. Use when starting an app from
-  this repository, running or changing the bootstrap, a placeholder survived the
-  rename, just check-harness fails on the Product section, or setting up a repository
-  created from the template.
+  Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the tool's
+  shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
+  and the first ADRs; removing the sample counter; installing it with just install-cli;
+  just labels, just ruleset, the GitHub security settings, and private-repository
+  steps. Use when starting an app from this repository, running or changing the
+  bootstrap, a placeholder survived the rename, just check-harness fails on the Product
+  section, or setting up a repository created from the template.
 ---
 
 # Starting an App
 
 **Owns:** the order of work from "Use this template" to an app's first feature: the
-bootstrap, the Product section and roadmap as steps, the design-system-first rule, the
-app shape, the sandbox posture, the first ADRs, removing the sample, and the new
-repository's GitHub setup. **Does not own:** how a script is written
+bootstrap, the Product section and roadmap as steps, the tool's shape, where it keeps
+state, the first ADRs, removing the sample, installing the tool, and the new
+repository's GitHub setup. **Does not own:** how a task or script is written
 (`writing-repo-scripts`); what the roadmap says (`steering-the-roadmap`); how an ADR is
-written (`recording-architecture-decisions`); a system API or TCC permission
+written (`recording-architecture-decisions`); a subcommand's shape (`designing-clis`);
+the full-screen view (`building-tuis`); a system API or TCC permission
 (`integrating-system-apis`); what a gate may contain (`changing-gates`); README's prose
 (`updating-docs`).
 
@@ -65,65 +65,61 @@ so this skill is where an app still finds them.
    owner's sign-off.
 8. **Security settings and the Renovate App**, turned on by the repository's admin:
    `AGENTS.md` › "GitHub settings a new repository must enable".
-9. **Replace the sample** with the app, in the order of the sections below: design
-   system, app shape, sandbox posture, the first ADRs, then removing the sample.
+9. **Replace the sample** with the app, in the order of the sections below: the tool's
+   shape, where it keeps state, the first ADRs, then removing the sample.
 10. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
     `just ruleset`, which applies `main.json` and the `release-tags` tag ruleset. From
     then on every change needs a pull request with the required checks green, so the
     ruleset must name only jobs the app still runs. On a **private repository**, first
     **REQUIRED:** [references/private-repository.md](references/private-repository.md).
 
-## Decide the design system first
+## Choose the tool's shape
 
-Before the app's first screen, decide its own design system, because every screen
-written against the template's neutral tokens is one to restyle later. Research the
-direction with the `refero-design` skill when the session has it (it is a user-level
-skill, not part of this repository, and nothing here depends on it). Record the outcome
-as the app's design-lock ADR (`docs/architecture/adr/NNNN-design-lock.md`: direction,
-references, decision ledger), usually its first. Apply it by replacing values in
-`ui/src/design/tokens.css` and, where the direction needs it, the primitives, keeping
-every token's role name, never by styling a screen directly.
+Every app starts with both front ends over one core: subcommands
+(`myapp counter show`) for a script, a scheduled job, or a quick look, and `myapp tui`
+for a person who sits in front of the tool. Decide before the first feature which the
+app needs, and write it into the Product section's core interaction:
 
-## Choose the app shape
+- **Subcommands only**, for a tool that is scripted or scheduled: remove the `tui`
+  subcommand, `crates/myapp/src/tui/`, and core's screen types (`CounterScreen`,
+  `ScreenAction`, `ScreenKey`), and drop `ratatui` from the binary's dependencies
+  (`mise exec -- cargo shear` confirms nothing else uses it). Removing a dependency
+  needs no sign-off; adding one back does.
+- **Subcommands and a screen**, for a tool someone works in: keep both, with the
+  screen's state and key table in core and only the loop and drawing in the binary
+  (`building-tuis`). A screen never replaces the subcommands: they are what a script
+  and the binary's tests reach.
 
-Every app starts windowed: a Dock icon, an app menu, and a main window that
-startup shows. The other common shape is a menu-bar agent: no Dock icon and no app menu,
-a tray icon as its whole surface, and a window only when the tray opens one. Decide
-before the first feature: the shape touches startup, the window config, how the app is
-quit, and what anyone can check of it, and it is an ADR.
-[references/app-shapes.md](references/app-shapes.md) has both shapes side by side and
-the changes an agent shape needs, including keeping the smoke run invisible.
+A configuration file, an environment variable the tool reads, or a `--json` form of its
+output is part of its command-line contract (`designing-clis`); a settings file is an
+ADR too (below).
 
-## Decide the sandbox posture
+## Decide where it keeps state
 
-The App Sandbox is off, Tauri's default, so that an app can reach what the sandbox
-forbids, such as writing `~/Library/LaunchAgents` and running `launchctl` to manage
-launchd jobs. The sandbox
-limits an app to the resources its entitlements request, and the Mac App Store requires
-it (https://developer.apple.com/documentation/security/app-sandbox, checked 2026-09-29),
-so judge by what the new app must reach: another app, global input, or files and system
-tools the user never chose each have to be found on that entitlement list before the app
-can be sandboxed. It stays off unless the new app can live inside it; turning it on, or
-adding any entitlement, is an edit to `src-tauri/Entitlements.plist`, which only a human
-makes (`AGENTS.md` › "Security and human approval"). Propose it with the reason and let
-the owner decide. A privacy (TCC) permission the app will need is decided here too, each
-its own ADR (`integrating-system-apis`).
+The sample keeps `counter.json` where each system expects an app's data:
+`~/Library/Application Support/<bundle identifier>/` on macOS and
+`$XDG_DATA_HOME/<slug>/` on Linux (`crates/myapp-platform/src/paths.rs`), with logs
+beside them. The bundle identifier and the slug the bootstrap set key those
+directories, so they are fixed once the tool has run anywhere a user's data lives.
+Decide the app's own files — where, in what format, with what version field — as soon
+as it keeps state of its own, and record it as an ADR. A privacy (TCC) permission the
+tool will need on macOS is decided here too, each its own ADR
+(`integrating-system-apis`).
 
 ## Record the first ADRs
 
 Write each as Proposed (only the owner accepts), in `docs/architecture/adr/` with its row
-in `docs/architecture/README.md`, per `recording-architecture-decisions`: the design
-lock, the app shape (window or menu-bar agent, and why), and the sandbox posture (and
-any entitlement or TCC permission it implies). Persistence gets one as soon as the app
-keeps state of its own. Every external claim in them carries its
-URL and the date it was checked.
+in `docs/architecture/README.md`, per `recording-architecture-decisions`: persistence
+(where and in what format the tool keeps state) as soon as it keeps state of its own,
+each new crate the first features need, any TCC permission, and any platform the tool
+adds or drops beyond macOS and Linux. Every external claim in them carries its URL and
+the date it was checked.
 
 ## Remove the sample
 
 The counter is a deletable illustration, not the app. The checklist is
 `docs/getting-started.md` › "Removing the example code": it lists every file that holds
-the sample, the `log_from_ui` wiring and tests to keep, and the search that ends it. On
-top of it:
+the sample and the search that ends it. On top of it:
 
 - delete or rewrite what the skills under `.agents/skills/` give the counter as an
   example: the sample appears as its own "In the sample" sentences, parentheticals, code
@@ -135,14 +131,22 @@ top of it:
 - replace the core module and its tests in the same pull request that removes them, so
   the core coverage floor still measures real code.
 
-Keep what is general: the `Clock` port and `SystemClock`, `UiLogEntry` and the
-`log_from_ui` command with its registration and tests, logging, smoke mode, and the
-design primitives.
+Keep what is general: the `Clock` port and `SystemClock`, logging and its directories,
+the binary's `compose` and exit-code convention, the wording module's shape, and, for a
+tool with a screen, the TUI's enter, leave, and panic-hook code.
+
+## Install it
+
+There is no release pipeline: the tool is built and installed from its checkout with
+`just install-cli` (`cargo install --locked --path crates/myapp`), which writes to
+`~/.cargo/bin` outside the checkout, so it is a human's step. Reaching other people —
+a release workflow, prebuilt or signed binaries, a tap, crates.io — is an ADR and a
+sign-off change (`AGENTS.md` › "Security and human approval"), not a setup step.
 
 ## What the new app keeps
 
 Everything about the repository rather than the application survives unchanged, and is
-most of what starting from this template buys: the `justfile` and `scripts/`, every
+most of what starting from this template buys: the `justfile` and `xtask/`, every
 workflow except the template-only bootstrap job, the pre-commit hook and its staged
 guard, the skills and rules (drop a skill only when its subject leaves the repository,
 with its row in `AGENTS.md`'s Skills table), the label set, and the ruleset. A red check

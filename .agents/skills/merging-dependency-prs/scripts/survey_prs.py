@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """survey_prs.py -- Survey the open Dependabot and Renovate pull requests.
 
-For the `merging-dependency-prs` skill: each open bot PR's ecosystem, the versions it
-moves and their semver level, its check rollup, its merge state, the files it touches,
-the files two of them contest, and whether the batch keeps each Tauri crate in step with
-its `@tauri-apps/*` npm packages. It marks a Tauri pair split across PRs, at least one of
-which breaks it alone, and each major bump.
+For the `merging-dependency-prs` skill: each open bot PR's ecosystem (cargo,
+github-actions, mise, or rust-toolchain), the versions it moves and their semver level,
+its check rollup, its merge state, the files it touches, and the files two of them
+contest. It marks each major bump, a 0.x minor (a ratatui minor, say) included, even
+inside a grouped PR.
 
-Read-only: it runs `gh pr list` and reads `Cargo.lock` and `package.json` (each only if
-present; a missing or unreadable file gives no baseline), and it is the one step of the
-skill that runs before the human's approval.
+Read-only: it runs `gh pr list` and nothing else, and it is the one step of the skill
+that runs before the human's approval.
 
 Usage:
     python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py [--json]
@@ -17,9 +16,7 @@ Usage:
 Needs `gh`, authenticated against this repository. It works in any directory `gh`
 resolves a repository from; outside one, `gh` fails and so does this script.
 
-Standard library only, Python 3.9 or later. `tomllib` (3.11+) reads Cargo.lock for the
-Tauri crates' baseline; on an older Python that baseline is skipped with a notice on
-stderr, and the rest of the survey is unchanged.
+Standard library only, Python 3.9 or later.
 
 Errors (first stderr line `ERR_<STAGE>_<WHAT>: <summary>`, then `Expected:`, `Actual:`,
 and `Next:` lines; exit 1):
@@ -36,11 +33,6 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-try:
-    import tomllib
-except ImportError:  # Python < 3.11: no TOML parser in the standard library.
-    tomllib = None  # type: ignore[assignment]
-
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 # The `gh pr list --json` fields the survey reads.
@@ -49,8 +41,8 @@ FIELDS = ",".join([
     "statusCheckRollup", "files", "url",
 ])
 
-# Dependabot, one dependency: "bump serde from 1.0.228 to 1.0.229", or "update eslint
-# requirement from ^10.6.0 to ^10.7.0".
+# Dependabot, one dependency: "bump serde from 1.0.228 to 1.0.229", or "update clap
+# requirement from 4.5 to 5.0".
 TITLE_BUMP = re.compile(
     r"(?:bump|update)\s+(?P<name>\S+?)(?:\s+requirement)?\s+from\s+(?P<from>\S+)\s+to\s+(?P<to>\S+)",
     re.IGNORECASE,
@@ -131,7 +123,7 @@ def parse_bumps(title: str, body: str) -> list[dict]:
 
 
 def semver_level(from_: str | None, to: str | None) -> str:
-    """The semver level of a move, judged the way Cargo's and npm's caret ranges judge
+    """The semver level of a move, judged the way Cargo's caret ranges judge
     compatibility: below 1.0.0 the first non-zero component is the breaking one, so
     0.2 -> 0.3 is a major move (https://doc.rust-lang.org/cargo/reference/semver.html)."""
     before = VERSION.search(from_) if from_ is not None else None
@@ -189,9 +181,6 @@ def ecosystem_of(branch: str, files: list[str]) -> str:
     """Dependabot names its branch after the ecosystem; Renovate is told apart by the file it edits."""
     if branch.startswith("dependabot/cargo/"):
         return "cargo"
-    # Dependabot still calls its npm updater `npm_and_yarn`, pnpm included.
-    if branch.startswith("dependabot/npm_and_yarn/"):
-        return "npm"
     if branch.startswith("dependabot/github_actions/"):
         return "github-actions"
     if "rust-toolchain.toml" in files:
@@ -200,8 +189,6 @@ def ecosystem_of(branch: str, files: list[str]) -> str:
         return "mise"
     if any(p == "Cargo.lock" or p.endswith("Cargo.toml") for p in files):
         return "cargo"
-    if any(p == "pnpm-lock.yaml" or p.endswith("package.json") for p in files):
-        return "npm"
     if any(p.startswith(".github/workflows/") for p in files):
         return "github-actions"
     return "other"
@@ -214,120 +201,6 @@ def contested_files(rows: list[dict]) -> dict[str, list[int]]:
         for path in row["files"]:
             seen.setdefault(path, []).append(row["number"])
     return {path: numbers for path, numbers in seen.items() if len(numbers) > 1}
-
-
-_PLUGIN = re.compile(r"^(?:tauri-plugin-|@tauri-apps/plugin-)(?P<plugin>[a-z0-9-]+)\Z")
-
-
-def pair_key(name: str) -> str | None:
-    """Which pair a Tauri package belongs to: the `tauri` crate with `@tauri-apps/api` and
-    `@tauri-apps/cli`, and `tauri-plugin-<x>` with `@tauri-apps/plugin-<x>`. The other
-    `tauri-*` crates (tauri-build, tauri-utils, ...) carry their own version numbers and
-    follow `tauri` through Cargo's resolution, so they pair with nothing."""
-    if name in ("tauri", "@tauri-apps/api", "@tauri-apps/cli"):
-        return "tauri"
-    match = _PLUGIN.match(name)
-    return f"plugin-{match.group('plugin')}" if match else None
-
-
-def _is_tauri_family(name: str) -> bool:
-    return name == "tauri" or name.startswith("tauri-") or name.startswith("@tauri-apps/")
-
-
-def _step_of(key: str, version: str) -> str | None:
-    """What a pair must agree on: `tauri` and its npm packages share a minor, but a plugin's
-    crate and package must share the exact version, since Tauri ships breaking plugin
-    changes in patch releases (https://v2.tauri.app/develop/updating-dependencies/)."""
-    match = VERSION.search(version)
-    if match is None:
-        return None
-    minor = f"{match.group(1)}.{match.group(2)}"
-    return minor if key == "tauri" else f"{minor}.{match.group(3) or '0'}"
-
-
-def tauri_report(rows: list[dict], current: dict[str, str]) -> dict:
-    """Whether the batch leaves each Tauri pair in step, from the versions the checkout
-    has now plus every move the open PRs make; and every Tauri major, which is a migration
-    rather than a bump."""
-    landed: dict[str, tuple[str, int | None]] = {n: (v, None) for n, v in current.items()}
-    moved: dict[str, list[int]] = {}
-    majors: list[dict] = []
-    for row in rows:
-        for b in row["bumps"]:
-            if not _is_tauri_family(b["name"]):
-                continue
-            if semver_level(b["from"], b["to"]) == "major":
-                majors.append({"pr": row["number"], **b})
-            landed[b["name"]] = (b["to"], row["number"])
-            key = pair_key(b["name"])
-            if key is not None:
-                prs = moved.setdefault(key, [])
-                if row["number"] not in prs:
-                    prs.append(row["number"])
-
-    def aligned_alone(key: str, row: dict) -> bool:
-        alone = dict(current)
-        for b in row["bumps"]:
-            alone[b["name"]] = b["to"]
-        return len({_step_of(key, v) for n, v in alone.items() if pair_key(n) == key}) == 1
-
-    pairs = []
-    for key, prs in moved.items():
-        members = sorted(
-            ((n, vp) for n, vp in landed.items() if pair_key(n) == key),
-            key=lambda item: item[0].startswith("@"),
-        )
-        versions = [
-            {"name": n, "version": v} if pr is None else {"name": n, "version": v, "pr": pr}
-            for n, (v, pr) in members
-        ]
-        aligned = len({_step_of(key, m["version"]) for m in versions}) == 1
-        split = (aligned and len(prs) >= 2
-                 and any(r["number"] in prs and not aligned_alone(key, r) for r in rows))
-        pairs.append({"key": key, "prs": sorted(prs), "aligned": aligned, "split": split,
-                      "versions": versions})
-    return {"pairs": pairs, "majors": majors}
-
-
-def _read_text(path: Path) -> str | None:
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-
-
-def current_tauri_versions(root: Path) -> dict[str, str]:
-    """The Tauri family's versions in this checkout: locked crates, and npm ranges as written."""
-    versions: dict[str, str] = {}
-    lock = _read_text(Path(root) / "Cargo.lock")
-    if lock is not None and tomllib is None:
-        print(
-            "survey: Python 3.11+ (tomllib) is needed to read Cargo.lock; "
-            "the Tauri crates' baseline is skipped",
-            file=sys.stderr,
-        )
-    elif lock is not None:
-        try:
-            for pkg in _list(tomllib.loads(lock), "package"):
-                name, version = _text(pkg, "name"), _text(pkg, "version")
-                if name is not None and version is not None and pair_key(name) is not None:
-                    versions[name] = version
-        except tomllib.TOMLDecodeError:
-            pass  # An unparsable lockfile gives no baseline; `cargo` itself reports it.
-    manifest = _read_text(Path(root) / "package.json")
-    if manifest is not None:
-        try:
-            parsed = json.loads(manifest)
-        except ValueError:
-            parsed = None  # pnpm reports a broken package.json better than this survey can.
-        for section in ("dependencies", "devDependencies"):
-            entries = _field(parsed, section)
-            if not isinstance(entries, dict):
-                continue
-            for name, spec in entries.items():
-                if isinstance(spec, str) and pair_key(name) is not None:
-                    versions[name] = spec
-    return versions
 
 
 def _number(value: Any) -> int | float:
@@ -371,7 +244,7 @@ def collect(pulls: list) -> list[dict]:
     return sorted(rows, key=lambda r: r["number"])
 
 
-def format_report(rows: list[dict], tauri: dict) -> list[str]:
+def format_report(rows: list[dict]) -> list[str]:
     """The human-readable survey, one line per entry, for the caller to print."""
     lines = [f"{len(rows)} open bot PR(s)"]
     for row in rows:
@@ -393,23 +266,6 @@ def format_report(rows: list[dict], tauri: dict) -> list[str]:
         lines.append("Contested files (one combined branch):")
         for path, numbers in contested.items():
             lines.append(f"  {path}: {', '.join(f'#{n}' for n in numbers)}")
-    if tauri["pairs"]:
-        lines.append("")
-        lines.append(
-            "Tauri family (one branch; tauri on its packages' minor, a plugin on its package's version):"
-        )
-        for pair in tauri["pairs"]:
-            members = ", ".join(
-                f"{m['name']} {m['version']}" + ("" if m.get("pr") is None else f" (#{m['pr']})")
-                for m in pair["versions"]
-            )
-            split = f", split across {' '.join(f'#{n}' for n in pair['prs'])}" if pair["split"] else ""
-            lines.append(f"  {pair['key']}: {'aligned' if pair['aligned'] else 'MISMATCH'}{split} -- {members}")
-    if tauri["majors"]:
-        lines.append("")
-        lines.append("Tauri major (a migration issue, never part of a batch):")
-        for major in tauri["majors"]:
-            lines.append(f"  #{major['pr']} {major['name']} {major['from']} -> {major['to']}")
     return lines
 
 
@@ -465,15 +321,14 @@ def main(argv: list[str] | None = None, *, root: Path | None = None,
             "run `python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py`",
         )
     rows = collect(gh_pull_requests(root, run))
-    tauri = tauri_report(rows, current_tauri_versions(root))
     if "--json" in argv:
-        log(json.dumps({"rows": rows, "contested": contested_files(rows), "tauri": tauri},
+        log(json.dumps({"rows": rows, "contested": contested_files(rows)},
                        indent=2, ensure_ascii=False))
         return
     if not rows:
         log("No open Dependabot or Renovate pull requests.")
         return
-    for line in format_report(rows, tauri):
+    for line in format_report(rows):
         log(line)
 
 

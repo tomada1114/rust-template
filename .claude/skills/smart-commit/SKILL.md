@@ -62,17 +62,16 @@ never read a secret-shaped file to check it.
 
 What stays with you is what no pattern sees:
 
-- a file whose name is innocent but whose content is secret: a real API key in
-  `tauri.conf.json`, a TypeScript constant, or a test fixture; a signing script with a
-  password inlined;
+- a file whose name is innocent but whose content is secret: a real API key in a
+  config file, a Rust constant, or a test fixture; a script with a password inlined;
 - a name containing `password` or `secret`, deliberately not a path rule because many
   legitimate files share the word: look at what the file holds;
 - a webhook URL with an embedded token, or someone's personal data in a log or fixture;
 - anything the user plainly did not mean to commit, secret or not.
 
-Build output never lands either: `target/`, `dist/`, `coverage/`, `src-tauri/binaries/`,
-`src-tauri/gen/` are gitignored, so one showing up as untracked means something is
-wrong. Investigate it instead of committing it.
+Build output never lands either: `target/` and `coverage/` are gitignored, so either
+showing up as untracked means something is wrong. Investigate it instead of committing
+it. Nothing else is generated and committed apart from the two pairs in Step 3.
 
 Exclude what fails these checks and tell the user. Everything else (source, tests,
 config, docs) is committed: work in progress is safer in a commit than in a working
@@ -85,8 +84,8 @@ tells matters more than the commit count: three related one-line edits are one c
 
 | Change | Type |
 |---|---|
-| Rust under `crates/*/src/` or `src-tauri/src/`, TypeScript under `ui/src/` | `feat`, `fix`, `refactor`, or `perf` by what it does |
-| Tests only (`crates/*/tests/`, `src-tauri/tests/`, `*.test.ts(x)`) | `test` |
+| Rust under `crates/*/src/` or `xtask/` | `feat`, `fix`, `refactor`, or `perf` by what it does |
+| Tests only (`crates/*/tests/`, `xtask/tests/`, a `#[cfg(test)]` module alone, a skill's `scripts/tests/`) | `test` |
 | Docs (`*.md`, `.github/PULL_REQUEST_TEMPLATE.md` included, `docs/`, a skill) | `docs` |
 | A dependency bump or addition | `deps` |
 | `justfile`, `lefthook.yml` | `build` |
@@ -125,17 +124,18 @@ git commit -m "<type>(<optional scope>): <summary>"
   list governs both.
 - Imperative mood, lowercase start, no final period, under 72 characters (no check
   enforces it; `create-pr` sets the same limit for the title); say what changed, not
-  how. A scope, when one helps, is the area: `core`, `platform`, `shell`, `cli`, `ui`,
-  `scripts`.
-- A breaking change to a contract (a command or event name, a payload shape, an on-disk
-  format) carries `!` after the type and says so in the body.
+  how. A scope, when one helps, is the area: `core`, `platform`, `cli`, `tui`, `xtask`,
+  `skills`.
+- A breaking change to a contract (a subcommand, flag, output stream, or exit code that
+  goes away or changes meaning, an on-disk format) carries `!` after the type and says
+  so in the body.
 
 In the sample (a deletable illustration):
 
 ```text
 feat(core): save the counter with the time it changed
-fix(ui): keep the increment button disabled at the maximum
-deps: bump tauri to 2.12 with @tauri-apps/api and @tauri-apps/cli
+fix(tui): keep the error line visible after a resize
+deps: bump clap to 4.6
 ```
 
 ## Step 5: Push, only when asked

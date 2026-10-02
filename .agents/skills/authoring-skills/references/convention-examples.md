@@ -19,13 +19,13 @@ an issue number).
 
 ## Descriptions
 
-Write: "Covers adding a Tauri command end to end: the core function, the thin
-`#[tauri::command]`, the ts-rs DTO, and the wrapper in ui/src/ipc/commands.ts. Use when
-adding, renaming, or removing a command or an event, editing generate_handler!, or
-fixing a bindings drift failure."
+Write: "Covers adding a subcommand end to end: the clap declaration, the thin handler
+that calls core and prints the view, the wording in crates/myapp/src/wording.rs, and the
+test in crates/myapp/tests/cli.rs. Use when adding, renaming, or removing a subcommand
+or a flag, changing what goes to stdout or stderr, or choosing an exit code."
 
-Avoid: "This skill first reads the core module, then writes the command, then runs the
-bindings recipe, then updates the wrapper." It summarizes steps, names no file or error a
+Avoid: "This skill first reads the core module, then writes the handler, then adds the
+wording, then runs the tests." It summarizes steps, names no file or error a
 host could match on, and the host loads the skill on the description's meaning alone.
 
 ## Cross-reference markers
@@ -61,12 +61,12 @@ so a sample mention that sits in its own sentence is one it can delete cleanly.
 
 ## Platform-skill scope
 
-Write, in a skill about Tauri commands: "A command stays thin: it borrows the state,
-calls one core function, and maps the error. It decides nothing, because the coverage
-floor sees only core. How a command receives arguments and state is Tauri's
-documentation (https://v2.tauri.app/develop/calling-rust/)."
+Write, in a skill about subcommands: "A handler stays thin: it calls one core function,
+prints the view, or maps the error to its wording and an exit code. It decides nothing,
+because the coverage floor sees only core. How clap's derive turns a struct into
+arguments is clap's documentation (https://docs.rs/clap/latest/clap/_derive/index.html)."
 
-Avoid: three paragraphs restating how `#[tauri::command]` parses arguments, which Tauri
+Avoid: three paragraphs restating how `#[derive(Parser)]` parses arguments, which clap
 documents and changes on its own schedule. A restatement goes stale without a pull
 request touching it; a link does not.
 
@@ -81,12 +81,13 @@ Write:
 
 - "Codex CLI scans `.agents/skills` from the working directory up to the repository root
   (https://learn.chatgpt.com/docs/build-skills, checked 2026-09-29)."
-- "`ActivationPolicy::Prohibited` keeps focus during a smoke run: observed on this Mac
-  with `lsappinfo front` during a smoke run, 2026-09-28."
+- "A debug build echoes each log line to stderr with the binary crate's name as its
+  target: observed on this Mac with `cargo run --locked -p myapp -- counter show`,
+  2026-10-01."
 - "E0382 is a use of a moved value (https://doc.rust-lang.org/error_codes/E0382.html)."
   (a concept link: no date needed)
 
-Avoid: "Tauri supports this on every macOS version" with no source; a URL with no date
+Avoid: "crossterm supports this in every terminal" with no source; a URL with no date
 on a version or availability claim (the reader cannot tell whether it is still true); a
 date on a page the author did not open that day.
 
@@ -117,7 +118,10 @@ recipe: it may raise a Keychain or privacy prompt) and put its output in the pul
 request."
 
 Avoid: "Run `just test-local` to check the Keychain adapter." An unattended agent
-following that raises a prompt on top of the owner's work and takes focus.
+following that raises a prompt on top of the owner's work and takes focus. Likewise
+"Run `myapp tui` and check the screen": it takes over the terminal the agent runs in,
+and the human's beside it; the view's `TestBackend` tests are the agent's evidence, and
+a look at the real terminal is the human's to give.
 
 ## For a reader new to Rust
 
