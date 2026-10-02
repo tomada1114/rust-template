@@ -703,20 +703,21 @@ mod tests {
     #[test]
     fn passes_on_the_fixture_where_every_list_agrees() {
         assert_eq!(check(copy_pass().path()), []);
-        let mut sorted = FORBIDDEN_IN_CORE.to_vec();
-        sorted.sort_unstable();
-        assert_eq!(
-            sorted,
-            [
-                "core-foundation*",
-                "myapp-platform",
-                "objc2*",
-                "security-framework*",
-                "tao",
-                "tauri*",
-                "wry"
-            ]
-        );
+        // Both sides sorted: the bootstrap renames the platform crate, which moves its
+        // place in a hand-sorted list.
+        let mut actual = FORBIDDEN_IN_CORE.to_vec();
+        actual.sort_unstable();
+        let mut expected = vec![
+            "core-foundation*",
+            "myapp-platform",
+            "objc2*",
+            "security-framework*",
+            "tao",
+            "tauri*",
+            "wry",
+        ];
+        expected.sort_unstable();
+        assert_eq!(actual, expected);
     }
 
     #[test]
