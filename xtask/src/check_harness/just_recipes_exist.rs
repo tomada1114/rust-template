@@ -57,7 +57,7 @@ fn name_len(text: &str) -> usize {
 }
 
 /// The recipe and alias names a justfile defines.
-pub(super) fn justfile_recipes(text: &str) -> BTreeSet<String> {
+pub(crate) fn justfile_recipes(text: &str) -> BTreeSet<String> {
     let mut recipes = BTreeSet::new();
     for line in text.split('\n') {
         if let Some(rest) = line.strip_prefix("alias") {

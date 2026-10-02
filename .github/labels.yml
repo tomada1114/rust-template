@@ -1,6 +1,6 @@
 # The single declarative source for this repository's labels: name, color, and
-# description. `just labels` (scripts/sync-labels.ts) creates or updates each one on the
-# live repository; it never deletes a label this file does not mention, so a
+# description. `just labels` (`cargo xtask sync-labels`) creates or updates each one on
+# the live repository; it never deletes a label this file does not mention, so a
 # repository-local label survives running it. See the `triaging-issues` skill for what
 # each label means.
 #

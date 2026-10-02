@@ -526,7 +526,7 @@ contact_links:
 
     #[test]
     fn treats_an_upstream_owner_repo_like_its_url_and_this_one_as_a_reference() {
-        let own = "tomada1114/tauri-template";
+        let own = "tomada1114/rust-template";
         let config = CONFIG.replace("acme/widgets", own);
         let upper = own.to_uppercase();
         let text = format!(

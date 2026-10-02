@@ -107,7 +107,7 @@ bootstrap deletes it.
 that does not mention the sample, then give the sample as the example in the next
 sentence or code block, so deleting the example leaves a rule that still reads. No build
 or test depends on a skill's code block. Write placeholder names exactly (`myapp-core`,
-`MyApp`, `com.example.myapp`, `MYAPP_SMOKE`) so the bootstrap's rename finds them.
+`myapp_core`, `MyApp`, `com.example.myapp`) so the bootstrap's rename finds them.
 
 **Platform-skill scope.** On a surface someone else documents (Rust, cargo, Tauri, a
 crate, macOS and Apple APIs, React, Vitest, GitHub Actions), a skill holds only this

@@ -1,8 +1,8 @@
 # The categories of the pull-request list `gh release create --generate-notes` appends
-# to a release's notes. Every label scripts/label-pr.ts applies has a category
-# here (a harness check keeps them agreeing). The last category, "*", catches a pull
-# request with none of those labels (a fork pull request label-pr could not label, or
-# one merged before `just labels`), so none is dropped.
+# to a release's notes. Every label .github/workflows/pr-label.yml applies (its
+# TYPE_LABELS map) has a category here (a harness check keeps them agreeing). The last
+# category, "*", catches a pull request with none of those labels (a fork pull request
+# pr-label.yml could not label, or one merged before `just labels`), so none is dropped.
 changelog:
   categories:
     - title: Security

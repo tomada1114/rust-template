@@ -1,7 +1,7 @@
 # MyApp
 
-[![CI](https://github.com/tomada1114/tauri-template/actions/workflows/ci.yml/badge.svg)](https://github.com/tomada1114/tauri-template/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/tomada1114/tauri-template/badge)](https://scorecard.dev/viewer/?uri=github.com/tomada1114/tauri-template)
+[![CI](https://github.com/tomada1114/rust-template/actions/workflows/ci.yml/badge.svg)](https://github.com/tomada1114/rust-template/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/tomada1114/rust-template/badge)](https://scorecard.dev/viewer/?uri=github.com/tomada1114/rust-template)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A template for personal macOS desktop apps with a modest UI: a Rust core, a Tauri v2
@@ -26,8 +26,8 @@ Tools (`xcode-select --install`), [rustup](https://rustup.rs/),
 [mise](https://mise.jdx.dev/), and [Just](https://just.systems/) (`brew install mise just`).
 
 ```bash
-git clone https://github.com/tomada1114/tauri-template.git
-cd tauri-template
+git clone https://github.com/tomada1114/rust-template.git
+cd rust-template
 mise trust     # approve mise.toml once (mise asks before using an untrusted config)
 just install   # pinned tools via mise, pnpm dependencies, lefthook's git hook
 just check     # everything a Mac can run without a human; opens no window

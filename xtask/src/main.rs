@@ -11,6 +11,8 @@
 //!
 //! Errors of its own: `ERR_XTASK_USAGE` (no task, or one it does not know).
 
+mod apply_ruleset;
+mod bootstrap;
 mod check_harness;
 mod check_staged;
 mod clippy_guard;
@@ -20,6 +22,8 @@ mod format_edited_file;
 mod git_env;
 mod prune_temp;
 mod sync_agents;
+mod sync_labels;
+mod verify_bootstrap;
 mod verify_hooks;
 
 #[cfg(test)]
@@ -37,7 +41,17 @@ type Task = fn(&Context<'_>) -> TaskResult;
 /// A task's name, what it does, and its entry point.
 type TaskEntry = (&'static str, &'static str, Task);
 
-const TASKS: [TaskEntry; 7] = [
+const TASKS: &[TaskEntry] = &[
+    (
+        "apply-ruleset",
+        "create or update every .github/rulesets/*.json ruleset by name (a GitHub write)",
+        apply_ruleset::main,
+    ),
+    (
+        "bootstrap",
+        "turn the template into a new app: rename its placeholders, remove template-only material",
+        bootstrap::main,
+    ),
     (
         "check-harness",
         "re-assert the harness's claims about itself (--root DIR, --check NAME)",
@@ -67,6 +81,16 @@ const TASKS: [TaskEntry; 7] = [
         "sync-agents",
         "mirror .agents/skills/ into .claude/skills/ (--check, --check --staged)",
         sync_agents::main,
+    ),
+    (
+        "sync-labels",
+        "create or update the repository's labels from .github/labels.yml (a GitHub write)",
+        sync_labels::main,
+    ),
+    (
+        "verify-bootstrap",
+        "bootstrap a scratch clone and fail on anything the bootstrap leaves behind",
+        verify_bootstrap::main,
     ),
     (
         "verify-hooks",

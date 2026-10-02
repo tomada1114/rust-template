@@ -58,16 +58,11 @@ struct WriteException {
 /// Jobs allowed to hold a write scope and keep the triggers they list, as (`<workflow
 /// path> <job id>`, the triggers, the reason). Adding an entry, or a trigger to one, is
 /// weakening a gate (AGENTS.md › Security and human approval): it needs a human's sign-off.
-const EXCEPTIONS: [(&str, &[&str], &str); 3] = [
+const EXCEPTIONS: [(&str, &[&str], &str); 2] = [
     (
         ".github/workflows/codeql.yml analyze",
         &[CHECKOUT],
         "security-events: write uploads the SARIF; CodeQL extracts the checked-out source with build-mode: none, so no repository code runs",
-    ),
-    (
-        ".github/workflows/pr-label.yml label",
-        &[CHECKOUT, MISE],
-        "pull-requests: write applies the label; the checkout is the pull request's base commit, never its head, so the script and mise.toml that run with the token are already on the default branch",
     ),
     (
         ".github/workflows/scorecard.yml analysis",

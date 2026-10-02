@@ -2,9 +2,9 @@
 name: starting-an-app
 description: >
   Covers turning this template into a new app and its first decisions: just bootstrap
-  (scripts/bootstrap.ts), its prompts or flags (display name, slug, bundle identifier,
+  (cargo xtask bootstrap), its prompts or flags (display name, slug, bundle identifier,
   owner/repo, author, copyright holder), the placeholders it rewrites (MyApp, myapp,
-  myapp-core, MYAPP_SMOKE, com.example.myapp), scripts/verify-bootstrap.ts and the
+  myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
   Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the design
   system first (design-lock ADR, ui/src/design/tokens.css); the app shape, a window or
   a menu-bar agent (ActivationPolicy::Accessory, tray-icon, no Dock icon); the sandbox

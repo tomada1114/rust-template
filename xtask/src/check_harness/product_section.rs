@@ -71,7 +71,7 @@ fn identifier(input: &Input<'_>) -> Result<String, FailureDetails> {
     })
 }
 
-pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
+pub(crate) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     let Some(agents) = read_file(input.root, "AGENTS.md") else {
         return vec![finding(
             "ERR_CHECK_INPUT_MISSING",
