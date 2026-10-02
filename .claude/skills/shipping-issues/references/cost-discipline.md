@@ -171,10 +171,11 @@ copy** rather than a behavior a test pins down. Spawn the step 3 implementation
 on **`architect`** when the issue is any of:
 
 - **Architecture or a skeleton** -- a new crate in the workspace, the
-  composition root in `src-tauri/src/`, the core / platform / shell boundary, the
-  app shape (windowed or menu-bar agent).
+  composition root in `crates/myapp/src/main.rs`, the core / platform / binary
+  boundary, a new front end (a screen, or a subcommand family).
 - **An interface, port, or schema** -- a new port in `myapp-core` and its adapter,
-  an error enum and its codes, a type that crosses IPC, a persisted file format. The first
+  an error enum and its variants, the command line's shape (subcommands, flags,
+  output, exit codes), a persisted file format. The first
   implementer fixes the vocabulary every later one inherits.
 - **A skill, instruction file, or gate design** -- a `SKILL.md`, `AGENTS.md`, a
   clippy setting, a harness check, a CI job that defines what "green"

@@ -71,8 +71,8 @@ conveniences do not follow the worktree:
 
 - a `/path` rule in a personal `.claude/settings.local.json` resolves against the
   session's primary working directory (<https://code.claude.com/docs/en/permissions>,
-  checked 2026-09-30), so an `Edit(/src-tauri/Entitlements.plist)` deny there names the
-  main checkout's copy of that file, not the worktree's;
+  checked 2026-09-30), so an `Edit(/deny.toml)` deny there names the main checkout's
+  copy of that file, not the worktree's;
 - Claude has access to files in the directory it was launched in, and to directories
   added to the session (same page, "Working directories"), so an edit under
   `<runstate>` may stop for a permission prompt mid-run;
@@ -83,8 +83,8 @@ conveniences do not follow the worktree:
   files (<https://code.claude.com/docs/en/memory>, checked 2026-09-30), and nothing there
   says they load for a file under `<runstate>`.
 
-None of these is a gate. In a worktree, `src-tauri/Entitlements.plist` stays
-sign-off-only by `AGENTS.md`'s rule alone. Read the `.claude/rules/` file matching what
+None of these is a gate. In a worktree, loosening a gate file such as `deny.toml`
+needs a human's sign-off by `AGENTS.md`'s rule alone. Read the `.claude/rules/` file matching what
 you change, and run `just fmt` before committing. Lefthook's pre-commit hook still runs:
 a linked worktree uses `$GIT_COMMON_DIR/hooks`, the main repository's hooks directory
 (<https://git-scm.com/docs/gitrepository-layout>, checked 2026-09-30), and the

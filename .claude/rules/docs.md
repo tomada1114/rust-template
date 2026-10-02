@@ -9,7 +9,7 @@ paths:
 - Written in English
 - Document non-obvious behavior, architecture decisions, and trade-offs
 - Do NOT document what is obvious from the code or already expressed by the type system
-- Code examples must be valid Rust, TypeScript, or shell that works with the current
+- Code examples must be valid Rust, Python, or shell that works with the current
   project; command examples must match the `justfile` recipes (a harness check fails on
   a `just <recipe>` that does not exist) and CONTRIBUTING.md's equivalents
 - Every claim about an external tool — a version, availability, a default, a policy —

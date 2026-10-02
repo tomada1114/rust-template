@@ -4,15 +4,16 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/tomada1114/rust-template/badge)](https://scorecard.dev/viewer/?uri=github.com/tomada1114/rust-template)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A template for personal macOS desktop apps with a modest UI: a Rust core, a Tauri v2
-shell, and a React + Vite + TypeScript screen, distributed as a `.dmg` from GitHub
-Releases. It ships as a working counter app — persisted state, an injected clock, an
-event pushed from Rust to the screen, and a bundled command-line helper — with coverage
-floors, architecture boundaries that fail a build, a windowless launch smoke, and
-supply-chain-hardened CI, all from the first commit.
+A template for personal Rust command-line tools: one binary, `myapp`, whose clap
+subcommands do the work and whose `tui` subcommand opens a full-screen ratatui view over
+the same core, built and run on macOS and Linux. It ships as a working counter —
+persisted state, an injected clock, subcommands and a terminal view over one core — with
+coverage floors, architecture boundaries that fail a build, and supply-chain-hardened
+CI, all from the first commit.
 
-It is macOS only (Apple Silicon, macOS 14 or later). Windows, Linux, mobile, the Mac App
-Store, an auto-updater, localization, and an in-app LLM are non-goals.
+It runs on macOS (Apple Silicon) and Linux. Windows, any graphical interface, a release
+pipeline or release artifacts, crates.io publishing, localization, and an in-app LLM are
+non-goals.
 
 <!-- template-only -->
 **Starting your own app from this template?** Jump to
@@ -21,23 +22,26 @@ Store, an auto-updater, localization, and an in-app LLM are non-goals.
 
 ## Quickstart
 
-Prerequisites: a Mac with Apple Silicon on macOS 14 or later, the Xcode Command Line
-Tools (`xcode-select --install`), [rustup](https://rustup.rs/),
-[mise](https://mise.jdx.dev/), and [Just](https://just.systems/) (`brew install mise just`).
+Prerequisites: macOS on Apple Silicon with the Xcode Command Line Tools
+(`xcode-select --install`), or Linux with a C toolchain for the linker (`build-essential`
+on Debian and Ubuntu); [rustup](https://rustup.rs/), [mise](https://mise.jdx.dev/), and
+[Just](https://just.systems/) (`brew install mise just` on a Mac).
 
 ```bash
 git clone https://github.com/tomada1114/rust-template.git
 cd rust-template
 mise trust     # approve mise.toml once (mise asks before using an untrusted config)
 just install   # pinned tools via mise and lefthook's git hook
-just check     # everything a Mac can run without a human; opens no window
+just check     # everything the machine can run without a human; takes over no terminal
+cargo run --locked -p myapp -- counter show   # the tool itself
 ```
 
 rustup installs the Rust toolchain `rust-toolchain.toml` names the first time `cargo`
 runs (`RUSTUP_AUTO_INSTALL`, on by default:
 <https://rust-lang.github.io/rustup/environment-variables.html>, checked 2026-09-30).
 `just install` needs no `sudo` and opens no installer; a missing Command Line Tools
-install is reported with the command to run.
+install is reported with the command to run. `cargo run --locked -p myapp -- tui` opens
+the full-screen view in the terminal you run it from; `q` quits.
 
 ## Design Philosophy
 
@@ -46,48 +50,35 @@ why it was there in the first place.
 
 ### Why a Cargo workspace with the logic split into crates?
 
-A single `src-tauri` crate, the layout `create-tauri-app` generates
-(<https://v2.tauri.app/start/project-structure/>, checked 2026-09-28), cannot keep OS
-and Tauri code out of the logic. So the repository root is a virtual workspace:
-`crates/myapp-core` holds the rules and state, `crates/myapp-platform` the OS adapters,
-`crates/myapp-test-support` the fakes, and `crates/myapp` the `myapp` binary, the only
-place the adapters are wired to core. No crate is named
-`core`, which would collide with Rust's built-in `core` library. A repository per layer
-was rejected: it costs a release process per layer for a personal app.
-
+A single crate cannot keep OS code out of the logic: nothing would stop a rule from
+reading a file or the clock, and its tests would link the real adapters. So the
+repository root is a virtual workspace: `crates/myapp-core` holds the rules and state,
+`crates/myapp-platform` the OS adapters, `crates/myapp-test-support` the fakes, and
+`crates/myapp` the `myapp` binary, the only place the adapters are wired to core. No
+crate is named `core`, which would collide with Rust's built-in `core` library. A
+repository per layer was rejected: it costs a release process per layer for a personal
+tool.
 ### Why ports and adapters, with synchronous ports?
 
 Core declares each thing it needs from outside the process — storage, time — as a
 `Send + Sync` trait. `myapp-platform` implements it for real, `myapp-test-support` as a
-fake, and `src-tauri` picks the real one. Ports are plain synchronous methods, so a
-reader new to Rust meets no async in core; the shell moves a slow call onto a blocking
-thread. Errors are typed codes the UI turns into words, never sentences from Rust. One
-contract function per port runs against both the fake and the real adapter, so the fake
-cannot drift from the real thing without a test failing.
-
+fake, and the binary picks the real one. Ports are plain synchronous methods, so a
+reader new to Rust meets no async in core. Errors are typed variants the binary turns
+into words and an exit code, never sentences from core. One contract function per port
+runs against both the fake and the real adapter, so the fake cannot drift from the real
+thing without a test failing.
 ### Why are the architecture boundaries enforced three times?
 
-A rule that lives only in prose drifts. Core's `Cargo.toml` names no Tauri or OS crate,
-so core cannot compile a call into one. A harness check reads `cargo metadata` and fails
-if core's dependency closure ever gains `tauri*`, `wry`, `tao`, a macOS binding crate,
-or `myapp-platform`, and `cargo deny`'s `wrappers` rule allows `tauri` as a direct
-dependency of the shell only. clippy, configured in `crates/myapp-core/clippy.toml`,
+A rule that lives only in prose drifts. Core's `Cargo.toml` names no OS crate, so core
+cannot compile a call into one. A harness check reads `cargo metadata` and fails if
+core's dependency closure ever gains a macOS binding crate, a desktop-GUI crate, or
+`myapp-platform`, and `cargo deny`'s `wrappers` rule allows `myapp-platform` as a direct
+dependency of the binary only. clippy, configured in `crates/myapp-core/clippy.toml`,
 bans printing and the standard streams, `std::fs`'s files and functions, `Path`'s
 file-system queries, `std::net`'s sockets and address lookups, clock reads
 (`SystemTime::now`, `Instant::now`, `elapsed`), `std::env`'s argument, variable, and
 directory functions, `std::process::Command`, `exit`, and `abort`, and unscoped threads
 and `thread::sleep` in core, so I/O, time, and environment arrive only through ports.
-
-### Why ts-rs plus a thin hand-written IPC layer?
-
-`tauri-specta` would generate typed command wrappers too, but its v2 has been a release
-candidate for years (2.0.0-rc.25 is the newest, <https://crates.io/crates/tauri-specta>,
-checked 2026-09-28). `ts-rs` is stable: every type that crosses IPC lives in core,
-derives `TS`, and is exported to `ui/src/ipc/generated/`, which is committed. The
-wrappers in `ui/src/ipc/commands.ts` and `events.ts` are one line each. CI regenerates
-the bindings and fails on a diff, and a harness check compares the command and event
-names on both sides, so neither half can drift silently.
-
 ### Why is the tool one binary, in its own crate?
 
 One `cargo install --locked --path crates/myapp` (`just install-cli`) yields the whole
@@ -101,30 +92,27 @@ sentence in `crates/myapp/src/wording.rs`.
 
 Because it is small enough to delete and still exercises every frame the architecture
 claims: a port with a real adapter, a fake, and a contract suite (`CounterStore`,
-writing `counter.json` atomically); injected time (`Clock`); five commands; an event
-(`counter-changed`); logging, including errors forwarded from the UI; the helper CLI;
-typed error codes; and accessible glyph-only buttons. Every part of it is an
-illustration to replace.
+writing `counter.json` atomically under a lock); injected time (`Clock`); subcommands
+and a full-screen view over the same service, the screen's state and keys in core;
+logging; typed errors with their wording in one module; and a help line naming every
+key. Every part of it is an illustration to replace.
+### Why tracing to daily files?
 
-### Why tracing to daily files instead of tauri-plugin-log?
+`tracing` gives one logging API across every crate; only the binary installs a
+subscriber, which writes `myapp.YYYY-MM-DD.log` to `~/Library/Logs/com.example.myapp/`
+on macOS and to `$XDG_STATE_HOME/myapp/logs/` on Linux, rotated daily and keeping 14
+files. The writer is synchronous: the volume is low, and a background writer can drop
+its last lines at exit. While `myapp tui` owns the terminal it logs to the file only, so
+no line lands in the frame. `just logs` prints the newest file's tail and exits.
+### Why clap and ratatui?
 
-`tauri-plugin-log` rotates by size only and needs a plugin permission
-(<https://v2.tauri.app/plugin/logging/>, checked 2026-09-28). `tracing` gives
-one logging API across every crate; only the binary installs a subscriber, which
-writes `myapp.YYYY-MM-DD.log` to `~/Library/Logs/com.example.myapp/`, rotated daily and
-keeping 14 files.
-The writer is synchronous, because Tauri exits through `process::exit`, which would drop
-a background writer's last lines. `just logs` prints the newest file's tail and exits.
-
-### Why React and Vite with no CSS framework and no state library?
-
-The screen is modest, so the stack is the plain, well-known one: React 19, Vite 8, and
-TypeScript 6.0. Styling is plain CSS over design tokens;
-state is React state plus one hook per Rust-owned model. A component library, a CSS
-framework, or a state library is a decision for an app to make and record, not a
-default. Tauri's security settings start closed: a restrictive CSP,
-`withGlobalTauri: false`, and one capability granting only `core:default`.
-
+clap's derive API declares a subcommand as a type and gives `--help`, `--version`, and
+usage errors (exit 2) for free. ratatui, over its crossterm backend, draws the
+full-screen view immediate-mode: one `draw` over a state, so the loop the binary runs
+stays a thin shell around core's screen and key table, and the drawing is tested by
+rendering into an in-memory backend. Styling starts from the terminal's own colors, so
+a tool reads in light and dark terminals alike. Another framework, an async runtime, or
+a theme of the tool's own is a decision for an app to make and record, not a default.
 ### Why is every tool pinned in exactly one place?
 
 A version written twice drifts. Rust is pinned in `rust-toolchain.toml`, every other CLI
@@ -159,8 +147,7 @@ bundle Python or shell scripts of its own, which `just test-scripts` tests.
 ### Why a coverage floor on the core only?
 
 The floor (80% of lines and 80% of functions, measured by `cargo llvm-cov`) sits where
-the decisions are. The platform crate, the shell, and the CLI translate and decide
-nothing, so a numeric gate there would only invite tests of glue. The `xtask` crate
+the decisions are. The platform crate and the binary translate and decide nothing, so a numeric gate there would only invite tests of glue. The `xtask` crate
 carries its own floors, so one tree cannot subsidize another. clippy runs
 at `pedantic` with warnings as errors, `unsafe_code` is forbidden in every crate, and
 weakening any gate needs a human's sign-off.
@@ -176,47 +163,40 @@ required status check names a real job; the boundary lists agree; every label an
 form or workflow applies is declared; and more — each check's header says what it
 asserts.
 
-### Why no end-to-end WebDriver tests?
+### Why does no check run the real terminal?
 
-Tauri's WebDriver support covers Windows and Linux only, because macOS has no WKWebView
-driver (<https://v2.tauri.app/develop/tests/webdriver/>, checked 2026-09-28), and the
-alternatives are a pre-1.0 in-app WebDriver server or a paid driver. So each layer is
-tested where it lives — core with fakes, adapters with contract suites,
-commands through `tauri::test`'s mock runtime, the UI with mocked IPC — and a
-launch smoke builds the release app and proves the real wiring starts. The gap that
-leaves, a UI-to-Rust wiring mistake only the running app shows, is named, and a pull
-request that could hit it carries `just logs` evidence.
-
+A test that drives a real terminal would take over the one the developer is working in,
+and a CI runner has no terminal to give it. So each layer is tested where it lives —
+core with fakes, adapters with contract suites, the command line by running the built
+binary against a temporary `HOME`, the full-screen view by drawing into ratatui's
+`TestBackend` and feeding keys as values. The gap that leaves, the real terminal loop
+(raw mode, the alternate screen, restoring the terminal on every way out), is named and
+kept thin, and a pull request that changes it carries a human's run of `myapp tui`.
 ### Why does most CI run on Ubuntu?
 
-macOS runners queue longer. Core, the Linux-buildable crates, the UI, the scripts, and
-the repository lint all run on Ubuntu; one macOS job runs workspace clippy, the tests
-that need macOS, the debug build, and the launch smoke. Every job pins its actions by
+macOS runners queue longer. Core, the Linux-buildable crates, the platform tests on
+Linux, the scripts, and the repository lint all run on Ubuntu; one macOS job runs
+workspace clippy and the platform tests against macOS. Every job pins its actions by
 SHA, sets `persist-credentials: false`, least-privilege permissions, and a timeout, and
 every cargo command that resolves the lockfile is `--locked`.
+### Why this much supply-chain control, and why scope advisories to the built targets?
 
-### Why this much supply-chain control, and why scope advisories to Apple Silicon?
-
-An app that runs on your Mac with your permissions deserves the same scrutiny as a
+A tool that runs on your machine with your permissions deserves the same scrutiny as a
 server: CodeQL, OSV-Scanner, OpenSSF Scorecard, zizmor, Dependency Review with a license
-allow-list, `cargo deny`, a 7-day
-cooldown on every automated bump, a weekly full-history gitleaks scan, and the branch
-ruleset as code. `Cargo.lock` lists every platform's dependencies, including Tauri's
-Linux GTK stack, which this app never ships; so `cargo deny` evaluates the
-`aarch64-apple-darwin` graph — defining what is shipped rather than ignoring anything —
-and an OSV exception is allowed only for a crate absent from that graph, with a reason
-and an expiry.
+allow-list, `cargo deny`, a 7-day cooldown on every automated bump, a weekly
+full-history gitleaks scan, and the branch ruleset as code. `Cargo.lock` lists every
+platform's dependencies, including Windows-only crates this tool never builds; so
+`cargo deny` evaluates the `aarch64-apple-darwin` and `x86_64-unknown-linux-gnu`
+graphs — defining what is built rather than ignoring anything — and an OSV exception is
+allowed only for a crate absent from those graphs, with a reason and an expiry.
+### Why no release pipeline?
 
-### Why ad-hoc signing by default, with Developer ID when secrets exist?
-
-A new app releases on day one without an Apple Developer Program membership. Tauri signs
-the bundle itself, ad hoc (`signingIdentity: "-"`) with the hardened runtime and the
-entitlements file; when the repository has all six Apple signing and notarization
-secrets, the release signs with Developer ID, notarizes, and staples — no workflow edit,
-and skipped steps are skipped by a condition, never by `continue-on-error`. A partial set
-fails the release before it builds rather than shipping ad hoc. Every release is
-verified before upload.
-
+A tool for its owner is built and installed from its own checkout with
+`cargo install --locked --path crates/myapp` (`just install-cli`): no secret, no tag,
+and no CI involved. `CHANGELOG.md` and the workspace version still record what changed.
+A release workflow, signed or prebuilt binaries, a package-manager tap, or crates.io
+publishing is a decision an app records in an ADR when a tool needs to reach other
+people.
 <!-- template-only -->
 ### Why a bootstrap script?
 
@@ -241,35 +221,23 @@ calls no LLM.
 ### Why an ADR tree that ships empty?
 
 The decisions in this section are the shared foundation's. Each app decides different
-things — its design system, where it keeps state, whether it needs the App Sandbox,
-which permissions it asks for — and records each as an Architecture Decision Record
+things — where it keeps state, which platforms it targets, which permissions it asks
+for, whether it ever ships releases — and records each as an Architecture Decision Record
 under [docs/architecture/](docs/architecture/README.md), whose index ships empty.
 A replaced decision gets a new ADR rather than a rewrite, so the reasoning that held at
 the time stays readable. [docs/architecture/roadmap.md](docs/architecture/roadmap.md)
 ships as a skeleton for the app's direction.
 
-### Why may nothing a check runs take over your Mac?
+### Why may nothing a check runs take over your machine or terminal?
 
-The checks run on the Mac you are working on, often while an agent iterates. So nothing
-routine — `just check` and every recipe in it, the pre-commit hook, an agent's own
-verification — may show a window, take focus, add a Dock icon, or raise a permission,
-Keychain, or Gatekeeper prompt. The launch smoke runs the app with `MYAPP_SMOKE=1`: no
-window, activation policy `Prohibited`, the normal startup path, a `startup complete`
-log line, exit 0. Local builds make the `.app` only, because building a `.dmg` drives
-Finder through AppleScript unless `CI=true`
-(<https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-bundler/src/bundle/macos/dmg/mod.rs>,
-checked 2026-09-28); only the release workflow builds one.
-
-### Why a neutral, macOS-native design system that an app replaces first?
-
-An app that never runs design research should still look like a Mac app, so the base
-follows Apple's Human Interface Guidelines: the system font stack, semantic color tokens
-with light and dark values, the user's accent color for native controls, and motion
-that respects reduced-motion settings. Components reach values only through tokens in
-`ui/src/design/tokens.css`, and a test asserts every text and background pair meets WCAG
-contrast in both appearances. An app decides its own design system before its first
-screen and applies it by replacing token values, never by styling a screen directly.
-
+The checks run on the machine you are working on, often while an agent iterates in a
+terminal beside yours. So nothing routine — `just check` and every recipe in it, the
+pre-commit hook, an agent's own verification — may show a window, take focus, or raise
+a permission, Keychain, or Gatekeeper prompt, and none may take over a terminal: no
+check runs `myapp tui`, enables raw mode, enters the alternate screen, or needs a TTY.
+An agent's evidence is the tests, a subcommand run against a scratch `HOME` (on Linux,
+with `XDG_DATA_HOME` and `XDG_STATE_HOME` unset too), and `just logs`; the full-screen
+view is yours to run.
 <!-- template-only -->
 ## Using This Template
 
@@ -306,7 +274,7 @@ screen and applies it by replacing token values, never by styling a screen direc
    only its configuration, so without it nothing bumps `mise.toml` or
    `rust-toolchain.toml`.
 9. Replace the sample counter with your app, following the `starting-an-app` skill; it
-   lists what to delete and has you decide the design system first.
+   lists what to delete and the first decisions to record.
 10. Repository admin only, once the bootstrap commit is on `main`: run `just ruleset`.
     It applies every ruleset under `.github/rulesets/` — `main.json`, which protects
     `main`, and `release-tags.json`, which lets only an admin create, move, or delete a
@@ -344,15 +312,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
 ```bash
 just install      # once per clone
-just check        # the full local gate; opens no window
+just check        # the full local gate; takes over no terminal
 just test-fast increment   # one core test or a group of them, while iterating
 just logs         # the newest app log's last lines
 just install-cli  # install the myapp binary into ~/.cargo/bin (a human's step)
 ```
 
-`just --list` shows every recipe. The app's data lives in
+`just --list` shows every recipe. The tool's data lives in
 `~/Library/Application Support/com.example.myapp/` and its logs in
-`~/Library/Logs/com.example.myapp/`.
+`~/Library/Logs/com.example.myapp/` on macOS; on Linux, in `$XDG_DATA_HOME/myapp/`
+(default `~/.local/share/myapp/`) and `$XDG_STATE_HOME/myapp/logs/` (default
+`~/.local/state/myapp/logs/`).
 
 ## Documentation
 

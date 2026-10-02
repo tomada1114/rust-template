@@ -4,11 +4,11 @@ description: >
   Decides whether a change owes a documentation update and which surface it lands on:
   README.md (Quickstart, Design Philosophy, Using This Template), AGENTS.md,
   CONTRIBUTING.md, CHANGELOG.md, docs/architecture.md, docs/getting-started.md, a
-  skill under .agents/skills/, a /// rustdoc comment on a pub item in myapp-core, or
-  a TSDoc comment in ui/src/ipc/. Use when triaging whether a pull
-  request needs a document changed or a CHANGELOG [Unreleased] entry, when a
-  justfile recipe, a gate, an IPC name, or an architecture boundary moved and it is
-  unclear which file owns it, when the setup
+  skill under .agents/skills/, or a /// rustdoc comment on a pub item in myapp-core.
+  Use when triaging whether a pull request needs a document changed or a CHANGELOG
+  [Unreleased] entry, when a justfile recipe, a gate, a subcommand or flag, an on-disk
+  format, or an architecture boundary moved and it is unclear which file owns it, when
+  the setup
   steps drifted, when a template-only block is involved, or when deciding that an
   internal refactor needs no documentation change.
 ---
@@ -29,9 +29,9 @@ began in. An internal refactor, a test-only change, and a fix that restores docu
 behaviour owe no document; say so in the pull request. Deciding that nothing is needed
 is a legitimate outcome of this skill, not a step skipped.
 
-A reader here can observe: what the app does when launched, the `just` recipes and what
+A reader here can observe: what the tool does when run, the `just` recipes and what
 they run, the setup steps and pinned tools, what a gate accepts or rejects, how the
-template becomes an app (`just bootstrap`), how a release is built and signed, and
+template becomes an app (`just bootstrap`), how the tool is installed, and
 everything `docs/architecture.md` › "What is contract and what is private" lists. That
 table is the one list of what is contract; read it there rather than from a copy.
 
@@ -62,12 +62,11 @@ another's content: a copy is the half that goes stale.
 | `AGENTS.md` | The agent-facing guide: Quick Reference, "Validating a change", Architecture, Skills and Rules tables, "Security and human approval", "Repository scripts", "Enforcement layers", Review Checklist |
 | `CONTRIBUTING.md` | Prerequisites, the workflow and its commands without Just, where a change goes, the pull request process, commit messages, the changelog policy |
 | `CHANGELOG.md` | The human-curated record of user-visible changes (Keep a Changelog) |
-| `docs/architecture.md` | The layers every app starts with, the ports, IPC, and what is contract |
+| `docs/architecture.md` | The layers every app starts with, the ports, the binary and its command line, and what is contract |
 | `docs/architecture/` | An app's ADRs and their index, and `roadmap.md` (owned by the two skills above) |
-| `docs/getting-started.md` | First setup, everyday commands, seeing the app, TCC, removing the example code |
+| `docs/getting-started.md` | First setup, everyday commands, seeing the tool, TCC, removing the example code |
 | a skill under `.agents/skills/` | The conventions of one kind of change, loaded on demand |
 | `///` on a `pub` item in core | That item's contract: why it exists and what it promises |
-| TSDoc in `ui/src/ipc/` | The same, for an exported wrapper |
 
 ## Changes that move two files at once
 
@@ -78,8 +77,8 @@ Some facts have two readers, and the pull request that moves the fact updates bo
   Reference, and `CONTRIBUTING.md`'s "Without Just" when it lists that recipe;
 - a gate added or changed: its config and `AGENTS.md` › "Enforcement layers" (and the
   "Validating a change" row when the narrowest check moved), as `changing-gates` says;
-- a command or event name, a payload shape, or an on-disk format:
-  `docs/architecture.md`'s contract table, with the code;
+- a subcommand, a flag, what goes to stdout or stderr, an exit code, or an on-disk
+  format: `docs/architecture.md`'s contract table (and "The binary"), with the code;
 - a skill added, renamed, removed, or widened: its row in `AGENTS.md`'s Skills table
   (`just check-harness` fails when the names differ, not when a row's wording is stale).
 
@@ -104,8 +103,8 @@ description.
 - Core's `pub` API is contract, so its `///` is the document a caller reads instead of
   the body. When a change alters what an item promises, the comment changes in the same
   commit.
-- An exported wrapper in `ui/src/ipc/` carries a TSDoc comment. No lint or checklist
-  item enforces this: review alone holds it.
+- A subcommand's and a flag's `///` is also its `--help` text (clap's derive reads it),
+  so it is written for the person running the tool (`designing-clis`).
 
 ## Template-only material
 
@@ -113,7 +112,7 @@ The bootstrap removes every `<!-- template-only -->` … `<!-- /template-only --
 and the template's own design notes, so an app never inherits text about the template.
 Text only a template reader needs (why the bootstrap exists, how to use the template)
 goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
-distribution flow) goes outside. A standing document outside a block never links into
+install steps) goes outside. A standing document outside a block never links into
 the template's design notes: that link dangles in every app. A sentence outside a block
 is worded to hold in an app too ("the index starts empty", not "the template ships the
 index empty"), or, where it cannot, rewritten for the app by an entry in `TEXT_EDITS`
@@ -162,5 +161,5 @@ running the code, it needs no sentence.
 ## Generated trees are off-limits
 
 Never hand-edit or document as source: `.claude/skills/` (the mirror `just agents-sync`
-writes from `.agents/skills/`), `src-tauri/gen/`, and build output. Edit the source and
-regenerate.
+writes from `.agents/skills/`) and build output (`target/`, `coverage/`). Edit the
+source and regenerate.

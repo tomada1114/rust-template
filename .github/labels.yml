@@ -49,7 +49,7 @@
   description: "Waits on a specific open issue named by a Depends on: #N line."
 - name: "blocked: external"
   color: "d4c5f9"
-  description: "Needs a step only a person can take (signing identity, Apple account, TCC grant); agents skip it."
+  description: "Needs a step only a person can take (an account, a credential, an OS grant); agents skip it."
 - name: "on hold"
   color: "cccccc"
   description: "Parked on purpose; the reason is in a comment. Agents skip it."

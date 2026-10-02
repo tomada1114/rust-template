@@ -186,6 +186,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`cargo run -p myapp`, a scratch `HOME`, and `just logs`; `myapp tui` run by the
   human, never by an agent), `integrating-system-apis` (macOS and Linux adapters behind
   `cfg(target_os)`), and `writing-rust` (clap and ratatui idioms in a new reference).
+- The documentation and the workflow skills describe the command-line template instead
+  of the Tauri desktop app: `AGENTS.md`, `README.md` (its Design Philosophy now explains
+  clap and ratatui, why no check runs the real terminal, and why there is no release
+  pipeline), `CONTRIBUTING.md`, `SECURITY.md` (only the latest `main` is supported;
+  there are no release artifacts), `docs/architecture.md` (no IPC or smoke-mode
+  sections; the Linux data and log directories), `docs/getting-started.md`, the ADR
+  index and template, `.claude/rules/`, the issue forms, the pull request template, and
+  the `starting-an-app`, `changing-gates`, `managing-dependencies`,
+  `merging-dependency-prs`, `recording-architecture-decisions`, `smart-commit`,
+  `create-pr`, `triaging-issues`, `updating-docs`, `shipping-issues`, and
+  `authoring-skills` skills. The changes that owe an ADR are now the command-line
+  tool's (persistence or configuration, a target platform, distribution, replacing clap
+  or ratatui, a TUI theme, among others), and an agent never runs `myapp tui`.
+  `merging-dependency-prs`' `survey_prs.py` no longer detects npm pull requests or
+  pairs the Tauri crates with their npm packages (`--json` prints `rows` and
+  `contested` only), and the skill lands a ratatui or crossterm minor alone as a
+  migration. The bug report form asks for `myapp --version` and the operating system
+  instead of a `.dmg` download and a macOS version, and the `blocked: external` label's
+  description no longer names a signing identity or an Apple account (`just labels`
+  applies it). The template's design notes under `docs/template/` drop what they said
+  about the GUI stack, and the `starting-an-app` skill's app-shapes reference is gone.
 
 ### Removed
 

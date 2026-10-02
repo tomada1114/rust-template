@@ -17,14 +17,14 @@ green.
 |---|---|---|
 | `#[allow(clippy::…)]` or `#[allow(…)]` on a rustc lint | Silences that lint for the item (or, as `#![allow]`, the whole crate). `just lint` runs clippy with `-D warnings`, so every warning is an error; an `allow` turns the error off without fixing its cause. | Fix what the lint describes. The clippy lint list explains each lint and its usual fix (https://rust-lang.github.io/rust-clippy/master/index.html). A pedantic lint that is wrong for the whole codebase is a `[workspace.lints]` change, argued in its own pull request. |
 | `#[expect(…)]` | Like `allow`, but warns if the lint stops firing. It documents a suppression better; it is still one. | The same as `allow`. |
-| `.unwrap()` / `.expect()` outside tests, with an `allow` for `unwrap_used` | A panic where an error belongs. In a command, a panic is a crash the UI cannot map to a code. | Return a `Result` and propagate with `?` into the module's error enum (`designing-errors`). |
+| `.unwrap()` / `.expect()` outside tests, with an `allow` for `unwrap_used` | A panic where an error belongs. In a subcommand a panic is a crash with no wording and no exit code of ours; in the TUI, with `panic = "abort"` in the release profile, it also skips every `Drop` and the error path out of the loop, leaving the terminal's restore to the panic hook alone. | Return a `Result` and propagate with `?` into the module's error enum (`designing-errors`). |
 | `unsafe`, or lifting `unsafe_code = "forbid"` | `forbid` is the strictest lint level: nothing below it can `allow` it back. `unsafe` switches off the borrow checker's guarantees for a block, and is never the fix for a borrow error. | Restructure the borrow: end the first borrow before the next, or clone the small value (`writing-rust`). Real FFI in `myapp-platform` goes through an ADR (`integrating-system-apis`). |
-| `#[ignore]` on a failing test | nextest skips it and reports it as ignored, so the suite goes green with the failure still there. | Fix the code, or the test if its oracle is wrong. `#[ignore = "local machine: …"]` is reserved for a test that needs a GUI session, a TCC grant, or the Keychain. |
+| `#[ignore]` on a failing test | nextest skips it and reports it as ignored, so the suite goes green with the failure still there. | Fix the code, or the test if its oracle is wrong. `#[ignore = "local machine: …"]` is reserved for a test that needs a GUI session, a TCC grant, or the Keychain. No test needs a real terminal: a human running `myapp tui` is the only route to one. |
 | Deleting or loosening an assertion | The test passes because it no longer checks the behaviour. | Fix the code; an assertion changes only when the specified behaviour did. |
-| Lowering `--fail-under-lines` / `--fail-under-functions` in the `test-core` recipe | The core floor is 80/80, the one number that says decisions are tested. | Add tests; move an untestable decision out of an adapter into core. |
+| Lowering `--fail-under-lines` / `--fail-under-functions` in the `test-core` or `test-xtask` recipe | The core floor is 80/80, the one number that says decisions are tested; xtask's floors say the same of the automation every gate runs on. | Add tests; move an untestable decision out of an adapter or the binary into core. |
 | Removing a ban from `crates/myapp-core/clippy.toml` | Lets core print, read the clock, touch the file system, or spawn a process directly, bypassing its ports. | Reach the outside world through a port (`designing-core-logic`). |
 | An entry in `deny.toml`'s `ignore`, `exceptions`, or `skip`, or in `osv-scanner.toml` | Stops `cargo deny` or OSV-Scanner reporting an advisory or a licence. | Update the crate. Only an advisory with no fixed release may be ignored, with a reason, a 90-day expiry, and a tracking issue. |
-| Changing `deny.toml`'s `[graph] targets` or its `unmaintained` scope | Changes what counts as shipped, and so which advisories count. | A change to what ships is an ADR (a universal build adds a target). |
+| Changing `deny.toml`'s `[graph] targets` or its `unmaintained` scope | Changes what counts as shipped, and so which advisories count. | A change to what ships is an ADR (a new target platform, or dropping one). |
 
 ## A skill's bundled scripts
 
@@ -43,6 +43,7 @@ green.
 | `git commit --no-verify` | Skips every pre-commit job, the staged secret guard included, which no CI job reruns. A personal permission file may deny its usual spellings on one host; the rule binds every author. |
 | Widening a workflow's `permissions:` | A compromised step can do more with the token. |
 | Removing a required context from `.github/rulesets/main.json` | A pull request can merge without that check. |
+| An entry in a harness check's `EXCEPTIONS`, removing a check from `CHECKS`, or narrowing what one reads | The claim stops being checked for that case, or at all, while `just check-harness` stays green. An exception is a human's decision with its reason in the entry. |
 | Re-spelling a denied command (`git -C . …`, `bash -c '…'`, a bundled short flag) | Routes around a human's or a config's refusal. Stop and ask. |
 
 ## When the gate itself looks wrong

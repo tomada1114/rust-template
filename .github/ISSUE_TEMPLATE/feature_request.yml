@@ -20,7 +20,7 @@ body:
     id: solution
     attributes:
       label: Proposed Solution
-      description: How should it work, as someone using the app would see it?
+      description: How should it work, as someone using the tool would see it (a command, its output, a key in the TUI)?
     validations:
       required: true
 

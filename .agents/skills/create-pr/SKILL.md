@@ -5,11 +5,13 @@ description: >
   clean feature branch), just check as the gate, a Conventional Commits title that
   check-pr-title.yml accepts, a body filled from .github/PULL_REQUEST_TEMPLATE.md
   (Summary, Test Plan, Checklist), the Release impact line and its MAJOR/MINOR/PATCH
-  call, the evidence only a human can produce (just test-local output for a
-  myapp-platform adapter), the CHANGELOG.md entry under [Unreleased], and gh pr create /
-  gh pr edit. Use when asked to open, create, submit, or update a PR or pull request,
-  request review, or decide whether a change needs a release or which version bump it
-  deserves.
+  call against what a user of the tool depends on (the command line, on-disk formats,
+  data and log locations, rust-version), the evidence only a human can produce (just
+  test-local output for a myapp-platform adapter, the human's run of myapp tui for a
+  change only a real terminal shows), the CHANGELOG.md entry under [Unreleased], and gh
+  pr create / gh pr edit. Use when asked to open, create, submit, or update a PR or pull
+  request, request review, or decide whether a change needs a release or which version
+  bump it deserves.
 ---
 
 # Create PR
@@ -47,7 +49,7 @@ just check
 `just check` runs everything a Mac can run without a human (verify-hooks, fmt, lint,
 lint-repo, agents-check, test-scripts, check-harness, test, test-platform);
 the justfile's `check` recipe is the source of truth for the order. It opens no window
-(`AGENTS.md` › "Never taking over the developer's Mac"). A cold run takes longer than a
+and takes over no terminal (`AGENTS.md` › "Never taking over the developer's Mac"). A cold run takes longer than a
 foreground tool call may last, so under Claude Code start it with `run_in_background`
 and wait for the completion notice; under Codex CLI give the command a timeout that
 covers a full build.
@@ -73,28 +75,34 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
 
 - **Where the logic landed.** A decision (anything that branches, clamps, or formats)
   belongs in `crates/myapp-core`, with tests, where the coverage floor sees it. A
-  decision found in `src-tauri/`, `crates/myapp-platform/`, `crates/myapp/`, or
-  `ui/src/` leaves "New logic lives in `myapp-core`" unchecked.
-- **IPC.** A type that derives `ts_rs::TS` changed without `ui/src/ipc/generated/`
-  changing beside it, or a command or event changed without its wrapper in
-  `ui/src/ipc/commands.ts` or `ui/src/ipc/events.ts`.
-- **A contract.** Core's public API, the bundle identifier, an IPC name or payload, an
-  on-disk format, or the helper's command line (`docs/architecture.md` › "What is
-  contract and what is private"). A breaking change is named in the Summary.
-- **Evidence only a human can produce.** A change to an adapter in
-  `crates/myapp-platform/` that has an `#[ignore = "local machine: ..."]` test needs
-  `just test-local` output. It is a human's recipe, never run by an agent. Ask the
-  human to run it and paste the output; until it is in the Test Plan, that item stays
-  unchecked.
-- **A new dependency** (a crate or an npm package) needs its reason in the body for the
+  decision found in `crates/myapp-platform/` or `crates/myapp/` (a subcommand handler,
+  the TUI's loop or view) leaves "New logic lives in `myapp-core`" unchecked.
+- **The command line.** A subcommand, flag, output, or exit code that changed without
+  its test in `crates/myapp/tests/cli.rs`, or an error sentence written anywhere but
+  `crates/myapp/src/wording.rs` (`designing-clis`, `designing-errors`).
+- **A contract.** Core's public API, the bundle identifier or the XDG directory name, an
+  on-disk format, or the command line: subcommands, flags, what goes to stdout and to
+  stderr, and the exit codes (`docs/architecture.md` › "What is contract and what is
+  private"). A breaking change is named in the Summary.
+- **Evidence only a human can produce.** Two kinds, each asked for once, with the exact
+  commands; until the output is in the Test Plan, the pull request waits for it.
+  - A change to an adapter in `crates/myapp-platform/` that has an
+    `#[ignore = "local machine: ..."]` test needs `just test-local` output. It is a
+    human's recipe, never run by an agent; its checklist item stays unchecked until the
+    output is pasted.
+  - A change only a real terminal shows (the TUI's terminal loop, how a screen looks, a
+    key, a resize, the terminal restored after an error) needs the human's run of
+    `myapp tui` and what they saw; its checklist item stays unchecked until the Test
+    Plan says so. An agent never runs `myapp tui`, since it takes over the terminal; the
+    commands and keys to hand the human are in `running-the-app`.
+- **A new dependency** (a crate, in any member) needs its reason in the body for the
   human's sign-off (`.claude/rules/project.md` › "Dependency Policy").
 - **A weakened gate**: a lint `allow` or `expect`, a lowered floor, a coverage
   exclusion, an `#[ignore]` or a `skip` on a failing test, an ignore-list entry. Any of these leaves "No gate weakened" unchecked, and the PR stops until a
   human decides.
 - **Doc comments.** A new `pub` item without a `///` comment saying why it exists
-  (`AGENTS.md` › "Review Checklist"), or a new wrapper in `ui/src/ipc/` without a TSDoc
-  comment. `missing_docs` catches an absent `///`, not one that only restates the
-  signature, and nothing checks the TSDoc.
+  (`AGENTS.md` › "Review Checklist"). `missing_docs` catches an absent `///`, not one
+  that only restates the signature.
 - **CHANGELOG.** A user-visible change without an entry under `[Unreleased]` in
   `CHANGELOG.md` (`AGENTS.md` › "Review Checklist").
 - **Docs.** A change to public behavior or a contract without the doc that describes it.
@@ -121,8 +129,9 @@ Fill `.github/PULL_REQUEST_TEMPLATE.md` in order.
   [references/release-impact.md](references/release-impact.md), which also holds the
   MAJOR/MINOR/PATCH table. A missing value is not `none`: it is an unfinished PR.
 - **Test Plan.** The commands that ran and what they printed: `just check` always, the
-  narrower check from `AGENTS.md` › "Validating a change" that exercised the change, and
-  any human-run output from Step 2.
+  narrower check from `AGENTS.md` › "Validating a change" that exercised the change, a
+  subcommand's run against a scratch `HOME` or a `just logs` excerpt when that is the
+  only observable (`running-the-app`), and any human-run output from Step 2.
 - **Checklist.** Tick an item only when Step 1 or Step 2 showed it holds; an item that
   does not apply to the change is ticked, since there is nothing to hold.
 

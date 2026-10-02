@@ -83,8 +83,8 @@ Claude Code's Bash tool gives a foreground call at most ten minutes out of the b
 (`BASH_MAX_TIMEOUT_MS` moves that ceiling), and moves a command that reaches its timeout
 to the background instead of returning its result
 (https://code.claude.com/docs/en/tools-reference, checked 2026-09-29). This
-repository's CI (`Rust Core`, `Repo Lint & Harness`, `macOS`, and
-`Template Bootstrap Smoke`, each with a `timeout-minutes` of up to 30) routinely runs
+repository's CI (`Rust Core`, `Repo Lint & Harness`, and `macOS`, the slowest with a
+`timeout-minutes` of 30) routinely runs
 longer, so a `--timeout 3600` watch started in the foreground returns no verdict in that
 call. So pick one of these, in this order:
 

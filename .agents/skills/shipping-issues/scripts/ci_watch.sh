@@ -41,9 +41,9 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 PR="${1:-}"
-# An hour: the slowest required check, `macOS Build & Smoke`, has a 60-minute
-# timeout-minutes in .github/workflows/ci.yml, and a cold Tauri build uses much
-# of it.
+# An hour: the slowest required checks (`Rust Core`, `macOS`) each have a 30-minute
+# timeout-minutes in .github/workflows/ci.yml, and a macOS runner can queue for a long
+# time before its job starts.
 TIMEOUT=3600
 LOG_BYTES=6000
 POLL_INTERVAL=20

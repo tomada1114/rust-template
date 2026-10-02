@@ -57,24 +57,29 @@ does not pin. Changing an option reformats the whole tree: land the option and t
 
 ## `deny.toml` and `osv-scanner.toml`
 
-- `[graph] targets = ["aarch64-apple-darwin"]` defines what ships. `Cargo.lock` lists
-  every platform's dependencies, and Tauri's Linux stack carries advisories for code a
-  macOS-only app never builds; the target selects the shipped graph and ignores nothing
-  inside it.
+- `[graph] targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu"]` defines what
+  ships: the tool is built for Apple-silicon macOS and for x86-64 Linux. `Cargo.lock`
+  lists every platform's dependencies, Windows' included, and carries advisories for code
+  neither target builds; the targets select the shipped graph and ignore nothing inside
+  it. Adding or dropping a target is a new target platform, an ADR.
 - `[licenses] allow` and `.github/workflows/dependency-review.yml`'s `allow-licenses`
-  hold the same permissive list (the workflow's also holds permissive licences no
-  crate uses yet, which `cargo deny` would warn about as unused). A per-crate exception (`exceptions`, `allow-dependencies-licenses`)
-  goes into both files with its reason.
-- `[bans] deny` with `wrappers` says which crate may depend on `tauri` and on
-  `myapp-platform` directly. It changes together with `AGENTS.md`'s boundary list and
-  the closure check, and `just check-harness` fails when they differ. A Tauri plugin
-  crate joins the `tauri` entry's rule (`managing-dependencies`).
+  hold one permissive policy, read for different graphs: `cargo deny` reads the crates,
+  Dependency Review every ecosystem a pull request's dependency diff shows (crates and
+  the actions a workflow uses). The workflow's list is `deny.toml`'s plus six permissive
+  licences no crate uses yet (0BSD, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT-0),
+  which `cargo deny` would warn about as unused; a crate that needs one of them adds it
+  to `deny.toml` in the same pull request. A per-crate exception (`exceptions`,
+  `allow-dependencies-licenses`) goes into both files with its reason.
+- `[bans] deny` with `wrappers` says which crate may depend on `myapp-platform`
+  directly: only `myapp`, the binary. It changes together with `AGENTS.md`'s boundary
+  list and the closure check, and `just check-harness` fails when they differ.
 - `[sources]` allows crates.io only. A git dependency is a new source: an ADR and a
   sign-off, never a quiet `allow-git` line.
 - An advisory is fixed by updating. Only when no fixed release exists may it be
   ignored, with its reason, an `ignoreUntil` (OSV) or dated comment (`deny.toml`) at
   most 90 days out, and a tracking issue. An OSV ignore for a crate absent from
-  `cargo tree --target aarch64-apple-darwin` needs only the reason and the expiry.
+  `cargo tree --target <target>` for both `[graph] targets` needs only the reason and
+  the expiry.
 
 ## `rust-toolchain.toml` and `mise.toml`
 
@@ -118,24 +123,41 @@ the lockfile, and the generated `.claude/skills/` mirror, and `just check-harnes
 unless it excludes that mirror and not `.agents/skills/`. A real technical term goes
 in `[default.extend-words]` with the reason it is spelled that way.
 
-## `tauri.conf.json`, `src-tauri/capabilities/`, `src-tauri/Entitlements.plist`
+## The harness checks, `xtask/src/check_harness/`
 
-- `app.security.csp`, `app.withGlobalTauri: false`, and the one capability granting
-  `core:default` are the WebView's security posture. App commands need no capability;
-  a plugin's commands do.
-- `bundle.macOS` holds `minimumSystemVersion`, `hardenedRuntime`, `signingIdentity`
-  (`"-"`, ad hoc), and `entitlements`. `Entitlements.plist` ships empty.
-- Every one of these is a sign-off change (`AGENTS.md` › "Security and human
-  approval") and an ADR trigger. A personal Claude Code settings file may deny an edit
-  to `Entitlements.plist`; that binds one tool on one host, and the rule binds every
-  author.
+`cargo xtask check-harness` re-asserts what the harness says about itself, one module
+per claim, each listed by name in `mod.rs`'s `CHECKS` (`--check <name>` runs one).
+They read with real parsers (YAML, TOML, JSON), never a regex over structured text, and
+report each violation as an `ERR_CHECK_<WHAT>` with `Expected:`, `Actual:`, and `Next:`
+lines. Several keep two lists equal that a human would let drift: the core boundary
+(`AGENTS.md`'s sentence, `deny.toml`'s wrappers, the dependency closure), the bots'
+cooldowns, the advisory ignores of OSV-Scanner and Dependency Review, the bundle
+identifier in `paths.rs` and the justfile, and the ignore lists' treatment of the
+skills mirror.
+
+- **Adding a claim** is routine: a new module, its entry in `CHECKS`, tests in the
+  module, and, for a check that reads a tree, a fixture root under
+  `xtask/tests/fixtures/` per failure mode, so a test points `--root` at it instead of
+  at the real checkout. Its row in `AGENTS.md` › "Enforcement layers" changes with it.
+- **Removing a check, or narrowing what it reads** (a file it skips, a pattern it no
+  longer matches) is weakening a gate.
+- **An `EXCEPTIONS` entry** (`just_check_matches_ci.rs`, `workflow_write_scopes.rs`,
+  `clippy_allow_invalid.rs`) exempts one named case with its reason in the entry. Each
+  is a human's decision; an agent proposes it in the pull request and never adds one to
+  get a check green. An entry that no longer applies fails as stale, so the list only
+  holds live exceptions.
+- `clippy-guard` (`xtask/src/clippy_guard.rs`) wraps every clippy run (the `clippy.toml`
+  section above); `just lint` and CI's clippy steps call it with the full
+  `cargo clippy … --locked` command, so the workflow check still sees `--locked`.
+
+How a check's code is written, and its coverage floor, is `writing-repo-scripts`.
 
 ## The `justfile` recipes that are gates
 
 `test-core` carries the core floor flags, `test-xtask` the xtask floors (lines 85 and
 functions 90 over `xtask` and `xtask-guard`, then lines 90 and functions 100 over
-`xtask/guard/` alone, from one test run), `lint` runs clippy with `-D warnings`, and
-`check` lists the local gate. Recipe names are contract
+`xtask/guard/` alone, from one test run), `lint` runs clippy through `clippy-guard` with
+`-D warnings`, and `check` lists the local gate. Recipe names are contract
 for `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, the skills, and a committed
 `.claude/settings.json` if one is added, all of which `just check-harness` reads.
 
@@ -151,17 +173,23 @@ What every workflow follows, checked by `actionlint`, `zizmor`, and `just check-
   which is the only CI record a merged commit gets;
 - no `pull_request_target` (it runs fork code with a writable token);
 - a fail-closed shell (`defaults.run.shell` with `-euo pipefail`), so a failure before
-  a `|` or an unset variable stops the step instead of passing it, and `--locked` on
-  every cargo command that resolves the lockfile, so a lockfile drift fails instead of
-  resolving silently;
-- no Rust build cache on the release path, where a poisoned cache would reach a shipped
-  binary.
+  a `|` or an unset variable stops the step instead of passing it, no `|| true`-style
+  fallback or `continue-on-error`, and `--locked` on every cargo command that resolves
+  the lockfile, so a lockfile drift fails instead of resolving silently (the same rule
+  reads every justfile recipe line);
+- no `npm install` in a step: a tool a job needs is pinned in `mise.toml` and named in
+  that job's `jdx/mise-action` `install_args`;
+- no job whose token holds a write scope checks out or runs repository code
+  (`workflow-write-scopes`), apart from its reasoned `EXCEPTIONS`;
+- the tool has no release workflow. Adding one is a sign-off change and an ADR
+  (distribution), and it would use no Rust build cache, where a poisoned cache would
+  reach a shipped binary.
 
 A new workflow file is warranted only by a different trigger or a separate permission
 footprint; otherwise the step joins a job in `ci.yml`. A pull request that deletes or
 narrows a security-relevant step says why the protection no longer applies.
 
-## `.github/rulesets/main.json`
+## `.github/rulesets/main.json` and `release-tags.json`
 
 Each required context is a job `name:` in a `pull_request` workflow that runs on every
 pull request, and `just check-harness` fails when one names no job, or only a job whose
@@ -171,7 +199,9 @@ splitting a required job, or adding one, edits this file in the same pull reques
 ruleset` then applies it to the live repository, which is a human's step. A new job is not
 required until the owner decides it is: adding one never adds its context here on its own.
 `bypass_actors` stays empty: a bypass lets an admin token merge without the checks the
-ruleset exists to require.
+ruleset exists to require. `release-tags.json` is the other way round on purpose: only
+a repository admin may create, move, or delete a `v*` tag, so it keeps its admin bypass,
+and removing that restriction is weakening a gate.
 
 The check needs the default branch's name only when a required job's `pull_request`
 trigger filters branches. It reads it offline from the one literal branch in `ci.yml`'s

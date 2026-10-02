@@ -29,12 +29,12 @@ tier; triage adds the tier, and a `blocked:` label where one applies.
 | Label | When it applies |
 |---|---|
 | `priority: P0` | A real blocking chain (another open issue names this one as its blocker) or active damage (a red `main`, a live vulnerability, lost user data). Tier by what is blocked or broken, never by how urgent it feels. |
-| `priority: P1` | Foundational work later issues will build on (CI, a core port, a shared type that crosses IPC, config), even before an issue names it as a dependency. Once one does, the chain usually makes it P0. |
+| `priority: P1` | Foundational work later issues will build on (CI, a core port, a core type the subcommands and the TUI share, config), even before an issue names it as a dependency. Once one does, the chain usually makes it P0. |
 | `priority: P2` | The default tier. Before leaving an issue here, check that it blocks nothing (P0) and is not groundwork (P1): P2 is not where unevaluated work is parked. |
 | `priority: P3` | Genuinely low impact: nobody waits on it and nothing depends on it. Not a stand-in for "unappealing"; work that matters but is dull keeps its real tier. |
 | `blocked: design` | The approach has real, unresolved alternatives a human must choose between, not merely that nobody has looked yet. It still gets a tier (below). |
 | `blocked: dependency` | Only with a `Depends on #N` line in the body naming the blocker; without one the label cannot be verified or cleared. |
-| `blocked: external` | The next step is one only a person can take: a Developer ID certificate or notarization credential, an Apple Developer account step, a purchase or accepted terms, a privacy (TCC) grant in System Settings. Never for something an agent can do with its own tools. `shipping-issues` never picks it. |
+| `blocked: external` | The next step is one only a person can take: an account, a credential, an OS permission grant (a privacy (TCC) grant in System Settings), a purchase or accepted terms. Never for something an agent can do with its own tools. `shipping-issues` never picks it. |
 | `on hold` | Real work parked on purpose, with the reason in a comment. It keeps its tier; `shipping-issues` never picks it. Not for a tracking issue. |
 
 Priority ranks impact on the rest of the backlog, not how interesting the work is.
@@ -93,8 +93,8 @@ Two things nothing else can recover later:
 
 - **What is wrong today, with a `path:line`.** A symptom without a location makes the
   next person re-find what the filer already knew. Point at the code, not the symptom:
-  `crates/myapp-platform/src/paths.rs:31`, `src-tauri/src/commands.rs:58`,
-  `ui/src/ipc/commands.ts:12`.
+  `crates/myapp-platform/src/paths.rs:31`, `crates/myapp/src/wording.rs:40`,
+  `crates/myapp-core/src/counter/screen.rs:58`.
 - **What observable result closes it**, as a command or a test: `just test-core` passes
   with a new test named for the behavior, `just check-harness` passes, a `grep` prints
   nothing, `just logs` shows a line. Never a feeling of doneness ("works correctly", "is
@@ -133,13 +133,13 @@ human raises without asking for an issue was not explicitly asked for, any more 
 one you noticed or inferred: draft the title, labels, and body in the reply and wait
 for a yes. Pick one outcome:
 
-1. **File it** when it stays inside the existing design (a default, a keyboard
-   shortcut, copy, a small change to how an existing screen behaves) and is in scope
-   under `AGENTS.md` › "Product". The request covers creating the issue and nothing
-   more: a type label, a tier (`priority: P2` unless the table above says otherwise),
-   and a body that meets "What an issue body must contain". Several requests in one
-   message get one issue each, unless they are one pull request's worth. Report the
-   numbers and stop; implementation waits until someone picks the issue.
+1. **File it** when it stays inside the existing design (a default, a key binding,
+   wording, a small change to how an existing subcommand or screen behaves) and is in
+   scope under `AGENTS.md` › "Product". The request covers creating the issue and nothing
+   more: a type label, a tier (`priority: P2` unless the table above says otherwise), and
+   a body that meets "What an issue body must contain". Several requests in one message
+   get one issue each, unless they are one pull request's worth. Report the numbers and
+   stop; implementation waits until someone picks the issue.
 2. **Park it** as `on hold` when it is worth keeping but not worth doing yet: it needs
    more use to judge, it leans on a Product non-goal, or it needs a design or
    architecture decision first. File it the same way, add `on hold`, and comment the

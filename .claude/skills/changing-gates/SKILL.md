@@ -4,25 +4,27 @@ description: >
   Covers editing a file that enforces rather than implements: Cargo.toml's
   [workspace.lints], clippy.toml and crates/myapp-core/clippy.toml, rustfmt.toml,
   deny.toml, osv-scanner.toml, rust-toolchain.toml, mise.toml, lefthook.yml,
-  xtask/src/check_staged.rs and xtask/guard/, the test-core and test-xtask recipes'
-  floors, typos.toml, tauri.conf.json's security and bundle.macOS,
-  src-tauri/capabilities/, src-tauri/Entitlements.plist, .github/workflows/*.yml, and
-  .github/rulesets/main.json. Use when a lint, a ban, a floor, a pin, an ignore list, a
-  formatter, a pre-commit job, a CI job or step, or a required check is added, raised,
-  loosened, or removed; when tempted by #[allow], #[expect], #[ignore], a skipped test,
-  a shellcheck disable, continue-on-error, or --no-verify to get a check green; or when
-  asking which gate would have caught a change, including what none of them sees, such
-  as JSON, YAML, and Markdown, which no formatter checks.
+  xtask/src/check_staged.rs and xtask/guard/, xtask/src/clippy_guard.rs, the harness
+  checks in xtask/src/check_harness/ and their EXCEPTIONS lists, the test-core and
+  test-xtask recipes' floors, typos.toml, .github/workflows/*.yml, and
+  .github/rulesets/*.json. Use when a lint, a ban, a floor, a pin, an ignore list, a
+  harness check, a pre-commit job, a CI job or step, or a required check is added,
+  raised, loosened, or removed; when tempted by #[allow], #[expect], #[ignore], a skipped
+  test, a shellcheck disable, an EXCEPTIONS entry, continue-on-error, or --no-verify to
+  get a check green; or when asking which gate would have caught a change, including
+  what none of them sees, such as JSON, YAML, and Markdown, which no formatter checks.
 ---
 
 # Changing Gates
 
 **Owns:** a change to a file that enforces rather than implements (the list above),
-what weakening a gate means here, and which gate can see a given change at all. **Does
-not own:** adding a crate the config then governs (`managing-dependencies`); how a
-`cargo xtask` task or a skill's bundled script is written (`writing-repo-scripts`); where a test goes and which coverage floor covers it
-(`placing-tests`); landing a bot's version bump (`merging-dependency-prs`); the label
-set (`triaging-issues`); lifting `unsafe_code = "forbid"` (`integrating-system-apis`).
+what a harness check claims and which exceptions it allows, what weakening a gate means
+here, and which gate can see a given change at all. **Does not own:** adding a crate the
+config then governs (`managing-dependencies`); how the code of a `cargo xtask` task, a
+harness check included, or a skill's bundled script is written (`writing-repo-scripts`);
+where a test goes and which coverage floor covers it (`placing-tests`); landing a bot's
+version bump (`merging-dependency-prs`); the label set (`triaging-issues`); lifting
+`unsafe_code = "forbid"` (`integrating-system-apis`).
 
 Never weaken a gate to make a check pass. That rule, and the list of what counts, live
 in `AGENTS.md` › "Security and human approval"; this skill neither restates nor relaxes
@@ -83,13 +85,15 @@ elsewhere, including this skill. Detail, traps, and the judgment each needs are 
   recipes are the only places a floor is written;
   a new way to set one from an environment variable, a flag, or a workflow is lowering
   it by another route.
-- **The app's security posture**: `tauri.conf.json`'s `security` and `bundle.macOS`,
-  `src-tauri/capabilities/`, and `src-tauri/Entitlements.plist` are sign-off changes
-  and ADR triggers.
-- **Workflows and the ruleset**: SHA pins, least-privilege `permissions`, timeouts,
-  `persist-credentials: false`, and a job `name:` that is a required context in
-  `.github/rulesets/main.json`. Renaming a required job leaves every pull request
-  waiting for a check that never reports.
+- **xtask's own gates**: `cargo xtask clippy-guard` (`xtask/src/clippy_guard.rs`), which
+  turns a `clippy.toml` path clippy cannot resolve into a failure, and the harness
+  checks (`xtask/src/check_harness/`, one module per claim, run by `just check-harness`).
+  A new claim is routine; removing a check, narrowing what it reads, or adding to one of
+  its `EXCEPTIONS` lists is weakening a gate.
+- **Workflows and the rulesets**: SHA pins, least-privilege `permissions`, timeouts,
+  `persist-credentials: false`, no write-scoped job that runs repository code, and a job
+  `name:` that is a required context in `.github/rulesets/main.json`. Renaming a
+  required job leaves every pull request waiting for a check that never reports.
 
 ## The pre-commit hook stays check-only and fast
 
@@ -132,13 +136,14 @@ crate has no look-around, so a rule that would need one says it another way
 
 `AGENTS.md` › "Enforcement layers" names the gaps and the reasons they stay open: the
 `#[ignore]`d tests only a human runs, `--no-verify` and the hook's other bypasses, a
-ruleset that may not be applied, and a new recipe that takes over the Mac. A gate
+ruleset that may not be applied, and a new recipe or test that takes over the Mac or a
+terminal (`myapp tui`, raw mode, the alternate screen). A gate
 proposed to close any gap is a real gate change and belongs in its pull request as one,
 with its "Enforcement layers" row updated or removed.
 
-No formatter checks JSON, YAML, or Markdown. Prettier's check over them was dropped with
-the Node toolchain rather than replaced, to keep the toolchain small: `typos` still
-reads those files and `actionlint` the workflows, and their layout is left to review
+No formatter checks JSON, YAML, or Markdown. That is a choice to keep the toolchain to
+Rust's own tools plus a few pinned binaries, not an oversight: `typos` still reads
+those files and `actionlint` the workflows, and their layout is left to review
 (wrap Markdown by hand at the width its neighbors use). Adding a formatter for them is a
 gate change of its own, with every edit "The one rule every gate change shares" lists,
 never a side effect of another pull request.
@@ -149,10 +154,10 @@ Run the check the gate feeds, then the harness, then everything:
 
 ```bash
 just lint            # a lint or format change
-just test            # core's floors, or xtask's: lefthook.yml, the guard, a gate's task
+just test            # core's floors, or xtask's: lefthook.yml, the guard, a harness check
 just test-scripts    # a skill's bundled Python or shell scripts (no floor)
 just deny            # deny.toml
-just check-harness   # workflows, the ruleset, recipes, cooldowns, ignore lists
+just check-harness   # workflows, the rulesets, recipes, cooldowns, ignore lists
 just check
 ```
 

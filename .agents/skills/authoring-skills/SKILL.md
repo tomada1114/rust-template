@@ -108,8 +108,9 @@ sentence or code block, so deleting the example leaves a rule that still reads. 
 or test depends on a skill's code block. Write placeholder names exactly (`myapp-core`,
 `myapp_core`, `MyApp`, `com.example.myapp`) so the bootstrap's rename finds them.
 
-**Platform-skill scope.** On a surface someone else documents (Rust, cargo, Tauri, a
-crate, macOS and Apple APIs, React, Python, GitHub Actions), a skill holds only this
+**Platform-skill scope.** On a surface someone else documents (Rust, cargo, clap,
+ratatui, another crate, macOS and Apple APIs, Linux, Python, GitHub Actions), a skill
+holds only this
 repository's decisions, their reasons, the mechanics that are ours (paths, recipes, crate
 names, error codes), and the traps met here. Everything else is a link to the tool's
 documentation, not a restatement of it.
@@ -129,11 +130,11 @@ greps before committing; a pinned tool goes through `mise exec --`. A remote wri
 
 **Never taking over the developer's Mac.** Every step a skill tells an agent to run
 follows `AGENTS.md` › "Never taking over the developer's Mac": on its own an agent runs
-only what shows no window, takes no focus, and raises no prompt, with `just test-platform`
-and `just logs` as its evidence. A human's recipe (`just test-local`,
-`just logs-follow`) is marked as one wherever a skill names it. A skill never has an
-agent `open` the app, script another app, build a `.dmg` locally, or start an installer
-or `sudo`; it hands the human the command instead.
+only what shows no window, takes no focus, raises no prompt, and takes over no terminal,
+with the tests, `just test-platform`, and `just logs` as its evidence. A human's recipe
+(`just test-local`, `just logs-follow`, `just install-cli`) is marked as one wherever a
+skill names it. A skill never has an agent run `myapp tui`, script another app, or
+start an installer or `sudo`; it hands the human the command instead.
 
 **For a reader new to Rust.** The human reviewing the pull requests a skill shapes may
 not read Rust fluently yet. Where a Rust rule would stop that reader, the same or the

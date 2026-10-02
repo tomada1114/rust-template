@@ -428,7 +428,7 @@ mod tests {
             ]
             .concat(),
         );
-        let publish = "  publish:\n    needs: [build]\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write\n      attestations: write\n      id-token: write\n    steps:\n      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1\n      - run: gh release create \"$TAG\" --verify-tag dist-release/*.dmg\n";
+        let publish = "  publish:\n    needs: [build]\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write\n      attestations: write\n      id-token: write\n    steps:\n      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1\n      - run: gh release create \"$TAG\" --verify-tag dist-release/*.tar.gz\n";
         assert_eq!(
             one(&format!("{build}{publish}"), "permissions: {}\n", &[]),
             []
