@@ -904,7 +904,6 @@ fn prepare_clone(
             "commit.gpgsign=false",
             "commit",
             "--quiet",
-            "--no-verify",
             "--allow-empty",
             "-m",
             "verify-bootstrap: the work tree's changes",
