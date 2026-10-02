@@ -1,4 +1,11 @@
 # `cargo xtask <task>` runs the repository's automation (xtask/). --locked keeps the
 # build on Cargo.lock; --quiet keeps cargo's own progress lines out of a hook's output.
+#
+# A hook (lefthook.yml's jobs, the PostToolUse format hook in AGENTS.md) prefixes it with
+# `CARGO_TARGET_DIR=target/xtask`, so it never waits on the lock of a workspace build
+# running in target/. The alias cannot carry that itself: an alias's `--target-dir`, like
+# CARGO_TARGET_DIR, resolves against the directory cargo runs in, so `cargo xtask` from
+# crates/ would create crates/target/, which `members = ["crates/*"]` then reads as a
+# workspace member. The hooks always run from the workspace root, where it is safe.
 [alias]
 xtask = "run --locked --quiet --package xtask --"

@@ -522,7 +522,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 
 | Layer | Fires on | Applies to | Holds |
 |---|---|---|---|
-| lefthook's pre-commit hook (`lefthook.yml`) | `git commit` | anyone who ran `just install` | check-only and fast, on the staged files: `rustfmt --check`, `prettier --check`, `eslint --max-warnings 0`, `typos`, and the staged guard. No clippy or test step — `just check` and CI run those (`cargo xtask` compiles the xtask crate on its first run and after `xtask/` changes). On the commit that concludes a conflicted merge, or one made at a rebase stop, the four style jobs skip (CI reruns them over the whole tree) and the staged guard and the skills mirror still run |
+| lefthook's pre-commit hook (`lefthook.yml`) | `git commit` | anyone who ran `just install` | check-only and fast, on the staged files: `rustfmt --check`, `prettier --check`, `eslint --max-warnings 0`, `typos`, and the staged guard. No clippy or test step — `just check` and CI run those (`cargo xtask` compiles the xtask crate on its first run and after `xtask/` changes, into `target/xtask`, so a commit never waits on a workspace build's lock). On the commit that concludes a conflicted merge, or one made at a rebase stop, the four style jobs skip (CI reruns them over the whole tree) and the staged guard and the skills mirror still run |
 | `cargo xtask check-staged` (the hook's staged guard, `xtask/src/check_staged.rs`; rules in `xtask/guard/`) | `git commit`, whatever is staged, including the commit that concludes a conflicted merge | anyone who ran `just install` | no secret-shaped path (`.env*`, `.envrc.*`, `secrets/`, signing material, SSH keys, `.claude/settings.local.json`) or credential-shaped content (private-key header, GitHub token, AWS keys, Anthropic or OpenAI API key, Slack token, Google API key, Stripe live key, and the rest `credentials.rs` lists) lands in a commit; judged from the index, so a partly staged file is judged as committed; staged deletions are never inspected |
 | `cargo xtask verify-hooks` (`just install`'s last step, `just check`'s first) | `just install`, `just verify-hooks`, and `just check` | anyone who runs one | lefthook's pre-commit hook is installed in this checkout — skips under CI or the `ALLOW_MISSING_GIT_HOOKS` opt-out |
 | The core boundary: core's `Cargo.toml`, `deny.toml`'s `[bans]` `wrappers`, and the dependency-closure harness check | compile, `just deny`, `just check-harness`, and CI's `Rust Core` and `Repo Lint & Harness` jobs | every author | core cannot name tauri, an OS binding crate, or `myapp-platform`; only `myapp` depends on `myapp-platform`; `myapp-test-support` is dev-only — three mechanisms, so removing one leaves the others |
@@ -583,11 +583,13 @@ removing or narrowing its bullet here:
   recipes that need a human or write outside the checkout (`test-local`, `logs-follow`,
   `install-cli`) and those that write to GitHub or rewrite the repository
   (`bootstrap`, `labels`, `ruleset`). The same file is where to register
-  to register `cargo xtask format-edited-file` (`xtask/src/format_edited_file.rs`) as a
+  `cargo xtask format-edited-file` (`xtask/src/format_edited_file.rs`) as a
   `PostToolUse` hook on `Edit|Write|MultiEdit`
-  (`cd "$CLAUDE_PROJECT_DIR" && mise exec -- cargo xtask format-edited-file`), which
-  formats the one `.rs` (rustfmt, fed on stdin so it never rewrites a `mod` child) or
-  TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the
+  (`cd "$CLAUDE_PROJECT_DIR" && CARGO_TARGET_DIR=target/xtask mise exec -- cargo xtask format-edited-file`;
+  the separate target directory keeps every edit from waiting on the lock of a workspace
+  build, such as a `just check` running meanwhile, and `.cargo/config.toml` says why the
+  alias cannot carry it), which formats the one `.rs` (rustfmt, fed on stdin so it never
+  rewrites a `mod` child) or TypeScript, JavaScript, JSON, CSS, HTML, or YAML (Prettier, the extensions the
   pre-commit hook checks) file an edit touched inside the checkout and reports a
   formatter failure back to the agent (exit 2) — a convenience on that host, not a gate.
   Codex CLI, another agent, and a human at a shell are bound by the instructions in this
