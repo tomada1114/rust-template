@@ -144,7 +144,7 @@ later. A compiler error is named by code and plain meaning with its error-index 
 follow `AGENTS.md`; any other is explained in a clause on first use. The language is
 linked, not taught (The Rust Book, https://doc.rust-lang.org/book/).
 
-**Sub-agent steps.** A step handed to `executor`, `architect`, or `worker` names the tier
+**Sub-agent steps.** A step handed to `executor`, `architect`, `scout`, or `worker` names the tier
 by `subagent_type` and still works when a Codex CLI agent runs it inline.
 
 ## Size

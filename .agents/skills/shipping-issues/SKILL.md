@@ -65,7 +65,7 @@ A `blocked: design` issue ships only when named, or with `--include-design` (ste
 
 ## Sub-agents and run state
 
-Spawn by `subagent_type` (`executor`, `architect`, or `worker`, as
+Spawn by `subagent_type` (`executor`, `architect`, `scout`, or `worker`, as
 [cost-discipline.md](references/cost-discipline.md) assigns each step), never a bare
 `model`, with the prompts in
 [delegation-templates.md](references/delegation-templates.md). A resume goes to the same
