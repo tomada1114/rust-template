@@ -2,7 +2,7 @@
 
 <!-- template-only: cargo xtask bootstrap removes docs/template/ from a generated app. -->
 
-The finalized [design.md](design.md) uses 23 repository skills. Their authored source
+The finalized [design.md](design.md) uses 22 repository skills. Their authored source
 is `.agents/skills/`; `just agents-sync` generates the byte-for-byte
 `.claude/skills/` mirror. The Skills table in `AGENTS.md` owns when to load each.
 
@@ -26,7 +26,6 @@ to take over the developer's machine or terminal.
 | `steering-the-roadmap` | Now, Next, and Later in the app's roadmap. |
 | `merging-dependency-prs` | Dependency updates and isolated terminal-framework migrations. |
 | `updating-docs` | Which maintained document a change owes. |
-| `recording-architecture-decisions` | Proposed app ADRs and their index. |
 | `changing-gates` | Gate configurations, protected changes, and enforcement evidence. |
 | `writing-repo-scripts` | Rust tasks and skill scripts with fakes and temporary fixtures. |
 | `managing-dependencies` | Crate review, features, licences, and human sign-off. |

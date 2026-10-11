@@ -14,7 +14,7 @@ and passes the tests, not that it is the version anyone meant to trust.
   `groups` › `update-types`, checked 2026-09-30), so it arrives inside a
   `*-minor-and-patch` group, and the survey marks that bump `(major)`. Note removed APIs,
   a raised minimum Rust version (`rust-version` in `Cargo.toml` is `1.90`, and raising it
-  is an ADR decision), and new lints.
+  is a design change), and new lints.
 - Where to find them: the PR body's release-notes section, or
   `gh release view <tag> --repo <owner>/<repo>`.
 
@@ -83,8 +83,8 @@ with the command above, 2026-10-02; the two targets are `deny.toml`'s `[graph]`
 - crossterm is reached only through `ratatui::crossterm`. A direct `crossterm`
   requirement in a manifest is a new dependency, not a bump: stop and ask. A
   `Cargo.lock` diff that leaves two crossterm versions behind is named in the plan.
-- A clap major or ratatui 1.0 owes an ADR before it lands
-  (`recording-architecture-decisions`); a pre-1.0 ratatui minor does not.
+- A clap major or ratatui 1.0 is a design change a human approves before it lands
+  (`AGENTS.md` › "Before changing the architecture"); a pre-1.0 ratatui minor is not.
 
 ## Security updates
 

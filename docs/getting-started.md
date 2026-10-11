@@ -77,7 +77,7 @@ macOS — Accessibility, Full Disk Access, and the like — `just test-local` ru
 `#[ignore]`d tests that need a logged-in session, a TCC grant, or the Keychain. You
 start it; nothing else does. macOS grants such a permission to the program that asks,
 so how a tool installed with `cargo install` keeps its grant across rebuilds is a
-decision for that app's ADR.
+decision that app writes into its design description.
 
 ## Removing the example code
 

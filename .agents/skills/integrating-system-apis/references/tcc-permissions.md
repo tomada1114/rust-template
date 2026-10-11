@@ -88,8 +88,9 @@ lives in `crates/myapp/src/wording.rs` like any other.
 Some TCC-gated APIs require an `NS…UsageDescription` key in the program's `Info.plist`,
 and the system ends the process at the call when the key is missing, which is worse
 than a refusal. `myapp` is a bare binary with no bundle and no `Info.plist`, so an API
-that needs a key also needs a decision on how the binary carries one: an ADR, in the
-pull request that adds the API. Not every permission has a key: check the API's own
+that needs a key also needs a decision on how the binary carries one, written into the
+design description (`AGENTS.md` › "Before changing the architecture") in the pull
+request that adds the API. Not every permission has a key: check the API's own
 Apple page rather than assuming either way.
 
 ## Which program holds the grant
@@ -109,8 +110,8 @@ recommends a stable signing identity for day-to-day work with TCC
 is the designated requirement,
 <https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements>).
 This is the reason an agent debugging a TCC feature concludes the code is broken when it
-is not. How an app that needs grants signs its builds is that app's decision, in an
-ADR; signing settings are a sign-off change (`AGENTS.md` › "Security and human
+is not. How an app that needs grants signs its builds is that app's decision, written
+into its design description; signing settings are a sign-off change (`AGENTS.md` › "Security and human
 approval"). When System Settings shows an entry that grants nothing, `tccutil reset`
 (a human's step; `man tccutil`) makes macOS forget a program's decisions so the next
 run asks again.

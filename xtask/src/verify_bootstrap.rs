@@ -84,9 +84,9 @@ const TEMP_PREFIX: &str = "verify-bootstrap-";
 /// Text that holds only in the template: its design record (which the bootstrap
 /// deletes), a decision cited by its number in that record, README's template-only
 /// section, the app the template was first written for, and a sentence about the
-/// template itself — what it ships ("the template ships the index empty") or where its
-/// own reasoning lives. An app is not the template, so it keeps none of it; a passage that
-/// must survive is worded for both ("the index starts empty"). The bootstrap removes the
+/// template itself — what it ships ("the template ships the roadmap as a skeleton") or
+/// where its own reasoning lives. An app is not the template, so it keeps none of it; a
+/// passage that must survive is worded for both ("the roadmap starts as a skeleton"). The bootstrap removes the
 /// `verify-bootstrap` task and recipe, so an app names neither as a command.
 pub(crate) const TEMPLATE_TEXT: [&str; 7] = [
     r"docs/template",
@@ -1086,7 +1086,7 @@ mod tests {
         write(
             root,
             "docs/guide.md",
-            "See [the guide](../AGENTS.md#product), [a site](https://example.com), [a template](adr/NNNN-<title>.md), and `[code](missing.md)`.\nRun `just check`.\n\n```sh\njust check\n[fenced](missing.md)\n```\n",
+            "See [the guide](../AGENTS.md#product), [a site](https://example.com), [a template](notes/<title>.md), and `[code](missing.md)`.\nRun `just check`.\n\n```sh\njust check\n[fenced](missing.md)\n```\n",
         );
         write(root, "target/debug/notes.md", "MyApp");
         dir
@@ -1116,7 +1116,7 @@ mod tests {
         write(
             root,
             "notes.txt",
-            "The template ships the index empty; see docs/template.\nRun `just verify-bootstrap`.\n",
+            "The template ships the roadmap as a skeleton; see docs/template.\nRun `just verify-bootstrap`.\n",
         );
         write(root, "docs/template/design.md", "x\n");
         write(

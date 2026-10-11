@@ -24,8 +24,8 @@ state transitions look like, what leaves it, and which patterns are not adopted.
 **Does not own:** the Rust idiom inside a function (`writing-rust`); error enums and
 codes (`designing-errors`); how a subcommand prints a view (`designing-clis`); how a
 screen is drawn and its terminal run (`building-tuis`); an adapter that talks to the OS
-(`integrating-system-apis`); the test-first loop (`tdd`); recording a decision to change
-any of this (`recording-architecture-decisions`).
+(`integrating-system-apis`); the test-first loop (`tdd`); which other documents a
+change to any of this rewrites (`updating-docs`).
 
 ## Why this shape
 
@@ -85,8 +85,9 @@ reading the clock is banned, not representing time.
   behind it.
 - A port is a synchronous `Send + Sync` trait with `&self` methods, over types core
   owns. A new one comes with its adapter, its fake, and its `<port>_contract` function
-  in the same change, and it is an architecture decision (`AGENTS.md` › "Before
-  changing the architecture"). **REQUIRED:** `recording-architecture-decisions`.
+  in the same change, and it is an architecture change (`AGENTS.md` › "Before
+  changing the architecture"): the same change describes the port in `AGENTS.md` ›
+  Architecture and `docs/architecture.md`, and why core needs it.
 - No `async` in core. Ports are plain calls, and the binary makes them on its own
   thread: a subcommand simply waits, and a call slow enough to freeze the TUI is the
   binary's to move onto a thread, its result fed back to the loop as an action. This
@@ -162,9 +163,10 @@ reading the clock is banned, not representing time.
 
 ## Deliberately not adopted
 
-Each is a pattern an implementer may reach for out of habit. Adopting one needs an ADR
-naming the problem the current shape cannot solve (**REQUIRED:**
-`recording-architecture-decisions`).
+Each is a pattern an implementer may reach for out of habit. Adopting one is an
+architecture change (`AGENTS.md` › "Before changing the architecture"): the same change
+rewrites this skill to describe the shape it adopts, and why, naming the problem the
+current shape cannot solve, in place of the row below.
 
 | Pattern | Why not |
 |---|---|

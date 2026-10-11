@@ -5,7 +5,7 @@ resolver = "3" # explicit: a virtual manifest has no edition to infer it from
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.90" # raise it deliberately, through an ADR
+rust-version = "1.90" # raise it deliberately: a design change (AGENTS.md)
 license = "MIT"
 publish = false
 

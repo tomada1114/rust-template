@@ -5,7 +5,7 @@
 //!
 //! Read: [`super::documents::standing_documents`], every line (prose, code spans, code
 //! blocks, and YAML alike). Not read: a skill's scripts and tests, which are code, and the
-//! planning and decision records in [`super::documents::UNCHECKED_DOCUMENTS`].
+//! design and planning records in [`super::documents::UNCHECKED_DOCUMENTS`].
 //!
 //! A reference is any of:
 //! - `#` then digits, bare (`#139`) or after this repository's owner/repo
@@ -356,7 +356,7 @@ contact_links:
             (".github/ISSUE_TEMPLATE/notes.txt", Some("Fixed in #12.\n")),
             ("docs/guide.md", Some(CLEAN)),
             ("docs/design/system.md", Some(CLEAN)),
-            ("docs/architecture/README.md", Some(CLEAN)),
+            ("docs/architecture/overview.md", Some(CLEAN)),
             ("README.md", Some("Fixed in #12.\n")),
         ];
         files.extend(
@@ -426,7 +426,7 @@ contact_links:
             ("CLAUDE.md", "The hook changed in #88.", "#88"),
             (".claude/rules/x.md", "Banned since #5.", "#5"),
             ("docs/x.md", "Decided in #31.", "#31"),
-            ("docs/architecture/README.md", "Indexed in #31.", "#31"),
+            ("docs/architecture/notes.md", "Indexed in #31.", "#31"),
             (".claude/agents/x.md", "see #12", "#12"),
             (
                 ".github/ISSUE_TEMPLATE/bug_report.yml",
