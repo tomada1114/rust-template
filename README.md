@@ -199,8 +199,8 @@ A tool for its owner is built and installed from its own checkout with
 `cargo install --locked --path crates/myapp` (`just install-cli`): no secret, no tag,
 and no CI involved. `CHANGELOG.md` and the workspace version still record what changed.
 A release workflow, signed or prebuilt binaries, a package-manager tap, or crates.io
-publishing is a decision an app records in an ADR when a tool needs to reach other
-people.
+publishing is a design change an app makes, and writes into its own design
+description, when a tool needs to reach other people.
 <!-- template-only -->
 ### Why a bootstrap script?
 
@@ -237,15 +237,20 @@ is each person's choice, so no `.claude/settings.json` is committed: permissions
 format-on-edit hook live in a user-level or gitignored local settings file, and the
 gates and `AGENTS.md`, not a permission list, are what bind every author.
 
-### Why an ADR tree that ships empty?
+### Why is the design recorded only as it stands?
 
 The decisions in this section are the shared foundation's. Each app decides different
-things — where it keeps state, which platforms it targets, which permissions it asks
-for, whether it ever ships releases — and records each as an Architecture Decision Record
-under [docs/architecture/](docs/architecture/README.md), whose index ships empty.
-A replaced decision gets a new ADR rather than a rewrite, so the reasoning that held at
-the time stays readable. [docs/architecture/roadmap.md](docs/architecture/roadmap.md)
-ships as a skeleton for the app's direction.
+things on top of them — where it keeps state, which platforms it targets, which
+permissions it asks for, whether it ever ships releases — and writes each into the
+documents that already describe that subject: `AGENTS.md`,
+[docs/architecture.md](docs/architecture.md), and the skill that owns it, stating the
+current design and the reasoning behind it in the present tense. There is no numbered
+decision log with statuses to keep in step beside them: a reader, human or agent,
+learns why the app is the way it is from the same text that says what it is, and a
+replaced decision rewrites that text rather than leaving the old reasoning next to the
+new. Git history holds what the design used to be.
+[docs/architecture/roadmap.md](docs/architecture/roadmap.md) starts as a skeleton for
+the app's direction.
 
 ### Why may nothing a check runs take over your machine or terminal?
 
@@ -277,7 +282,7 @@ view is yours to run.
 3. Review the rewrite (`git status`, `git diff`), and commit it as one commit before
    you edit anything, so the rename stays one reviewable diff.
 4. Fill in `AGENTS.md`'s `## Product` section: what the app is and who it is for, the
-   core interaction, and the non-goals it must not grow. Delete every `TODO:` marker as
+   core interaction, the non-goals it must not grow, and why it is shaped that way. Delete every `TODO:` marker as
    you go; `just check` fails while one is left.
 5. Fill in the [docs/architecture/roadmap.md](docs/architecture/roadmap.md) skeleton —
    the Now, Next, and Later outcomes that follow from the Product section — with the
@@ -354,8 +359,7 @@ just install-cli  # install the myapp binary into ~/.cargo/bin (a human's step)
 - [Getting Started](docs/getting-started.md)
 - [Architecture](docs/architecture.md)
 - [OpenRouter](docs/openrouter.md)
-- [Architecture Decisions](docs/architecture/README.md) and the
-  [Roadmap](docs/architecture/roadmap.md)
+- [Roadmap](docs/architecture/roadmap.md)
 - [Contributing](CONTRIBUTING.md), [Security Policy](SECURITY.md),
   [Code of Conduct](CODE_OF_CONDUCT.md), [Changelog](CHANGELOG.md)
 <!-- template-only -->

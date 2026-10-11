@@ -20,9 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and agent tooling.
 
 - Documentation: the README's design rationale, contributing and security policies, a
-  code of conduct, architecture and getting-started guides, an
-  empty architecture-decision index with its template, a roadmap skeleton, issue forms,
-  and a pull request template.
+  code of conduct, architecture and getting-started guides, a roadmap skeleton, issue
+  forms, and a pull request template.
 - `just verify-bootstrap` runs `cargo xtask verify-bootstrap` locally, so a placeholder
   spelling or template-only text the bootstrap would leave behind fails before the push
   rather than in CI's Template Bootstrap Smoke job. `AGENTS.md` › Validating a change
@@ -143,12 +142,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs, and logs; a human runs the real terminal loop.
 
 - The documentation and workflow skills describe the command-line contracts,
-  platform data and log directories, local installation, app ADRs, and terminal
-  evidence. Dependency updates cover crates, Actions, and tool pins; ratatui and
-  crossterm minor migrations land on their own PRs.
+  platform data and log directories, local installation, and terminal evidence.
+  Dependency updates cover crates, Actions, and tool pins; ratatui and crossterm minor
+  migrations land on their own PRs.
 
 ### Removed
 
+- Architecture Decision Records: the decision index, the ADR template, and the
+  `recording-architecture-decisions` skill are gone. An app keeps its design as it
+  stands now: a change `AGENTS.md` › "Before changing the architecture" lists rewrites
+  `AGENTS.md`, `docs/architecture.md`, and the skill that owns the subject, with the
+  reasoning in the present tense, and git history holds what they said before. The
+  Product section's last entry now asks why the app is shaped as it is, and the
+  harness and bootstrap no longer exempt or ship `docs/architecture/adr/`.
 - Unused desktop front-end dependency bans and fixtures, superseded design notes,
   and obsolete GUI entries in the unreleased changelog. The finalized template design
   records the CLI/TUI stack and optional model-call feature.
@@ -241,8 +247,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.claude/skills/` through `cargo xtask sync-agents --check --staged`, so a missing
   staged mirror is refused even when working copies match. The editing hook formats
   only its supplied Rust file. Harness checks also read the shared guides, rules,
-  sub-agent definitions, nested documents, and issue forms; template design records,
-  roadmaps, and ADRs remain outside the standing-document issue-reference check.
+  sub-agent definitions, nested documents, and issue forms; template design records
+  and roadmaps remain outside the standing-document issue-reference check.
 
 - A `Tuning` whose `min` is above its `max` is refused. `clock_contract` permits
   wall-clock reads to move backward, and core's doctests exercise documented usage.

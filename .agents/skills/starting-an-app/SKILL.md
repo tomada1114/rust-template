@@ -7,7 +7,7 @@ description: >
   myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
   Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the tool's
   shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
-  and the first ADRs; removing the sample counter; installing it with just install-cli;
+  and why; removing the sample counter; installing it with just install-cli;
   just labels, just ruleset, the GitHub security settings, and private-repository
   steps. Use when starting an app from this repository, running or changing the
   bootstrap, a placeholder survived the rename, just check-harness fails on the Product
@@ -18,10 +18,10 @@ description: >
 
 **Owns:** the order of work from "Use this template" to an app's first feature: the
 bootstrap, the Product section and roadmap as steps, the tool's shape, where it keeps
-state, the first ADRs, removing the sample, installing the tool, and the new
-repository's GitHub setup. **Does not own:** how a task or script is written
-(`writing-repo-scripts`); what the roadmap says (`steering-the-roadmap`); how an ADR is
-written (`recording-architecture-decisions`); a subcommand's shape (`designing-clis`);
+state, writing the first decisions down, removing the sample, installing the tool, and
+the new repository's GitHub setup. **Does not own:** how a task or script is written
+(`writing-repo-scripts`); what the roadmap says (`steering-the-roadmap`); which document
+a decision's reasoning lands on (`updating-docs`); a subcommand's shape (`designing-clis`);
 the full-screen view (`building-tuis`); a system API or TCC permission
 (`integrating-system-apis`); what a gate may contain (`changing-gates`); README's prose
 (`updating-docs`).
@@ -44,7 +44,7 @@ so this skill is where an app still finds them.
 3. **Commit the rewrite**: review it (`git status`, `git diff`), and commit it as one
    commit before editing anything, so the rename stays one reviewable diff.
 4. **Write `AGENTS.md`'s `## Product` section**: what the app is and who it is for, the
-   core interaction, the non-goals, and where those decisions are recorded. The owner
+   core interaction, the non-goals, and why it is shaped this way. The owner
    decides every line; an agent drafts only from what the owner has said. Delete each
    `TODO:` as it is replaced: once the bootstrap has run, `just check-harness` (and so
    `just check`) fails while one is left. Write it before any feature: without it, an
@@ -66,7 +66,7 @@ so this skill is where an app still finds them.
 8. **Security settings and the Renovate App**, turned on by the repository's admin:
    `AGENTS.md` › "GitHub settings a new repository must enable".
 9. **Replace the sample** with the app, in the order of the sections below: the tool's
-   shape, where it keeps state, the first ADRs, then removing the sample.
+   shape, where it keeps state, writing those decisions down, then removing the sample.
 10. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
     `just ruleset`, which applies `main.json` and the `release-tags` tag ruleset. From
     then on every change needs a pull request with the required checks green, so the
@@ -94,8 +94,8 @@ app needs, and write it into the Product section's core interaction:
   and the binary's tests reach.
 
 A configuration file, an environment variable the tool reads, or a `--json` form of its
-output is part of its command-line contract (`designing-clis`); a settings file is an
-ADR too (below).
+output is part of its command-line contract (`designing-clis`); a settings file is a
+persistence decision too (below).
 
 ## Decide where it keeps state
 
@@ -105,18 +105,22 @@ The sample keeps `counter.json` where each system expects an app's data:
 beside them. The bundle identifier and the slug the bootstrap set key those
 directories, so they are fixed once the tool has run anywhere a user's data lives.
 Decide the app's own files — where, in what format, with what version field — as soon
-as it keeps state of its own, and record it as an ADR. A privacy (TCC) permission the
-tool will need on macOS is decided here too, each its own ADR
-(`integrating-system-apis`).
+as it keeps state of its own, and write it down (below). A privacy (TCC) permission the
+tool will need on macOS is decided here too (`integrating-system-apis`).
 
-## Record the first ADRs
+## Write the first decisions down
 
-Write each as Proposed (only the owner accepts), in `docs/architecture/adr/` with its row
-in `docs/architecture/README.md`, per `recording-architecture-decisions`: persistence
-(where and in what format the tool keeps state) as soon as it keeps state of its own,
-each new crate the first features need, any TCC permission, and any platform the tool
-adds or drops beyond macOS and Linux. Every external claim in them carries its URL and
-the date it was checked.
+Each of these is a change `AGENTS.md` › "Before changing the architecture" lists, so the
+pull request that makes it also rewrites the description of the design as it now
+stands, in place of the sample's: persistence (where and in what format the tool keeps
+state) as soon as it keeps state of its own, each new crate the first features need, any
+TCC permission, and any platform the tool adds or drops beyond macOS and Linux. Each
+lands where its subject is already described — `AGENTS.md` › Architecture,
+`docs/architecture.md` (its contract table for a file format or a data location), and
+the skill that owns the subject — stating the current design and why, in the present
+tense; there is no separate decision record to file. A new crate still carries its
+review record and the owner's sign-off (`managing-dependencies`). Every external claim
+carries its URL and the date it was checked.
 
 ## Remove the sample
 
@@ -143,8 +147,9 @@ tool with a screen, the TUI's enter, leave, and panic-hook code.
 There is no release pipeline: the tool is built and installed from its checkout with
 `just install-cli` (`cargo install --locked --path crates/myapp`), which writes to
 `~/.cargo/bin` outside the checkout, so it is a human's step. Reaching other people —
-a release workflow, prebuilt or signed binaries, a tap, crates.io — is an ADR and a
-sign-off change (`AGENTS.md` › "Security and human approval"), not a setup step.
+a release workflow, prebuilt or signed binaries, a tap, crates.io — is a design change
+(`AGENTS.md` › "Before changing the architecture") and a sign-off change (`AGENTS.md` ›
+"Security and human approval"), not a setup step.
 
 ## What the new app keeps
 

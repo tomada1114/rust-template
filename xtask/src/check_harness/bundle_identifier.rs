@@ -99,7 +99,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
                 .map(|(path, value)| format!("{path}: {value}"))
                 .collect::<Vec<_>>()
                 .join("; "),
-            "set both to the same value in one commit (the bootstrap rewrites both for a new app); changing an app's identifier moves its data and log directories, an ADR decision",
+            "set both to the same value in one commit (the bootstrap rewrites both for a new app); changing an app's identifier moves its data and log directories, a design change AGENTS.md › \"Before changing the architecture\" names",
         ));
     }
     violations

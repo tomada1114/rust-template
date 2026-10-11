@@ -26,7 +26,7 @@ const CONF: &str = "justfile";
 // absence from the justfile is what tells this check the bootstrap has run.
 const PLACEHOLDER_IDENTIFIER: &str = concat!("com.example.", "my", "app");
 const MARKER: &str = "TODO:";
-const FILL_IT: &str = "write AGENTS.md's `## Product` section for this app (what it is and for whom, the core interaction, its non-goals, where those decisions are recorded) and delete every `TODO:` (the `starting-an-app` skill walks through it)";
+const FILL_IT: &str = "write AGENTS.md's `## Product` section for this app (what it is and for whom, the core interaction, its non-goals, and why it is shaped this way) and delete every `TODO:` (the `starting-an-app` skill walks through it)";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -176,9 +176,9 @@ in docs/TODO.md.
 
 - **Non-goals** — sync, sharing, and reminders.
 
-### Where these decisions are recorded
+### Why it is shaped this way
 
-docs/architecture/.
+Planning happens once, before the day starts, so nothing here interrupts it.
 
 ";
 

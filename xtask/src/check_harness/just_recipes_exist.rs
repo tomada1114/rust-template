@@ -5,7 +5,7 @@
 //!
 //! Read: every document an agent or a contributor follows —
 //! [`super::documents::standing_documents`], plus `README.md`, `CONTRIBUTING.md`, and
-//! `.github/PULL_REQUEST_TEMPLATE.md` — except the planning and decision records in
+//! `.github/PULL_REQUEST_TEMPLATE.md` — except the design and planning records in
 //! [`super::documents::UNCHECKED_DOCUMENTS`], which may name a recipe before it exists.
 //! Only code is read — inline code spans (which may wrap across lines, but never across a
 //! blank line) and fenced blocks — so English prose ("just to be safe") never counts. An
@@ -539,16 +539,11 @@ body:
             };
             files.push((file, Some("A planned `just not-yet`.\n".to_owned())));
         }
-        // Named literally too, so dropping either from UNCHECKED_DOCUMENTS fails here.
-        for file in [
-            "docs/architecture/roadmap.md",
-            "docs/architecture/adr/0001-a-choice.md",
-        ] {
-            files.push((
-                file.to_owned(),
-                Some("A planned `just not-yet`.\n".to_owned()),
-            ));
-        }
+        // Named literally too, so dropping it from UNCHECKED_DOCUMENTS fails here.
+        files.push((
+            "docs/architecture/roadmap.md".to_owned(),
+            Some("A planned `just not-yet`.\n".to_owned()),
+        ));
         for (path, content) in overrides {
             files.retain(|(existing, _)| existing != path);
             files.push(((*path).to_owned(), content.map(str::to_owned)));

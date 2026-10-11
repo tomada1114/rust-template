@@ -7,7 +7,9 @@ paths:
 ---
 
 - Written in English
-- Document non-obvious behavior, architecture decisions, and trade-offs
+- Document non-obvious behavior, architecture decisions, and trade-offs as the present
+  state, in place: rewrite the passage a change makes stale rather than appending a
+  dated note, since git history holds what it said before
 - Do NOT document what is obvious from the code or already expressed by the type system
 - Code examples must be valid Rust, Python, or shell that works with the current
   project; command examples must match the `justfile` recipes (a harness check fails on
@@ -21,9 +23,8 @@ paths:
   (`issue N`, `issue number N`, `PR-N`), `GH-` and digits, or a `gh issue`/`gh pr`
   command given a number; `just check-harness` fails
   on one under `docs/`. A link to a tracking issue is fine in a temporary exception's
-  entry (a `deny.toml` or `osv-scanner.toml` ignore), in the roadmap
-  (`docs/architecture/roadmap.md`), and in an ADR (`docs/architecture/adr/`), which the
-  check does not read; an upstream project's issue or pull-request URL, or its
+  entry (a `deny.toml` or `osv-scanner.toml` ignore) and in the roadmap
+  (`docs/architecture/roadmap.md`), which the check does not read; an upstream project's issue or pull-request URL, or its
   `owner/repo#N`, is fine anywhere as the source of an external claim
 - Keep README's Design Philosophy in sync when a documented decision changes
 - User-facing changes get a CHANGELOG entry under `[Unreleased]` in the same PR

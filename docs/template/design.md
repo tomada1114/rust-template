@@ -17,7 +17,7 @@ ends; an app replaces it with its own domain.
 
 The template supplies command-line and terminal interfaces. It imposes no general
 prohibition on future graphical front ends; an app's dependency and architecture
-changes still follow its review and ADR policies.
+changes still follow its review and design-change policies.
 
 Current scope excludes Windows, a release pipeline, prebuilt or signed artifacts,
 package-manager publishing, an updater, and a second wording language. Those become
@@ -86,7 +86,7 @@ ratatui draws core views with the crossterm backend. Core owns the screen state 
 key table; the binary owns rendering and the terminal loop. The terminal is restored
 on exit, error, and panic. The terminal's own colors provide the base style; every
 action has a named key, and meaning never depends on color alone. An app-specific
-theme requires an ADR.
+theme is a design change.
 
 ### D9. Tool pinning
 
@@ -162,7 +162,7 @@ exceptions need the reason, expiry, and sign-off the repository policy specifies
 A tool is installed from its checkout with
 `cargo install --locked --path crates/myapp`. There is no release pipeline.
 The changelog and workspace version remain, and release tags are human-authorized
-actions. Distribution is revisited in an app's ADR when another audience needs it.
+actions. Distribution is revisited as an app's design change when another audience needs it.
 
 ### D19. Bootstrap
 
@@ -183,10 +183,11 @@ configuration; repository gates and instructions govern the shared work.
 ### D21. Documentation and app decisions
 
 The README provides the tour and rationale, `CONTRIBUTING.md` the working commands,
-and `docs/architecture.md` the contracts and layers. App decisions are proposed as
-ADRs under `docs/architecture/`, where only the human accepts them. The template's
-design and skill notes are removed during bootstrap so an app starts with its own
-Product statement and roadmap.
+and `docs/architecture.md` the contracts and layers. An app's decisions are written
+into `AGENTS.md`, `docs/architecture.md`, and the owning skill as the design stands
+now, with their reasons, and git history holds earlier versions; there is no separate
+decision log. The template's design and skill notes are removed during bootstrap so an
+app starts with its own Product statement and roadmap.
 
 ### D22. Never taking over the developer's machine or terminal
 

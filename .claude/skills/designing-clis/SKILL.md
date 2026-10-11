@@ -146,7 +146,7 @@ The sample has no `--json`; add one only when a tool's output is consumed by a p
 - clap's `#[arg(env = "…")]` needs clap's `env` feature
   (<https://docs.rs/clap/latest/clap/_features/index.html>, checked 2026-10-01), which
   the workspace does not enable; turning it on is a dependency change.
-- A config file is persistence: where it lives and its format are an ADR decision
+- A config file is persistence: where it lives and its format are a design change
   (`AGENTS.md` › "Before changing the architecture"), and reading it belongs in
   `myapp-platform`. A value that does not parse fails the run with exit 1 and wording
   that names the setting and where it came from, never silently falls back.

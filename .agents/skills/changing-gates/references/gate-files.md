@@ -61,7 +61,7 @@ does not pin. Changing an option reformats the whole tree: land the option and t
   ships: the tool is built for Apple-silicon macOS and for x86-64 Linux. `Cargo.lock`
   lists every platform's dependencies, Windows' included, and carries advisories for code
   neither target builds; the targets select the shipped graph and ignore nothing inside
-  it. Adding or dropping a target is a new target platform, an ADR.
+  it. Adding or dropping a target is a new target platform, a design change.
 - `[licenses] allow` and `.github/workflows/dependency-review.yml`'s `allow-licenses`
   hold one permissive policy, read for different graphs: `cargo deny` reads the crates,
   Dependency Review every ecosystem a pull request's dependency diff shows (crates and
@@ -73,8 +73,8 @@ does not pin. Changing an option reformats the whole tree: land the option and t
 - `[bans] deny` with `wrappers` says which crate may depend on `myapp-platform`
   directly: only `myapp`, the binary. It changes together with `AGENTS.md`'s boundary
   list and the closure check, and `just check-harness` fails when they differ.
-- `[sources]` allows crates.io only. A git dependency is a new source: an ADR and a
-  sign-off, never a quiet `allow-git` line.
+- `[sources]` allows crates.io only. A git dependency is a new source: a design change
+  and a sign-off, never a quiet `allow-git` line.
 - An advisory is fixed by updating. Only when no fixed release exists may it be
   ignored, with its reason, an `ignoreUntil` (OSV) or dated comment (`deny.toml`) at
   most 90 days out, and a tracking issue. An OSV ignore for a crate absent from
@@ -181,8 +181,8 @@ What every workflow follows, checked by `actionlint`, `zizmor`, and `just check-
   that job's `jdx/mise-action` `install_args`;
 - no job whose token holds a write scope checks out or runs repository code
   (`workflow-write-scopes`), apart from its reasoned `EXCEPTIONS`;
-- the tool has no release workflow. Adding one is a sign-off change and an ADR
-  (distribution), and it would use no Rust build cache, where a poisoned cache would
+- the tool has no release workflow. Adding one is a sign-off change and a design
+  change (distribution), and it would use no Rust build cache, where a poisoned cache would
   reach a shipped binary.
 
 A new workflow file is warranted only by a different trigger or a separate permission

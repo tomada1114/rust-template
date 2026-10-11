@@ -17,9 +17,11 @@ be earned.
 It is earned only when an adapter needs a framework call that no system command and no
 safe crate covers. Then, in one pull request:
 
-1. **An ADR** (`recording-architecture-decisions`), Proposed until the owner accepts it:
-   which framework, which calls, why step 2 of the mechanism list (a system command)
-   does not answer, and the one module the `unsafe` is confined to.
+1. **The design, written down** in `AGENTS.md` › Architecture and this skill, as the
+   present state (`AGENTS.md` › "Before changing the architecture"): which framework,
+   which calls, why step 2 of the mechanism list (a system command) does not answer,
+   and the one module the `unsafe` is confined to. Nothing lands until the owner signs
+   off (step 3 is a gate change).
 2. **The dependency review** for each `objc2-*` crate (`managing-dependencies`), with
    `default-features = false` and only the framework features the calls need, and the
    crate declared for macOS only.
@@ -34,7 +36,7 @@ safe crate covers. Then, in one pull request:
    itself.
 
 Lifting `forbid` to get past a borrow-checker error is weakening a gate
-(`AGENTS.md` › "Security and human approval"), whatever the ADR says.
+(`AGENTS.md` › "Security and human approval"), whatever the written design says.
 
 ## The shape of an `unsafe` call
 
@@ -89,7 +91,8 @@ an adapter makes from a handler is on it, and a call from a thread the binary st
   thread blocking on a result that another thread can only produce by posting back to
   the main thread. Some framework calls also need a running run loop on the main
   thread, which a plain command-line process does not start; if the API's Apple page
-  says so, that is a design question for the ADR, not something to discover in a test.
+  says so, that is a design question to settle in step 1, not something to discover in
+  a test.
 
 ## C callbacks
 

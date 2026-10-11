@@ -15,7 +15,7 @@ an issue number).
 | A recurring procedure, with the reasons behind it | a skill |
 | Tables, long examples, and edge cases of a skill | that skill's `references/` |
 | How a tool works in general | the tool's documentation, linked |
-| Why the template is shaped as it is | `README.md` › "Design Philosophy", or an ADR in an app |
+| Why the template is shaped as it is | `README.md` › "Design Philosophy"; in an app, also `AGENTS.md` and the skill that owns the subject, as present-state text |
 
 ## Descriptions
 

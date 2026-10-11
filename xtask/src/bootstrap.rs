@@ -323,7 +323,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder; each is listed for both skill trees.
-const SKILL_SITES: [(&str, &[Form]); 36] = [
+const SKILL_SITES: [(&str, &[Form]); 35] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
         "authoring-skills/references/convention-examples.md",
@@ -350,10 +350,6 @@ const SKILL_SITES: [(&str, &[Form]); 36] = [
     ("managing-dependencies/SKILL.md", &[Slug]),
     ("merging-dependency-prs/SKILL.md", &[Slug]),
     ("placing-tests/SKILL.md", &[Slug]),
-    (
-        "recording-architecture-decisions/SKILL.md",
-        &[BundleId, Slug],
-    ),
     ("running-the-app/SKILL.md", &[SlugSnake, Slug]),
     ("shipping-issues/SKILL.md", &[Slug]),
     (
@@ -383,7 +379,7 @@ const SKILL_SITES: [(&str, &[Form]); 36] = [
 /// Every placeholder site outside the skills. Keep this list explicit: a new file that
 /// names the app is added here, and `just verify-bootstrap` (which CI's Template
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
-const REPOSITORY_SITES: [(&str, &[Form]); 55] = [
+const REPOSITORY_SITES: [(&str, &[Form]); 53] = [
     (".claude/rules/project.md", &[Slug]),
     (".claude/rules/rust.md", &[SlugSnake, Slug]),
     (".claude/rules/testing.md", &[Slug]),
@@ -450,8 +446,6 @@ const REPOSITORY_SITES: [(&str, &[Form]); 55] = [
     ),
     ("deny.toml", &[Slug]),
     ("docs/architecture.md", &[BundleId, SlugSnake, Slug]),
-    ("docs/architecture/README.md", &[Slug]),
-    ("docs/architecture/adr/template.md", &[Slug]),
     ("docs/getting-started.md", &[BundleId, Slug]),
     ("docs/openrouter.md", &[SlugSnake, Slug]),
     ("justfile", &[BundleId, Slug]),
@@ -514,7 +508,7 @@ const STARTING_AN_APP_DESCRIPTION: &str = "description: >
   myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
   Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the tool's
   shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
-  and the first ADRs; removing the sample counter; installing it with just install-cli;
+  and why; removing the sample counter; installing it with just install-cli;
   just labels, just ruleset, the GitHub security settings, and private-repository
   steps. Use when starting an app from this repository, running or changing the
   bootstrap, a placeholder survived the rename, just check-harness fails on the Product
@@ -524,7 +518,7 @@ const STARTING_AN_APP_DESCRIPTION: &str = "description: >
 const STARTING_AN_APP_DESCRIPTION_IN_AN_APP: &str = "description: >
   Covers the first decisions of this app, cut from the template by its bootstrap:
   AGENTS.md's Product section and the roadmap; the tool's shape, subcommands only or
-  subcommands plus the myapp tui screen; where it keeps state and the first ADRs;
+  subcommands plus the myapp tui screen; where it keeps state and why;
   removing the sample counter; installing it with just install-cli; just labels, just
   ruleset, the GitHub security settings, and private-repository steps. Use when
   starting the app's first feature, a name the rename missed turns up, just
@@ -571,9 +565,9 @@ Text only a template reader needs (why the bootstrap exists, how to use the temp
 goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
 install steps) goes outside. A standing document outside a block never links into
 the template's design notes: that link dangles in every app. A sentence outside a block
-is worded to hold in an app too (\"the index starts empty\", not \"the template ships the
-index empty\"), or, where it cannot, rewritten for the app by an entry in `TEXT_EDITS`
-in `xtask/src/bootstrap.rs`, in the same change.
+is worded to hold in an app too (\"the roadmap starts as a skeleton\", not \"the template
+ships the roadmap as a skeleton\"), or, where it cannot, rewritten for the app by an
+entry in `TEXT_EDITS` in `xtask/src/bootstrap.rs`, in the same change.
 
 Only the files `MARKER_FILES` in `xtask/src/bootstrap.rs` lists have their blocks
 removed. A block in any other file adds that file to the list in the same change, or its
@@ -593,12 +587,10 @@ const CI_ONLY_JOBS: &str = "    ci_only_jobs: &[(
 const DOCUMENTS_EXCLUSION: &str =
     "/// Documents neither check reads. The template's own design record (`docs/template/`)
 /// cites the upstream template's issues and plans recipes before they exist, and the
-/// bootstrap deletes it. The roadmap and the ADRs are an app's own planning and decision
-/// records:";
+/// bootstrap deletes it. The roadmap is an app's own planning record:";
 
 const DOCUMENTS_EXCLUSION_IN_AN_APP: &str =
-    "/// Documents neither check reads. The roadmap and the ADRs are an app's own planning and
-/// decision records:";
+    "/// Documents neither check reads. The roadmap is an app's own planning record:";
 
 const MAIN_BOOTSTRAP_TASK: &str = "    (
         \"bootstrap\",
@@ -631,8 +623,8 @@ fn document_edits() -> Vec<TextEdit> {
         edit("AGENTS.md", PRODUCT_INTRO, PRODUCT_INTRO_IN_AN_APP),
         edit(
             "AGENTS.md",
-            "| `starting-an-app` | Turning the template into a new app: bootstrap, Product section, the tool's shape (subcommands only, or plus `myapp tui`), first ADRs |",
-            "| `starting-an-app` | The app's first decisions: Product section, the tool's shape (subcommands only, or plus `myapp tui`), first ADRs, removing the sample |",
+            "| `starting-an-app` | Turning the template into a new app: bootstrap, Product section, the tool's shape (subcommands only, or plus `myapp tui`), first design decisions |",
+            "| `starting-an-app` | The app's first decisions: Product section, the tool's shape (subcommands only, or plus `myapp tui`), where it keeps state, removing the sample |",
         ),
         edit(
             "AGENTS.md",
@@ -671,13 +663,13 @@ fn document_edits() -> Vec<TextEdit> {
         ),
         edit(
             "AGENTS.md",
-            "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), the skills, and the issue forms name exists;",
-            "`docs/` (apart from the roadmap and the ADRs), the skills, and the issue forms name exists;",
+            "`docs/` (apart from the template's own design record and the roadmap), the skills, and the issue forms name exists;",
+            "`docs/` (apart from the roadmap), the skills, and the issue forms name exists;",
         ),
         edit(
             "AGENTS.md",
-            "`docs/` (apart from the template's own design record, the roadmap, and the ADRs), a skill, or an issue form;",
-            "`docs/` (apart from the roadmap and the ADRs), a skill, or an issue form;",
+            "`docs/` (apart from the template's own design record and the roadmap), a skill, or an issue form;",
+            "`docs/` (apart from the roadmap), a skill, or an issue form;",
         ),
         edit(
             "AGENTS.md",
@@ -761,8 +753,8 @@ fn skill_edits() -> Vec<TextEdit> {
             ),
             edit(
                 &file,
-                "Neither\n  check reads the template's own design record, the roadmap, or the ADRs,",
-                "Neither\n  check reads the roadmap or the ADRs,",
+                "Neither\n  check reads the template's own design record or the roadmap, which link issues and\n  plan recipes by design.",
+                "Neither\n  check reads the roadmap, which links issues and plans recipes by design.",
             ),
         ]);
     }
@@ -794,8 +786,8 @@ fn source_edits() -> Vec<TextEdit> {
         ),
         edit(
             "xtask/src/check_harness/documents.rs",
-            "    \"docs/template\",\n",
-            "",
+            "&[\"docs/template\", \"docs/architecture/roadmap.md\"]",
+            "&[\"docs/architecture/roadmap.md\"]",
         ),
         edit("xtask/src/main.rs", "mod bootstrap;\n", ""),
         edit("xtask/src/main.rs", "mod verify_bootstrap;\n", ""),

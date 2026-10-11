@@ -18,8 +18,8 @@ description: >
 
 **Owns:** whether a crate may exist in this repository, how it is declared, and what
 happens at build time. **Does not own:** landing a Dependabot or Renovate pull request,
-a ratatui minor included (`merging-dependency-prs`); the ADR the dependency owes
-(`recording-architecture-decisions`); editing `deny.toml` or `osv-scanner.toml` as gates
+a ratatui minor included (`merging-dependency-prs`); which documents a design change
+rewrites (`AGENTS.md` › "Before changing the architecture"); editing `deny.toml` or `osv-scanner.toml` as gates
 (`changing-gates`); tool pins in `mise.toml` and `rust-toolchain.toml`
 (`.claude/rules/project.md` › Tool Pinning).
 
@@ -27,8 +27,8 @@ a ratatui minor included (`merging-dependency-prs`); the ADR the dependency owes
 
 A new crate, runtime or dev, in any member (`xtask` included), needs a written reason
 and a human's sign-off before it is added (`AGENTS.md` › "Security and human
-approval"), and it owes an ADR. So an agent writes the review record below, proposes the
-change, and stops; it runs `cargo` only once the owner has agreed. A declined request
+approval"). So an agent writes the review record below, proposes the change, and
+stops; it runs `cargo` only once the owner has agreed. A declined request
 ends the change there. Enabling a new feature of an existing crate is the same kind of
 change when the feature brings in new crates: `cargo tree` shows whether it does.
 
@@ -112,7 +112,7 @@ is a gate change for a human, never a quiet addition.
   (https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#default-requirements,
   checked 2026-10-02).
 - `deny.toml`'s `[sources]` allows crates.io only. A git dependency or another registry
-  is a new source: an ADR and a sign-off, never a quiet `allow-git` line
+  is a new source: a design change and a sign-off, never a quiet `allow-git` line
   (`changing-gates`).
 - `Cargo.lock` is committed with the manifest change and never hand-edited: cargo
   writes it on the next build, or `cargo update -p <crate>` when only that crate should
@@ -125,11 +125,11 @@ is a gate change for a human, never a quiet addition.
 ## The frameworks: clap and ratatui
 
 Replacing `clap` or `ratatui` with another framework, or moving either to a new major
-version, is an ADR (`AGENTS.md` › "Before changing the architecture"), never a batch
-merge: every subcommand, or every screen, is written against it. `ratatui` is below
+version, is a design change (`AGENTS.md` › "Before changing the architecture"), never
+a batch merge: every subcommand, or every screen, is written against it. `ratatui` is below
 `1.0`, so a minor bump of it is a breaking change by semver; it is a migration
 `merging-dependency-prs` lands against ratatui's changelog, with the `TestBackend` tests
-showing any rendering change, and it owes no ADR. A new feature of either crate is
+showing any rendering change, and it is not a design change. A new feature of either crate is
 reviewed for the crates it adds, like any other declaration.
 
 ## Removing one

@@ -3,9 +3,10 @@
 This page describes the layers every app cut from this template starts with, how they
 talk, and what is contract. What an app decides on top of them — where it keeps state,
 its dependencies, the platforms it targets, the permissions it asks for, whether it
-ever ships releases — is recorded as ADRs under [`docs/architecture/`](architecture/README.md), whose
-`README.md` is the index. The reasoning behind the layers themselves is the README's
-[Design Philosophy](../README.md#design-philosophy).
+ever ships releases — is written into this page, `AGENTS.md`, and the skill that owns
+the subject as the design stands now, with its reasons, by the change that makes it
+(`AGENTS.md` › "Before changing the architecture"). The reasoning behind the layers
+themselves is the README's [Design Philosophy](../README.md#design-philosophy).
 
 ## Layers
 

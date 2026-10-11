@@ -18,9 +18,9 @@ description: >
 **Owns:** whether a change owes a documentation update, and which surface it lands on.
 **Does not own:** the wording rules for `docs/`, `README.md`, `CONTRIBUTING.md`, and
 `CHANGELOG.md` (`.claude/rules/docs.md`); how a skill is written and mirrored
-(`authoring-skills`); whether a change owes an ADR and how one is written
-(`recording-architecture-decisions`); the roadmap (`steering-the-roadmap`); what a `///`
-comment says (`writing-rust`).
+(`authoring-skills`); which changes are design changes (`AGENTS.md` › "Before changing
+the architecture"); the roadmap (`steering-the-roadmap`); what a `///` comment says
+(`writing-rust`).
 
 ## Decide on what a reader can observe
 
@@ -63,7 +63,7 @@ another's content: a copy is the half that goes stale.
 | `CONTRIBUTING.md` | Prerequisites, the workflow and its commands without Just, where a change goes, the pull request process, commit messages, the changelog policy |
 | `CHANGELOG.md` | The human-curated record of user-visible changes (Keep a Changelog) |
 | `docs/architecture.md` | The layers every app starts with, the ports, the binary and its command line, and what is contract |
-| `docs/architecture/` | An app's ADRs and their index, and `roadmap.md` (owned by the two skills above) |
+| `docs/architecture/roadmap.md` | The app's Now / Next / Later direction (`steering-the-roadmap`) |
 | `docs/getting-started.md` | First setup, everyday commands, seeing the tool, TCC, removing the example code |
 | a skill under `.agents/skills/` | The conventions of one kind of change, loaded on demand |
 | `///` on a `pub` item in core | That item's contract: why it exists and what it promises |
@@ -73,6 +73,11 @@ another's content: a copy is the half that goes stale.
 Some facts have two readers, and the pull request that moves the fact updates both:
 
 - a boundary or a crate's role: `AGENTS.md` › Architecture and `docs/architecture.md`;
+- a design change `AGENTS.md` › "Before changing the architecture" lists: the same two,
+  `AGENTS.md` › Product when it moves what the app is, and the skill that owns the
+  subject, each rewritten in place to state the current design and why (and README's
+  Design Philosophy when it replaces a starting layer); there is no separate record of
+  the decision, and git history holds what the text said before;
 - a `just` recipe added, renamed, or removed: the `justfile`, `AGENTS.md`'s Quick
   Reference, and `CONTRIBUTING.md`'s "Without Just" when it lists that recipe;
 - a gate added or changed: its config and `AGENTS.md` › "Enforcement layers" (and the
@@ -114,9 +119,9 @@ Text only a template reader needs (why the bootstrap exists, how to use the temp
 goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
 install steps) goes outside. A standing document outside a block never links into
 the template's design notes: that link dangles in every app. A sentence outside a block
-is worded to hold in an app too ("the index starts empty", not "the template ships the
-index empty"), or, where it cannot, rewritten for the app by an entry in `TEXT_EDITS`
-in `xtask/src/bootstrap.rs`, in the same change.
+is worded to hold in an app too ("the roadmap starts as a skeleton", not "the template
+ships the roadmap as a skeleton"), or, where it cannot, rewritten for the app by an
+entry in `TEXT_EDITS` in `xtask/src/bootstrap.rs`, in the same change.
 
 Only the files `MARKER_FILES` in `xtask/src/bootstrap.rs` lists have their blocks
 removed. A block in any other file adds that file to the list in the same change, or its
@@ -136,8 +141,8 @@ what the template itself ships or its own reasoning.
   relative to it, the word issue, PR, pull request, or merge request before a number
   (`issue N`, `issue number N`, `PR-N`), `GH-` and digits, or a `gh issue`/`gh pr`
   command given a number. An upstream project's issue URL passes as a source. Neither
-  check reads the template's own design record, the roadmap, or the ADRs, which link
-  issues and plan recipes by design.
+  check reads the template's own design record or the roadmap, which link issues and
+  plan recipes by design.
 - `mise exec -- typos <file>` spell-checks Markdown (the hook and CI run it too).
 - Nothing formats Markdown; wrap prose at about 90 columns by hand.
 - No gate compiles or runs a fenced example in a Markdown file. The one exception is in
