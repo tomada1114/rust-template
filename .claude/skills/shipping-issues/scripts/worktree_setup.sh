@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# worktree_setup.sh -- Turn a bare `git worktree` into a working build
+# worktree_setup.sh — Turn a bare `git worktree` into a working build
 # environment, and report whether the project's own verification command is
-# already green there -- BEFORE any implementation agent is spawned.
+# already green there — BEFORE any implementation agent is spawned.
 #
-# A fresh `git worktree add` gives tracked files only: no
-# .claude/settings.local.json, no node_modules, no cargo target/, so the
-# project's verification command can fail -- or build differently -- before it
-# reads a line of code. This script copies the one untracked local config file
-# the worktree is missing, installs dependencies, and (with --verify) runs the
+# A fresh `git worktree add` gives tracked files only: no .env, no cargo
+# target/. This repository is a Cargo workspace, and cargo builds on demand, so
+# there is nothing to install: when the new worktree's own tree holds
+# Cargo.lock (judged from the worktree, not the main checkout) the script
+# reports `deps: none-needed (cargo builds on demand)`. It never copies a
+# secret or personal-permission file (.env*, .envrc, *.local,
+# settings.local.json) or the main checkout's target/. It checks that the
+# shared lefthook pre-commit hook is installed, and (with --verify) runs the
 # project's verification command once as a baseline. A red baseline is the
-# repository's problem, not the issue's -- finding it here costs one command
+# repository's problem, not the issue's — finding it here costs one command
 # instead of a wasted implementation run, so a red baseline is reported as a
-# warning, never a script failure -- see "This script REPORTS" below.
+# warning, never a script failure — see "This script REPORTS" below.
 #
 # Usage: worktree_setup.sh --issue <n> --branch <branch> --base <base-ref>
 #                          --root <worktrees-root>
@@ -24,39 +27,41 @@
 #
 # --verify-timeout defaults to 2700 seconds (see VERIFY_TIMEOUT below).
 #
-# --spec provisions several worktrees in ONE invocation, SEQUENTIALLY -- never
-# in parallel. Two reasons: the dependency installs all contend for the same
-# package-manager cache (pnpm store, pip/uv cache, ...), so running them
-# concurrently just serializes on filesystem locks anyway but with none of the
-# clarity; and a verify command that binds a fixed port or writes to one local
+# --spec provisions several worktrees in ONE invocation, SEQUENTIALLY — never
+# in parallel. Two reasons: verify commands in several worktrees contend for
+# the same cargo registry cache and CPU cores, so running them concurrently
+# just serializes on locks anyway but with none of the clarity; and a verify command that binds a fixed port or writes to one local
 # dev database fails in ways that look like the issue's fault when it's really
 # two worktrees racing each other, which is worse than a slower, honest run.
 #
 # This script REPORTS; it does not decide. A red baseline in a fresh worktree
-# usually means the repo is not worktree-viable right now -- a fresh worktree
+# usually means the repo is not worktree-viable right now — a fresh worktree
 # holds tracked files and nothing else: no .env, no
-# pre-warmed cache, no locally-running service it depends on -- but "usually" is
+# pre-warmed cache, no locally-running service it depends on — but "usually" is
 # not "always", and telling the two apart needs the diff, the log, and the
 # repo's own conventions in view. So the baseline is a warning here and the
 # caller decides what it means, including whether to tear the worktree down.
 # Provision the batch in small groups if that judgement matters: reading
-# the first worktree's block before asking for the rest costs one extra call and
+# worktree #1's block before asking for #2 and #3 costs one extra call and
 # keeps the decision where it can actually be made.
 #
 # Two facts worth writing down:
-#   * No secret-shaped file is ever copied: .env, .env.*, .envrc, *.local,
-#     .dev.vars, local.settings.json. AGENTS.md forbids reading one even to
-#     check it, and this app's gates need none. .claude/settings.local.json is
-#     the only file copied: a developer's own permission overrides, not a
-#     secret.
-#   * .venv is never copied. A virtualenv bakes absolute paths into
-#     pyvenv.cfg and its bin/ shims, so a copy of one is broken the moment
-#     it lives at a different path. Python deps are always re-created by
-#     the matching tool (uv/poetry/pipenv), never cloned.
-#   * The worktree, and every file this script writes (copied local config,
-#     the baseline log), live OUTSIDE the repo's main checkout, under the
+#   * The main checkout's target/ is never copied or shared. Each worktree's
+#     cargo build goes into its own target/, and the first build there is
+#     cold: clippy, the coverage build, and the test binaries compile the whole
+#     workspace from scratch (5.3 GB observed for this workspace with
+#     `du -sh target`, 2026-09-29). Sharing one target/ would make worktrees
+#     wait on each other's build lock; copying one is that many gigabytes per
+#     worktree.
+#   * Git hooks live in the main .git and are shared by every worktree, so
+#     this script never runs `lefthook install` from a worktree: `just install`
+#     in the main checkout installs the shared hook once, and re-running it
+#     from a worktree would only rewrite the hook every worktree uses. A
+#     missing hook is reported as a warning — install it once with
+#     `just install` in the main checkout.
+#   * The worktree, and every file this script writes (the baseline log), live OUTSIDE the repo's main checkout, under the
 #     caller-supplied --root. This script never creates or modifies
-#     anything inside the repo checkout -- the skill treats an unexpectedly
+#     anything inside the repo checkout — the skill treats an unexpectedly
 #     dirty main checkout as a hard stop condition. This guard is enforced
 #     per-spec in batch mode, not just for the first one.
 #
@@ -131,7 +136,7 @@ usage() {
   echo "   or: worktree_setup.sh --spec <issue>:<branch> [--spec ...] --base <base-ref> --root <worktrees-root> [--verify \"<command>\"] [--log-dir <dir>] [--verify-timeout <seconds>] [--dry-run]" >&2
 }
 
-# print_help -- the script's own usage, derived straight from this header
+# print_help — the script's own usage, derived straight from this header
 # comment so the text lives in exactly one place (kept separate from usage()
 # above, which is the short one-liner already used on stderr for arg errors).
 print_help() {
@@ -140,10 +145,7 @@ print_help() {
 
 # --- args --------------------------------------------------------------
 ISSUE="" BRANCH="" BASE="" ROOT="" VERIFY="" LOG="" DRY=0
-# 45 minutes: the bound exists to catch a command that never returns (a watcher,
-# a dev server), not to cut short a slow one, and the first run in a worktree of
-# a Cargo workspace compiles everything cold -- clippy, the coverage build, the
-# test binaries, and a debug and a release app build.
+# 45 minutes: a cold build of the whole Cargo workspace plus the coverage runs.
 LOG_DIR="" VERIFY_TIMEOUT="2700"
 SPECS=()
 
@@ -219,107 +221,32 @@ is_registered_worktree() {
   return 1
 }
 
-# --- dependency-manager detection ---------------------------------------
-# This is purely a function of repo_root's file listing, so (unlike the
-# per-worktree steps below) it's computed once, not once per spec. Kept in
-# sync by hand with preflight.sh's pkg_manager/lockfile precedence -- see the
-# comment there.
-deps_kind="none"
-deps_is_npm_ci=0
-deps_cmd=()
+# --- dependency detection --------------------------------------------------
+# Cargo.lock is looked for in the tree the worktree holds — never the main
+# checkout, which may sit on another commit than --base (an un-pulled main, a
+# feature branch). A real run reads the created worktree; a dry run, which
+# creates nothing, reads the ref `git worktree add` would check out
+# (checkout_ref, set per spec).
+has_lockfile() { # $1=file name at the tree's root
+  if [[ $DRY -eq 1 ]]; then
+    git -C "$repo_root" cat-file -e "$checkout_ref:$1" 2>/dev/null
+  else
+    [[ -f "$worktree_path/$1" ]]
+  fi
+}
 
-if   [[ -f "$repo_root/pnpm-lock.yaml" ]];    then deps_kind=pnpm;   deps_cmd=(pnpm install --frozen-lockfile)
-elif [[ -f "$repo_root/yarn.lock" ]];         then deps_kind=yarn
-elif [[ -f "$repo_root/bun.lockb" || -f "$repo_root/bun.lock" ]]; then deps_kind=bun; deps_cmd=(bun install --frozen-lockfile)
-elif [[ -f "$repo_root/package-lock.json" ]]; then deps_kind=npm;    deps_cmd=(npm ci); deps_is_npm_ci=1
-elif [[ -f "$repo_root/uv.lock" ]];           then deps_kind=uv;     deps_cmd=(uv sync)
-elif [[ -f "$repo_root/poetry.lock" ]];       then deps_kind=poetry; deps_cmd=(poetry install)
-elif [[ -f "$repo_root/Pipfile.lock" ]];      then deps_kind=pipenv; deps_cmd=(pipenv install --dev)
-elif [[ -f "$repo_root/Gemfile.lock" ]];      then deps_kind=bundle; deps_cmd=(bundle install)
-elif [[ -f "$repo_root/go.sum" ]];            then deps_kind=go;     deps_cmd=(go mod download)
-elif [[ -f "$repo_root/Cargo.lock" ]];        then deps_kind=cargo
-elif [[ -f "$repo_root/requirements.txt" ]];  then deps_kind=manual
+# A lefthook config means commits are meant to run its pre-commit hook. The
+# hook file itself lives in the shared hooks directory, so it is checked, not
+# installed: lefthook writes a pre-commit script that names lefthook.
+hooks_expected=0
+expected_hooks=(pre-commit)
+if [[ -f "$repo_root/lefthook.yml" || -f "$repo_root/lefthook.yaml" || -f "$repo_root/.lefthook.yml" ]]; then
+  hooks_expected=1
 fi
-
-node_modules_note=""
-
-clone_node_modules() {
-  [[ -d "$repo_root/node_modules" && $deps_is_npm_ci -ne 1 ]] || return 0
-  if [[ $DRY -eq 1 ]]; then
-    echo "DRY: cp -Rc $repo_root/node_modules $worktree_path/"
-    node_modules_note=" (+clonefile node_modules)"
-    return 0
-  fi
-  if cp -Rc "$repo_root/node_modules" "$worktree_path/" 2>/dev/null; then
-    node_modules_note=" (+clonefile node_modules)"
-  elif cp -R "$repo_root/node_modules" "$worktree_path/" 2>/dev/null; then
-    node_modules_note=" (+copy node_modules)"
-  fi
-  # cp failing outright is an optimization miss, not a failure: fall through
-  # with no note and let the install command populate node_modules itself.
-}
-
-# Runs "$@" with cwd = the worktree. On a non-zero exit (including "command
-# not found", which exits 127) this reports the failure and returns 1 -- it
-# never calls exit itself, so a batch run can move on to the next spec.
-run_install_cmd() {
-  local logf rc out
-  logf="$(mktemp)"
-  ( cd "$worktree_path" && "$@" ) >"$logf" 2>&1
-  rc=$?
-  if [[ $rc -ne 0 ]]; then
-    out="$(tail -20 "$logf")"
-    rm -f "$logf"
-    emit deps "FAILED: $* (exit=$rc)"
-    printf '%s\n' "$out" | sed 's/^/  /'
-    return 1
-  fi
-  rm -f "$logf"
-  return 0
-}
-
-do_install() {
-  if [[ $DRY -eq 1 ]]; then
-    echo "DRY: (cd $worktree_path && $*)"
-    return 0
-  fi
-  run_install_cmd "$@" || return 1
-  emit deps "$*"
-}
-
-do_install_js() {
-  if [[ $DRY -eq 1 ]]; then
-    clone_node_modules
-    echo "DRY: (cd $worktree_path && $*)"
-    return 0
-  fi
-  clone_node_modules
-  run_install_cmd "$@" || return 1
-  emit deps "$*${node_modules_note}"
-}
-
-do_install_yarn() {
-  if [[ $DRY -eq 1 ]]; then
-    clone_node_modules
-    echo "DRY: (cd $worktree_path && yarn install --immutable, falling back to --frozen-lockfile)"
-    return 0
-  fi
-  clone_node_modules
-  local logf rc
-  logf="$(mktemp)"
-  ( cd "$worktree_path" && yarn install --immutable ) >"$logf" 2>&1
-  rc=$?
-  rm -f "$logf"
-  if [[ $rc -eq 0 ]]; then
-    emit deps "yarn install --immutable${node_modules_note}"
-    return 0
-  fi
-  run_install_cmd yarn install --frozen-lockfile || return 1
-  emit deps "yarn install --frozen-lockfile (fallback from --immutable)${node_modules_note}"
-}
+hooks_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-path hooks)"
 
 # --- provision_one: everything that used to be this whole script's tail,
-# now per-spec. Never calls `exit` -- every failure path `return`s 1 so a
+# now per-spec. Never calls `exit` — every failure path `return`s 1 so a
 # batch run can continue with the remaining specs; the single-issue driver
 # below turns that return code straight into the process exit code, which
 # preserves the original (pre-batch) single-issue behavior exactly.
@@ -330,7 +257,6 @@ provision_one() {
   local p_issue="$1" p_branch="$2" p_base="$3" p_root="$4" p_verify="$5" p_log="$6"
   local warn=0
   worktree_path="$p_root/$p_issue"
-  node_modules_note=""
   PROVISION_VERDICT=""
   # Exported so a caller that sources this file can read it; shellcheck otherwise
   # reports it unused.
@@ -357,6 +283,13 @@ provision_one() {
   fi
 
   # --- 3. create the worktree ---------------------------------------------
+  # The ref the worktree checks out: an existing branch as it stands, else a
+  # new branch at the base.
+  if branch_exists "$p_branch"; then
+    checkout_ref="$p_branch"
+  else
+    checkout_ref="$p_base"
+  fi
   if [[ $DRY -eq 1 ]]; then
     echo "DRY: mkdir -p $p_root"
     if branch_exists "$p_branch"; then
@@ -386,69 +319,31 @@ provision_one() {
     emit result "CREATED"
   fi
 
-  # --- 4. copy the untracked local config the worktree is missing --------
-  # Only .claude/settings.local.json: a secret-shaped file (.env*, .envrc, ...)
-  # is never read, so never copied -- see the header.
-  local config_patterns=(".claude/settings.local.json")
-  local copied_any=0 pat candidate rel dest
-  for pat in "${config_patterns[@]}"; do
-    # shellcheck disable=SC2231 # $pat is a glob on purpose: quoting it would stop the expansion
-    for candidate in "$repo_root"/$pat "$repo_root"/*/$pat; do
-      [[ -f "$candidate" ]] || continue
-      rel="${candidate#"$repo_root"/}"
-      git -C "$repo_root" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 && continue
-      if [[ $DRY -eq 1 ]]; then
-        echo "DRY: copied: $rel"
-      else
-        dest="$worktree_path/$rel"
-        mkdir -p "$(dirname "$dest")"
-        cp "$candidate" "$dest"
-        emit copied "$rel"
-      fi
-      copied_any=1
-    done
-  done
-  if [[ $copied_any -eq 0 ]]; then
-    if [[ $DRY -eq 1 ]]; then
-      echo "DRY: copied: none"
-    else
-      emit copied "none"
-    fi
+  # --- 4. dependencies ------------------------------------------------------
+  # Nothing to install: cargo fetches and builds on demand into the
+  # worktree's own target/.
+  local deps_line="none"
+  has_lockfile Cargo.lock && deps_line="none-needed (cargo builds on demand)"
+  if [[ $DRY -eq 1 ]]; then
+    echo "DRY: deps: $deps_line"
+  else
+    emit deps "$deps_line"
   fi
 
-  # --- 5. install dependencies --------------------------------------------
-  local deps_failed=0
-  case "$deps_kind" in
-    pnpm|bun|npm) do_install_js "${deps_cmd[@]}" || deps_failed=1 ;;
-    yarn)         do_install_yarn || deps_failed=1 ;;
-    uv|poetry|pipenv|bundle|go) do_install "${deps_cmd[@]}" || deps_failed=1 ;;
-    cargo)
-      if [[ $DRY -eq 1 ]]; then
-        echo "DRY: deps: none-needed (cargo builds on demand)"
-      else
-        emit deps "none-needed (cargo builds on demand)"
+  # --- 5. shared lefthook hook (checked, never installed here) ------------
+  if [[ $hooks_expected -eq 1 ]]; then
+    local hook missing_hooks=()
+    for hook in "${expected_hooks[@]}"; do
+      if ! { [[ -f "$hooks_dir/$hook" ]] && grep -q "lefthook" "$hooks_dir/$hook" 2>/dev/null; }; then
+        missing_hooks+=("$hook")
       fi
-      ;;
-    manual)
-      if [[ $DRY -eq 1 ]]; then
-        echo "DRY: deps: MANUAL(requirements.txt)"
-      else
-        emit deps "MANUAL(requirements.txt)"
-        warn=1
-      fi
-      ;;
-    none)
-      if [[ $DRY -eq 1 ]]; then
-        echo "DRY: deps: none"
-      else
-        emit deps "none"
-      fi
-      ;;
-  esac
-  if [[ $deps_failed -eq 1 ]]; then
-    PROVISION_VERDICT="BLOCKED"
-    echo "verdict: BLOCKED"
-    return 1
+    done
+    if [[ ${#missing_hooks[@]} -eq 0 ]]; then
+      emit hooks "shared pre-commit hook installed"
+    else
+      emit hooks "MISSING ${missing_hooks[*]} (commits here would skip the hook; run \`just install\` in the main checkout)"
+      warn=1
+    fi
   fi
 
   # --- 6. verification baseline (only with --verify) ----------------------
@@ -476,7 +371,7 @@ provision_one() {
       mkdir -p "$log_dir"
       # Bounded, always. The verify command is whatever the caller passed, and
       # a repo whose "check" script starts a watcher or a dev server would
-      # otherwise hang this script forever -- with no output, since everything is
+      # otherwise hang this script forever — with no output, since everything is
       # redirected to the log. A timeout is not a judgement call about the
       # command, so it belongs here rather than with the caller; `timeout` is
       # missing on a stock macOS, hence the fallback.
@@ -485,7 +380,7 @@ provision_one() {
       # the shell and leave its children running) are both worse than using the
       # interpreter this skill already requires. start_new_session puts the
       # command in its own process group so the whole tree dies, not just the
-      # `bash -c` wrapper -- a test runner that forked workers would otherwise
+      # `bash -c` wrapper — a test runner that forked workers would otherwise
       # survive the kill and keep holding the port it bound.
       run_verify_bounded "$worktree_path" "$p_verify" "$VERIFY_TIMEOUT" >"$log_path" 2>&1
       verify_rc=$?

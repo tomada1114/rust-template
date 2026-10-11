@@ -9,20 +9,21 @@ tests care about most is: does one invocation produce a usable plan, does the
 grouping degrade honestly when issues do not declare what they touch, and does
 it refuse to promise parallelism the repo cannot deliver.
 """
+
 from __future__ import annotations
 
 import io
 import json
 import sys
 import unittest
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import plan  # noqa: E402
+import plan
 
 PREFLIGHT = """git_repo: ok
 repo_root: /repo
@@ -32,11 +33,11 @@ origin: git@github.com:acme/widgets.git
 repo_slug: acme/widgets
 default_branch: main
 runstate: /state/acme__widgets
-pkg_manager: pnpm
-lockfile: pnpm-lock.yaml
+pkg_manager: cargo
+lockfile: Cargo.lock
 lockfile_hash: abc123def456
-verify_command: pnpm run verify
-verify_source: package.json:scripts.verify
+verify_command: just check
+verify_source: justfile:check
 hooks: lefthook
 gh_auth: ok
 gh_write: yes
@@ -48,46 +49,84 @@ verdict: READY
 """
 
 
-def rank_row(number, tier="P1", readiness="READY", touches=None, title=None,
-             depends=(), unblocks=()):
+def rank_row(
+    number,
+    tier="P1",
+    readiness="READY",
+    touches=None,
+    *,
+    title=None,
+    depends=(),
+    unblocks=(),
+):
     return {
-        "number": number, "title": title or f"fix(core): thing {number}",
-        "score": 5, "tier": tier, "contract_tier": None,
-        "confirmed_tier": tier, "suggested_tier": tier, "effective_tier": tier,
-        "readiness": readiness, "reasons": ["label:bug(+3)"],
-        "touches": list(touches or []), "area": None,
-        "depends_on_open": list(depends), "unblocks_open": list(unblocks),
+        "number": number,
+        "title": title or f"fix(core): thing {number}",
+        "score": 5,
+        "tier": tier,
+        "contract_tier": None,
+        "confirmed_tier": tier,
+        "suggested_tier": tier,
+        "effective_tier": tier,
+        "readiness": readiness,
+        "reasons": ["label:bug(+3)"],
+        "touches": list(touches or []),
+        "area": None,
+        "depends_on_open": list(depends),
+        "unblocks_open": list(unblocks),
     }
 
 
-def digest_payload(rows, needs_design=(), issues=None, stale_dependency=None):
+def digest_payload(
+    rows, needs_design=(), issues=None, stale_dependency=None, tracking=()
+):
     """`stale_dependency`, when given, maps issue number -> the stale label
     names it carries, and only affects the default `issues` records built
     here (an explicit `issues=` overrides it entirely, same as it does with
     `needs_design`'s design_labels)."""
     stale_dependency = stale_dependency or {}
     return {
-        "open_issue_count": len(rows), "open_pr_count": 0, "cache": "MISS",
-        "label_coverage": {"labeled": len(rows), "contract_ranked": 0,
-                           "total": len(rows), "complete": True,
-                           "unlabeled": [], "unranked": []},
-        "contract_coverage": {"full": 0, "partial": 0, "total": len(rows),
-                              "missing": [r["number"] for r in rows],
-                              "incomplete": {}},
+        "open_issue_count": len(rows),
+        "open_pr_count": 0,
+        "cache": "MISS",
+        "label_coverage": {
+            "labeled": len(rows),
+            "contract_ranked": 0,
+            "total": len(rows),
+            "complete": True,
+            "unlabeled": [],
+            "unranked": [],
+        },
+        "contract_coverage": {
+            "full": 0,
+            "partial": 0,
+            "total": len(rows),
+            "missing": [r["number"] for r in rows],
+            "incomplete": {},
+        },
         "needs_design": list(needs_design),
+        "tracking_issues": sorted(tracking),
         "stale_dependency_labels": sorted(stale_dependency),
         "ranking": rows,
-        "issues": issues if issues is not None else [
-            {"number": n, "labels": ["bug"],
-             "stale_dependency_labels": stale_dependency.get(n, [])}
-            for n in sorted({r["number"] for r in rows} | set(stale_dependency))],
+        "issues": issues
+        if issues is not None
+        else [
+            {
+                "number": n,
+                "labels": ["bug"],
+                "stale_dependency_labels": stale_dependency.get(n, []),
+            }
+            for n in sorted({r["number"] for r in rows} | set(stale_dependency))
+        ],
     }
 
 
 class SlugTest(unittest.TestCase):
     def test_drops_the_conventional_commit_prefix(self):
-        self.assertEqual(plan.slugify("fix(test): the handler keys off env"),
-                         "the-handler-keys-off-env")
+        self.assertEqual(
+            plan.slugify("fix(test): the handler keys off env"),
+            "the-handler-keys-off-env",
+        )
 
     def test_truncates_on_a_word_boundary(self):
         slug = plan.slugify("a" * 10 + " " + "b" * 60)
@@ -95,7 +134,7 @@ class SlugTest(unittest.TestCase):
         self.assertFalse(slug.endswith("-"))
 
     def test_non_ascii_title_yields_an_empty_slug_not_mojibake(self):
-        self.assertEqual(plan.slugify("\u30c6\u30b9\u30c8\u3092\u76f4\u3059"), "")
+        self.assertEqual(plan.slugify("テストを直す"), "")
 
     def test_branch_name_takes_type_from_the_title(self):
         row = rank_row(85, title="fix(test): composed handler")
@@ -103,17 +142,19 @@ class SlugTest(unittest.TestCase):
 
     def test_branch_name_falls_back_to_labels_then_chore(self):
         row = rank_row(85, title="Composed handler is wrong")
-        self.assertEqual(plan.branch_name(row, ["bug"]), "fix/85-composed-handler-is-wrong")
+        self.assertEqual(
+            plan.branch_name(row, ["bug"]), "fix/85-composed-handler-is-wrong"
+        )
         self.assertTrue(plan.branch_name(row, []).startswith("chore/85-"))
 
     def test_branch_name_survives_a_title_with_no_usable_slug(self):
-        self.assertEqual(plan.branch_name(rank_row(7, title="\u65e5\u672c\u8a9e"), []), "chore/7")
+        self.assertEqual(plan.branch_name(rank_row(7, title="日本語"), []), "chore/7")
 
 
 class PathCollisionTest(unittest.TestCase):
     def test_identical_and_prefix_paths_collide(self):
         self.assertTrue(plan.paths_collide(["src/"], ["src/"]))
-        self.assertTrue(plan.paths_collide(["src/"], ["src/api/handler.ts"]))
+        self.assertTrue(plan.paths_collide(["src/"], ["src/api/handler.py"]))
 
     def test_disjoint_paths_do_not(self):
         self.assertFalse(plan.paths_collide(["src/api/"], ["tests/unit/"]))
@@ -125,8 +166,12 @@ class PathCollisionTest(unittest.TestCase):
     def test_the_same_directory_written_differently_still_collides(self):
         # The failure that matters: two issues editing one directory land in the
         # same batch and meet again as a merge conflict.
-        for a, b in ((["./src/"], ["src/"]), (["src"], ["src/"]),
-                     (["/src/api"], ["src/api/"]), (["src/api/"], ["src/"])):
+        for a, b in (
+            (["./src/"], ["src/"]),
+            (["src"], ["src/"]),
+            (["/src/api"], ["src/api/"]),
+            (["src/api/"], ["src/"]),
+        ):
             with self.subTest(a=a, b=b):
                 self.assertTrue(plan.paths_collide(a, b))
 
@@ -135,11 +180,11 @@ class PathCollisionTest(unittest.TestCase):
         self.assertFalse(plan.paths_collide(["lib"], ["library"]))
 
     def test_a_file_and_its_directory_collide(self):
-        self.assertTrue(plan.paths_collide(["src/api/handler.ts"], ["src/api/"]))
+        self.assertTrue(plan.paths_collide(["src/api/handler.py"], ["src/api/"]))
 
     def test_an_undeclared_side_does_not_collide_on_its_own(self):
         # Emptiness is handled by the PARTIAL confidence signal, not by
-        # pretending an unknown is a conflict -- otherwise no repo without
+        # pretending an unknown is a conflict — otherwise no repo without
         # contracts could ever group.
         self.assertFalse(plan.paths_collide([], ["tests/"]))
 
@@ -169,8 +214,10 @@ class GroupBatchesTest(unittest.TestCase):
         self.assertEqual(len(batches[0]), 10)
 
     def test_dependency_edges_split_a_batch_even_with_disjoint_paths(self):
-        rows = [rank_row(1, touches=["src/a/"], unblocks=[2]),
-                rank_row(2, touches=["src/b/"], depends=[1])]
+        rows = [
+            rank_row(1, touches=["src/a/"], unblocks=[2]),
+            rank_row(2, touches=["src/b/"], depends=[1]),
+        ]
         batches, _, _ = plan.group_batches(rows, 3)
         self.assertEqual([[r["number"] for r in b] for b in batches], [[1], [2]])
 
@@ -192,19 +239,30 @@ class GroupBatchesTest(unittest.TestCase):
 
 class MainTest(unittest.TestCase):
     """main() with preflight.sh and issue_digest.py stubbed at the run()
-    boundary -- the two are covered by their own test modules, and what matters
+    boundary — the two are covered by their own test modules, and what matters
     here is how plan.py combines them."""
 
-    def _run(self, argv, rows, preflight=PREFLIGHT, preflight_rc=0,
-             needs_design=(), issues=None, worktrees=(), worktree_paths=(),
-             stale_dependency=None):
+    def _run(
+        self,
+        argv,
+        rows,
+        preflight=PREFLIGHT,
+        preflight_rc=0,
+        *,
+        needs_design=(),
+        issues=None,
+        worktrees=(),
+        worktree_paths=(),
+        stale_dependency=None,
+        tracking=(),
+    ):
         self.recorded: list[list[str]] = []
         paths = [f"/state/acme__widgets/worktrees/{n}" for n in worktrees]
         paths += list(worktree_paths)
-        self.worktree_list = "".join(
-            f"worktree {path}\nHEAD abc\n\n" for path in paths)
+        self.worktree_list = "".join(f"worktree {path}\nHEAD abc\n\n" for path in paths)
         payload = json.dumps(
-            digest_payload(rows, needs_design, issues, stale_dependency))
+            digest_payload(rows, needs_design, issues, stale_dependency, tracking)
+        )
 
         self.preflight_calls: list[list[str]] = []
 
@@ -221,12 +279,16 @@ class MainTest(unittest.TestCase):
             if name == "run_record.py":
                 self.recorded.append(cmd)
                 return 0, "", ""
-            raise AssertionError(f"unexpected command: {cmd}")
+            message = f"unexpected command: {cmd}"
+            raise AssertionError(message)
 
         out, err = io.StringIO(), io.StringIO()
-        with patch.object(plan, "run", fake_run), \
-                patch.object(sys, "argv", ["plan.py", *argv]), \
-                redirect_stdout(out), redirect_stderr(err):
+        with (
+            patch.object(plan, "run", fake_run),
+            patch.object(sys, "argv", ["plan.py", *argv]),
+            redirect_stdout(out),
+            redirect_stderr(err),
+        ):
             try:
                 rc = plan.main()
             except SystemExit as exc:
@@ -249,32 +311,38 @@ class MainTest(unittest.TestCase):
         self.assertIn("grouping: MECHANICAL", out)
         self.assertIn("--spec 85:fix/85-thing-85", out)
         self.assertIn("--spec 106:fix/106-thing-106", out)
-        # CI is the gate: the batch is provisioned without a baseline run.
+        # No local baseline: CI is the gate, so the command never runs one.
         self.assertNotIn("--verify", out)
 
     def test_the_next_command_never_decides_viability_for_the_caller(self):
         rows = [rank_row(1, touches=["a/"]), rank_row(2, touches=["b/"])]
         rc, out, err = self._run(["--mode", "all"], rows)
+        self.assertNotIn("--verify", out)
         self.assertNotIn("--gate-first", out)
         self.assertIn("PROPOSAL, not a decision", out)
 
-    def test_the_verify_command_is_flagged_for_confirmation(self):
+    def test_the_verify_command_is_reported_but_not_run_as_a_baseline(self):
         rc, out, err = self._run([], [rank_row(1, touches=["a/"])])
-        self.assertIn("verify-check: 'pnpm run verify'", out)
-        self.assertIn("package.json:scripts.verify", out)
+        self.assertIn("verify-check: 'just check'", out)
+        self.assertIn("justfile:check", out)
         self.assertIn("not run as a baseline: CI is the gate", out)
 
     def test_no_verify_command_says_so_rather_than_going_quiet(self):
-        pre = PREFLIGHT.replace("verify_command: pnpm run verify",
-                                "verify_command: NONE")
+        pre = PREFLIGHT.replace("verify_command: just check", "verify_command: NONE")
         rc, out, err = self._run([], [rank_row(1, touches=["a/"])], preflight=pre)
-        self.assertIn("verify-check: NONE found", out)
+        self.assertIn("verify-check: NONE found — CI is the gate", out)
 
     def test_a_missing_preflight_key_stops_the_run(self):
-        # A preflight that silently lost a key is a broken preflight, not a
-        # plan: stop rather than guess.
-        pre = "\n".join(l for l in PREFLIGHT.splitlines()
-                        if not l.startswith("verify_command:")) + "\n"
+        # A silently defaulted key would report a verify command the repo
+        # never named.
+        pre = (
+            "\n".join(
+                line
+                for line in PREFLIGHT.splitlines()
+                if not line.startswith("verify_command:")
+            )
+            + "\n"
+        )
         rc, out, err = self._run([], [rank_row(1, touches=["a/"])], preflight=pre)
         self.assertEqual(rc, 1)
         self.assertIn("preflight-keys-missing: verify_command", out)
@@ -300,17 +368,6 @@ class MainTest(unittest.TestCase):
         self.assertIn("max-parallel 10", out)
         self.assertIn("--spec 10:", out)
 
-    def test_the_default_cap_is_two_worktrees(self):
-        # Each worktree carries its own cargo target/ directory and starts with a
-        # cold build, so a run holds at most two open unless the user asks.
-        rows = [rank_row(n, touches=[f"src/{n}/"]) for n in range(1, 4)]
-        rc, out, err = self._run(["--mode", "all"], rows)
-        self.assertEqual(rc, 0, err)
-        self.assertIn("max-parallel 2", out)
-        self.assertIn("batch A: #1[P1], #2[P1]", out)
-        self.assertIn("batch B: #3[P1]", out)
-        self.assertNotIn("--spec 3:", out)
-
     def test_explicit_issue_number_selects_only_that_issue(self):
         rows = [rank_row(1, touches=["a/"]), rank_row(42, touches=["b/"])]
         rc, out, err = self._run(["--mode", "42"], rows)
@@ -324,18 +381,24 @@ class MainTest(unittest.TestCase):
         # readiness strings are the ones issue_digest.py prints for an open
         # blocker, an `on hold` label, a `blocked: external` label, and an
         # open PR.
-        for readiness in ("BLOCKED-BY:#2", "LABEL:on hold",
-                          "LABEL:blocked: external", "HAS-PR:#7"):
+        for readiness in (
+            "BLOCKED-BY:#2",
+            "LABEL:on hold",
+            "LABEL:blocked: external",
+            "HAS-PR:#7",
+        ):
             with self.subTest(readiness=readiness):
-                rows = [rank_row(2, touches=["b/"]),
-                        rank_row(1, readiness=readiness, touches=["a/"])]
+                rows = [
+                    rank_row(2, touches=["b/"]),
+                    rank_row(1, readiness=readiness, touches=["a/"]),
+                ]
                 rc, out, err = self._run(["--mode", "1"], rows)
                 self.assertEqual(rc, 0, err)
-                self.assertIn(f"select: none -- #1 is not ready: {readiness}\n",
-                              out)
+                self.assertIn(f"select: none — #1 is not ready: {readiness}\n", out)
                 self.assertNotIn("git switch -c", out)
-                self.assertIn(f"next: nothing to ship -- #1 is not ready: "
-                              f"{readiness}", out)
+                self.assertIn(
+                    f"next: nothing to ship — #1 is not ready: {readiness}", out
+                )
 
     def test_explicit_issue_not_ready_reaches_the_json_and_the_record(self):
         rows = [rank_row(1, readiness="LABEL:on hold")]
@@ -344,16 +407,38 @@ class MainTest(unittest.TestCase):
         payload = json.loads(out)
         self.assertIsNone(payload["select"])
         self.assertEqual(payload["batches"], [])
-        self.assertEqual(payload["select_hold"],
-                         "#1 is not ready: LABEL:on hold")
+        self.assertEqual(payload["select_hold"], "#1 is not ready: LABEL:on hold")
         events = [cmd[cmd.index("--event") + 1] for cmd in self.recorded]
         self.assertEqual(events, ["run-start"])
 
     def test_explicit_issue_missing_from_the_digest_is_not_selected(self):
         rc, out, err = self._run(["--mode", "#9"], [rank_row(1, touches=["a/"])])
         self.assertEqual(rc, 0, err)
-        self.assertIn("select: none -- #9 is not an open, shippable issue", out)
+        self.assertIn("select: none — #9 is not an open, shippable issue", out)
         self.assertNotIn("select: #1", out)
+
+    def test_explicit_tracking_issue_is_not_selected_and_says_why(self):
+        rc, out, err = self._run(
+            ["--mode", "9", "--json"], [rank_row(1, touches=["a/"])], tracking=[9]
+        )
+        self.assertEqual(rc, 0, err)
+        payload = json.loads(out)
+        self.assertIsNone(payload["select"])
+        self.assertEqual(payload["tracking_issues"], [9])
+        self.assertEqual(
+            payload["select_hold"],
+            "#9 is a tracking issue — ship one of its sub-issues instead",
+        )
+
+    def test_tracking_issues_are_listed_beside_the_pick(self):
+        rc, out, err = self._run([], [rank_row(1, touches=["a/"])], tracking=[9, 4])
+        self.assertEqual(rc, 0, err)
+        self.assertIn("select: #1", out)
+        self.assertIn("tracking: #4,#9 → never ranked; ship their sub-issues", out)
+
+    def test_no_tracking_issue_prints_no_tracking_line(self):
+        rc, out, err = self._run([], [rank_row(1, touches=["a/"])])
+        self.assertNotIn("tracking:", out)
 
     def test_explicit_design_held_issue_is_still_selectable(self):
         # The digest is asked --include-design for a named issue, so its row
@@ -380,10 +465,12 @@ class MainTest(unittest.TestCase):
     def test_stale_dependency_labels_print_the_clear_command(self):
         rows = [rank_row(1, touches=["a/"])]
         rc, out, err = self._run(
-            [], rows,
-            stale_dependency={12: ["blocked: dependency"], 15: ["blocked: dependency"]})
+            [],
+            rows,
+            stale_dependency={12: ["blocked: dependency"], 15: ["blocked: dependency"]},
+        )
         self.assertIn(
-            "stale-labels: #12,#15 -> blocked: dependency with every "
+            "stale-labels: #12,#15 → blocked: dependency with every "
             "dependency closed; clear with apply_priority_labels.py "
             "--clear-dependency 12 --clear-dependency 15",
             out,
@@ -395,11 +482,39 @@ class MainTest(unittest.TestCase):
         self.assertNotIn("stale-labels:", out)
 
     def test_blocked_preflight_stops_the_run(self):
-        rc, out, err = self._run([], [rank_row(1)],
-                                 preflight="git_repo: NOT_A_REPO\nverdict: BLOCKED\n",
-                                 preflight_rc=1)
+        rc, out, err = self._run(
+            [],
+            [rank_row(1)],
+            preflight="git_repo: NOT_A_REPO\nverdict: BLOCKED\n",
+            preflight_rc=1,
+        )
         self.assertEqual(rc, 1)
         self.assertIn("verdict: BLOCKED", out)
+
+    def test_cloud_host_names_the_cloud_skill_before_the_verdict(self):
+        # Unstubbed: plan.py runs the real preflight.sh, which must stop on the
+        # host variable before it touches git or gh.
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            patch.dict("os.environ", {"CLAUDE_CODE_REMOTE": "true"}),
+            patch.object(sys, "argv", ["plan.py", "--mode", "single"]),
+            redirect_stdout(out),
+            redirect_stderr(err),
+        ):
+            rc = plan.main()
+        self.assertEqual(rc, 1)
+        lines = out.getvalue().splitlines()
+        self.assertEqual(
+            lines[:2],
+            [
+                "host: cloud",
+                (
+                    "next: in a Claude Code cloud session use the "
+                    "cloud-claude-shipping-issues skill"
+                ),
+            ],
+        )
+        self.assertEqual(lines[-1], "verdict: BLOCKED")
 
     def test_record_writes_run_start_selection_and_the_group(self):
         rows = [rank_row(1, touches=["a/"]), rank_row(2, touches=["b/"])]
@@ -430,40 +545,44 @@ class MainTest(unittest.TestCase):
     def test_json_output_carries_stale_dependency_labels(self):
         rows = [rank_row(1, touches=["a/"])]
         rc, out, err = self._run(
-            ["--json"], rows, stale_dependency={12: ["blocked: dependency"]})
+            ["--json"], rows, stale_dependency={12: ["blocked: dependency"]}
+        )
         payload = json.loads(out)
         self.assertEqual(payload["stale_dependency_labels"], [12])
 
     def test_the_github_probe_is_paid_for_once(self):
-        # preflight is called twice -- the first call is what reveals where the
-        # profile cache lives -- but only the second one may reach GitHub.
+        # preflight is called twice — the first call is what reveals where the
+        # profile cache lives — but only the second one may reach GitHub.
         self._run([], [rank_row(1, touches=["a/"])])
         self.assertEqual(len(self.preflight_calls), 2)
         self.assertNotIn("--with-github", self.preflight_calls[0])
         self.assertIn("--with-github", self.preflight_calls[1])
-        self.assertIn("/state/acme__widgets/repo-profile.json",
-                      self.preflight_calls[1])
+        self.assertIn("/state/acme__widgets/repo-profile.json", self.preflight_calls[1])
 
     def test_leftover_worktrees_stop_the_opening_plan(self):
-        rc, out, err = self._run([], [rank_row(1, touches=["a/"])],
-                                 worktrees=[90, 94])
+        rc, out, err = self._run([], [rank_row(1, touches=["a/"])], worktrees=[90, 94])
         self.assertEqual(rc, 1)
         self.assertIn("existing-worktrees: 90, 94", out)
         self.assertIn("verdict: BLOCKED", out)
         self.assertNotIn("select:", out)
 
     def test_a_re_plan_may_carry_its_own_worktrees(self):
-        rc, out, err = self._run(["--allow-existing-worktrees"],
-                                 [rank_row(1, touches=["a/"])], worktrees=[90])
+        rc, out, err = self._run(
+            ["--allow-existing-worktrees"],
+            [rank_row(1, touches=["a/"])],
+            worktrees=[90],
+        )
         self.assertEqual(rc, 0, err)
         self.assertIn("select: #1", out)
 
     def test_worktrees_outside_this_runs_root_are_not_leftovers(self):
         # The developer's own worktree elsewhere on disk, plus the main
         # checkout git always lists first: neither is this run's business.
-        rc, out, err = self._run([], [rank_row(1, touches=["a/"])],
-                                 worktree_paths=["/repo",
-                                                 "/somewhere/else/feature-x"])
+        rc, out, err = self._run(
+            [],
+            [rank_row(1, touches=["a/"])],
+            worktree_paths=["/repo", "/somewhere/else/feature-x"],
+        )
         self.assertEqual(rc, 0, err)
         self.assertIn("select: #1", out)
 
@@ -471,6 +590,16 @@ class MainTest(unittest.TestCase):
         rc, out, err = self._run(["--mode", "sometimes"], [rank_row(1)])
         self.assertEqual(rc, 2)
         self.assertIn("--mode takes", err)
+
+    def test_default_max_parallel_is_two(self):
+        # Each worktree gets its own cold cargo target/ (several GB).
+        self.assertEqual(plan.DEFAULT_MAX_PARALLEL, 2)
+        rows = [rank_row(n, touches=[f"src/{n}/"]) for n in (1, 2, 3)]
+        rc, out, err = self._run(["--mode", "all"], rows)
+        self.assertEqual(rc, 0, err)
+        self.assertIn("--spec 1:", out)
+        self.assertIn("--spec 2:", out)
+        self.assertNotIn("--spec 3:", out)
 
     def test_zero_max_parallel_is_a_usage_error(self):
         rc, out, err = self._run(["--max-parallel", "0"], [rank_row(1)])

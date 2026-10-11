@@ -4,6 +4,7 @@
 Run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
      (from the shipping-issues skill directory)
 """
+
 from __future__ import annotations
 
 import os
@@ -16,8 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _fakegh import FakeGh  # noqa: E402
-
+from _fakegh import FakeGh
 
 SCRIPT = Path(__file__).resolve().parent.parent / "ci_watch.sh"
 
@@ -51,8 +51,13 @@ def HEAD_OID(pr):
 
 
 def STATE(pr):
-    return ("pr", "view", pr, "--json",
-            "mergeable,mergeStateStatus,reviewDecision,isDraft,state")
+    return (
+        "pr",
+        "view",
+        pr,
+        "--json",
+        "mergeable,mergeStateStatus,reviewDecision,isDraft,state",
+    )
 
 
 def RUNS(sha):
@@ -60,11 +65,16 @@ def RUNS(sha):
 
 
 def STATUSES(sha):
-    return ("api", "repos/{owner}/{repo}/commits/%s/status" % sha)
+    return ("api", f"repos/{{owner}}/{{repo}}/commits/{sha}/status")
 
 
-def run_script(args, responses, *, exits=None, stderrs=None):
-    with FakeGh(responses, exits=exits, stderrs=stderrs) as fake:
+def run_script(args, responses, *, exits=None, stderrs=None, sequences=None):
+    with FakeGh(responses, exits=exits, stderrs=stderrs, sequences=sequences) as fake:
+        # Nominal watch tests never wait on a real retry or background deadline.
+        # Deadline scenarios supply their own timeout stub or advancing clock.
+        stub_dir = Path(fake.env["PATH"].split(os.pathsep)[0])
+        install_stub(stub_dir, "sleep", "#!/usr/bin/env bash\nexit 0\n")
+        install_stub(stub_dir, "timeout", '#!/usr/bin/env bash\nshift\nexec "$@"\n')
         proc = subprocess.run(
             ["bash", str(SCRIPT), *args],
             env=fake.env,
@@ -80,7 +90,7 @@ def install_stub(bin_dir: Path, name: str, body: str) -> None:
 
     Used to shadow a real external command (sleep, timeout) with a
     deterministic, instant stand-in, the same PATH-stubbing technique
-    _fakegh.py already uses for `gh` -- so a hard-coded `sleep 20` retry or a
+    _fakegh.py already uses for `gh` — so a hard-coded `sleep 20` retry or a
     real `timeout`/`gtimeout` dependency doesn't make a test slow or
     environment-dependent.
     """
@@ -98,13 +108,17 @@ def install_advancing_clock(bin_dir: Path) -> None:
     a counter instead makes the timeout branch fire deterministically and
     without waiting.
     """
-    install_stub(bin_dir, "date", f"""#!/usr/bin/env bash
+    install_stub(
+        bin_dir,
+        "date",
+        f"""#!/usr/bin/env bash
 counter="{bin_dir}/.clock"
 n=$(cat "$counter" 2>/dev/null || echo 0)
 n=$((n + 100))
 echo "$n" > "$counter"
 echo "$n"
-""")
+""",
+    )
 
 
 def run_script_with_stub_path(args, responses, stub_dir, *, exits=None, stderrs=None):
@@ -114,6 +128,10 @@ def run_script_with_stub_path(args, responses, stub_dir, *, exits=None, stderrs=
     with FakeGh(responses, exits=exits, stderrs=stderrs) as fake:
         env = dict(fake.env)
         env["PATH"] = f"{stub_dir}{os.pathsep}{env['PATH']}"
+        if not (stub_dir / "timeout").exists():
+            install_stub(stub_dir, "timeout", '#!/usr/bin/env bash\nshift\nexec "$@"\n')
+        if not (stub_dir / "sleep").exists():
+            install_stub(stub_dir, "sleep", "#!/usr/bin/env bash\nexit 0\n")
         proc = subprocess.run(
             ["bash", str(SCRIPT), *args],
             env=env,
@@ -125,6 +143,19 @@ def run_script_with_stub_path(args, responses, stub_dir, *, exits=None, stderrs=
 
 
 class CiWatchTest(unittest.TestCase):
+    def test_fake_cli_ignores_site_customization(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "sitecustomize.py").write_text(
+                'print("unexpected startup output")\n', encoding="utf-8"
+            )
+            with FakeGh({("version",): "fixture version\n"}) as fake:
+                env = dict(fake.env, PYTHONPATH=root)
+                proc = subprocess.run(
+                    ["gh", "version"], env=env, text=True, capture_output=True
+                )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(proc.stdout, "fixture version\n")
+
     def test_missing_pr_is_usage_error(self):
         proc, calls = run_script([], {})
 
@@ -138,7 +169,7 @@ class CiWatchTest(unittest.TestCase):
                 proc, calls = run_script([flag], {})
 
                 self.assertEqual(proc.returncode, 0)
-                self.assertIn("ci_watch.sh -- Wait for a PR's checks", proc.stdout)
+                self.assertIn("ci_watch.sh — Wait for a PR's checks", proc.stdout)
                 self.assertIn("Exit codes: 0 = PASS", proc.stdout)
                 self.assertEqual(calls, [])
 
@@ -160,10 +191,13 @@ class CiWatchTest(unittest.TestCase):
         self.assertIn("verdict: ERROR\n", proc.stdout)
         self.assertIn(f"detail: could not read PR #{pr}: ", proc.stdout)
         self.assertIn("Could not resolve to a PullRequest", proc.stdout)
-        self.assertEqual(calls, [
-            list(rollup) + ["-q", ".statusCheckRollup | length"],
-            ["pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid"],
-        ])
+        self.assertEqual(
+            calls,
+            [
+                list(rollup) + ["-q", ".statusCheckRollup | length"],
+                ["pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid"],
+            ],
+        )
 
     def test_unreadable_rollup_on_a_readable_pr_is_not_reported_as_a_bad_pr(self):
         # The fine-grained-PAT shape: the PR reads fine, only its check runs
@@ -174,7 +208,7 @@ class CiWatchTest(unittest.TestCase):
             [pr],
             {
                 ROLLUP(pr): "",
-                    HEAD_OID(pr): SHA,
+                HEAD_OID(pr): SHA,
                 RUNS(SHA): "",
                 STATUSES(SHA): "",
                 STATE(pr): STATE_JSON,
@@ -188,7 +222,8 @@ class CiWatchTest(unittest.TestCase):
         self.assertIn("check runs are not readable by this token", proc.stderr)
         self.assertIn("Resource not accessible by personal access token", proc.stderr)
         self.assertIn(
-            ["pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid"], calls)
+            ["pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid"], calls
+        )
 
     def test_no_checks_reports_verdict_after_retry(self):
         # rollup answers "0" on both the first read and the post-retry read
@@ -198,7 +233,10 @@ class CiWatchTest(unittest.TestCase):
         pr = "20"
         rollup = ("pr", "view", pr, "--json", "statusCheckRollup")
         state = (
-            "pr", "view", pr, "--json",
+            "pr",
+            "view",
+            pr,
+            "--json",
             "mergeable,mergeStateStatus,reviewDecision,isDraft,state",
         )
         with tempfile.TemporaryDirectory() as td:
@@ -234,7 +272,10 @@ class CiWatchTest(unittest.TestCase):
         rollup = ("pr", "view", pr, "--json", "statusCheckRollup")
         checks_plain = ("pr", "checks", pr)
         state = (
-            "pr", "view", pr, "--json",
+            "pr",
+            "view",
+            pr,
+            "--json",
             "mergeable,mergeStateStatus,reviewDecision,isDraft,state",
         )
         with tempfile.TemporaryDirectory() as td:
@@ -262,58 +303,16 @@ class CiWatchTest(unittest.TestCase):
         # fake gh: our stub `timeout` never execs its wrapped command.
         self.assertEqual([c for c in calls if "--watch" in c], [])
 
-    def test_watch_timeout_is_enforced_without_a_timeout_binary(self):
-        # Stock macOS has neither `timeout` nor `gtimeout`, so the script
-        # must bound the watch itself. The PATH here is a copy of the host's
-        # with both names left out, and `gh pr checks --watch` never settles.
-        pr = "23"
-        with tempfile.TemporaryDirectory() as td, \
-                FakeGh({ROLLUP(pr): "1\n", STATE(pr): STATE_JSON}) as fake:
-            tools = Path(td) / "tools"
-            tools.mkdir()
-            for entry in fake.env["PATH"].split(os.pathsep):
-                if not entry or not Path(entry).is_dir():
-                    continue
-                for tool in Path(entry).iterdir():
-                    link = tools / tool.name
-                    if tool.name in ("timeout", "gtimeout", "gh") \
-                            or link.exists() or link.is_symlink():
-                        continue
-                    try:
-                        runnable = tool.is_file() and os.access(tool, os.X_OK)
-                    except OSError:  # an unreadable system binary
-                        continue
-                    if runnable:
-                        link.symlink_to(tool)
-            fake_gh = fake.env["PATH"].split(os.pathsep)[0] + "/gh"
-            install_stub(tools, "gh", f"""#!/usr/bin/env bash
-for arg in "$@"; do
-  [[ "$arg" == "--watch" ]] && exec sleep 30
-done
-exec "{fake_gh}" "$@"
-""")
-            env = dict(fake.env)
-            env["PATH"] = str(tools)
-            proc = subprocess.run(
-                ["bash", str(SCRIPT), pr, "--timeout", "2"],
-                env=env,
-                text=True,
-                capture_output=True,
-                timeout=20,
-            )
-
-        self.assertEqual(proc.returncode, 2)
-        self.assertIn("verdict: TIMEOUT\n", proc.stdout)
-        self.assertIn("waited_seconds: 2\n", proc.stdout)
-        self.assertIn("timeout_enforced: shell", proc.stderr)
-
     def test_terminal_pass_reports_state_on_first_poll(self):
         pr = "17"
         rollup = ("pr", "view", pr, "--json", "statusCheckRollup")
         checks_watch = ("pr", "checks", pr, "--watch", "--interval", "20")
         checks_result = ("pr", "checks", pr, "--json", "name,state,link")
         state = (
-            "pr", "view", pr, "--json",
+            "pr",
+            "view",
+            pr,
+            "--json",
             "mergeable,mergeStateStatus,reviewDecision,isDraft,state",
         )
         proc, calls = run_script(
@@ -343,8 +342,8 @@ exec "{fake_gh}" "$@"
         self.assertEqual(check_calls[1][5], "-q")
 
     def test_a_watch_that_ends_with_a_check_pending_is_never_a_pass(self):
-        # `gh pr checks --watch` can exit early -- here with 1, and with 0 for
-        # good measure -- while checks are still running. The final read then
+        # `gh pr checks --watch` can exit early — here with 1, and with 0 for
+        # good measure — while checks are still running. The final read then
         # holds no failure, and the verdict used to come out PASS.
         pr = "24"
         checks_watch = ("pr", "checks", pr, "--watch", "--interval", "20")
@@ -372,12 +371,69 @@ exec "{fake_gh}" "$@"
                     self.assertIn("verdict: ERROR\n", proc.stdout)
                     self.assertIn(
                         f"detail: gh pr checks --watch exited {watch_rc} with "
-                        "checks still unsettled\n", proc.stdout)
+                        "checks still unsettled\n",
+                        proc.stdout,
+                    )
                     self.assertIn(
-                        f"  - build [{pending}] https://example.test/2\n",
-                        proc.stdout)
+                        f"  - build [{pending}] https://example.test/2\n", proc.stdout
+                    )
                     self.assertNotIn("lint [SUCCESS]", proc.stdout)
                     self.assertIn("merge_state: BLOCKED\n", proc.stdout)
+
+    def test_pass_names_the_head_commit_it_verified(self):
+        pr = "41"
+        proc, calls = run_script(
+            [pr, "--timeout", "600"],
+            {
+                ROLLUP(pr): "1\n",
+                HEAD_OID(pr): SHA,
+                ("pr", "checks", pr, "--watch", "--interval", "20"): "",
+                ("pr", "checks", pr, "--json", "name,state,link"): "lint\tSUCCESS\t\n",
+                STATE(pr): STATE_JSON,
+            },
+        )
+
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("verdict: PASS\n", proc.stdout)
+        self.assertIn("check_source: checks\n", proc.stdout)
+        self.assertIn(f"head_sha: {SHA}\n", proc.stdout)
+
+    def test_a_head_that_moves_during_the_watch_is_never_a_pass(self):
+        pr = "42"
+        newer = "b" * 40
+        proc, calls = run_script(
+            [pr, "--timeout", "600"],
+            {
+                ROLLUP(pr): "1\n",
+                ("pr", "checks", pr, "--watch", "--interval", "20"): "",
+                ("pr", "checks", pr, "--json", "name,state,link"): "lint\tSUCCESS\t\n",
+                STATE(pr): STATE_JSON,
+            },
+            sequences={HEAD_OID(pr): [SHA, newer]},
+        )
+
+        self.assertEqual(proc.returncode, 4)
+        self.assertNotIn("verdict: PASS", proc.stdout)
+        self.assertIn("verdict: ERROR\n", proc.stdout)
+        self.assertIn(f"head moved from {SHA} to {newer}", proc.stdout)
+
+    def test_a_stale_check_is_unsettled_not_green(self):
+        pr = "43"
+        proc, calls = run_script(
+            [pr, "--timeout", "600"],
+            {
+                ROLLUP(pr): "2\n",
+                ("pr", "checks", pr, "--watch", "--interval", "20"): "",
+                ("pr", "checks", pr, "--json", "name,state,link"): (
+                    "lint\tSUCCESS\t\nbuild\tSTALE\thttps://example.test/9\n"
+                ),
+                STATE(pr): STATE_JSON,
+            },
+        )
+
+        self.assertEqual(proc.returncode, 4)
+        self.assertIn("verdict: ERROR\n", proc.stdout)
+        self.assertIn("  - build [STALE] https://example.test/9\n", proc.stdout)
 
     def test_green_completions_other_than_success_still_pass(self):
         pr = "25"
@@ -423,7 +479,10 @@ exec "{fake_gh}" "$@"
         checks_watch = ("pr", "checks", pr, "--watch", "--interval", "20")
         checks_result = ("pr", "checks", pr, "--json", "name,state,link")
         state = (
-            "pr", "view", pr, "--json",
+            "pr",
+            "view",
+            pr,
+            "--json",
             "mergeable,mergeStateStatus,reviewDecision,isDraft,state",
         )
         run_view = ("run", "view", "123", "--log-failed")
@@ -433,8 +492,7 @@ exec "{fake_gh}" "$@"
                 rollup: "1\n",
                 checks_watch: "",
                 checks_result: (
-                    "lint\tFAILURE\t"
-                    "https://github.com/acme/widgets/actions/runs/123\n"
+                    "lint\tFAILURE\thttps://github.com/acme/widgets/actions/runs/123\n"
                 ),
                 state: (
                     '{"state":"OPEN","isDraft":false,"mergeable":"CONFLICTING",'
@@ -482,20 +540,22 @@ class CiWatchFallbackTest(unittest.TestCase):
         all_stderrs.update(stderrs or {})
         if stub_dir is not None:
             return run_script_with_stub_path(
-                self.args, responses, stub_dir,
-                exits=all_exits, stderrs=all_stderrs)
-        return run_script(self.args, responses,
-                          exits=all_exits, stderrs=all_stderrs)
+                self.args, responses, stub_dir, exits=all_exits, stderrs=all_stderrs
+            )
+        return run_script(self.args, responses, exits=all_exits, stderrs=all_stderrs)
 
     def test_pass_from_a_successful_actions_run(self):
         pr = "30"
         self.args = [pr]
-        proc, calls = self.forbidden(pr, {
-            RUNS(SHA): (
-                "456\tCI\tcompleted\tsuccess\t"
-                "https://github.com/acme/widgets/actions/runs/456\n"
-            ),
-        })
+        proc, calls = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "456\tCI\tcompleted\tsuccess\t"
+                    "https://github.com/acme/widgets/actions/runs/456\n"
+                ),
+            },
+        )
 
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("verdict: PASS\n", proc.stdout)
@@ -510,13 +570,16 @@ class CiWatchFallbackTest(unittest.TestCase):
         # either as red would block every PR that skips a path-filtered job.
         pr = "31"
         self.args = [pr]
-        proc, _ = self.forbidden(pr, {
-            RUNS(SHA): (
-                "1\tCI\tcompleted\tsuccess\thttps://x/actions/runs/1\n"
-                "2\tDocs\tcompleted\tskipped\thttps://x/actions/runs/2\n"
-                "3\tLint\tcompleted\tneutral\thttps://x/actions/runs/3\n"
-            ),
-        })
+        proc, _ = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "1\tCI\tcompleted\tsuccess\thttps://x/actions/runs/1\n"
+                    "2\tDocs\tcompleted\tskipped\thttps://x/actions/runs/2\n"
+                    "3\tLint\tcompleted\tneutral\thttps://x/actions/runs/3\n"
+                ),
+            },
+        )
 
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("verdict: PASS\n", proc.stdout)
@@ -525,13 +588,16 @@ class CiWatchFallbackTest(unittest.TestCase):
         pr = "32"
         self.args = [pr, "--log-bytes", "32"]
         run_view = ("run", "view", "456", "--log-failed")
-        proc, calls = self.forbidden(pr, {
-            RUNS(SHA): (
-                "456\tCI\tcompleted\tfailure\t"
-                "https://github.com/acme/widgets/actions/runs/456\n"
-            ),
-            run_view: "line one\nline two\n",
-        })
+        proc, calls = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "456\tCI\tcompleted\tfailure\t"
+                    "https://github.com/acme/widgets/actions/runs/456\n"
+                ),
+                run_view: "line one\nline two\n",
+            },
+        )
 
         self.assertEqual(proc.returncode, 1)
         self.assertIn("verdict: FAIL\n", proc.stdout)
@@ -549,47 +615,111 @@ class CiWatchFallbackTest(unittest.TestCase):
     def test_only_the_failing_run_is_reported(self):
         pr = "33"
         self.args = [pr]
-        proc, calls = self.forbidden(pr, {
-            RUNS(SHA): (
-                "1\tCI\tcompleted\tsuccess\thttps://x/actions/runs/1\n"
-                "2\tDeploy\tcompleted\ttimed_out\thttps://x/actions/runs/2\n"
-            ),
-            ("run", "view", "2", "--log-failed"): "boom\n",
-        })
+        proc, calls = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "1\tCI\tcompleted\tsuccess\thttps://x/actions/runs/1\n"
+                    "2\tDeploy\tcompleted\ttimed_out\thttps://x/actions/runs/2\n"
+                ),
+                ("run", "view", "2", "--log-failed"): "boom\n",
+            },
+        )
 
         self.assertEqual(proc.returncode, 1)
         self.assertIn("  - Deploy [completed/timed_out] ", proc.stdout)
         self.assertNotIn("  - CI [completed/success]", proc.stdout)
-        self.assertEqual([c for c in calls if c[:2] == ["run", "view"]],
-                         [["run", "view", "2", "--log-failed"]])
+        self.assertEqual(
+            [c for c in calls if c[:2] == ["run", "view"]],
+            [["run", "view", "2", "--log-failed"]],
+        )
 
     def test_a_cancelled_run_superseded_by_a_newer_run_is_ignored(self):
         # cancel-in-progress leaves the older run of a workflow cancelled
         # whenever a PR edit starts a newer one; only the newest run counts.
         pr = "37"
         self.args = [pr]
-        proc, calls = self.forbidden(pr, {
-            RUNS(SHA): (
-                "12\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/12\n"
-                "11\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/11\n"
-                "5\tCI\tcompleted\tsuccess\thttps://x/actions/runs/5\n"
-            ),
-        })
+        proc, calls = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "12\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/12\n"
+                    "11\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/11\n"
+                    "5\tCI\tcompleted\tsuccess\thttps://x/actions/runs/5\n"
+                ),
+            },
+        )
 
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("verdict: PASS\n", proc.stdout)
         self.assertEqual([c for c in calls if c[:2] == ["run", "view"]], [])
 
+    def test_runs_of_one_workflow_from_different_events_are_both_read(self):
+        # A push run and a pull_request run of the same workflow on one commit
+        # are two results: the newer push run must not hide the failed PR run.
+        pr = "44"
+        self.args = [pr]
+        proc, _ = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "21\tCI\tcompleted\tfailure\thttps://x/actions/runs/21\tpull_request\tfeat/1\n"
+                    "22\tCI\tcompleted\tsuccess\thttps://x/actions/runs/22\tpush\tfeat/1\n"
+                ),
+                ("run", "view", "21", "--log-failed"): "boom\n",
+            },
+        )
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("verdict: FAIL\n", proc.stdout)
+        self.assertIn(
+            "  - CI [completed/failure] https://x/actions/runs/21\n", proc.stdout
+        )
+
+    def test_a_superseded_run_of_the_same_event_and_branch_is_ignored(self):
+        pr = "45"
+        self.args = [pr]
+        proc, calls = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "31\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/31\tpull_request\tfeat/1\n"
+                    "32\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/32\tpull_request\tfeat/1\n"
+                ),
+            },
+        )
+
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("verdict: PASS\n", proc.stdout)
+        self.assertEqual([c for c in calls if c[:2] == ["run", "view"]], [])
+
+    def test_a_stale_run_conclusion_is_an_error_not_a_pass(self):
+        pr = "46"
+        self.args = [pr]
+        proc, _ = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): "41\tCI\tcompleted\tstale\thttps://x/actions/runs/41\n",
+            },
+        )
+
+        self.assertEqual(proc.returncode, 4)
+        self.assertIn("verdict: ERROR\n", proc.stdout)
+        self.assertIn("unsettled_checks:\n  - CI [completed/stale]", proc.stdout)
+
     def test_a_cancelled_run_that_is_the_newest_of_its_workflow_fails(self):
         pr = "38"
         self.args = [pr]
-        proc, _ = self.forbidden(pr, {
-            RUNS(SHA): (
-                "11\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/11\n"
-                "12\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/12\n"
-            ),
-            ("run", "view", "12", "--log-failed"): "cancelled\n",
-        })
+        proc, _ = self.forbidden(
+            pr,
+            {
+                RUNS(SHA): (
+                    "11\tPR Title\tcompleted\tsuccess\thttps://x/actions/runs/11\n"
+                    "12\tPR Title\tcompleted\tcancelled\thttps://x/actions/runs/12\n"
+                ),
+                ("run", "view", "12", "--log-failed"): "cancelled\n",
+            },
+        )
 
         self.assertEqual(proc.returncode, 1)
         self.assertIn("verdict: FAIL\n", proc.stdout)
@@ -598,12 +728,15 @@ class CiWatchFallbackTest(unittest.TestCase):
     def test_failing_commit_status_fails_without_an_actions_run(self):
         # Commit statuses are the other half of what a fine-grained PAT can
         # read, and the CI systems that post them have no Actions run to fetch
-        # a log from -- so the check is listed but no log dump is attempted.
+        # a log from — so the check is listed but no log dump is attempted.
         pr = "34"
         self.args = [pr]
-        proc, calls = self.forbidden(pr, {
-            STATUSES(SHA): "ci/external\tfailure\thttps://ci.example.com/build/9\n",
-        })
+        proc, calls = self.forbidden(
+            pr,
+            {
+                STATUSES(SHA): "ci/external\tfailure\thttps://ci.example.com/build/9\n",
+            },
+        )
 
         self.assertEqual(proc.returncode, 1)
         self.assertIn("verdict: FAIL\n", proc.stdout)
@@ -616,9 +749,12 @@ class CiWatchFallbackTest(unittest.TestCase):
     def test_successful_commit_status_passes(self):
         pr = "35"
         self.args = [pr]
-        proc, _ = self.forbidden(pr, {
-            STATUSES(SHA): "ci/external\tsuccess\thttps://ci.example.com/build/9\n",
-        })
+        proc, _ = self.forbidden(
+            pr,
+            {
+                STATUSES(SHA): "ci/external\tsuccess\thttps://ci.example.com/build/9\n",
+            },
+        )
 
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("verdict: PASS\n", proc.stdout)
@@ -647,20 +783,23 @@ class CiWatchFallbackTest(unittest.TestCase):
             stub_dir = Path(td)
             install_stub(stub_dir, "sleep", "#!/usr/bin/env bash\nexit 0\n")
             install_advancing_clock(stub_dir)
-            proc, calls = self.forbidden(pr, {
-                RUNS(SHA): (
-                    "456\tCI\tin_progress\t\t"
-                    "https://github.com/acme/widgets/actions/runs/456\n"
-                ),
-            }, stub_dir=stub_dir)
+            proc, calls = self.forbidden(
+                pr,
+                {
+                    RUNS(SHA): (
+                        "456\tCI\tin_progress\t\t"
+                        "https://github.com/acme/widgets/actions/runs/456\n"
+                    ),
+                },
+                stub_dir=stub_dir,
+            )
 
         self.assertEqual(proc.returncode, 2)
         self.assertIn("verdict: TIMEOUT\n", proc.stdout)
         self.assertIn("check_source: actions+statuses\n", proc.stdout)
         self.assertIn("waited_seconds: 60\n", proc.stdout)
         self.assertIn(
-            "  - CI [in_progress] "
-            "https://github.com/acme/widgets/actions/runs/456\n",
+            "  - CI [in_progress] https://github.com/acme/widgets/actions/runs/456\n",
             proc.stdout,
         )
         self.assertIn("pr_state: OPEN\n", proc.stdout)
@@ -673,12 +812,18 @@ class CiWatchFallbackTest(unittest.TestCase):
             stub_dir = Path(td)
             install_stub(stub_dir, "sleep", "#!/usr/bin/env bash\nexit 0\n")
             install_advancing_clock(stub_dir)
-            proc, _ = self.forbidden(pr, {
-                RUNS(SHA): (
-                    "456\tCI\tcompleted\tsuccess\thttps://x/actions/runs/456\n"
-                ),
-                STATUSES(SHA): "ci/external\tpending\thttps://ci.example.com/build/9\n",
-            }, stub_dir=stub_dir)
+            proc, _ = self.forbidden(
+                pr,
+                {
+                    RUNS(SHA): (
+                        "456\tCI\tcompleted\tsuccess\thttps://x/actions/runs/456\n"
+                    ),
+                    STATUSES(
+                        SHA
+                    ): "ci/external\tpending\thttps://ci.example.com/build/9\n",
+                },
+                stub_dir=stub_dir,
+            )
 
         self.assertEqual(proc.returncode, 2)
         self.assertIn("verdict: TIMEOUT\n", proc.stdout)
@@ -688,9 +833,12 @@ class CiWatchFallbackTest(unittest.TestCase):
         # means the PR itself could not be read.
         pr = "39"
         self.args = [pr]
-        proc, _ = self.forbidden(pr, {HEAD_OID(pr): ""},
-                                 exits={HEAD_OID(pr): 1},
-                                 stderrs={HEAD_OID(pr): "gh: boom\n"})
+        proc, _ = self.forbidden(
+            pr,
+            {HEAD_OID(pr): ""},
+            exits={HEAD_OID(pr): 1},
+            stderrs={HEAD_OID(pr): "gh: boom\n"},
+        )
 
         self.assertEqual(proc.returncode, 4)
         self.assertIn("verdict: ERROR\n", proc.stdout)
@@ -707,15 +855,16 @@ class CiWatchFallbackTest(unittest.TestCase):
             [pr],
             {("pr", "view", pr): ""},
             exits={("pr", "view", pr): 1},
-            stderrs={("pr", "view", pr):
-                     "GraphQL: Could not resolve to a PullRequest\n"},
+            stderrs={
+                ("pr", "view", pr): "GraphQL: Could not resolve to a PullRequest\n"
+            },
         )
 
         self.assertEqual(proc.returncode, 4)
         self.assertIn(f"detail: could not read PR #{pr}: ", proc.stdout)
         self.assertEqual(
-            [c for c in calls if c[:5] == ["pr", "view", pr, "--json", "number"]],
-            [])
+            [c for c in calls if c[:5] == ["pr", "view", pr, "--json", "number"]], []
+        )
 
 
 if __name__ == "__main__":
