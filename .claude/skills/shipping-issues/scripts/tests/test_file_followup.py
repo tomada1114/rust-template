@@ -4,6 +4,7 @@
 Run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
      (from the shipping-issues skill directory)
 """
+
 from __future__ import annotations
 
 import io
@@ -11,16 +12,16 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _fakegh import FakeGh, label_writes  # noqa: E402
-import file_followup as ff  # noqa: E402
-import issue_digest as idg  # noqa: E402
+import file_followup as ff
+import issue_digest as idg
+from _fakegh import FakeGh, label_writes
 
 
 class ResolveTierLabelTest(unittest.TestCase):
@@ -30,7 +31,7 @@ class ResolveTierLabelTest(unittest.TestCase):
 
     def test_reuses_repo_alias_instead_of_the_canonical_name(self):
         # A repo that already spells the tier as "p2" must not also gain a
-        # parallel "priority: P2" -- that would split its own backlog in two.
+        # parallel "priority: P2" — that would split its own backlog in two.
         label = ff.resolve_tier_label("P2", ["p2", "bug"])
         self.assertEqual(label, "p2")
 
@@ -53,9 +54,12 @@ class MainEndToEndTest(unittest.TestCase):
     def _run(self, args, responses, exits=None, stderrs=None):
         with FakeGh(responses, exits=exits, stderrs=stderrs) as fake:
             out, err = io.StringIO(), io.StringIO()
-            with patch.dict("os.environ", fake.env, clear=False), \
-                    patch.object(sys, "argv", ["file_followup.py", *args]), \
-                    redirect_stdout(out), redirect_stderr(err):
+            with (
+                patch.dict("os.environ", fake.env, clear=False),
+                patch.object(sys, "argv", ["file_followup.py", *args]),
+                redirect_stdout(out),
+                redirect_stderr(err),
+            ):
                 try:
                     rc = ff.main()
                 except SystemExit as exc:
@@ -64,7 +68,7 @@ class MainEndToEndTest(unittest.TestCase):
 
     def _run_capturing_calls(self, args, responses):
         """Like _run, but reads fake.calls (and the filed body) while the
-        FakeGh block is still open -- see the analogous note in
+        FakeGh block is still open — see the analogous note in
         test_apply_priority_labels.py's test_set_design_via_main_never_calls_the_digest."""
         filed = {}
         real_gh = ff.gh
@@ -77,9 +81,12 @@ class MainEndToEndTest(unittest.TestCase):
 
         with FakeGh(responses) as fake, patch("file_followup.gh", side_effect=capture):
             out, err = io.StringIO(), io.StringIO()
-            with patch.dict("os.environ", fake.env, clear=False), \
-                    patch.object(sys, "argv", ["file_followup.py", *args]), \
-                    redirect_stdout(out), redirect_stderr(err):
+            with (
+                patch.dict("os.environ", fake.env, clear=False),
+                patch.object(sys, "argv", ["file_followup.py", *args]),
+                redirect_stdout(out),
+                redirect_stderr(err),
+            ):
                 try:
                     rc = ff.main()
                 except SystemExit as exc:
@@ -92,12 +99,24 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("Observed defect at foo.py:12.")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--label", "Bug", "--repo", "acme/widgets", "--json"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--label",
+                    "Bug",
+                    "--repo",
+                    "acme/widgets",
+                    "--json",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): json.dumps([{"name": "priority: P2"},
-                                                    {"name": "bug"}]),
+                    ("label", "list"): json.dumps(
+                        [{"name": "priority: P2"}, {"name": "bug"}]
+                    ),
                     ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
                 },
             )
@@ -113,12 +132,23 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("Observed defect at foo.py:12.")
             rc, out, err, calls, filed = self._run_capturing_calls(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--label", "bgu", "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--label",
+                    "bgu",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): json.dumps([{"name": "priority: P2"},
-                                                    {"name": "bug"}]),
+                    ("label", "list"): json.dumps(
+                        [{"name": "priority: P2"}, {"name": "bug"}]
+                    ),
                     ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
                 },
             )
@@ -134,8 +164,16 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("x")
             rc, out, err, calls, filed = self._run_capturing_calls(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps([{"name": "bug"}]),
@@ -147,39 +185,120 @@ class MainEndToEndTest(unittest.TestCase):
         self.assertFalse(any(c[:2] == ["issue", "create"] for c in calls))
         self.assertEqual(label_writes(calls), [])
 
+    def test_a_body_ending_inside_a_code_fence_is_closed_before_appending(self):
+        for fence in ("```", "~~~~"):
+            with self.subTest(fence=fence):
+                with tempfile.TemporaryDirectory() as td:
+                    body = Path(td) / "body.txt"
+                    body.write_text(f"Repro at foo.py:12:\n\n{fence}sh\njust test\n")
+                    rc, out, err, calls, filed = self._run_capturing_calls(
+                        [
+                            "--title",
+                            "t",
+                            "--body-file",
+                            str(body),
+                            "--tier",
+                            "P2",
+                            "--blocked-by",
+                            "12",
+                            "--repo",
+                            "acme/widgets",
+                        ],
+                        {
+                            ("repo", "view"): "acme/widgets\n",
+                            ("label", "list"): json.dumps(
+                                [
+                                    {"name": n}
+                                    for n in ("priority: P2", "blocked: dependency")
+                                ]
+                            ),
+                            (
+                                "issue",
+                                "create",
+                            ): "https://github.com/acme/widgets/issues/99\n",
+                        },
+                    )
+                self.assertEqual(rc, 0, err)
+                self.assertIn(f"just test\n{fence}\n\n## Dependencies", filed)
+                self.assertIsNone(idg.unclosed_fence(filed))
+                # Both the prose edge and the contract are read, not swallowed as code.
+                self.assertEqual(idg.parse_ship_contract(filed)["depends_on"], [12])
+                self.assertEqual(
+                    idg.extract_deps(filed.split("<!--")[0], "t", 99)["depends_on"],
+                    [12],
+                )
+
+    def test_a_closed_fence_is_left_as_it_is(self):
+        self.assertIsNone(idg.unclosed_fence("a\n```\ncode\n```\nb"))
+        self.assertEqual(idg.unclosed_fence("a\n````\n```\n"), "````")
+
     def test_blocked_by_writes_depends_on_lines_and_the_dependency_label(self):
         with tempfile.TemporaryDirectory() as td:
             body = Path(td) / "body.txt"
             body.write_text("Observed defect at foo.py:12.")
             rc, out, err, calls, filed = self._run_capturing_calls(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--label", "bug", "--blocked-by", "12,#13", "--blocks", "98",
-                 "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--label",
+                    "bug",
+                    "--blocked-by",
+                    "12,#13",
+                    "--blocks",
+                    "98",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps(
-                        [{"name": n} for n in ("priority: P2", "bug",
-                                               "blocked: dependency")]),
+                        [
+                            {"name": n}
+                            for n in ("priority: P2", "bug", "blocked: dependency")
+                        ]
+                    ),
                     ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
                 },
             )
         self.assertEqual(rc, 0, err)
-        self.assertIn("## Dependencies\n\nDepends on #12\nDepends on #13\nBlocks #98",
-                      filed)
+        self.assertIn(
+            "## Dependencies\n\nDepends on: #12\nDepends on: #13\nBlocks: #98", filed
+        )
         creates = [c for c in calls if c[:2] == ["issue", "create"]]
         self.assertEqual(len(creates), 1)
-        applied = [creates[0][i + 1] for i, a in enumerate(creates[0]) if a == "--label"]
+        applied = [
+            creates[0][i + 1] for i, a in enumerate(creates[0]) if a == "--label"
+        ]
         self.assertEqual(applied, ["priority: P2", "blocked: dependency", "bug"])
         # The ship contract carries the same edges for the next run's planner.
         self.assertEqual(idg.parse_ship_contract(filed)["depends_on"], [12, 13])
+        # The prose section alone already reads as those edges, contract aside.
+        prose = filed.split("<!--")[0]
+        deps = idg.extract_deps(prose, "t", 99)
+        self.assertEqual(sorted(deps["depends_on"]), [12, 13])
+        self.assertEqual(deps["blocks"], [98])
 
     def test_blocked_by_without_a_dependency_label_fails(self):
         with tempfile.TemporaryDirectory() as td:
             body = Path(td) / "body.txt"
             body.write_text("x")
             rc, out, err, calls, filed = self._run_capturing_calls(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--blocked-by", "12", "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--blocked-by",
+                    "12",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps([{"name": "priority: P2"}]),
@@ -194,8 +313,18 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("x")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--repo", "acme/widgets", "--dry-run", "--json"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--repo",
+                    "acme/widgets",
+                    "--dry-run",
+                    "--json",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps([{"name": "priority: P2"}]),
@@ -222,8 +351,16 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("x")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps([{"name": "priority: P2"}]),
@@ -239,8 +376,16 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("   \n")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {("repo", "view"): "acme/widgets\n"},
             )
         self.assertEqual(rc, 3, err)
@@ -248,8 +393,16 @@ class MainEndToEndTest(unittest.TestCase):
     def test_missing_body_file_exits_3(self):
         with tempfile.TemporaryDirectory() as td:
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(Path(td) / "missing.txt"),
-                 "--tier", "P2", "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(Path(td) / "missing.txt"),
+                    "--tier",
+                    "P2",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {("repo", "view"): "acme/widgets\n"},
             )
         self.assertEqual(rc, 3, err)
@@ -259,9 +412,20 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("Observed defect.")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P3",
-                 "--found-while", "42", "--repo", "acme/widgets", "--dry-run",
-                 "--json"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P3",
+                    "--found-while",
+                    "42",
+                    "--repo",
+                    "acme/widgets",
+                    "--dry-run",
+                    "--json",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps([{"name": "priority: P3"}]),
@@ -289,12 +453,26 @@ class MainEndToEndTest(unittest.TestCase):
             body.write_text("Observed defect.")
             with patch("file_followup.gh", side_effect=capture):
                 rc, out, err, fake = self._run(
-                    ["--title", "t", "--body-file", str(body), "--tier", "P3",
-                     "--found-while", "42", "--repo", "acme/widgets", "--json"],
+                    [
+                        "--title",
+                        "t",
+                        "--body-file",
+                        str(body),
+                        "--tier",
+                        "P3",
+                        "--found-while",
+                        "42",
+                        "--repo",
+                        "acme/widgets",
+                        "--json",
+                    ],
                     {
                         ("repo", "view"): "acme/widgets\n",
                         ("label", "list"): json.dumps([{"name": "priority: P3"}]),
-                        ("issue", "create"): "https://github.com/acme/widgets/issues/99\n",
+                        (
+                            "issue",
+                            "create",
+                        ): "https://github.com/acme/widgets/issues/99\n",
                     },
                 )
         self.assertEqual(rc, 0, err)
@@ -306,12 +484,24 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("Observed defect, but the fix approach is undecided.")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--needs-design", "--repo", "acme/widgets", "--dry-run", "--json"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--needs-design",
+                    "--repo",
+                    "acme/widgets",
+                    "--dry-run",
+                    "--json",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): json.dumps([{"name": "priority: P2"},
-                                                    {"name": "blocked: design"}]),
+                    ("label", "list"): json.dumps(
+                        [{"name": "priority: P2"}, {"name": "blocked: design"}]
+                    ),
                 },
             )
         self.assertEqual(rc, 0, err)
@@ -323,12 +513,24 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("Observed defect, approach undecided.")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--needs-design", "--repo", "acme/widgets", "--dry-run", "--json"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--needs-design",
+                    "--repo",
+                    "acme/widgets",
+                    "--dry-run",
+                    "--json",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
-                    ("label", "list"): json.dumps([{"name": "priority: P2"},
-                                                    {"name": "needs-design"}]),
+                    ("label", "list"): json.dumps(
+                        [{"name": "priority: P2"}, {"name": "needs-design"}]
+                    ),
                 },
             )
         self.assertEqual(rc, 0, err)
@@ -340,8 +542,18 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("Observed defect with a clear, verified fix.")
             rc, out, err, fake = self._run(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--repo", "acme/widgets", "--dry-run", "--json"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--repo",
+                    "acme/widgets",
+                    "--dry-run",
+                    "--json",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps([{"name": "priority: P2"}]),
@@ -356,8 +568,17 @@ class MainEndToEndTest(unittest.TestCase):
             body = Path(td) / "body.txt"
             body.write_text("Observed defect, approach undecided.")
             rc, out, err, calls, filed = self._run_capturing_calls(
-                ["--title", "t", "--body-file", str(body), "--tier", "P2",
-                 "--needs-design", "--repo", "acme/widgets"],
+                [
+                    "--title",
+                    "t",
+                    "--body-file",
+                    str(body),
+                    "--tier",
+                    "P2",
+                    "--needs-design",
+                    "--repo",
+                    "acme/widgets",
+                ],
                 {
                     ("repo", "view"): "acme/widgets\n",
                     ("label", "list"): json.dumps([{"name": "priority: P2"}]),
@@ -397,24 +618,33 @@ class ShipContractTest(unittest.TestCase):
 
     def test_defaults_state_the_unknowns_explicitly(self):
         block = ff.ship_contract(self._Args())
-        self.assertEqual(block,
-                         "<!-- ship: tier=P2 blocked-by=none touches=* design=settled -->")
+        self.assertEqual(
+            block, "<!-- ship: tier=P2 blocked-by=none touches=* design=settled -->"
+        )
 
     def test_every_field_round_trips_through_the_digest_parser(self):
-        block = ff.ship_contract(self._Args(
-            tier="P1", area="test-infra", touches="tests/,vitest.config.ts",
-            blocked_by="12,#13", blocks="98"))
+        block = ff.ship_contract(
+            self._Args(
+                tier="P1",
+                area="test-infra",
+                touches="tests/,Cargo.toml",
+                blocked_by="12,#13",
+                blocks="98",
+            )
+        )
         parsed = idg.parse_ship_contract(block)
         self.assertEqual(parsed["tier"], "P1")
         self.assertEqual(parsed["area"], "test-infra")
-        self.assertEqual(parsed["touches"], ["tests/", "vitest.config.ts"])
+        self.assertEqual(parsed["touches"], ["tests/", "Cargo.toml"])
         self.assertEqual(parsed["depends_on"], [12, 13])
         self.assertEqual(parsed["blocks"], [98])
         self.assertEqual(parsed["design"], "settled")
         self.assertEqual(parsed["missing_fields"], [])
 
     def test_needs_design_marks_the_design_open(self):
-        parsed = idg.parse_ship_contract(ff.ship_contract(self._Args(needs_design=True)))
+        parsed = idg.parse_ship_contract(
+            ff.ship_contract(self._Args(needs_design=True))
+        )
         self.assertEqual(parsed["design"], "open")
 
     def test_empty_touches_falls_back_to_star_not_to_nothing(self):
@@ -425,15 +655,33 @@ class ShipContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             body_file = Path(tmp) / "body.md"
             body_file.write_text("The finding.", encoding="utf-8")
-            with FakeGh({("label", "list"): json.dumps([{"name": "priority: P2"}])}) as fake:
+            with FakeGh(
+                {("label", "list"): json.dumps([{"name": "priority: P2"}])}
+            ) as fake:
                 out, err = io.StringIO(), io.StringIO()
-                with patch.dict("os.environ", fake.env, clear=False), \
-                        patch.object(sys, "argv", [
-                            "file_followup.py", "--title", "t",
-                            "--body-file", str(body_file), "--tier", "P2",
-                            "--touches", "src/api/", "--area", "api",
-                            "--dry-run"]), \
-                        redirect_stdout(out), redirect_stderr(err):
+                with (
+                    patch.dict("os.environ", fake.env, clear=False),
+                    patch.object(
+                        sys,
+                        "argv",
+                        [
+                            "file_followup.py",
+                            "--title",
+                            "t",
+                            "--body-file",
+                            str(body_file),
+                            "--tier",
+                            "P2",
+                            "--touches",
+                            "src/api/",
+                            "--area",
+                            "api",
+                            "--dry-run",
+                        ],
+                    ),
+                    redirect_stdout(out),
+                    redirect_stderr(err),
+                ):
                     rc = ff.main()
         self.assertEqual(rc, 0, err.getvalue())
         self.assertIn("touches=src/api/", out.getvalue())

@@ -2,7 +2,7 @@
 
 <!-- template-only: cargo xtask bootstrap removes docs/template/ from a generated app. -->
 
-The finalized [design.md](design.md) uses 22 repository skills. Their authored source
+The finalized [design.md](design.md) uses 24 repository skills. Their authored source
 is `.agents/skills/`; `just agents-sync` generates the byte-for-byte
 `.claude/skills/` mirror. The Skills table in `AGENTS.md` owns when to load each.
 
@@ -23,6 +23,8 @@ to take over the developer's machine or terminal.
 | `create-pr` | PR title, body, release impact, and validation evidence. |
 | `triaging-issues` | Issue types, priorities, blocked states, and tracking. |
 | `shipping-issues` | Ranked issue implementation and verified landing. |
+| `codex-shipping-issues` | One issue shipped from Codex over GitHub MCP, within the request's authority. |
+| `cloud-claude-shipping-issues` | Issues shipped serially from a Claude Code cloud session over REST. |
 | `steering-the-roadmap` | Now, Next, and Later in the app's roadmap. |
 | `merging-dependency-prs` | Dependency updates and isolated terminal-framework migrations. |
 | `updating-docs` | Which maintained document a change owes. |

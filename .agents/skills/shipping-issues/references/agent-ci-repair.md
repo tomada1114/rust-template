@@ -1,58 +1,62 @@
-# CI repair (sub-agent prompt)
+# CI repair (brief)
 
-Spawned at [SKILL.md step 6](../SKILL.md#6-ci-to-green), only after
-`ci_watch.sh` returns `FAIL`, one PR at a time. **`executor` by default; a
-fresh `architect` once the same failure has survived two attempts in a row.**
-Attempt 2 is a `SendMessage` to the attempt-1 agent while it is reachable --
-it already read the log and the code -- carrying the new failing log path and
-what its last push did not fix.
+Used at [SKILL.md step 6](../SKILL.md#6-ci-to-green), only after `ci_watch.sh` returns
+`FAIL`, one PR at a time — run inline, or handed to **`executor`** for attempts 1–2 and
+to **`architect`** from attempt 3, once the same failure has survived two attempts in a
+row. A repeat attempt on the same tier continues the same agent where the host allows.
 
 Write the failing log to a file **outside** the working directory first
-(`<runstate>/ci/<pr>.log`) -- a stray untracked file inside it makes cleanup
-skip the directory as dirty, and a commit convention that stages everything
-would land the log in the change.
+(`<runstate>/ci/<pr>.log`) — a stray untracked file inside it makes cleanup skip the
+directory as dirty, and a commit convention that stages everything would land the log in
+the change.
 
 ```
 PR #{pr} implements issue #{n} in {owner}/{repo}; its CI just failed:
 {check names, from the parent's failed_checks: line}. I need the cause fixed
-and pushed. I will re-check after you return -- you cannot, and must not try
+and pushed. I will re-check after you return — you cannot, and must not try
 to.
 
-Work only inside {workdir}, on branch {branch} -- already checked out. Do not
+Work only inside {workdir}, on branch {branch} — already checked out. Do not
 touch any sibling checkout or worktree of the same repository.
 
 <context>
 Issue #{n}: {two-or-three-sentence paraphrase of what the issue asks, so a fix
 that changes behavior can be judged against what the issue actually asked
-for} -- "the body is authoritative over this summary."
+for} — "the body is authoritative over this summary."
 Read it yourself, read-only, with:
   gh issue view {n} --repo {owner}/{repo} --json title,body,labels,comments
-That read is the ONLY GitHub command you are permitted to run -- do not touch
+When the body has a `Part of: #<N>` line, read that parent issue too, read-only
+and the same way — it holds the settled decisions the body defers to:
+  gh issue view <N> --repo {owner}/{repo} --json title,body,labels,comments
+Those reads are the ONLY GitHub commands you are permitted to run — do not touch
 the GitHub API otherwise, do not watch CI, do not sleep or poll.
 </context>
 
 Base branch: {base_branch}
-Verification: the narrowest checks that reproduce the failing CI step locally
-(AGENTS.md › "Validating a change"); CI re-runs the full gate after the push.
-Project conventions: read {workdir}/CLAUDE.md and {workdir}/AGENTS.md
-before changing anything.
+Verification: the local recipe behind the failing CI job (AGENTS.md ›
+              "Enforcement layers" and "Validating a change" map each job to
+              its recipe, such as `just lint` or `just test-core`), never the
+              full `just check`
+Project conventions: read {workdir}/AGENTS.md (and the host's own instruction
+file, if any) before changing anything, and load the skills its Skills table
+names for tests, commits, gates, and the area the failure is in.
 
 The failing output is in:
   {log_path}
 
 Read that file first. It is outside your work directory; read it there and do
-not copy it in. Then fix the cause at {workdir}, commit, and push -- return as
+not copy it in. Then fix the cause at {workdir}, commit, and push — return as
 soon as your fix is pushed. Never `rm`: undo a probe inside the checkout with
 `git checkout --`, or move it aside with `mv` into {holding_dir}, and name any
 scratch file you left behind in your report.
 
 This is attempt {attempt} of 3. {What the previous attempts tried and why it
-did not work -- leave empty on attempt 1, and never re-send the same
+did not work — leave empty on attempt 1, and never re-send the same
 instruction twice; from attempt 3, the accumulated detail rather than the same
 instruction again.}
 
 Fix the failure, not the check. Deleting, skipping, or weakening a test to
-make it pass is a failed outcome -- if the test is genuinely wrong, say so in
+make it pass is a failed outcome — if the test is genuinely wrong, say so in
 UNRESOLVED and stop without pushing. Same for a flaky job: if you believe a
 failure is flaky, say which job and why under UNRESOLVED rather than pushing a
 no-op commit to re-trigger it.
@@ -60,15 +64,15 @@ no-op commit to re-trigger it.
 Return exactly:
 CAUSE: <what actually failed, in one or two lines>
 FIXES: <one line per repair commit, or "none">
-PUSHED: <yes + the remote ref, or "no" + why -- "no" ends the repair loop; I do
+PUSHED: <yes + the remote ref, or "no" + why — "no" ends the repair loop; I do
          not re-check unchanged code>
 FOLLOW-UPS: <defects the failure exposed that are NOT this change's to fix,
-             one per line as `file:line -- what is wrong -- what prevents it
+             one per line as `file:line — what is wrong — what prevents it
              today`, or "none">
 UNRESOLVED: <anything needing a human, or "none">
 ```
 
-The log reaches the run through that path, never through the prompt, so it
-never lands in the parent's context. The watch/repair loop -- repair, push,
-re-watch, up to 3 attempts -- lives in the parent. `PUSHED: no` ends the loop;
-read `UNRESOLVED` rather than re-watching unchanged code.
+The log reaches the run through that path, never through the prompt, so it never lands
+in the parent's context. The watch/repair loop — repair, push, re-watch, up to 3
+attempts — lives in the parent. `PUSHED: no` ends the loop; read `UNRESOLVED` rather
+than re-watching unchanged code.

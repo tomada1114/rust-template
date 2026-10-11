@@ -271,7 +271,9 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `smart-commit` | Turning the working tree into Conventional Commits; a refused pre-commit hook |
 | `create-pr` | Opening or updating a pull request: title, body, Release impact, evidence |
 | `triaging-issues` | Filing or labelling an issue: type, priority, blocked, tracking |
-| `shipping-issues` | Taking ranked open issues to merged pull requests, with worktrees |
+| `shipping-issues` | Claude Code on the developer's machine: taking ranked open issues to merged pull requests — rank, implement (worktrees), PR, the PR's Codex review and its findings, CI, merge |
+| `codex-shipping-issues` | Codex: shipping one issue through a regular PR, up to three Codex review rounds, current-head CI, and the merge the request authorizes, over GitHub MCP |
+| `cloud-claude-shipping-issues` | A Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`): shipping issues serially over REST `gh api` calls — rank, implement, PR, review, CI, merge |
 | `steering-the-roadmap` | Changing `docs/architecture/roadmap.md` (Now / Next / Later) |
 | `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; a pre-1.0 ratatui minor lands alone |
 | `managing-dependencies` | Adding or changing a crate: the review record, features, licences |
@@ -387,8 +389,24 @@ writes that skill exists to make, for that invocation only.
 - `create-pr`: pushing the current branch and creating or updating its pull request.
 - `shipping-issues`: the writes its `SKILL.md` lists — priority and `blocked:` labels
   on open issues, branches and pushes, the pull request, merging it once CI passes,
-  the follow-up issues and comments it files, and removing the branches and worktrees
-  it created.
+  the follow-up issues and the design-decision comments it posts, and removing the
+  branches and worktrees it created — never a reply to or resolution of a review thread
+  or an `@codex review` comment.
+- `cloud-claude-shipping-issues`: the writes its `SKILL.md` lists — pushing its own
+  branch; creating the pull request; on that open PR alone, appending `Closes #<n>` to
+  its body when missing or retargeting its base to the default branch; merging it once
+  CI passes; closing by hand, with a back-reference comment naming the PR, the issue
+  that merged PR was meant to close when GitHub left it open; for the design-held issue
+  the run takes on, its design-decision comment and then clearing its design block (the
+  design-block label and the ship contract's `design=open`); filing and labelling
+  follow-up issues; and removing `blocked: dependency` from the issues its merge
+  unblocked — never a branch deletion, a reply to or resolution of a review thread,
+  `@codex review`, or Auto-fix.
+
+`codex-shipping-issues` is not a standing exception: Codex's writes come from the
+user's own request in that session (a request to ship an issue through merge covers its
+commits, push, PR, review corrections, and the gated merge; a request for a PR stops
+there), never from invoking the skill.
 
 One request is a standing exception too: the human explicitly asking for an issue
 ("file an issue for this") is the sign-off for the `gh issue create` of each issue that
@@ -401,6 +419,16 @@ None of them covers anything else in the list above: a force push or other histo
 rewrite, `--no-verify`, weakening a gate, a release pipeline or signing, a release tag,
 a new dependency, `just labels`, or `just ruleset`. A skill that reaches one of those
 stops and asks.
+
+Which shipping skill runs where: in Codex, the repository-local `codex-shipping-issues`,
+which takes precedence over a global skill of the same name; in a Claude Code cloud
+session (`CLAUDE_CODE_REMOTE=true`), `cloud-claude-shipping-issues`, whose REST calls
+the session's GitHub proxy allows where `shipping-issues`' GraphQL calls are refused;
+`shipping-issues` only in a local Claude Code session. In Codex, every remote GitHub
+read and write goes through the connected GitHub MCP integration — never `gh`, directly
+or through a helper that calls it, and never a direct HTTP fallback; a missing MCP
+capability is reported instead. Local checkout, commit, and push stay in git, and a
+check that runs against a mocked `gh` is fine.
 
 ### Never taking over the developer's Mac
 

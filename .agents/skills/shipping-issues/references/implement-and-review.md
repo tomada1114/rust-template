@@ -1,47 +1,34 @@
-# Implementing and reviewing a branch
+# Implement, then fix the PR review's findings (steps 3 and 5)
 
-The detail behind SKILL.md steps 3 and 4: what runs, in which checkout, and what this
-session does with each thing a sub-agent returns. Read it at step 3 the first time in a
-run, and whenever a result or a review does not fit the short form in SKILL.md.
+The detail behind [SKILL.md step 3](../SKILL.md#3-implement) — from a branch cut off the
+default branch to an implemented, judged, pushed branch with no PR yet — and the fix half
+of [step 5](../SKILL.md#5-wait-for-the-pr-review), where the PR's own review comes back
+and its accepted findings are fixed on that same branch. No local review pass runs in
+between: the review is the pull request's. Read it before the first step 3 of a run.
 
 ## Table of Contents
 
-- [3. Implement](#3-implement)
-  - [Serial](#serial)
-  - [Parallel](#parallel)
-  - [Spawning](#spawning)
-  - [Judging what came back](#judging-what-came-back)
-  - [Resuming a run](#resuming-a-run)
-- [4. Review the branch](#4-review-the-branch)
-  - [Effort and syntax](#effort-and-syntax)
-  - [Serial: `--fix`](#serial---fix)
-  - [Parallel: a fix agent per branch](#parallel-a-fix-agent-per-branch)
-  - [Triage](#triage)
-  - [Reading the fix and recording it](#reading-the-fix-and-recording-it)
+- [Setting up the branch](#setting-up-the-branch)
+- [Handing off the implementation](#handing-off-the-implementation)
+- [Judging the result](#judging-the-result)
+- [Triaging the review's findings](#triaging-the-reviews-findings)
+- [Fixing the accepted findings](#fixing-the-accepted-findings)
 
-## 3. Implement
+## Setting up the branch
 
 One issue = one branch = one PR. Step 1's `next:` line is the command.
 
-### Serial
+**Serial** —
+`git switch <default_branch> && git pull --ff-only && git switch -c <branch>`. No
+baseline run follows: CI is the gate every pull request merges through, so a full
+`just check` before implementing — or before opening the PR — costs a cold build and
+the coverage runs and proves nothing CI will not prove again. The implementer runs the
+narrowest check that can fail for what it changed (`AGENTS.md` › "Validating a
+change"), and CI judges the whole.
 
-```bash
-git switch <default_branch> && git pull --ff-only && git switch -c <branch>
-```
-
-No baseline run follows. CI is the gate every pull request merges through, so a full
-`just check` before implementing -- or before opening the PR -- costs a cold build and
-proves nothing CI will not prove again. The implementer runs the narrowest check that
-can fail for what it changed (`AGENTS.md` › "Validating a change"), and CI judges the
-whole.
-
-### Parallel
-
-The script creates each branch, copies the untracked
-`.claude/settings.local.json` (never a secret-shaped file such as `.env`;
-`worktree-parallelism.md`),
-and installs dependencies when a lockfile asks for them. It **reports and does not
-decide**:
+**Parallel** — the script creates each branch and checks the shared lefthook hook; it
+installs nothing, since cargo builds on demand into each worktree's own `target/`. It
+**reports and does not decide**:
 
 ```bash
 git switch <default_branch> && git pull --ff-only   # once, before the batch
@@ -50,115 +37,118 @@ git switch <default_branch> && git pull --ff-only   # once, before the batch
     --log-dir <runstate>/verify
 ```
 
-**Provision the first worktree on its own, read its block, then ask for the rest.** That
-one extra call is what stops a repository that cannot carry a worktree from costing
-two cold setups instead of one. `--verify` still exists for a run that has a reason to
-baseline (a `main` suspected red); without it there is no `baseline:` outcome to judge
-(`verdict:` semantics in `worktree-parallelism.md`). Whatever the setup turns up goes to
-step 8.
+**Provision the first worktree on its own, read its block, then ask for the rest** —
+that one extra call is what stops a repo that cannot carry a worktree from costing two
+cold builds instead of one. `--verify` still exists for a run with a reason to baseline
+(a `main` suspected red); only then is there a `baseline:` outcome to judge
+(`recovery.md` › "A red baseline"; `verdict:` semantics in `worktree-parallelism.md` ›
+"Viability gate"). Read exit codes and log tails, never full output; what the setup
+turns up goes to step 8.
 
-### Spawning
+## Handing off the implementation
 
-Fill `agent-implementation.md` per issue and spawn it as
-`executor` -- or `architect` when the issue is foundational: blast radius, not
-difficulty (`cost-discipline.md`).
+Fill `agent-implementation.md` per issue
+(`delegation-templates.md` holds the rules every brief shares).
+Where the host has named sub-agents, hand it to **`executor`** by default and to
+**`architect`** when the issue is foundational — blast radius, not difficulty
+(the foundation exception: `cost-discipline.md` › "The foundation exception: architect for what the backlog builds on").
 A change small enough that the handoff costs more than the work is implemented here
-(the floor in `cost-discipline.md`). In parallel mode issue
-every spawn of the batch **in one message**, each with its own worktree path, never the
-main checkout -- spawned one after another, they run one after another.
+rather than handed off
+(the floor: `cost-discipline.md` › "The floor: too small to delegate"). With no tiers — a
+session where `.claude/agents/` did not load — follow the brief inline, one issue at a
+time, and run the batch **serial**: plan with `--max-parallel 1` and create no
+worktrees. Each worktree costs a cold cargo build into its own `target/`, and with one
+writer working through them in turn it buys no concurrency.
 
-### Judging what came back
+In parallel mode hand off every brief in the batch **before waiting on any** — in one
+message where the host batches spawns — each with its own worktree path, never the main
+checkout.
 
-**Judge each result in this context**, against the issue and step 2b's decision:
+## Judging the result
 
-| Returned field | Consumed |
-|---|---|
-| `ACCEPTANCE` | **Here, first.** A `not-met` line is work still owed. Sending it back costs one resume; letting it through merges a PR that closed an issue it did not answer. Green CI does not cover this -- it proves the repository still works, not that the issue was answered. |
-| `UNRESOLVED` | **Here.** Judgment calls the agent made alone: each is accepted (and stated at step 10) or sent back, never silently inherited. |
-| `CHANGED` | **Here.** A user-facing change -- anything a user of an app cut from this template would notice, or a change to the template's own documented surface -- owes a `CHANGELOG.md` entry under `[Unreleased]` (`AGENTS.md` › "Review Checklist"). No entry in `CHANGED` for such a change is work still owed, the same as a `not-met` line. |
-| `PR-SUMMARY` / `TEST-PLAN` | Step 5 (`pr-ci-merge.md`), verbatim. |
-| `MEASURE` | [Step 4](#4-review-the-branch) -- what review findings are checked against. |
-| `SCOPE-NOTES` / `FOLLOW-UPS` | Step 8 (`filing-followups.md`). |
+**Judge each result in this context**, against the issue and step 2b's decision. What
+each returned field is for:
 
-`CHANGELOG.md` is an append-target file: two branches of one parallel batch that both
-add an entry conflict on merge, which is why step 2c serializes them
-(`dependency-triage.md`).
+| Returned field               | Consumed                                                                                                                                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACCEPTANCE`                 | **Here, first.** A `not-met` line is work still owed. Sending it back costs one patch round; letting it through merges a PR that closed an issue it did not answer. Green CI does not cover this — it proves the repository still works, not that the issue was answered. |
+| `UNRESOLVED`                 | **Here.** Judgment calls the agent made alone: each is accepted (and stated at step 10) or sent back, never silently inherited.                                                                                                                                           |
+| `PR-SUMMARY` / `TEST-PLAN`   | [Step 4](../SKILL.md#4-open-the-pr), verbatim.                                                                                                                                                                                                                            |
+| `MEASURE`                    | [Triage](#triaging-the-reviews-findings) — what the PR review's findings are checked against.                                                                                                                                                                             |
+| `SCOPE-NOTES` / `FOLLOW-UPS` | [Step 8](../SKILL.md#8-close-out-the-findings-the-run-turned-up).                                                                                                                                                                                                         |
 
-### Resuming a run
+A user-visible change with no `CHANGELOG.md` entry under `[Unreleased]` goes back the
+same way as a `not-met` line (`create-pr`). So does a branch whose `<workdir>` is dirty
+(`git status --short` not empty, such as an uncommitted `just fmt` rewrite) or whose
+pushed head differs from its local head: the PR must carry exactly what was checked.
 
-At most **2 resume runs** on top of the first; a third miss is `NEEDS-CLARIFICATION`,
-not another spawn. A resume names only what is left.
+At most **2 patch rounds** on top of the first run, on the same tier — continuing the
+same agent where the host allows, a fresh one only on a tier change. A third miss is
+`NEEDS-CLARIFICATION`, not another round. A run that returned without a report, stopped
+before pushing, or missed or widened the spec: `recovery.md` — never
+re-spawn an agent that returned without its report.
 
-**Reuse the agent that did the first run.** While it is still reachable, send the resume
-to it with `SendMessage` and its agent ID: it already read the issue, the code, and its
-own diff, and a new spawn would pay for all of that again from a cold start. Spawn a
-fresh agent -- on the same tier as the first run -- only when that agent is gone, or when
-its own context is what went wrong (it misread the issue and every later turn builds on
-the misreading). A resume never changes tier: a foundational issue the first run got
-half-right is exactly where the remaining judgment sits. Under Codex CLI there is no
-`SendMessage` and no named tier: finish the resume inline in the main session.
+## Triaging the review's findings
 
-A run that returned without a report, stopped before pushing, or missed or widened the
-spec: `recovery.md`. Never re-spawn an agent that returned without its
-report -- its work is on disk.
+`review_watch.py` ([step 5](../SKILL.md#5-wait-for-the-pr-review)) numbers the PR
+review's findings `F1`, `F2`, … in review order — a later round's are appended — one line
+each with its priority badge, `path:line` and `round=`, and writes their bodies to the
+file its `findings_file:` line names. Read every body there — never in the PR
+conversation, which pulls the whole thread into this context — and only then decide
+anything. The review read the diff in a context that did not write it; this session
+wrote or judged the diff, so it is the one that triages.
 
-## 4. Review the branch
+Classify **every** finding of the round being handled (`round:`; earlier rounds' are
+classified already), each with a one-line reason:
 
-Run against the branch, before any PR exists. In parallel mode step 4 covers the whole
-batch: review each branch, triage all of them, then fix them concurrently -- no PR opens
-until the batch's last review is triaged. It is a single pass: fix every accepted
-finding here, route out-of-scope and `pre-existing` findings to step 8, and do not
-re-review after the fix.
+- **accepted** — real, and it belongs in this diff: the same behavior change the issue
+  is about, tests included. A sibling case of the bug just fixed belongs here; a schema
+  change or a new public surface does not, however small the patch looks
+  (`filing-followups.md`).
+- **rejected** — wrong on reading the code: the case is already handled, or the fix
+  would change behavior the issue did not ask to change. The reason has to hold against
+  the code, not against the badge — a `P1` is not accepted for its color, and a `P3` is
+  not rejected for it either.
+- **out of scope** — real but not this diff's:
+  [step 8](../SKILL.md#8-close-out-the-findings-the-run-turned-up).
 
-### Effort and syntax
+The round decides what an **accepted** finding costs this PR, never how it is
+classified (the rounds: `pr-ci-merge.md` › "Waiting for the PR review"): in round 1 every
+accepted finding is fixed here; in rounds 2 and 3 an accepted `P0`–`P2` (or unbadged
+`P?`) is fixed here and an accepted `P3` goes to step 8 as a follow-up, like an
+out-of-scope one. Past the cap, in round 4 or later, only `P0`, `P1` and `P?` are
+triaged, and an accepted one holds the PR (`--field reason=review-cap`) instead of
+starting a fourth fix round; the rest are named at step 10, untriaged.
 
-```text
-/code-review medium <branch> [--fix]
-```
+A finding that needs an owner's decision, or a correctness finding this session cannot
+settle either way, holds the PR: record `--event blocked --field reason=review-finding`
+and put it in the step 10 report. Green CI cannot dismiss it. Never reply to or resolve
+a review thread, and never ask the reviewer to look again (`@codex review`): neither is
+in the sign-off. A fix push may start another review on its own; step 5 waits for it.
 
-**Effort first, branch second** -- an unrecognized first token makes the *entire* string
-the target and silently falls back to the last effort used. **`medium` is the standing
-default** for every branch this skill reviews; never `low`, never `ultra`. When `high`
-is warranted, and why `low` is not an option:
-`cost-discipline.md`. Before believing an empty
-findings list, check what the review actually read.
+## Fixing the accepted findings
 
-### Serial: `--fix`
+Apply them **in the branch's own `<workdir>`** — never the main checkout in parallel
+mode, which sits on the default branch: inline, or by handing
+`agent-review-fix.md` to **`executor`** with the accepted findings as its
+list. A review with zero accepted findings gets no fix run. **Keep the
+`review_watch.py` numbers** — the fix brief returns `APPLIED`/`REJECTED` against those
+same `F<n>`, and without them the returned lines cannot be matched back to what was
+sent.
 
-`--fix` applies the findings to this session's working tree, which in serial mode is the
-branch under review. It is **serial-mode only**
-(`recovery.md` says why). Host will not launch
-`/code-review` at all -> `agent-review-fallback.md` on
-`architect`, triaged the same way.
+When anything other than this session wrote the fixes, **reading what the fix pass
+changed is the safeguard**: `git diff <pre-fix-head>..HEAD` in `<workdir>`, not the whole
+branch. Revert what it got wrong. Read every `REJECTED` line — a rejection that reads like
+a real defect goes back with the reason addressed; real-but-out-of-scope goes to step 8.
+Run the narrowest checks the fixed lines need **in `<workdir>`**, then push. The push is a new head: the
+earlier CI verdict says nothing about it, so step 6 watches again, and alongside it
+`review_watch.py <pr> --after-push <sha>` waits the start grace for a review of it
+(`pr-ci-merge.md` › "Waiting for the PR review"): the next round, or `NO_NEW_REVIEW`.
+After round 3's fixes nothing more is waited for — local verification and current-head
+CI cover them.
 
-### Parallel: a fix agent per branch
-
-Parallel mode reviews without `--fix` and spawns one `executor` per branch from
-`agent-review-fix.md`, all in one message; a branch with zero
-accepted findings gets no spawn. **Number the findings `F1`, `F2`, ... before handing
-them over** -- the fix agent returns `APPLIED`/`REJECTED` against those numbers, and
-without caller-assigned IDs the returned lines cannot be matched back to what was sent.
-A rejection sent back for another try goes to the same fix agent by `SendMessage` while
-it is reachable.
-
-### Triage
-
-The same either way, and in parallel mode it happens *before* anything is written: read
-every finding against the issue's scope, send what belongs in this diff, route the rest
-to step 8. "Belongs in this diff" is the same behavior change the issue is about, tests
-included -- a sibling case of the bug just fixed belongs here; a new Core port, a new
-public surface, or a new target does not, however small the patch looks
-(`filing-followups.md`).
-
-### Reading the fix and recording it
-
-Either path writes code this session did not write, so **reading what the fix pass
-changed is the safeguard**: `git -C <workdir> diff <impl-commit>..HEAD`, not the whole
-branch. Revert what it got wrong. Read the findings it would *not* apply (`skipped` from
-`--fix`, `REJECTED` from the sub-agent) -- neither is clean; real-but-out-of-scope goes
-to step 8. Re-run the verification command **in `<workdir>`** only if something
-actually changed, then push.
-
-Record, per branch: `--event review --field issue=<n> --field
-status=<code-review|code-review+agent-fix|DELEGATED> --field effort=<medium|high>
---field findings=<n> --field skipped=<n>` -- `skipped` counts refusals from either path.
+Record each round once its triage is done, and a `NO_NEW_REVIEW` when it comes:
+`--event review --field issue=<n> --field pr=<pr> --field round=<k> --field verdict=<CLEAN|FINDINGS|NO_NEW_REVIEW|NO_REVIEW|ERROR> --field reviewed=<sha> --field findings=<n> --field accepted=<n> --field rejected=<n> --field out-of-scope=<n> --field followup=<n> --field fixed-in=<sha>`
+— `findings` counts that round's (`round_findings:`), `followup` the accepted ones sent to
+step 8 by their badge, and `fixed-in` names the commit that addresses the fixed ones, so
+the report can say which commit answered which round.
