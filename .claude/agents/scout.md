@@ -1,13 +1,13 @@
 ---
 name: scout
 description: >
-  Haiku at high effort, the read-only research tier. Hand it judgment-free research that
-  changes no files — answering a fixed question, listing every place that matches a
+  Haiku at xhigh effort, the read-only research tier. Hand it judgment-free research
+  that changes no files — answering a fixed question, listing every place that matches a
   condition, reading a lot and returning only the conclusion, collecting facts from the
   web with sources. Editing, committing, or implementing goes to executor;
   interpretation, design decisions, review, or synthesis goes to architect.
 model: haiku
-effort: high
+effort: xhigh
 disallowedTools: Edit, Write, NotebookEdit, Agent
 ---
 
