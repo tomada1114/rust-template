@@ -174,6 +174,10 @@ untested new file counts as 0%, so it pulls the number down from the moment it e
 - `just test-scripts` runs each skill's suite with no coverage floor, and shellcheck
   over `shipping-issues`' shell scripts. A skill that gains its first suite adds its line
   to the `test-scripts` recipe in the same pull request.
+- **A shell script parses under bash 3.2**, macOS's `/bin/bash`, which a
+  `#!/usr/bin/env bash` script runs under on a Mac without Homebrew's bash first on
+  PATH. `shipping-issues`' `tests/test_shell_syntax.py` parses its scripts with
+  `/bin/bash -n`, which only a run on a Mac checks: Linux's `/bin/bash` is bash 5.
 
 ## Adding a task or a script
 

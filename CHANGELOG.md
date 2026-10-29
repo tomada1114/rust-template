@@ -158,6 +158,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unused desktop front-end dependency bans and fixtures, superseded design notes,
   and obsolete GUI entries in the unreleased changelog. The finalized template design
   records the CLI/TUI stack and optional model-call feature.
+- The architecture page, the roadmap, the template's design notes, README's Design
+  Philosophy, and the `steering-the-roadmap` skill. How the app is built and why now
+  lives only in the skill that owns each subject (new references in
+  `designing-core-logic`, `designing-clis`, `integrating-system-apis`, and
+  `changing-gates`) and in `AGENTS.md` › Architecture, which holds the one "What is
+  contract and what is private" table; the app's direction is the Product section and
+  the open issues (`triaging-issues`). Every document under `docs/` is now read by the
+  harness's recipe and issue-reference checks, with no exemption list.
 
 ### Fixed
 

@@ -5,8 +5,7 @@
 //!
 //! Read: every document an agent or a contributor follows —
 //! [`super::documents::standing_documents`], plus `README.md`, `CONTRIBUTING.md`, and
-//! `.github/PULL_REQUEST_TEMPLATE.md` — except the design and planning records in
-//! [`super::documents::UNCHECKED_DOCUMENTS`], which may name a recipe before it exists.
+//! `.github/PULL_REQUEST_TEMPLATE.md`.
 //! Only code is read — inline code spans (which may wrap across lines, but never across a
 //! blank line) and fenced blocks — so English prose ("just to be safe") never counts. An
 //! issue form is YAML whose strings GitHub renders as Markdown, so each string value is
@@ -411,7 +410,6 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
 #[cfg(test)]
 mod tests {
     use super::{justfile_recipes, run};
-    use crate::check_harness::documents::UNCHECKED_DOCUMENTS;
     use crate::check_harness::test_support::{codes, run_at, summaries};
     use crate::fail::FailureDetails;
     use crate::test_support::{temp_dir, write};
@@ -531,19 +529,6 @@ body:
         .into_iter()
         .map(|(path, text)| (path.to_owned(), Some(text.to_owned())))
         .collect();
-        for path in UNCHECKED_DOCUMENTS {
-            let file = if crate::check_harness::has_extension(path, &["md"]) {
-                (*path).to_owned()
-            } else {
-                format!("{path}/deep/x.md")
-            };
-            files.push((file, Some("A planned `just not-yet`.\n".to_owned())));
-        }
-        // Named literally too, so dropping it from UNCHECKED_DOCUMENTS fails here.
-        files.push((
-            "docs/architecture/roadmap.md".to_owned(),
-            Some("A planned `just not-yet`.\n".to_owned()),
-        ));
         for (path, content) in overrides {
             files.retain(|(existing, _)| existing != path);
             files.push(((*path).to_owned(), content.map(str::to_owned)));
@@ -663,11 +648,13 @@ body:
     }
 
     #[test]
-    fn reads_every_document_kind_but_the_planning_records() {
+    fn reads_every_document_kind() {
         for path in [
             "docs/other.md",
             "docs/design/x.md",
-            "docs/architecture/overview.md",
+            "docs/guides/overview.md",
+            "docs/guides/plan.md",
+            "docs/records/design.md",
             "CLAUDE.md",
             ".claude/rules/x.md",
             ".github/PULL_REQUEST_TEMPLATE.md",

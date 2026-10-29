@@ -82,8 +82,8 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
   `crates/myapp/src/wording.rs` (`designing-clis`, `designing-errors`).
 - **A contract.** Core's public API, the bundle identifier or the XDG directory name, an
   on-disk format, or the command line: subcommands, flags, what goes to stdout and to
-  stderr, and the exit codes (`docs/architecture.md` › "What is contract and what is
-  private"). A breaking change is named in the Summary.
+  stderr, and the exit codes (`AGENTS.md` › "What is contract and what is private"). A
+  breaking change is named in the Summary.
 - **Evidence only a human can produce.** Two kinds, each asked for once, with the exact
   commands; until the output is in the Test Plan, the pull request waits for it.
   - A change to an adapter in `crates/myapp-platform/` that has an

@@ -1,5 +1,5 @@
 //! The JSON shapes core serializes, and the one that reaches disk, which is contract
-//! (docs/architecture.md).
+//! (`AGENTS.md` › "What is contract and what is private").
 //! These tests pin them with literal JSON, independent of serde's derive.
 
 use myapp_core::{CounterError, CounterView, StorageErrorKind, StoredCounter, UnixMillis};

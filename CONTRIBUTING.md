@@ -103,7 +103,8 @@ cargo deny --locked check                        # just deny
 | Something on the full-screen view | the screen's state and keys in core; drawing in `crates/myapp/src/tui/view.rs`, tested against ratatui's `TestBackend` |
 | Repository automation | a task in `xtask/src/` (run as `cargo xtask <task>`), with its tests beside it |
 
-[docs/architecture.md](docs/architecture.md) explains the layers and what is contract.
+[AGENTS.md](AGENTS.md)'s Architecture section states the layers and what is contract,
+and the skill that owns each subject says how it is built and why.
 A new crate needs a reason and a maintainer's sign-off.
 
 ## Pull request process

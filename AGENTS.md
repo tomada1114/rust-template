@@ -27,7 +27,9 @@ The code is a Cargo workspace — the logic in `crates/myapp-core`, the OS adapt
 `crates/myapp-platform`, fakes and contract suites in `crates/myapp-test-support`, and the
 `myapp` binary itself in `crates/myapp` — and repository automation is Rust in the
 `xtask/` crate (`cargo xtask <task>`), apart from the Python and shell scripts a skill
-bundles.
+bundles. How the app is built and why lives in the skills that own each subject (the
+[Skills](#skills) table) and in [Architecture](#architecture) below; there is no
+separate architecture or roadmap document (`updating-docs`).
 Quality gates are on from day one: rustfmt, clippy `all` + `pedantic` with warnings as
 errors, `unsafe_code = "forbid"` in every crate, an 80% line and 80% function coverage
 floor on `myapp-core`, and llvm-cov floors on `xtask` (85/90) and the staged guard's
@@ -215,22 +217,50 @@ xtask/                      # Repository automation in Rust, run as `cargo xtask
   and its loop and view in `crates/myapp/src/tui/` (`building-tuis`). Every string a
   user reads comes from `crates/myapp/src/wording.rs`.
 - Four things are contract rather than private — core's public API, the bundle
-  identifier, the command line (subcommands, flags, output streams, and exit codes:
-  0 success, 1 a runtime error, 2 a usage error), and on-disk file formats
-  (`counter.json` carries a format version) — and each changes only as
-  `docs/architecture.md` says.
+  identifier and XDG directory name, the command line, and on-disk file formats — and
+  each changes only as "What is contract and what is private" below says.
 - `target/` and `coverage/` are build output: never edit or commit them.
+
+### What is contract and what is private
+
+Nothing here is published as a library, so the contract is what something outside a
+change can observe: another crate, a machine that ran an earlier build, a script or a
+scheduled job that runs `myapp`, or the user. These are contract; everything else is
+private. This table is the one list of them: a skill or a pull-request rule that needs
+it points here.
+
+| Contract | What depends on it | What changing it requires |
+|---|---|---|
+| **Core's public API** — every `pub` item re-exported from `crates/myapp-core/src/lib.rs` (`Counter`, `CounterService`, `CounterView`, `CounterError`, `CounterScreen`, `ScreenAction`, `ScreenKey`, `CounterStore`, `StoredCounter`, `StorageError`, `StorageErrorKind`, `Tuning`, `TuningError`, `Clock`, `UnixMillis`, and the generation types `TextGenerator`, `GenerationService`, `GenerationSettings`, `GenerationRequest`, `GenerationView`, `GenerationError`, `ReasoningEffort`) | `myapp-platform`, `myapp-test-support`, `myapp`, and their tests | Update every caller in the same pull request; the compiler finds them. A new port is a design change ("Before changing the architecture"). |
+| **The data and log locations** — the bundle identifier `com.example.myapp` (`BUNDLE_IDENTIFIER` in `crates/myapp-platform/src/paths.rs` and `bundle_id` in the justfile) and the XDG directory name `myapp` (`XDG_APP_NAME`) | Where the tool's files are on a machine that ran it: on macOS `~/Library/Application Support/com.example.myapp/` and `~/Library/Logs/com.example.myapp/` (and any privacy grant, keyed by the identifier); on Linux `$XDG_DATA_HOME/myapp/` and `$XDG_STATE_HOME/myapp/logs/` | Fixed once the tool has run anywhere but your checkout: a new name leaves the user's data behind under the old one. Changing it is a human's decision, a design change whose pull request rewrites this row. |
+| **On-disk file formats** — `counter.json` (it carries a format version) and the log files; `integrating-system-apis`' `references/file-formats.md` describes each | Files already on a user's disk; `just logs` and anyone reading the logs | A new version still reads the old format: a format version and a migration, with a test that reads a sample of the previous format. |
+| **The command line** — `myapp counter show`, `myapp counter increment`, `myapp tui`, and, with the `openrouter` feature, `myapp llm ask <prompt>`; `--help`, `--version`, what goes to stdout and what to stderr, and the exit codes (0 success, 1 the action failed, 2 a usage error) (`designing-clis`) | A person, a script, or a scheduled job that runs `myapp` | Keep the old form working, or treat the change as breaking and say so in `CHANGELOG.md`. |
+
+The local credential file the `openrouter` feature reads (`.env.local`) is
+configuration, not persisted application state; the running app never writes it.
+
+**Private** is everything else: `pub(crate)` and private items, how an adapter talks to
+the OS behind its port, the full-screen view's layout and styling, file and module
+layout, test helpers, and log wording. Changing any of it needs only the gates that
+already run.
+
+No gate notices every broken contract item. The compiler guards core's public API, and
+`crates/myapp/tests/cli.rs` guards the command line; a changed file format or a renamed
+identifier passes every check and fails on the user's machine, so review is what
+catches it, and a user-visible change to any contract item owes a `CHANGELOG.md` entry.
 
 ## Before changing the architecture
 
-The design is recorded as it stands now, never as a log of decisions: this file's
-Architecture and Product sections, `docs/architecture.md`, and the skill that owns the
-subject say together how the app is built and why, and git history holds what it used
-to be. The changes below, which the skills call design changes, are hard to reverse, so
-the pull request that makes one also rewrites that description: the current design and
-the reasoning behind it (what it protects and, where it matters, the alternative it
-rules out and why), in the present tense, in place of the sentences it replaces, never
-as a dated entry beside them:
+The design is recorded in one place per subject, as it stands now, never as a log of
+decisions: the skill that owns the subject (the [Skills](#skills) table), with
+[Architecture](#architecture) for the layer rules and the contract, and this file's
+Product section for scope. Git history holds what it used to be. Keeping those current
+is the whole obligation: no other document repeats the design, so no other document
+needs rewriting with it. The changes below, which the skills call design changes, are
+hard to reverse, so the pull request that makes one also rewrites the owning skill (or
+that section): the current design and the reasoning behind it (what it protects and,
+where it matters, the alternative it rules out and why), in the present tense, in place
+of the sentences it replaces, never as a dated entry beside them:
 
 - a new crate in the workspace, or a new port in core;
 - persistence or configuration — where and in what format the tool keeps state, or a
@@ -253,10 +283,10 @@ as a dated entry beside them:
 
 Writing the reasoning down grants nothing: a release pipeline, a permission grant, or a
 new dependency still needs the sign-off "Security and human approval" asks for, and the
-owner reviews the rewritten description with the change. The reasoning behind the
-layers every app starts with lives in `README.md`'s Design Philosophy; a change that
-replaces one of them rewrites that entry too, rather than leaving the old reason beside
-the new one.
+owner reviews the rewritten description with the change. A change that replaces one of
+the layers every app starts with rewrites the reasoning its skill gives for it (for the
+crates and ports, `designing-core-logic`' `references/design-reasons.md`), rather than
+leaving the old reason beside the new one.
 
 ## Skills
 
@@ -274,7 +304,6 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `shipping-issues` | Claude Code on the developer's machine: taking ranked open issues to merged pull requests — rank, implement (worktrees), review the branch locally with `/code-review`, PR, CI, merge |
 | `codex-shipping-issues` | Codex: shipping one issue through a regular PR after a read-only fresh-context review of the branch with its findings addressed, current-head CI, and the merge the request authorizes, over GitHub MCP |
 | `cloud-claude-shipping-issues` | A Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`): shipping issues serially over REST `gh api` calls — rank, implement, review the branch, PR, CI, merge |
-| `steering-the-roadmap` | Changing `docs/architecture/roadmap.md` (Now / Next / Later) |
 | `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; a pre-1.0 ratatui minor lands alone |
 | `managing-dependencies` | Adding or changing a crate: the review record, features, licences |
 | `changing-gates` | Editing a file that enforces: lints, floors, hooks, harness checks, workflows, the ruleset |
@@ -556,7 +585,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
 | Coverage floors | `just test-core`, `just test-xtask`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `xtask` with `xtask-guard` 85 / 90; `xtask/guard/` 90 / 100 |
 | The skills-mirror check (`just agents-check`; the hook runs `cargo xtask sync-agents --check --staged`) | `git commit` when a skill path is staged, and CI's `Repo Lint & Harness` job | every author | `.agents/skills/` and `.claude/skills/` stay byte-identical — at commit time as staged in the index, so a source staged without its synced mirror is refused |
-| `cargo xtask check-harness` (`xtask/src/check_harness/`; `just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record and the roadmap), the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked` on every lockfile-resolving cargo command and no `npm install` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `cargo` or `just`, apart from a reasoned exception list; the Dependabot and Renovate cooldowns agree; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `.github/workflows/pr-label.yml`'s `TYPE_LABELS` map applies has a release-notes category and every PR-title type a key there; typos' ignore list excludes `.claude/skills/` and not `.agents/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/` (apart from the template's own design record and the roadmap), a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |
+| `cargo xtask check-harness` (`xtask/src/check_harness/`; `just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/`, the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked` on every lockfile-resolving cargo command and no `npm install` there and in every justfile recipe); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `cargo` or `just`, apart from a reasoned exception list; the Dependabot and Renovate cooldowns agree; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; every applied label is declared once, and every label `.github/workflows/pr-label.yml`'s `TYPE_LABELS` map applies has a release-notes category and every PR-title type a key there; typos' ignore list excludes `.claude/skills/` and not `.agents/skills/`; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/`, a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, and its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`); and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |
 | CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `just test-platform`, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (typos, actionlint, the skills mirror, skill script tests, xtask tests with floors, harness checks), `macOS` (workspace clippy, `just test-platform`), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 

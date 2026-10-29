@@ -11,6 +11,15 @@ cargo run --locked -p myapp --features openrouter -- llm ask "Explain Rust owner
 Only `llm ask` contacts a model. Counter commands, the counter TUI, `--help`,
 `--version`, and constructing a generator need no key and make no model call.
 
+Why it is shaped this way: some apps need model calls, and the counter does not. The
+feature keeps the HTTP and credential-file dependencies out of default builds, and an
+explicit call is the only place that looks up a key or contacts a provider; there are
+no implicit calls, automatic retries, or conversation history. Core's synchronous
+`TextGenerator` port works for either front end and is tested with a fake, while the
+platform adapter translates blocking HTTPS into core's values. `ureq` supplies HTTPS
+without an async runtime, and `dotenvy` parses a local credential file without changing
+the process environment.
+
 HTTPS uses the operating system's trusted certificates: Security.framework on macOS
 and OpenSSL on Linux. Building this feature on Linux also needs OpenSSL development
 headers and `pkg-config` (`libssl-dev` and `pkg-config` on Debian or Ubuntu), plus a

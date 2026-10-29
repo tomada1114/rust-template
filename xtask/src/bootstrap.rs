@@ -9,8 +9,8 @@
 //! - renames `crates/myapp` and `crates/myapp-*` to `crates/<slug>` and `crates/<slug>-*`,
 //!   after `cargo fetch --locked`, and updates Cargo.lock offline
 //!   (`cargo update --workspace --offline`);
-//! - removes the `<!-- template-only -->` … `<!-- /template-only -->` blocks,
-//!   `docs/template/`, the `Template Bootstrap Smoke` CI job and its required context, the
+//! - removes the `<!-- template-only -->` … `<!-- /template-only -->` blocks, the
+//!   `Template Bootstrap Smoke` CI job and its required context, the
 //!   `bootstrap` and `verify-bootstrap` recipes and tasks (this file and
 //!   `verify_bootstrap.rs`) and every mention of them, and the skill reference that only
 //!   describes this task, and rewrites the passages outside those blocks that describe the
@@ -323,7 +323,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder; each is listed for both skill trees.
-const SKILL_SITES: [(&str, &[Form]); 35] = [
+const SKILL_SITES: [(&str, &[Form]); 38] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
         "authoring-skills/references/convention-examples.md",
@@ -337,9 +337,15 @@ const SKILL_SITES: [(&str, &[Form]); 35] = [
     ("create-pr/SKILL.md", &[Slug]),
     ("create-pr/references/release-impact.md", &[Slug]),
     ("designing-clis/SKILL.md", &[SlugSnake, Slug, SlugUpper]),
+    ("designing-clis/references/logging.md", &[SlugSnake, Slug]),
     ("designing-core-logic/SKILL.md", &[Slug]),
+    ("designing-core-logic/references/design-reasons.md", &[Slug]),
     ("designing-errors/SKILL.md", &[Slug]),
     ("integrating-system-apis/SKILL.md", &[Slug]),
+    (
+        "integrating-system-apis/references/file-formats.md",
+        &[Slug],
+    ),
     (
         "integrating-system-apis/references/tcc-permissions.md",
         &[Slug],
@@ -379,7 +385,7 @@ const SKILL_SITES: [(&str, &[Form]); 35] = [
 /// Every placeholder site outside the skills. Keep this list explicit: a new file that
 /// names the app is added here, and `just verify-bootstrap` (which CI's Template
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
-const REPOSITORY_SITES: [(&str, &[Form]); 53] = [
+const REPOSITORY_SITES: [(&str, &[Form]); 52] = [
     (".claude/rules/project.md", &[Slug]),
     (".claude/rules/rust.md", &[SlugSnake, Slug]),
     (".claude/rules/testing.md", &[Slug]),
@@ -445,7 +451,6 @@ const REPOSITORY_SITES: [(&str, &[Form]); 53] = [
         &[SlugSnake],
     ),
     ("deny.toml", &[Slug]),
-    ("docs/architecture.md", &[BundleId, SlugSnake, Slug]),
     ("docs/getting-started.md", &[BundleId, Slug]),
     ("docs/openrouter.md", &[SlugSnake, Slug]),
     ("justfile", &[BundleId, Slug]),
@@ -506,9 +511,9 @@ const STARTING_AN_APP_DESCRIPTION: &str = "description: >
   (cargo xtask bootstrap), its prompts or flags (display name, slug, bundle identifier,
   owner/repo, author, copyright holder), the placeholders it rewrites (MyApp, myapp,
   myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
-  Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the tool's
+  Template Bootstrap Smoke job; AGENTS.md's Product section; the tool's
   shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
-  and why; removing the sample counter; installing it with just install-cli;
+  and why, written into the skill that owns it; removing the sample counter; installing it with just install-cli;
   just labels, just ruleset, the GitHub security settings, and private-repository
   steps. Use when starting an app from this repository, running or changing the
   bootstrap, a placeholder survived the rename, just check-harness fails on the Product
@@ -517,9 +522,9 @@ const STARTING_AN_APP_DESCRIPTION: &str = "description: >
 
 const STARTING_AN_APP_DESCRIPTION_IN_AN_APP: &str = "description: >
   Covers the first decisions of this app, cut from the template by its bootstrap:
-  AGENTS.md's Product section and the roadmap; the tool's shape, subcommands only or
-  subcommands plus the myapp tui screen; where it keeps state and why;
-  removing the sample counter; installing it with just install-cli; just labels, just
+  AGENTS.md's Product section; the tool's shape, subcommands only or
+  subcommands plus the myapp tui screen; where it keeps state and why, written into the
+  skill that owns it; removing the sample counter; installing it with just install-cli; just labels, just
   ruleset, the GitHub security settings, and private-repository steps. Use when
   starting the app's first feature, a name the rename missed turns up, just
   check-harness fails on the Product section, or setting up the repository on GitHub.
@@ -559,23 +564,22 @@ this in scope?\". The owner writes each bullet (the `starting-an-app` skill says
 
 const UPDATING_DOCS_TEMPLATE_SECTION: &str = "## Template-only material
 
-The bootstrap removes every `<!-- template-only -->` … `<!-- /template-only -->` block
-and the template's own design notes, so an app never inherits text about the template.
-Text only a template reader needs (why the bootstrap exists, how to use the template)
-goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
-install steps) goes outside. A standing document outside a block never links into
-the template's design notes: that link dangles in every app. A sentence outside a block
-is worded to hold in an app too (\"the roadmap starts as a skeleton\", not \"the template
-ships the roadmap as a skeleton\"), or, where it cannot, rewritten for the app by an
-entry in `TEXT_EDITS` in `xtask/src/bootstrap.rs`, in the same change.
+The bootstrap removes every `<!-- template-only -->` … `<!-- /template-only -->` block,
+so an app never inherits text about the template. Text only a template reader needs (how
+to use the template, why the bootstrap exists) goes inside a block, or into
+`starting-an-app`' `references/bootstrap.md`, which the bootstrap deletes; text an app
+keeps (a skill's design reasons, the install steps) goes outside, and never links into
+that reference. A sentence outside a block is worded to hold in an app too (\"the
+counter is a sample to replace\", not \"the template ships a counter\"), or, where it
+cannot, rewritten for the app by an entry in `TEXT_EDITS` in `xtask/src/bootstrap.rs`,
+in the same change.
 
 Only the files `MARKER_FILES` in `xtask/src/bootstrap.rs` lists have their blocks
 removed. A block in any other file adds that file to the list in the same change, or its
 marker lines survive into the app and `just verify-bootstrap` (CI's Template Bootstrap
 Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`. It fails with
-`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` when the app still names the template's design
-record or README's template-only section, a decision by its number in that record, or
-what the template itself ships or its own reasoning.
+`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` when the app still names README's template-only
+section or what the template itself ships or its own reasoning.
 
 ";
 
@@ -583,14 +587,6 @@ const CI_ONLY_JOBS: &str = "    ci_only_jobs: &[(
         \"Template Bootstrap Smoke\",
         \"template-only (the bootstrap removes the job and the `verify-bootstrap` recipe): it runs `cargo xtask verify-bootstrap`, which fails when this tree holds a placeholder spelling, template-only text, or a dangling reference the bootstrap would leave behind, then bootstraps a throwaway copy and runs `just check` there. `just check` leaves it out because it clones the tree, needs cargo's registry, and would run a second `just check`; `just verify-bootstrap` runs the verification locally, and AGENTS.md › Validating a change says when\",
     )],";
-
-const DOCUMENTS_EXCLUSION: &str =
-    "/// Documents neither check reads. The template's own design record (`docs/template/`)
-/// cites the upstream template's issues and plans recipes before they exist, and the
-/// bootstrap deletes it. The roadmap is an app's own planning record:";
-
-const DOCUMENTS_EXCLUSION_IN_AN_APP: &str =
-    "/// Documents neither check reads. The roadmap is an app's own planning record:";
 
 const MAIN_BOOTSTRAP_TASK: &str = "    (
         \"bootstrap\",
@@ -606,8 +602,7 @@ const MAIN_VERIFY_TASK: &str = "    (
     ),
 ";
 
-/// Passages that name this task, its recipe, the template's design record, or README's
-/// template-only section, or that describe the template rather than the app, and so
+/// Passages that name this task, its recipe, or README's template-only section, or that describe the template rather than the app, and so
 /// would dangle or mislead in an app. Each `find` must occur exactly once, in the
 /// template's spelling; the form rewrite runs after these edits.
 pub(crate) fn text_edits() -> Vec<TextEdit> {
@@ -663,16 +658,6 @@ fn document_edits() -> Vec<TextEdit> {
         ),
         edit(
             "AGENTS.md",
-            "`docs/` (apart from the template's own design record and the roadmap), the skills, and the issue forms name exists;",
-            "`docs/` (apart from the roadmap), the skills, and the issue forms name exists;",
-        ),
-        edit(
-            "AGENTS.md",
-            "`docs/` (apart from the template's own design record and the roadmap), a skill, or an issue form;",
-            "`docs/` (apart from the roadmap), a skill, or an issue form;",
-        ),
-        edit(
-            "AGENTS.md",
             " `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there),",
             "",
         ),
@@ -707,20 +692,8 @@ fn skill_edits() -> Vec<TextEdit> {
     for file in both_skill_trees("authoring-skills/SKILL.md") {
         edits.push(edit(
             &file,
-            "names an owner or credits a source stays bare. Never point at `docs/template/`: the\nbootstrap deletes it.\n",
-            "names an owner or credits a source stays bare.\n",
-        ));
-        edits.push(edit(
-            &file,
             "or test depends on a skill's code block. Write placeholder names exactly (`myapp-core`,\n`myapp_core`, `MyApp`, `com.example.myapp`) so the bootstrap's rename finds them.\n",
             "or test depends on a skill's code block.\n",
-        ));
-    }
-    for file in both_skill_trees("authoring-skills/references/convention-examples.md") {
-        edits.push(edit(
-            &file,
-            "at a glance); a link to\n`docs/template/` (gone after the bootstrap).",
-            "at a glance).",
         ));
     }
     for file in both_skill_trees("updating-docs/SKILL.md") {
@@ -733,8 +706,8 @@ fn skill_edits() -> Vec<TextEdit> {
             edit(&file, UPDATING_DOCS_TEMPLATE_SECTION, ""),
             edit(
                 &file,
-                "  README.md (Quickstart, Design Philosophy, Using This Template), AGENTS.md,\n",
-                "  README.md (Quickstart, Design Philosophy), AGENTS.md,\n",
+                "  README.md (Quickstart, Using This Template), AGENTS.md,\n",
+                "  README.md (Quickstart), AGENTS.md,\n",
             ),
             edit(
                 &file,
@@ -748,13 +721,8 @@ fn skill_edits() -> Vec<TextEdit> {
             ),
             edit(
                 &file,
-                "| The tour: what the template is, Quickstart, Design Philosophy (a \"Why\" per decision), Using This Template, links onward |",
-                "| The tour: what the app is, Quickstart, Design Philosophy (a \"Why\" per decision), links onward |",
-            ),
-            edit(
-                &file,
-                "Neither\n  check reads the template's own design record or the roadmap, which link issues and\n  plan recipes by design.",
-                "Neither\n  check reads the roadmap, which links issues and plans recipes by design.",
+                "| The tour: what the template is, Quickstart, Using This Template, the layout, links onward |",
+                "| The tour: what the app is, Quickstart, the layout, links onward |",
             ),
         ]);
     }
@@ -779,35 +747,19 @@ fn source_edits() -> Vec<TextEdit> {
             " `ci_only_jobs` is not: the\n//! bootstrap removes that job from an app cut from the template.",
             " `ci_only_jobs` is not\n//! reported as stale; it lists no job in this app.",
         ),
-        edit(
-            "xtask/src/check_harness/documents.rs",
-            DOCUMENTS_EXCLUSION,
-            DOCUMENTS_EXCLUSION_IN_AN_APP,
-        ),
-        edit(
-            "xtask/src/check_harness/documents.rs",
-            "&[\"docs/template\", \"docs/architecture/roadmap.md\"]",
-            "&[\"docs/architecture/roadmap.md\"]",
-        ),
         edit("xtask/src/main.rs", "mod bootstrap;\n", ""),
         edit("xtask/src/main.rs", "mod verify_bootstrap;\n", ""),
         edit("xtask/src/main.rs", MAIN_BOOTSTRAP_TASK, ""),
         edit("xtask/src/main.rs", MAIN_VERIFY_TASK, ""),
-        edit(
-            "osv-scanner.toml",
-            "# Every entry expires after 90 days and is recorded in docs/template/implementation-notes.md.\n",
-            "# Every entry expires after 90 days.\n",
-        ),
     ]
 }
 
 /// Files carrying `<!-- template-only -->` … `<!-- /template-only -->` blocks.
 pub(crate) const MARKER_FILES: [&str; 1] = ["README.md"];
 
-/// Removed from the app: the template's design notes, the skill reference that only
-/// describes this task, and this task and its verifier.
-pub(crate) const REMOVED_PATHS: [&str; 5] = [
-    "docs/template",
+/// Removed from the app: the skill reference that only describes this task, and this
+/// task and its verifier.
+pub(crate) const REMOVED_PATHS: [&str; 4] = [
     ".agents/skills/starting-an-app/references/bootstrap.md",
     ".claude/skills/starting-an-app/references/bootstrap.md",
     "xtask/src/bootstrap.rs",
@@ -1978,7 +1930,7 @@ fn remove_path(path: &Path) -> TaskResult {
     removed.map_err(|error| io_error("removing", path, &error))
 }
 
-const NEXT_STEPS: [&str; 21] = [
+const NEXT_STEPS: [&str; 20] = [
     "The bootstrap and its verifier removed themselves from xtask.",
     "",
     "Next steps:",
@@ -1987,17 +1939,16 @@ const NEXT_STEPS: [&str; 21] = [
     "  2. Fill in AGENTS.md's `## Product` section — what the app is and who it is for, the core",
     "     interaction, the non-goals — and delete every `TODO:` there. `just check-harness`",
     "     (and so `just check`) fails until you do.",
-    "  3. Fill in docs/architecture/roadmap.md (Now / Next / Later) with the steering-the-roadmap skill.",
-    "  4. just check, then commit the Product section and roadmap and push both commits to",
-    "     main (the ruleset is not on yet, so main takes a direct push).",
-    "  5. just labels — create the label set from .github/labels.yml on the new repository.",
+    "  3. just check, then commit the Product section and push both commits to main (the",
+    "     ruleset is not on yet, so main takes a direct push).",
+    "  4. just labels — create the label set from .github/labels.yml on the new repository.",
     "     .github/dependabot.yml names its labels explicitly and Dependabot skips one the",
     "     repository lacks, so add `dependencies` by hand to any Dependabot pull request",
     "     opened before this step.",
-    "  6. Turn on the GitHub security settings: secret scanning and push protection, private",
+    "  5. Turn on the GitHub security settings: secret scanning and push protection, private",
     "     vulnerability reporting, Dependabot alerts and security updates. Install the Renovate",
     "     GitHub App on the repository: without it nothing bumps mise.toml or rust-toolchain.toml.",
-    "  7. Once the bootstrap commit is on main: just ruleset (a repository admin's step). It",
+    "  6. Once the bootstrap commit is on main: just ruleset (a repository admin's step). It",
     "     applies every .github/rulesets/*.json: the main branch ruleset and the release-tags",
     "     tag ruleset.",
 ];
@@ -3046,8 +2997,7 @@ mod tests {
         for step in [
             "rewrote",
             "AGENTS.md",
-            "docs/architecture/roadmap.md",
-            "steering-the-roadmap",
+            "commit the Product section",
             "commit it as one commit",
             "just labels",
             "add `dependencies` by hand",

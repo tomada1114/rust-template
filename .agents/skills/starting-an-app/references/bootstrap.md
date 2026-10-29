@@ -72,7 +72,7 @@ where Rust needs an identifier (a hyphen is not legal in one), and upper-case fo
 environment variables. A multi-word slug exercises all three, which is why CI tests the
 rename with one. Choose the bundle identifier with care: once a build has left the
 machine it is fixed, because macOS keys the app's data, logs, and privacy grants by it
-(`docs/architecture.md` › "What is contract and what is private").
+(`AGENTS.md` › "What is contract and what is private").
 
 ## What it does
 
@@ -89,8 +89,7 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    `verify-bootstrap` recipes and tasks (their `mod` lines and entries in
    `xtask/src/main.rs`), and every passage that names them, removed; the passages
    outside a block that hold only in the template (`text_edits`: the Product section's
-   introduction, the README's first sentence, the checks' exclusion of `docs/template/`)
-   rewritten; the
+   introduction, the README's first sentence) rewritten; the
    template-only CI job, `Template Bootstrap Smoke`, removed with its required context
    in `.github/rulesets/main.json`, so the app's ruleset waits only for jobs the app runs;
    `CHANGELOG.md` reset to an empty `[Unreleased]` and `Cargo.toml`'s version to
@@ -99,15 +98,14 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    `Cargo.lock` with `cargo update --workspace --offline`, so no new crate version slips
    into the rename (`ERR_BOOTSTRAP_LOCKFILE`).
 4. Formats the renamed crates with `cargo fmt --all` (`ERR_BOOTSTRAP_FORMAT`).
-5. Deletes the template's own material: `docs/template/`, this page in both skill
-   trees, and `xtask/src/bootstrap.rs` and `xtask/src/verify_bootstrap.rs`, whose tests
-   live inside them.
+5. Deletes the template's own material: this page in both skill trees, and
+   `xtask/src/bootstrap.rs` and `xtask/src/verify_bootstrap.rs`, whose tests live
+   inside them.
 6. Scans for a placeholder left outside the site list and warns about it, then prints
    the next steps: review and commit the rewrite, fill `AGENTS.md` › Product,
-   fill `docs/architecture/roadmap.md` with `steering-the-roadmap`, `just check` and push
-   to `main`, `just labels` (and `dependencies` added by hand to any Dependabot pull
-   request opened earlier), the GitHub security settings and the Renovate GitHub App,
-   and `just ruleset` (the `main` and `release-tags` rulesets).
+   `just check` and push to `main`, `just labels` (and `dependencies` added by hand to
+   any Dependabot pull request opened earlier), the GitHub security settings and the
+   Renovate GitHub App, and `just ruleset` (the `main` and `release-tags` rulesets).
 
 A failure from step 3 on leaves a half-rewritten clone; see "Running it, and running it
 again" below.

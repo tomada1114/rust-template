@@ -2,10 +2,11 @@
 name: updating-docs
 description: >
   Decides whether a change owes a documentation update and which surface it lands on:
-  README.md (Quickstart, Design Philosophy, Using This Template), AGENTS.md,
-  CONTRIBUTING.md, CHANGELOG.md, docs/architecture.md, docs/getting-started.md, a
-  skill under .agents/skills/, or a /// rustdoc comment on a pub item in myapp-core.
-  Use when triaging whether a pull request needs a document changed or a CHANGELOG
+  README.md (Quickstart, Using This Template), AGENTS.md,
+  CONTRIBUTING.md, CHANGELOG.md, docs/getting-started.md, docs/openrouter.md, a skill
+  under .agents/skills/ (where how the app is built and why is written, since there is
+  no architecture document or roadmap), or a /// rustdoc comment on a pub item in
+  myapp-core. Use when triaging whether a pull request needs a document changed or a CHANGELOG
   [Unreleased] entry, when a justfile recipe, a gate, a subcommand or flag, an on-disk
   format, or an architecture boundary moved and it is unclear which file owns it, when
   the setup
@@ -19,8 +20,7 @@ description: >
 **Does not own:** the wording rules for `docs/`, `README.md`, `CONTRIBUTING.md`, and
 `CHANGELOG.md` (`.claude/rules/docs.md`); how a skill is written and mirrored
 (`authoring-skills`); which changes are design changes (`AGENTS.md` › "Before changing
-the architecture"); the roadmap (`steering-the-roadmap`); what a `///` comment says
-(`writing-rust`).
+the architecture"); what a `///` comment says (`writing-rust`).
 
 ## Decide on what a reader can observe
 
@@ -32,12 +32,11 @@ is a legitimate outcome of this skill, not a step skipped.
 A reader here can observe: what the tool does when run, the `just` recipes and what
 they run, the setup steps and pinned tools, what a gate accepts or rejects, how the
 template becomes an app (`just bootstrap`), how the tool is installed, and
-everything `docs/architecture.md` › "What is contract and what is private" lists. That
-table is the one list of what is contract; read it there rather than from a copy.
+everything `AGENTS.md` › "What is contract and what is private" lists. That table is
+the one list of what is contract; read it there rather than from a copy.
 
 - `README.md` changes when the first ten minutes with a checkout change (the Quickstart,
-  what "Using This Template" asks), or when a decision its Design Philosophy records
-  changes (`.claude/rules/docs.md` keeps the two in sync).
+  what "Using This Template" asks), or when the layout or a link it gives moves.
 - `CONTRIBUTING.md` changes when setup, the toolchain, the commands behind a recipe
   ("Without Just"), or the pull request process changes.
 - Neither changes for a refactor, a test, a rule `AGENTS.md` owns, or an edit to a skill.
@@ -51,6 +50,18 @@ The mechanical items that fire most often already have a home: `AGENTS.md`'s Rev
 Checklist (`///` on new public items, the changelog entry) and the Checklist in `.github/PULL_REQUEST_TEMPLATE.md` (documentation
 and `CHANGELOG.md`). Work from those; this skill does not restate their items.
 
+## Design lives in the skills
+
+How the app is built and why — its layers, ports, data, command line, screens, gates —
+is written once, in the skill that owns the subject (its `SKILL.md`, or a `references/`
+file such as `designing-core-logic`' `references/design-reasons.md`), so a code change
+owes at most that skill (and `AGENTS.md` › Architecture for a layer rule or the
+contract). There is no architecture overview, decision record, design-philosophy page,
+or roadmap to keep in step: never create one, and never copy a skill's design into
+another surface. Direction is `AGENTS.md` › Product and the open issues
+(`triaging-issues`). A subject with no owning skill gets a new skill for that subject
+(`authoring-skills`), never a general architecture skill or a page under `docs/`.
+
 ## Purpose per file
 
 Each surface has one job. Do not blur them, and do not let one grow a second copy of
@@ -58,32 +69,33 @@ another's content: a copy is the half that goes stale.
 
 | Surface | Its one job |
 |---|---|
-| `README.md` | The tour: what the template is, Quickstart, Design Philosophy (a "Why" per decision), Using This Template, links onward |
+| `README.md` | The tour: what the template is, Quickstart, Using This Template, the layout, links onward |
 | `AGENTS.md` | The agent-facing guide: Quick Reference, "Validating a change", Architecture, Skills and Rules tables, "Security and human approval", "Repository scripts", "Enforcement layers", Review Checklist |
 | `CONTRIBUTING.md` | Prerequisites, the workflow and its commands without Just, where a change goes, the pull request process, commit messages, the changelog policy |
 | `CHANGELOG.md` | The human-curated record of user-visible changes (Keep a Changelog) |
-| `docs/architecture.md` | The layers every app starts with, the ports, the binary and its command line, and what is contract |
-| `docs/architecture/roadmap.md` | The app's Now / Next / Later direction (`steering-the-roadmap`) |
 | `docs/getting-started.md` | First setup, everyday commands, seeing the tool, TCC, removing the example code |
-| a skill under `.agents/skills/` | The conventions of one kind of change, loaded on demand |
+| `docs/openrouter.md` | Enabling the optional model calls: the key, the model choices, reusing the adapter, its bounds |
+| a skill under `.agents/skills/` | The conventions of one kind of change, and how its subject is built and why, loaded on demand |
 | `///` on a `pub` item in core | That item's contract: why it exists and what it promises |
 
 ## Changes that move two files at once
 
 Some facts have two readers, and the pull request that moves the fact updates both:
 
-- a boundary or a crate's role: `AGENTS.md` › Architecture and `docs/architecture.md`;
-- a design change `AGENTS.md` › "Before changing the architecture" lists: the same two,
-  `AGENTS.md` › Product when it moves what the app is, and the skill that owns the
-  subject, each rewritten in place to state the current design and why (and README's
-  Design Philosophy when it replaces a starting layer); there is no separate record of
-  the decision, and git history holds what the text said before;
+- a boundary or a crate's role: `AGENTS.md` › Architecture and the reasons
+  `designing-core-logic`' `references/design-reasons.md` gives for the layers;
+- a design change `AGENTS.md` › "Before changing the architecture" lists: the skill that
+  owns the subject, `AGENTS.md` › Architecture when it moves a layer rule or the
+  contract, and › Product when it moves what the app is, each rewritten in place to
+  state the current design and why; there is no separate record of the decision, and
+  git history holds what the text said before;
 - a `just` recipe added, renamed, or removed: the `justfile`, `AGENTS.md`'s Quick
   Reference, and `CONTRIBUTING.md`'s "Without Just" when it lists that recipe;
 - a gate added or changed: its config and `AGENTS.md` › "Enforcement layers" (and the
   "Validating a change" row when the narrowest check moved), as `changing-gates` says;
 - a subcommand, a flag, what goes to stdout or stderr, an exit code, or an on-disk
-  format: `docs/architecture.md`'s contract table (and "The binary"), with the code;
+  format: the contract table in `AGENTS.md` › Architecture, with the code, and for a
+  format `integrating-system-apis`' `references/file-formats.md`;
 - a skill added, renamed, removed, or widened: its row in `AGENTS.md`'s Skills table
   (`just check-harness` fails when the names differ, not when a row's wording is stale).
 
@@ -113,23 +125,22 @@ description.
 
 ## Template-only material
 
-The bootstrap removes every `<!-- template-only -->` … `<!-- /template-only -->` block
-and the template's own design notes, so an app never inherits text about the template.
-Text only a template reader needs (why the bootstrap exists, how to use the template)
-goes inside a block; text an app keeps (the Design Philosophy of a kept decision, the
-install steps) goes outside. A standing document outside a block never links into
-the template's design notes: that link dangles in every app. A sentence outside a block
-is worded to hold in an app too ("the roadmap starts as a skeleton", not "the template
-ships the roadmap as a skeleton"), or, where it cannot, rewritten for the app by an
-entry in `TEXT_EDITS` in `xtask/src/bootstrap.rs`, in the same change.
+The bootstrap removes every `<!-- template-only -->` … `<!-- /template-only -->` block,
+so an app never inherits text about the template. Text only a template reader needs (how
+to use the template, why the bootstrap exists) goes inside a block, or into
+`starting-an-app`' `references/bootstrap.md`, which the bootstrap deletes; text an app
+keeps (a skill's design reasons, the install steps) goes outside, and never links into
+that reference. A sentence outside a block is worded to hold in an app too ("the
+counter is a sample to replace", not "the template ships a counter"), or, where it
+cannot, rewritten for the app by an entry in `TEXT_EDITS` in `xtask/src/bootstrap.rs`,
+in the same change.
 
 Only the files `MARKER_FILES` in `xtask/src/bootstrap.rs` lists have their blocks
 removed. A block in any other file adds that file to the list in the same change, or its
 marker lines survive into the app and `just verify-bootstrap` (CI's Template Bootstrap
 Smoke job) fails with `ERR_VERIFY_BOOTSTRAP_MARKER`. It fails with
-`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` when the app still names the template's design
-record or README's template-only section, a decision by its number in that record, or
-what the template itself ships or its own reasoning.
+`ERR_VERIFY_BOOTSTRAP_TEMPLATE_TEXT` when the app still names README's template-only
+section or what the template itself ships or its own reasoning.
 
 ## What checks a document, and what does not
 
@@ -140,9 +151,7 @@ what the template itself ships or its own reasoning.
   pull requests: `#` and digits, an issue or pull-request URL on this repository or
   relative to it, the word issue, PR, pull request, or merge request before a number
   (`issue N`, `issue number N`, `PR-N`), `GH-` and digits, or a `gh issue`/`gh pr`
-  command given a number. An upstream project's issue URL passes as a source. Neither
-  check reads the template's own design record or the roadmap, which link issues and
-  plan recipes by design.
+  command given a number. An upstream project's issue URL passes as a source.
 - `mise exec -- typos <file>` spell-checks Markdown (the hook and CI run it too).
 - Nothing formats Markdown; wrap prose at about 90 columns by hand.
 - No gate compiles or runs a fenced example in a Markdown file. The one exception is in

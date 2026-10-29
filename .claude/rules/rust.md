@@ -46,7 +46,7 @@ The short, always-on version of the `writing-rust` and `designing-errors` skills
 ## Visibility
 
 - Narrowest first: private, then `pub(crate)`, then `pub`. A crate's `pub` items are
-  what other crates may call; core's `pub` API is contract (`docs/architecture.md`)
+  what other crates may call; core's `pub` API is contract (`AGENTS.md` › "What is contract and what is private")
 - `pub` only for what another crate or an integration test under `tests/` needs; a
   helper shared between modules of one crate is `pub(crate)`
 - Every `pub` item has a `///` comment saying why it exists and what it promises

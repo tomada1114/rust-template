@@ -37,6 +37,9 @@ still says the same three things.
 **REQUIRED:** [references/weakening.md](references/weakening.md) before reaching for any
 suppression: what each form of weakening does in Rust and in a skill's bundled scripts,
 why it is caught by nothing but review, and the fix that is not a suppression.
+**BACKGROUND:** [references/design-reasons.md](references/design-reasons.md), for why
+the tool pins, Just, lefthook, the harness checks, CI's runners, and the supply-chain
+gates are the ones they are.
 
 ## The one rule every gate change shares
 

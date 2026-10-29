@@ -28,8 +28,7 @@ changing the lint that forbids `unsafe`
 
 ## The port comes first
 
-Every integration is the same pieces, and the sample ships one of each to copy
-(`docs/architecture.md` › "Ports and adapters"):
+Every integration is the same pieces, and the sample ships one of each to copy:
 
 | Piece | Where | In the sample |
 |---|---|---|
@@ -60,7 +59,8 @@ in CI's `Rust Core` (Linux) and `macOS` jobs.
 
 The Linux paths follow the XDG Base Directory Specification
 (<https://specifications.freedesktop.org/basedir-spec/latest/>, checked 2026-10-01): an
-unset, empty, or relative variable takes the default.
+unset, empty, or relative variable takes the default. What goes in those directories, and
+how each file is saved and versioned: [references/file-formats.md](references/file-formats.md).
 
 - **Map in a pure function, select by `cfg`.** Each mapping is a pure function of its
   inputs, unit-tested on any host (`macos_log_dir`, `xdg_log_dir`, and their

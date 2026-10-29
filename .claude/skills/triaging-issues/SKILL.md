@@ -10,15 +10,22 @@ description: >
   choosing between bug, enhancement, documentation, chore, and security, marking a
   tracking issue, editing .github/labels.yml or an issue form under
   .github/ISSUE_TEMPLATE/, running just labels, recording a problem found outside the
-  task, or routing a friction or idea that came up while using the app.
+  task, routing a friction or idea that came up while using the app, or when asked what
+  to work on next or for the app's direction.
 ---
 
 # Triaging Issues
 
 **Owns:** the issue vocabulary: the label taxonomy, what a priority means, and what an
-issue body must contain. **Does not own:** implementing an issue (`shipping-issues`); the
-roadmap's order of outcomes (`steering-the-roadmap`); a change to a gate file
+issue body must contain. **Does not own:** implementing an issue (`shipping-issues`);
+what the app is and its non-goals (`AGENTS.md` › "Product"); a change to a gate file
 (`changing-gates`); anything beyond the tracker.
+
+There is no roadmap document or roadmap issue. The app's direction is `AGENTS.md` ›
+"Product" plus this tracker: the priority tiers, the `on hold` lane, and tracking
+parents. Asked what to work on next, rank the open issues by tier and readiness
+(`shipping-issues` ranks them the same way), and route a new idea through "Requests
+from daily use" below.
 
 Labels carry the triage decision, so it is made once and read back rather than
 re-derived each time the backlog is looked at. An issue is filed with a type label and no

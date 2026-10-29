@@ -87,7 +87,7 @@ reading the clock is banned, not representing time.
   owns. A new one comes with its adapter, its fake, and its `<port>_contract` function
   in the same change, and it is an architecture change (`AGENTS.md` › "Before
   changing the architecture"): the same change describes the port in `AGENTS.md` ›
-  Architecture and `docs/architecture.md`, and why core needs it.
+  Architecture and in the skill that owns its subject, and why core needs it.
 - No `async` in core. Ports are plain calls, and the binary makes them on its own
   thread: a subcommand simply waits, and a call slow enough to freeze the TUI is the
   binary's to move onto a thread, its result fed back to the loop as an action. This
@@ -155,8 +155,8 @@ reading the clock is banned, not representing time.
 - What goes to disk is its own type (in the sample, `StoredCounter`), separate from the
   view, so the file format and the output can change independently. A view that a
   `--json` flag prints derives `Serialize` with `#[serde(rename_all = "camelCase")]`,
-  and then its JSON is contract as the file format is (`docs/architecture.md` › "What
-  is contract and what is private").
+  and then its JSON is contract as the file format is (`AGENTS.md` › "What is contract
+  and what is private").
 - Input arrives already typed: the binary parses arguments with clap and keys into
   core's own enum, so core takes enums rather than strings for closed sets.
 - A failure leaves as a variant, never a sentence (`designing-errors`).
@@ -180,8 +180,8 @@ current shape cannot solve, in place of the row below.
 | An event bus or channels between core types | direct calls; the TUI loop redraws from the screen `update` returned |
 | A TUI framework over ratatui, or a component trait per widget | one `…Screen` value with its `update`, and one `draw` function per screen |
 
-The reasoning behind this shape is in `README.md` › "Design Philosophy" (the sections on
-ports, synchronous ports, and the coverage floor).
+**BACKGROUND:** [references/design-reasons.md](references/design-reasons.md), for why
+the workspace, the ports, the boundary, and the coverage floor are shaped this way.
 
 ## Testing the shape
 

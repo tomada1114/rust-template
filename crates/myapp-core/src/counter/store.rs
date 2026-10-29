@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::time::UnixMillis;
 
-/// What the store persists. Its JSON form is contract (docs/architecture.md): add a field
+/// What the store persists. Its JSON form is contract (`AGENTS.md`): add a field
 /// with `#[serde(default)]`; never rename or remove one without a format version bump.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

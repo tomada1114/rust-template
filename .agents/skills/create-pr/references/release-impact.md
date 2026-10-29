@@ -26,21 +26,12 @@ fits everything that changes that binary or what it reads and writes: Rust in
 ## Choosing the level
 
 Nothing here is a published library, so the level is judged against what a user of the
-tool already depends on, the contract in `docs/architecture.md` › "What is contract and
-what is private":
-
-- the command line: its subcommands and flags, what goes to stdout and what to stderr,
-  and the exit codes (0 success, 1 a runtime error, 2 a usage error), which a person's
-  scripts and scheduled jobs call and parse;
-- the on-disk formats, such as `counter.json`, which an earlier version left on the
-  user's disk;
-- where the data and logs live, named by the bundle identifier on macOS and the XDG
-  directory name on Linux;
-- `rust-version`, the oldest Rust that builds the tool;
-- the behavior a user sees, in a subcommand's output or on the TUI's screen.
-
-Core's public API changes together with its callers in one pull request, so on its own
-it never makes a release breaking.
+tool already depends on: the contract `AGENTS.md` › "What is contract and what is
+private" lists (the command line, the on-disk formats, and where the data and logs
+live), plus `rust-version`, the oldest Rust that builds the tool, and the behavior a user
+sees in a subcommand's output or on the TUI's screen. Core's public API, also in that
+table, changes together with its callers in one pull request, so on its own it never
+makes a release breaking.
 
 | Change | Level |
 |---|---|

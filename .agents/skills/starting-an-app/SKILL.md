@@ -5,9 +5,9 @@ description: >
   (cargo xtask bootstrap), its prompts or flags (display name, slug, bundle identifier,
   owner/repo, author, copyright holder), the placeholders it rewrites (MyApp, myapp,
   myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
-  Template Bootstrap Smoke job; AGENTS.md's Product section and the roadmap; the tool's
+  Template Bootstrap Smoke job; AGENTS.md's Product section; the tool's
   shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
-  and why; removing the sample counter; installing it with just install-cli;
+  and why, written into the skill that owns it; removing the sample counter; installing it with just install-cli;
   just labels, just ruleset, the GitHub security settings, and private-repository
   steps. Use when starting an app from this repository, running or changing the
   bootstrap, a placeholder survived the rename, just check-harness fails on the Product
@@ -17,11 +17,11 @@ description: >
 # Starting an App
 
 **Owns:** the order of work from "Use this template" to an app's first feature: the
-bootstrap, the Product section and roadmap as steps, the tool's shape, where it keeps
-state, writing the first decisions down, removing the sample, installing the tool, and
-the new repository's GitHub setup. **Does not own:** how a task or script is written
-(`writing-repo-scripts`); what the roadmap says (`steering-the-roadmap`); which document
-a decision's reasoning lands on (`updating-docs`); a subcommand's shape (`designing-clis`);
+bootstrap, the Product section as a step, the tool's shape, where it keeps state,
+writing the first decisions down, removing the sample, installing the tool, and the new
+repository's GitHub setup. **Does not own:** how a task or script is written
+(`writing-repo-scripts`); the issue backlog and its order (`triaging-issues`,
+`shipping-issues`); which document a decision's reasoning lands on (`updating-docs`); a subcommand's shape (`designing-clis`);
 the full-screen view (`building-tuis`); a system API or TCC permission
 (`integrating-system-apis`); what a gate may contain (`changing-gates`); README's prose
 (`updating-docs`).
@@ -50,28 +50,25 @@ so this skill is where an app still finds them.
    `just check`) fails while one is left. Write it before any feature: without it, an
    agent picking up an issue has no in-repo answer to "is this in scope?", and a
    non-goal nobody wrote down is one an eager implementer reads as a feature.
-5. **Fill `docs/architecture/roadmap.md`**: the Now, Next, and Later outcomes that follow
-   from the Product section, with `steering-the-roadmap`. Nothing checks that page, so
-   its `TODO:` lines stay until someone replaces them.
-6. **Verify and push**: `just check`, then commit the Product section and roadmap and
-   push both commits to `main`, which takes a direct push until step 10's ruleset.
+5. **Verify and push**: `just check`, then commit the Product section and push both
+   commits to `main`, which takes a direct push until step 9's ruleset.
    Pushing is a remote write: a human's step, or an agent's with the owner's sign-off.
-7. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
+6. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
    repository. Run it before the first issue is filed from a form, so every label the
    forms apply exists. Dependabot skips a label `.github/dependabot.yml` names that the
    repository lacks (`AGENTS.md` › "GitHub settings a new repository must enable" has
    the source), so add `dependencies` by hand to any Dependabot pull request opened
    before this step. It writes to GitHub: a human's step, or an agent's with the
    owner's sign-off.
-8. **Security settings and the Renovate App**, turned on by the repository's admin:
+7. **Security settings and the Renovate App**, turned on by the repository's admin:
    `AGENTS.md` › "GitHub settings a new repository must enable".
-9. **Replace the sample** with the app, in the order of the sections below: the tool's
+8. **Replace the sample** with the app, in the order of the sections below: the tool's
    shape, where it keeps state, writing those decisions down, then removing the sample.
-10. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
-    `just ruleset`, which applies `main.json` and the `release-tags` tag ruleset. From
-    then on every change needs a pull request with the required checks green, so the
-    ruleset must name only jobs the app still runs. On a **private repository**, first
-    **REQUIRED:** [references/private-repository.md](references/private-repository.md).
+9. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
+   `just ruleset`, which applies `main.json` and the `release-tags` tag ruleset. From
+   then on every change needs a pull request with the required checks green, so the
+   ruleset must name only jobs the app still runs. On a **private repository**, first
+   **REQUIRED:** [references/private-repository.md](references/private-repository.md).
 
 ## Choose the tool's shape
 
@@ -115,10 +112,12 @@ pull request that makes it also rewrites the description of the design as it now
 stands, in place of the sample's: persistence (where and in what format the tool keeps
 state) as soon as it keeps state of its own, each new crate the first features need, any
 TCC permission, and any platform the tool adds or drops beyond macOS and Linux. Each
-lands where its subject is already described — `AGENTS.md` › Architecture,
-`docs/architecture.md` (its contract table for a file format or a data location), and
-the skill that owns the subject — stating the current design and why, in the present
-tense; there is no separate decision record to file. A new crate still carries its
+lands in the skill that owns its subject — a file format in `integrating-system-apis`'
+`references/file-formats.md`, a TCC grant in `integrating-system-apis`, a crate's role
+in `AGENTS.md` › Architecture and `designing-core-logic`' reasons — and in the contract
+table in `AGENTS.md` › Architecture when it adds a file format or a data location,
+stating the current design and why, in the present tense; there is no architecture
+document or decision record to file (`updating-docs` › "Design lives in the skills"). A new crate still carries its
 review record and the owner's sign-off (`managing-dependencies`). Every external claim
 carries its URL and the date it was checked.
 
@@ -146,7 +145,9 @@ tool with a screen, the TUI's enter, leave, and panic-hook code.
 
 There is no release pipeline: the tool is built and installed from its checkout with
 `just install-cli` (`cargo install --locked --path crates/myapp`), which writes to
-`~/.cargo/bin` outside the checkout, so it is a human's step. Reaching other people —
+`~/.cargo/bin` outside the checkout, so it is a human's step: no secret, no tag, and no
+CI involved. `CHANGELOG.md` and the workspace version still record what changed.
+Reaching other people —
 a release workflow, prebuilt or signed binaries, a tap, crates.io — is a design change
 (`AGENTS.md` › "Before changing the architecture") and a sign-off change (`AGENTS.md` ›
 "Security and human approval"), not a setup step.
