@@ -4,8 +4,7 @@
 //! the text states the rule and its reason itself instead of pointing at one.
 //!
 //! Read: [`super::documents::standing_documents`], every line (prose, code spans, code
-//! blocks, and YAML alike). Not read: a skill's scripts and tests, which are code, and the
-//! design and planning records in [`super::documents::UNCHECKED_DOCUMENTS`].
+//! blocks, and YAML alike). Not read: a skill's scripts and tests, which are code.
 //!
 //! A reference is any of:
 //! - `#` then digits, bare (`#139`) or after this repository's owner/repo
@@ -282,7 +281,6 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
 #[cfg(test)]
 mod tests {
     use super::run;
-    use crate::check_harness::documents::UNCHECKED_DOCUMENTS;
     use crate::check_harness::test_support::{codes, run_at, summaries};
     use crate::fail::FailureDetails;
     use crate::test_support::{temp_dir, write};
@@ -321,20 +319,6 @@ contact_links:
 
     fn check(overrides: &[(&str, Option<&str>)]) -> Vec<FailureDetails> {
         let dir = temp_dir();
-        let unchecked: Vec<(String, &str)> = UNCHECKED_DOCUMENTS
-            .iter()
-            .map(|path| {
-                let file = if crate::check_harness::has_extension(path, &["md"]) {
-                    (*path).to_owned()
-                } else {
-                    format!("{path}/0001-x.md")
-                };
-                (
-                    file,
-                    "Decided in #140 (issue 166), https://github.com/acme/widgets/issues/14.\n",
-                )
-            })
-            .collect();
         let mut files: Vec<(&str, Option<&str>)> = vec![
             (".github/ISSUE_TEMPLATE/config.yml", Some(CONFIG)),
             ("AGENTS.md", Some(CLEAN)),
@@ -356,14 +340,9 @@ contact_links:
             (".github/ISSUE_TEMPLATE/notes.txt", Some("Fixed in #12.\n")),
             ("docs/guide.md", Some(CLEAN)),
             ("docs/design/system.md", Some(CLEAN)),
-            ("docs/architecture/overview.md", Some(CLEAN)),
+            ("docs/guides/overview.md", Some(CLEAN)),
             ("README.md", Some("Fixed in #12.\n")),
         ];
-        files.extend(
-            unchecked
-                .iter()
-                .map(|(path, text)| (path.as_str(), Some(*text))),
-        );
         for (path, content) in overrides {
             files.retain(|(existing, _)| existing != path);
             files.push((path, *content));
@@ -426,7 +405,8 @@ contact_links:
             ("CLAUDE.md", "The hook changed in #88.", "#88"),
             (".claude/rules/x.md", "Banned since #5.", "#5"),
             ("docs/x.md", "Decided in #31.", "#31"),
-            ("docs/architecture/notes.md", "Indexed in #31.", "#31"),
+            ("docs/guides/notes.md", "Indexed in #31.", "#31"),
+            ("docs/guides/plan.md", "Outcome tracked in #40.", "#40"),
             (".claude/agents/x.md", "see #12", "#12"),
             (
                 ".github/ISSUE_TEMPLATE/bug_report.yml",
@@ -449,12 +429,12 @@ contact_links:
             );
         }
         let violations = check(&[(
-            "docs/architecture/overview.md",
+            "docs/guides/overview.md",
             Some("Tracked in https://github.com/acme/widgets/issues/14.\n"),
         )]);
         assert_eq!(
             summaries(&violations),
-            ["docs/architecture/overview.md:1 cites `https://github.com/acme/widgets/issues/14`"]
+            ["docs/guides/overview.md:1 cites `https://github.com/acme/widgets/issues/14`"]
         );
     }
 

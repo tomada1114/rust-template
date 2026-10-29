@@ -19,17 +19,26 @@ description: >
 
 **Owns:** the command line of the `myapp` binary: how subcommands are declared and
 laid out, what a handler may do, which stream gets what, the exit codes, the wording
-module, machine-readable output, where configuration is resolved, and how the binary is
-tested. **Does not own:** the decision a subcommand runs (`designing-core-logic`); the
+module, machine-readable output, where configuration is resolved, the binary's logging,
+and how the binary is tested. **Does not own:** the decision a subcommand runs (`designing-core-logic`); the
 error enum behind a failure (`designing-errors`); the full-screen `tui` subcommand
 (`building-tuis`); the body of a test (`writing-tests`) or its file (`placing-tests`);
 seeing the binary run (`running-the-app`); a new crate or crate feature
 (`managing-dependencies`).
 
 The command line is contract: a person, a script, or a scheduled job runs it, and an
-old invocation must keep working (`docs/architecture.md` › "What is contract and what is
+old invocation must keep working (`AGENTS.md` › "What is contract and what is
 private"). Everything below follows from that, and from the rule that the binary
 translates and decides nothing (`AGENTS.md` › "Architecture").
+
+**Why one binary, and clap.** One `cargo install --locked --path crates/myapp`
+(`just install-cli`) yields the whole tool, and its subcommands are the only entry
+points, so there is one composition root to wire adapters in. Keeping the binary out of
+core and platform leaves those two as libraries a test links without a `main`. clap's
+derive API declares a subcommand as a type and gives `--help`, `--version`, and usage
+errors (exit 2) for free. Replacing clap, or a clap major, is a design change
+(`AGENTS.md` › "Before changing the architecture"). The binary also owns logging:
+**BACKGROUND:** [references/logging.md](references/logging.md).
 
 ## The shape: parse, compose, call core, print
 
@@ -59,8 +68,9 @@ translates and decides nothing (`AGENTS.md` › "Architecture").
 
 Adding a subcommand, in order: the core method with its tests first (**REQUIRED:**
 `tdd`); the variant with its `///`; the arm in the handler; wording for any new error
-variant; the tests in `crates/myapp/tests/cli.rs`; then `docs/architecture.md` › "The
-binary" and a `CHANGELOG.md` entry, because a user can now type something new.
+variant; the tests in `crates/myapp/tests/cli.rs`; then the command line's row in
+`AGENTS.md` › "What is contract and what is private" and a `CHANGELOG.md` entry, because
+a user can now type something new.
 
 ## stdout is data, stderr is everything else
 
@@ -94,7 +104,7 @@ binary" and a `CHANGELOG.md` entry, because a user can now type something new.
 - A usage error touches nothing: parsing happens before `compose`, and
   `a_usage_error_touches_nothing` in `cli.rs` asserts the temporary `HOME` stays empty.
 - A distinct code per error kind is a change to the contract, not a refactor: say so in
-  `CHANGELOG.md` and `docs/architecture.md` › "The binary", and test each code.
+  `CHANGELOG.md` and in this skill's exit-code table, and test each code.
 
 ## The wording module
 

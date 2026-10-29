@@ -123,13 +123,12 @@ your first real core module, so the coverage floor always has code to measure.
 
 **Documents and agent guidance**:
 
-- [ ] `docs/architecture.md` — the counter column under "Ports and adapters", the
-      command line's `counter` subcommand, the screen under "The binary", and the
-      `counter.json` format under "What is contract"
-- [ ] `README.md` — the introduction's counter sentence, "Why is the sample app a
-      counter?", and the `just test-fast increment` example
+- [ ] `README.md` — the introduction's counter sentence and the
+      `just test-fast increment` example
 - [ ] `AGENTS.md` — the `just test-fast increment` example, the counter examples in
-      Architecture (`JsonFileCounterStore`, `CounterStore`, `CounterView`)
+      Architecture (`JsonFileCounterStore`, `CounterStore`, `CounterView`), and the
+      counter's types, `counter.json`, and `counter` subcommand in its "What is contract
+      and what is private" table
 - [ ] `CONTRIBUTING.md`, the `justfile`'s `test-fast` comment, and this page — the
       `just test-fast increment` examples, "Seeing the app"'s `counter.json` and `myapp`
       commands, and this checklist
@@ -137,8 +136,10 @@ your first real core module, so the coverage floor always has code to measure.
       a counter type as the example (each is a parenthetical or its own sentence;
       replace it with your own type or delete it)
 - [ ] `.github/PULL_REQUEST_TEMPLATE.md` — the counter in the example title
-- [ ] The skills under `.agents/skills/` that give the counter as an example, then
-      `just agents-sync` (the `starting-an-app` skill)
+- [ ] The skills under `.agents/skills/` that give the counter as an example —
+      among them `integrating-system-apis`' `references/file-formats.md`, whose
+      `counter.json` section becomes your own file's — then `just agents-sync` (the
+      `starting-an-app` skill)
 
 Then run `just check`, and this search, which should print nothing:
 

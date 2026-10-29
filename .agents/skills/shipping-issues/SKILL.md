@@ -19,7 +19,7 @@ description: >
 
 **Owns:** taking open issues to a merged pull request and a closed issue from a local
 Claude Code session. **Does not own:** the label vocabulary and what an issue body must
-hold (`triaging-issues`); which outcome comes first (`steering-the-roadmap`); test-first
+hold, and what is in scope (`triaging-issues`, `AGENTS.md` › "Product"); test-first
 work in core (`tdd`); the PR body's content rules (`create-pr`); the same flow from Codex
 (`codex-shipping-issues`) or a Claude Code cloud session, `CLAUDE_CODE_REMOTE=true`
 (`cloud-claude-shipping-issues`), where this skill never runs. **Done:** branch

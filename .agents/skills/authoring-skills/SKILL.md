@@ -98,8 +98,7 @@ carries `**REQUIRED:**` (the task cannot be finished correctly without it) or
 `**BACKGROUND:**` (it only explains why), and no other marker. Its target is a sibling
 skill by name in backticks (never a path: the two trees differ), a `references/` file by
 relative link, or `AGENTS.md` › "Section name" (never a line number). A mention that only
-names an owner or credits a source stays bare. Never point at `docs/template/`: the
-bootstrap deletes it.
+names an owner or credits a source stays bare.
 
 **Deletable illustrations.** Every app deletes the template's sample, the counter
 (`docs/getting-started.md` › "Removing the example code"). State each rule in a sentence

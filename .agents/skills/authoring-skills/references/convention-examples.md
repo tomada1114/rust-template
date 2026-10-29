@@ -15,7 +15,14 @@ an issue number).
 | A recurring procedure, with the reasons behind it | a skill |
 | Tables, long examples, and edge cases of a skill | that skill's `references/` |
 | How a tool works in general | the tool's documentation, linked |
-| Why the template is shaped as it is | `README.md` › "Design Philosophy"; in an app, also `AGENTS.md` and the skill that owns the subject, as present-state text |
+| How the app is built and why | the skill that owns the subject (its body, or a `references/` file such as `design-reasons.md`), as present-state text; `AGENTS.md` › Architecture for a layer rule or the contract. Never an architecture page, a decision record, or a roadmap (`updating-docs`) |
+
+Why this split: the repository is developed with coding agents, often unattended.
+`AGENTS.md` gives every one of them the architecture, the gates, and the hard
+prohibitions; path-scoped rules and skills carry the procedures, loaded only when the
+work calls for them. Which commands an agent runs without a prompt is each person's own
+choice, so no permission file is committed (`AGENTS.md` › "Enforcement layers"): the
+gates and `AGENTS.md`, not a permission list, are what bind every author.
 
 ## Descriptions
 
@@ -41,8 +48,7 @@ Write:
 Avoid: a path into `.claude/skills/` or `.agents/skills/` (the reader may be in the other
 tree, and the path breaks if the skill is renamed); "`AGENTS.md`, line 300" (stale after
 the first edit above it); a third marker such as `**NOTE:**` or `**SEE ALSO:**` (the two
-markers exist so a reader can tell "must load" from "may skip" at a glance); a link to
-`docs/template/` (gone after the bootstrap).
+markers exist so a reader can tell "must load" from "may skip" at a glance).
 
 ## Deletable illustrations
 

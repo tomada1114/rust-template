@@ -3,4 +3,4 @@
 #   deny.toml's [graph] targets names (it never ships) may be ignored, with its reason;
 # - an advisory for a shipped crate is fixed by updating; only when no fixed release
 #   exists may it be ignored, with its reason and a tracking issue.
-# Every entry expires after 90 days and is recorded in docs/template/implementation-notes.md.
+# Every entry expires after 90 days.

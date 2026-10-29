@@ -81,13 +81,14 @@ const FIRST_VERSION: &str = "0.1.0";
 /// the ones an interrupted run leaves behind).
 const TEMP_PREFIX: &str = "verify-bootstrap-";
 
-/// Text that holds only in the template: its design record (which the bootstrap
-/// deletes), a decision cited by its number in that record, README's template-only
-/// section, the app the template was first written for, and a sentence about the
-/// template itself — what it ships ("the template ships the roadmap as a skeleton") or
-/// where its own reasoning lives. An app is not the template, so it keeps none of it; a
-/// passage that must survive is worded for both ("the roadmap starts as a skeleton"). The bootstrap removes the
-/// `verify-bootstrap` task and recipe, so an app names neither as a command.
+/// Text that holds only in the template: a design record under `docs/template/` or a
+/// decision cited by its number in one (the template keeps none, so an app never
+/// inherits one), README's template-only section, the app the template was first written
+/// for, and a sentence about the template itself — what it ships ("the template ships a
+/// counter") or where its own reasoning lives. An app is not the template, so it keeps
+/// none of it; a passage that must survive is worded for both ("the counter is a sample
+/// to replace"). The bootstrap removes the `verify-bootstrap` task and recipe, so an app
+/// names neither as a command.
 pub(crate) const TEMPLATE_TEXT: [&str; 7] = [
     r"docs/template",
     r"design D[0-9]",
@@ -1116,9 +1117,9 @@ mod tests {
         write(
             root,
             "notes.txt",
-            "The template ships the roadmap as a skeleton; see docs/template.\nRun `just verify-bootstrap`.\n",
+            "The template ships a counter; see docs/template.\nRun `just verify-bootstrap`.\n",
         );
-        write(root, "docs/template/design.md", "x\n");
+        write(root, "xtask/src/bootstrap.rs", "x\n");
         write(
             root,
             ".github/workflows/ci.yml",
@@ -1154,7 +1155,7 @@ mod tests {
         assert_eq!(found[1].actual, "docs/a.md:2");
         assert_eq!(
             found[2].actual,
-            "docs/template, .github/workflows/ci.yml (the bootstrap-smoke job), .github/rulesets/main.json (the \"Template Bootstrap Smoke\" context), xtask/src/main.rs (the bootstrap task), xtask/src/main.rs (the verify_bootstrap task), justfile (the verify-bootstrap recipe)"
+            "xtask/src/bootstrap.rs, .github/workflows/ci.yml (the bootstrap-smoke job), .github/rulesets/main.json (the \"Template Bootstrap Smoke\" context), xtask/src/main.rs (the bootstrap task), xtask/src/main.rs (the verify_bootstrap task), justfile (the verify-bootstrap recipe)"
         );
         assert!(found[3].actual.contains("notes.txt:1: The template ships"));
         assert!(

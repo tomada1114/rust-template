@@ -1,7 +1,7 @@
 //! `myapp`: the command-line tool, and the composition root that wires the real adapters
 //! from `myapp-platform` into `myapp-core`.
 //!
-//! The contract (`docs/architecture.md`): data on stdout, diagnostics on stderr; exit 0
+//! The contract (`AGENTS.md` › Architecture): data on stdout, diagnostics on stderr; exit 0
 //! on success, 1 when the action failed (at a bound, storage, no home directory, no
 //! terminal for `tui`), and 2 on a usage error (clap's own code).
 

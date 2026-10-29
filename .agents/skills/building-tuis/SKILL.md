@@ -26,8 +26,13 @@ screen calls (`designing-core-logic`); the wording of an error (`designing-clis`
 crossterm upgrade or feature (`managing-dependencies`).
 
 The view is immediate-mode: each pass draws the whole frame from one value, and a key
-turns that value into the next one. The split below keeps every decision in a place a
-test reaches, because the one part no check runs is the loop that owns a real terminal.
+turns that value into the next one. That is why the view is ratatui, over its crossterm
+backend: one `draw` over a state keeps the loop the binary runs a thin shell around
+core's screen and key table, and the drawing is tested by rendering into an in-memory
+backend. Another framework, a theme of the tool's own, or ratatui 1.0 is a design change
+(`AGENTS.md` › "Before changing the architecture"). The split below keeps every decision
+in a place a test reaches, because the one part no check runs is the loop that owns a
+real terminal.
 
 ## What lives where
 

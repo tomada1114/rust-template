@@ -120,7 +120,7 @@ formats. None of them opens a window or takes over a terminal.
 - Narrowest first: private, then `pub(crate)`, then `pub`. `pub` is for what another
   crate or a test under `tests/` needs; a helper shared between modules of one crate is
   `pub(crate)`. Everything `crates/myapp-core/src/lib.rs` re-exports is contract
-  (`docs/architecture.md` › "What is contract and what is private").
+  (`AGENTS.md` › "What is contract and what is private").
 - Every `pub` item has a `///` comment saying why it exists and what it promises
   (`missing_docs`); a fallible `pub fn` has an `# Errors` section and one that can
   panic a `# Panics` section (clippy pedantic). Whether a change owes other

@@ -10,20 +10,12 @@ use super::yaml::{self, Keys, Node};
 use super::{finding, has_extension, list_dir, read_file};
 use crate::fail::FailureDetails;
 
-/// Documents neither check reads. The template's own design record (`docs/template/`)
-/// cites the upstream template's issues and plans recipes before they exist, and the
-/// bootstrap deletes it. The roadmap is an app's own planning record: it links the
-/// issues behind each outcome and may name a recipe that is still to be written.
-pub(super) const UNCHECKED_DOCUMENTS: &[&str] = &["docs/template", "docs/architecture/roadmap.md"];
-
 /// Every `*.md` file under `dir` (absent: none), recursively, as root-relative
-/// `/`-separated paths in byte order, leaving out each path in [`UNCHECKED_DOCUMENTS`]
-/// and what is under it.
+/// `/`-separated paths in byte order. No document under `dir` is exempt.
 pub(super) fn markdown_files(root: &Path, dir: &str) -> Vec<String> {
     list_dir(root, dir)
         .into_iter()
         .map(|(name, kind)| (format!("{dir}/{name}"), kind))
-        .filter(|(path, _)| !UNCHECKED_DOCUMENTS.contains(&path.as_str()))
         .flat_map(|(path, kind)| {
             if kind.is_dir() {
                 markdown_files(root, &path)
@@ -61,8 +53,7 @@ pub(super) fn issue_templates(root: &Path) -> Vec<String> {
 
 /// The documents an agent reads as standing instructions, which both document checks
 /// read: `AGENTS.md`, `CLAUDE.md`, every `*.md` under `.claude/rules/`, `.claude/agents/`
-/// (the sub-agent definitions), `docs/`, and `.agents/skills/` ([`UNCHECKED_DOCUMENTS`]
-/// aside), and the issue templates. Every one is optional here; a check that needs one
+/// (the sub-agent definitions), `docs/`, and `.agents/skills/`, and the issue templates. Every one is optional here; a check that needs one
 /// says so itself.
 pub(super) fn standing_documents(root: &Path) -> Vec<String> {
     let mut documents = vec!["AGENTS.md".to_owned(), "CLAUDE.md".to_owned()];
@@ -136,10 +127,7 @@ pub(super) fn repository(root: &Path) -> Result<Repository, FailureDetails> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Repository, UNCHECKED_DOCUMENTS, issue_templates, markdown_files, repository,
-        standing_documents,
-    };
+    use super::{Repository, issue_templates, markdown_files, repository, standing_documents};
     use crate::test_support::{temp_dir, write};
 
     fn tree(files: &[&str]) -> tempfile::TempDir {
@@ -151,35 +139,25 @@ mod tests {
     }
 
     #[test]
-    fn lists_markdown_in_byte_order_without_the_unchecked_records() {
-        let unchecked: Vec<String> = UNCHECKED_DOCUMENTS
-            .iter()
-            .map(|path| {
-                if crate::check_harness::has_extension(path, &["md"]) {
-                    (*path).to_owned()
-                } else {
-                    format!("{path}/x.md")
-                }
-            })
-            .collect();
-        let mut files = vec![
+    fn lists_every_markdown_file_in_byte_order() {
+        let dir = tree(&[
             "docs/b.md",
             "docs/Z.md",
             "docs/a/z.md",
             "docs/notes.txt",
-            "docs/architecture/overview.md",
-            // Named literally too, so dropping it from UNCHECKED_DOCUMENTS fails here.
-            "docs/architecture/roadmap.md",
-        ];
-        files.extend(unchecked.iter().map(String::as_str));
-        let dir = tree(&files);
+            "docs/guides/overview.md",
+            "docs/guides/plan.md",
+            "docs/records/design.md",
+        ]);
         assert_eq!(
             markdown_files(dir.path(), "docs"),
             [
                 "docs/Z.md",
                 "docs/a/z.md",
-                "docs/architecture/overview.md",
-                "docs/b.md"
+                "docs/b.md",
+                "docs/guides/overview.md",
+                "docs/guides/plan.md",
+                "docs/records/design.md",
             ]
         );
         assert_eq!(
@@ -218,7 +196,7 @@ mod tests {
             ".claude/agents/executor.md",
             ".claude/skills/demo/SKILL.md",
             "docs/guide.md",
-            "docs/architecture/roadmap.md",
+            "docs/guides/plan.md",
             ".agents/skills/demo/SKILL.md",
             ".github/ISSUE_TEMPLATE/task.yml",
             ".github/PULL_REQUEST_TEMPLATE.md",
@@ -231,6 +209,7 @@ mod tests {
                 ".claude/rules/rust.md",
                 ".claude/agents/executor.md",
                 "docs/guide.md",
+                "docs/guides/plan.md",
                 ".agents/skills/demo/SKILL.md",
                 ".github/ISSUE_TEMPLATE/task.yml",
             ]
