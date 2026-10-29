@@ -18,7 +18,7 @@ operating-system code at all.
 - No crate is named `core`: that name collides with Rust's built-in `core` library.
   Every app crate carries the slug as its prefix instead.
 - A repository per layer is not used: it would cost a release process per layer for a
-  personal tool, and a change that crosses layers would span several pull requests.
+  personal tool.
 
 ## Ports and adapters, with synchronous ports
 
