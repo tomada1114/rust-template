@@ -6,7 +6,8 @@
 - [Standing prohibitions for every brief](#standing-prohibitions-for-every-brief)
 - [Priority research and labeling](#priority-research-and-labeling-executor)
 - [Implementation](#implementation-step-3)
-- [Review fix](#review-fix-step-5)
+- [Review fix, parallel mode](#review-fix-parallel-mode-step-4)
+- [Review fallback](#review-fallback-step-4)
 - [CI repair](#ci-repair-step-6-only-on-fail)
 - [Design decision](#design-decision-step-8b)
 
@@ -14,9 +15,8 @@ Every brief this skill hands off is a fully self-contained prompt: whoever runs 
 cannot ask a question back, so a hole in it returns as a decision made alone rather than
 as a question. Leave nothing merge-gating unguessed. The parent — this session — owns
 every GitHub **write** (opening the PR, `link_check.sh`, `land_pr.sh`, labels, comments),
-every wait (`review_watch.py`, `ci_watch.sh`), and every merge-gating judgment — triaging
-the PR review's findings included; a brief only touches code inside the
-checkout.
+every wait (`ci_watch.sh`), and every merge-gating judgment — triaging the review's
+findings included; a brief only touches code inside the checkout.
 
 ## Inline or by tier
 
@@ -116,16 +116,25 @@ this mode exists to avoid.
 
 Prompt body: `agent-implementation.md`.
 
-## Review fix (step 5)
+## Review fix, parallel mode (step 4)
 
-There is no review brief: the review is the pull request's own, read by
-`review_watch.py` (`pr-ci-merge.md` › "Waiting for the PR review"). This
-brief is only for the findings of a review round this session has already read and
-accepted for this PR. Zero → nothing to run. One brief per round that has any, handed
-to **`executor`** or followed inline, always inside that branch's own `{workdir}` — in
-parallel mode never the main checkout, which sits on the default branch.
+Only for findings this session has already read and accepted, in parallel mode.
+`/code-review --fix` writes to the session's own working tree, which in parallel mode is
+the main checkout sitting on the default branch — the wrong tree — so the review runs
+read-only and the writing is delegated here instead
+([SKILL.md step 4](../SKILL.md#4-review-the-branch)). Zero accepted findings → nothing to
+run. One **`executor`** per branch that has any, always inside that branch's own
+`{workdir}`.
 
 Prompt body: `agent-review-fix.md`.
+
+## Review fallback (step 4)
+
+Only when this session's host will not let it launch `/code-review` directly — see
+[SKILL.md step 4](../SKILL.md#4-review-the-branch). One independent, **read-only**
+`architect` against the branch; never this session re-reading its own diff.
+
+Prompt body: [agent-review-fallback.md](agent-review-fallback.md).
 
 ## CI repair (step 6, only on `FAIL`)
 

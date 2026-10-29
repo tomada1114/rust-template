@@ -80,7 +80,7 @@ equal substitute, never a different operation.
 `GH_REPO` (`gh api --help`, gh 2.92.0, observed 2026-10-07). Run every call from the
 checkout's root; if `gh` cannot tell the repository from the remote, export
 `GH_REPO=<owner>/<repo>` (the owner and name the session was started on) for the rest
-of the run, so the `gh` calls `review_watch.py` makes itself see it too.
+of the run, so the `gh` calls the skill's own scripts make see it too.
 
 ## A 403 from the proxy
 
@@ -126,7 +126,7 @@ fast-forward.
 
 ## Auto-fix stays off
 
-Auto-fix is a per-pull-request toggle. While it is on, Claude reacts to review comments
+Auto-fix is a per-pull-request toggle. While it is on, Claude reacts to PR comments
 and CI failures on the PR and may reply to review threads, under the owner's GitHub
 account
 ([Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests),
@@ -137,7 +137,7 @@ the run's PRs, stop and ask the owner to clear the toggle.
 ## Hosts the network level blocks
 
 Under the default Trusted level, `api.osv.dev` answered 403 (observed 2026-10-07), so a
-local vulnerability lookup for a new dependency cannot run. Say so in the review record
+local vulnerability lookup for a new dependency cannot run. Say so in the report
 and let CI's OSV-Scanner and Dependency Review judge the pull request.
 **BACKGROUND:** `managing-dependencies`. A red check caused by a refused host is the
 environment's, not the issue's: name the host and the failing check in the report.
@@ -160,6 +160,5 @@ checked 2026-10-07). Reopening a reclaimed session restores the conversation, no
 background work that was running — sub-agents and shell commands
 ([environment expired](https://code.claude.com/docs/en/claude-code-on-the-web#environment-expired),
 checked 2026-10-07). `<runstate>` is on that VM: a run that resumes on a fresh one
-starts with no `run.md`, no review logs, and no `<pr>-rounds.json`. Rebuild what it
-knows from GitHub — the open PR from the session's branch, its review summary, its
-check runs, and the issue's state — before writing anything.
+starts with no `run.md` and no CI logs. Rebuild what it knows from GitHub — the open PR
+from the session's branch, its check runs, and the issue's state — before writing anything.

@@ -1,76 +1,46 @@
-# Review rounds, current-head CI and landing
+# Pre-PR review, current-head CI and landing
 
-## Record reviewed and current revisions separately
+## Review the branch before the PR
 
-Record repository, issue, PR URL/number, each review round's ID and reviewed commit,
-current head SHA, base SHA/ref, correction commits and check/run evidence. Refresh
-head/base when checking CI or landing. Never present a review as cloud review of a
-commit it did not read. A changed diff invalidates old CI and local acceptance
-evidence, but each completed review remains recorded for this PR.
+No review of the PR is waited for, requested or polled: the integration's automatic
+review is not part of this workflow. Review happens on the branch, before it is
+published, in a context that did not write the change.
 
-The Codex integration reviews the PR when it opens and, depending on the change, may
-review again after a correction push. The owner's policy handles at most **three
-review rounds** per PR:
+1. Settle the diff identity: base SHA/ref and the branch head being reviewed, with local
+   verification (`just check`) already green.
+2. Run one **read-only, fresh-context** review of `<base>...HEAD`. Use a sub-agent where
+   the host provides one and the project is trusted (the `architect` tier for review);
+   otherwise a separate pass that starts from the issue body, the acceptance map and the
+   diff alone, not from the implementation's reasoning. It must not edit, create or
+   delete anything, and it makes no GitHub write. It judges what the tests cannot: does
+   the diff match what the issue asked, nothing missing and nothing widened; needless
+   complexity; maintainability; whether the tests would fail with the bug present; a
+   sibling case or silent error path the diff walked past. It reports defects, not
+   patches: file, line, what is wrong, why it matters, with a severity.
+3. Number the findings `F1`, `F2`, … and classify **every** one with a reason judged
+   against the code: **accepted** (real, and part of this issue's own change, tests
+   included), **rejected** (wrong on reading the code), or **out of scope** (real but
+   not this diff's). A schema change or a new public surface is never accepted into the
+   diff however small. A finding that needs an owner's decision, or a correctness
+   finding you cannot settle, blocks publication: report it and preserve the branch.
+4. Fix the accepted findings in this worktree, inspect the complete correction diff,
+   run affected checks and `just check`, and commit with normal hooks. One pass: do not
+   re-review the fixes; local verification and current-head CI cover them.
+5. Record the base/head reviewed, each finding with its classification and reason, the
+   commit that addresses each fixed one, and out-of-scope findings as follow-up
+   candidates. File them only within explicit issue-write scope.
 
-| Round | Fix in this PR | Accepted but not fixed here |
-| --- | --- | --- |
-| 1 (opening review) | every accepted finding, whatever its badge | — |
-| 2 and 3 (reviews of correction heads) | accepted `P0`, `P1` and `P2` findings | accepted `P3`: a reported follow-up candidate |
+Never post `@codex review`, change review settings, or close/reopen a PR to start a
+review, and never read, reply to or resolve a review thread on the PR as part of this
+run. Repository-required approvals and checks are separate from this review and cannot
+be bypassed.
 
-After pushing round 3's corrections, do not wait for a fourth review; land on local
-verification and current-head CI. Never request a review to fill a round. This does
-not remove repository-required approvals, checks or unresolved correctness decisions.
+## Record revisions separately
 
-## Wait for the opening review
-
-Discover GitHub MCP actions and inspect review submissions, inline threads, the PR
-conversation and review-task metadata. Follow pagination or another MCP action when
-normalized responses omit data. Report required inaccessible evidence; never use
-`gh` or direct HTTP as a fallback.
-
-Open a regular PR. Record the opening event and the automatic review's trusted
-integration identity, state and reviewed commit. Wait through its queue/start delay
-and running state. Do not post `@codex review`, `@codex fix`, change review settings,
-or close/reopen the PR to start another run. If the opening run fails or cannot be
-observed, report that blocker without claiming completion or replacing it with a
-local review.
-
-| Review state | Action |
-| --- | --- |
-| Not started / queued | Wait for the opening-triggered review. |
-| Running | Observe review and CI in bounded waits. |
-| Completed, findings | Read all findings and address accepted in-scope ones. |
-| Completed, no findings | Record terminal state and the reviewed commit. |
-| Failed / unavailable | Report missing evidence and preserve the PR. |
-
-Completion must be terminal and come from the trusted Codex integration, associated
-with this PR and its reviewed commit. A display name, acknowledgement, reaction,
-green CI or silence alone is insufficient. A trusted terminal summary with matching
-commit metadata, a no-findings signal and empty findings/threads can establish a
-clean review. Completion alone does not mean there were no findings.
-
-Classify each finding as accepted, rejected or out of scope with a reason judged
-against the code, not the badge. Fix what the round's row above allows, inspect the
-complete correction diff, run affected checks and `just check`, commit with normal
-hooks and push. Record which commits address which findings in which round. An
-unresolved owner decision or correctness finding blocks landing; CI success cannot
-dismiss it. Resolve threads only within comment/thread-write scope. Report accepted
-`P3` findings from rounds 2–3 and out-of-scope findings as follow-up candidates; file
-them only within explicit issue-write scope.
-
-## Wait briefly for the next round
-
-After each correction push in rounds 1 and 2, observe the PR for up to **300 seconds**
-for a trusted review that starts on the new head (observed: 12 seconds to about 2.5
-minutes after the push, and some pushes start none). If one starts, wait for it to
-complete and handle it as the next round. If none starts within that grace, the latest
-completed review stands: land on local verification and current-head CI. Observe this
-alongside CI: CI here compiles the workspace from scratch and its slowest required jobs
-(`Rust Core`, `macOS`) have 30-minute timeouts, so CI usually outlasts the grace.
-
-If a review appears after round 3's corrections, do not wait for its completion and
-do not start a fourth correction round. Triage any `P0` or `P1` finding it has
-already posted: an accepted one blocks landing and is reported for the owner.
+Record repository, issue, PR URL/number, the head the pre-PR review read, current head
+SHA, base SHA/ref, correction commits and check/run evidence. Refresh head/base when
+checking CI or landing. A changed diff invalidates old CI and local acceptance
+evidence, and a head the review did not read is reported as such.
 
 ## Verify CI on the current head
 
@@ -82,7 +52,7 @@ without inventing approvals or bypassing server-enforced requirements.
 A green check for one job, an earlier SHA or a partial response is insufficient.
 Distinguish success, failure, pending, skipped, cancelled and inaccessible checks.
 A skipped required check is not success unless active policy explicitly permits it.
-Diagnose failures while a review is pending. Any correction or changed
+Diagnose failures as they appear. Any correction or changed
 base integration requires fresh local acceptance and CI for the resulting head.
 Retries must be authorized and associated with their actual head/run. Never change
 settings or dispatch workflows merely to obtain missing evidence.
@@ -90,20 +60,17 @@ settings or dispatch workflows merely to obtain missing evidence.
 Use bounded observations (at most 60 seconds per blocking wait) and back off when
 state is unchanged. Continue in-scope repairs without an arbitrary attempt cap.
 Pending gates or elapsed time alone do not complete or fail a run. Honor user
-deadlines and host limits. Once the latest review round is complete, the findings it
-requires are addressed, the next-round grace has passed without a new review (or the
-round cap is reached), and current-head gates pass, no further review wait is required.
+deadlines and host limits. Once current-head gates pass, nothing else is waited for.
 
 ## Land within recorded authorization
 
 At a PR-only boundary, preserve the open PR. For an authorized merge:
 
 1. Refresh head/base, mergeability, known findings, required approvals and all
-   expected checks. Confirm every handled review round completed, the findings each
-   requires have correction evidence, no started review is still running within the
-   round cap, and local acceptance/CI cover the current diff. Integrate
+   expected checks. Confirm the pre-PR review's accepted findings have correction
+   evidence and local acceptance/CI cover the current diff. Integrate
    the current default branch normally if needed, repeat local checks and CI, and
-   inspect the resulting diff. Do not request another review or force-push.
+   inspect the resulting diff. Do not force-push.
 2. Merge through MCP with the expected-head-SHA guard and an allowed merge method.
    Never use an admin bypass. If the head changes or merge is rejected, inspect
    the actual state before retrying; do not route around a policy rejection.
@@ -114,6 +81,6 @@ At a PR-only boundary, preserve the open PR. For an authorized merge:
 4. Preserve the primary checkout and evidence. Perform only authorized cleanup
    through the matching local or managed-worktree lifecycle and verify outcomes.
 
-Report each review round's reviewed commit and addressed findings, follow-up
-candidates, final head and CI separately, including whether the final head's
-corrections were locally verified without a further cloud review.
+Report the pre-PR review's findings with their triage and fixing commits, follow-up
+candidates, final head and CI separately, including that the final head's corrections
+were verified locally and by current-head CI without a second review.

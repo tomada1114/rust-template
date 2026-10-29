@@ -8,8 +8,8 @@ nothing else may. Never `gh pr`, `gh issue`, `gh repo view`, `gh label list`,
 (a 403 from the proxy: `cloud-host.md` › "A 403 from the proxy").
 
 `<runstate>` is `${AGENT_SKILL_STATE_DIR:-$HOME/.local/state/agent-skills}/shipping-issues/<owner>__<repo>`,
-the directory `review_watch.py` keeps its memory in. Request and response files go there,
-never inside the checkout.
+the directory `run_record.py` keeps the run's record in. Request and response files go
+there, never inside the checkout.
 
 ## Table of Contents
 
@@ -88,8 +88,7 @@ gh api -X POST repos/{owner}/{repo}/pulls -f title='<conventional-commit title>'
 
 Leaving out `draft` creates the PR ready
 ([create a pull request](https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request),
-checked 2026-10-07), and only a ready PR gets the opening Codex review
-(`review_watch.py`'s docstring). Check the reply: `base:` is the default branch and `draft: false`.
+checked 2026-10-07), and a draft could not be merged. Check the reply: `base:` is the default branch and `draft: false`.
 A 422 that says a pull request already exists for the branch: list it with
 `gh api "repos/{owner}/{repo}/pulls?head=<owner>:<branch>&state=open" --jq '.[] | "\(.number) \(.title)"'`.
 One this run opened for the same issue is the PR to continue; anything else is a stop.

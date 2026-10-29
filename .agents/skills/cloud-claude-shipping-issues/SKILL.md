@@ -4,21 +4,21 @@ description: >
   Covers shipping GitHub issues in this repository from a Claude Code cloud session
   (CLAUDE_CODE_REMOTE=true), serially and inline over REST gh api calls: ranking with
   issue_digest.py in file mode, implementing on the session's one branch with cargo
-  checks (no just or mise on the VM), opening a PR that says Closes #N, up to three
-  automatic Codex review rounds read by review_watch.py, CI read per head SHA, a
-  squash merge pinned to that head, and the follow-ups. Use when asked to ship the next
-  issue, issue N, or the backlog from a cloud session; when the shipping-issues
-  preflight prints host: cloud; or when gh pr, gh issue, or a GraphQL call answers 403
-  "GitHub GraphQL is not available from Claude Code sessions" while shipping.
+  checks (no just or mise on the VM), a pre-PR /code-review of the branch, opening a PR
+  that says Closes #N, CI read per head SHA, a squash merge pinned to that head, and the
+  follow-ups. Use when asked to ship the next issue, issue N, or the backlog from a cloud
+  session; when the shipping-issues preflight prints host: cloud; or when gh pr, gh
+  issue, or a GraphQL call answers 403 "GitHub GraphQL is not available from Claude Code
+  sessions" while shipping.
 ---
 
 # Shipping Issues from a Claude Code Cloud Session
 
 **Owns:** shipping issues end to end from a Claude Code cloud session — rank, implement,
-PR, review, CI, merge, follow-ups, and the session's branch between issues — over REST.
+branch review, PR, CI, merge, follow-ups, and the session's branch between issues — over REST.
 **Does not own:** the local workflow and its scripts (`shipping-issues`), Codex's
 (`codex-shipping-issues`), or what an issue body and a label mean (`triaging-issues`).
-**Done:** review settled, PR merged, issue CLOSED, no gate deleted or weakened.
+**Done:** branch reviewed, PR merged, issue CLOSED, no gate deleted or weakened.
 
 ## Authority
 
@@ -32,13 +32,13 @@ posting its `## Design decision` comment and then clearing its design block (its
 design-block label, and `design=open` to `design=settled` in its ship contract); filing
 and labelling follow-up issues; and removing `blocked: dependency` from the issues its
 merge unblocked. Nothing else: no force-push, no branch deletion, no reply to or
-resolution of a review thread, no `@codex review`, no `just labels`, no other label
+resolution of a review thread, no `just labels`, no other label
 change on any issue, no other comment, no other PR or issue edit, no other issue closed,
 and no Auto-fix. A step that would need one stops and asks. Commits go through
 `smart-commit`, under its own exception. A new dependency is proposed, and the run waits
 for sign-off.
 
-The go-ahead to merge is a settled [review](#5-wait-for-the-review) and a `PASS` for
+The go-ahead to merge is the [step 4](#4-review-the-branch) review and a `PASS` for
 the current head: the merge happens in that same turn, with no "shall I merge?". The
 only pauses are the [stop conditions](#stop-conditions).
 
@@ -58,7 +58,7 @@ only pauses are the [stop conditions](#stop-conditions).
 - **REST only.** Every GitHub read and write is a `gh api repos/{owner}/{repo}/...`
   call from [rest-calls.md](references/rest-calls.md), or a built-in GitHub tool doing
   the same REST operation. Of `shipping-issues`' scripts, this skill runs only
-  `issue_digest.py` (file mode), `review_watch.py`, and `run_record.py` (with
+  `issue_digest.py` (file mode) and `run_record.py` (with
   `--repo`); the rest are local-only and are never run here.
 - **A 403 for GraphQL or repository scope stops the run**: report the call and its
   message, and never retry it another way
@@ -113,25 +113,25 @@ hand first, since the VM has no hook installed. A check the VM cannot run is nam
 the report, never skipped silently. Keep the change within the issue; what falls
 outside it goes to step 9.
 
-### 4. Open the PR
+### 4. Review the branch
+
+Before any PR exists, one pass, with the narrowest `cargo` checks green: `/code-review medium <branch> --fix`
+(**effort first, branch second**; `medium` always, `high` only for a change that can lose
+or corrode existing data or when the user asked; never `low`, `xhigh`, `max` or `ultra`).
+The session is serial on one branch, so `--fix` is safe. Host won't launch it → one
+read-only fresh-context `architect`, never your own diff re-read. Triage every finding,
+read what `--fix` changed, re-verify, push, record `review`
+([how](references/review-ci-merge.md#the-review)).
+
+### 5. Open the PR
 
 `git push -u origin <branch>`, then create a ready PR against the default branch with
 `Closes #<n>` in its body ([the call](references/rest-calls.md#opening-the-pr)). Check
 the reply's `base:` and `draft: false`, then read the PR: a missing `Closes #<n>` or a
 wrong base is [repaired](references/rest-calls.md#repairing-the-prs-closing-link)
-before the review watch starts. Record `pr-created`. Never turn on Auto-fix for
+before CI is read. Record `pr-created`. Nothing waits on a review of the PR: none is
+requested and none is polled. Never turn on Auto-fix for
 it ([why](references/cloud-host.md#auto-fix-stays-off)).
-
-### 5. Wait for the review
-
-Each Codex review is a round, at most 3 per PR: round 1's accepted findings are all
-fixed; rounds 2–3 fix accepted `P0`–`P2` and send a `P3` to step 9. Run
-`review_watch.py <pr>` once the PR opens and act on its verdict
-([how](references/review-ci-merge.md#the-review)). **After every push**, run
-`review_watch.py <pr> --after-push <sha>` before reading CI: it waits a 300 s start
-grace for a review of that push, then reports the next round or `NO_NEW_REVIEW`, which
-stands for that head alone. `NO_REVIEW`, or `ERROR` after one re-run, holds the PR and
-stops the run. Record `review` per round.
 
 ### 6. Read CI
 
@@ -143,15 +143,11 @@ repair, at most 3 times. `PENDING` past 3600 s, or `EMPTY` 600 s after the push
 
 ### 7. Merge
 
-Right before the merge, pass the [review gate](references/review-ci-merge.md#the-review-gate-before-the-merge):
-`review_watch.py <pr> --after-push <head_sha> --timeout 0` must read `CLEAN` or
-`FINDINGS` with every finding triaged, or `NO_NEW_REVIEW` for the head being merged;
-never merge past a posted, untriaged finding. Read
-the PR ([the call](references/rest-calls.md#reading-the-pr)): `closes: true` and the
+Read the PR ([the call](references/rest-calls.md#reading-the-pr)): `closes: true` and the
 default branch as `base:`, else [repair it](references/rest-calls.md#repairing-the-prs-closing-link)
 and read CI again. Then squash-merge pinned to the head CI passed
-([the call](references/rest-calls.md#the-merge)). 409 → steps 5 and 6 for the new head,
-never the old `sha` again; 405 → [the table](references/review-ci-merge.md#the-merge).
+([the call](references/rest-calls.md#the-merge)), in the same turn as the `PASS`. 409 →
+step 6 for the new head, never the old `sha` again; 405 → [the table](references/review-ci-merge.md#the-merge).
 Confirm the issue is `closed`, else [close it](references/rest-calls.md#closing-an-issue-github-left-open)
 with a back-reference comment; record `merged`.
 
@@ -197,8 +193,7 @@ Stop the run and report when:
 - a REST call answers 403 for GraphQL or repository scope, or a push or every call
   fails the same way after a retry ([cloud-host.md](references/cloud-host.md));
 - the digest selects nothing, or the named issue is not ready;
-- a PR is held: `NO_REVIEW`, a review `ERROR`, a finding that needs the owner, one
-  accepted past round 3, CI pending past 3600 s, `NO_CHECKS`, a fourth CI `FAIL`, or a
+- a branch is held: a review finding that needs the owner; a PR is held: CI pending past 3600 s, `NO_CHECKS`, a fourth CI `FAIL`, or a
   merge refused for a reason other than a moved head;
 - the merged issue is still open after the close by hand, or a PR repair left its body
   or base wrong;

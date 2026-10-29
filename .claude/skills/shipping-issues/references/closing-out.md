@@ -163,16 +163,11 @@ not a stylistic choice.
   left open and green (`pr-ci-merge.md` › "Held for a human's evidence").
 - **Any issue left open behind a merged PR.** This is the failure mode the skill exists
   to prevent; it can never be implied, only stated.
-- **How each merged PR was reviewed** — each round's verdict and the commit it read
-  (`reviewed_sha:`), every finding with its round, its classification (accepted,
-  rejected, out of scope, or accepted and filed as a follow-up for its `P3` badge) and
-  reason, which commit fixed the fixed ones, any `REJECTED` line from a fix run this
-  session did not resolve, and whether the last fixes got a review of their own or
-  landed on `NO_NEW_REVIEW` or the 3-round cap, verified locally and by current-head CI.
-  A finding past the cap left untriaged is named, and so is a review that completed
-  after its PR merged (`completed_at:` later than the merge), so it can be checked. A
-  PR held on `NO_REVIEW` or a review `ERROR` is named with the PR left open. A run that
-  shipped unreviewed must not read like one that passed.
+- **How each merged PR was reviewed** — the local `/code-review` pass (effort used and why
+  `high`, if it was; findings; what was fixed vs. rejected vs. filed as a follow-up) or
+  the fallback agent, and any `REJECTED` finding this session did not resolve. A run that
+  shipped unreviewed must not read like one that passed. Never present re-reading your
+  own diff as a review.
 - **Acceptance criteria that shipped `not-met`, and why that was accepted.** If none
   did, say the criteria were met. If the issue carried none, say that — rather than
   implying it passed a check it never had.

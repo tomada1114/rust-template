@@ -1,18 +1,19 @@
-# Review fix (brief)
+# Review fix, parallel mode (brief)
 
-Used at [SKILL.md step 5](../SKILL.md#5-wait-for-the-pr-review) — only for the PR
-review's findings this session has already read and accepted
-(triage: `implement-and-review.md` › "Triaging the review's findings") for this PR, one brief
-per review round that has any, handed to **`executor`** or followed inline in that branch's
-own `{workdir}`.
-Zero accepted findings → nothing to run.
+Used at [SKILL.md step 4](../SKILL.md#4-review-the-branch) in parallel mode — only for
+findings this session has already read and accepted
+([triage](implement-and-review.md#triaging-the-findings)), one **`executor`** per branch
+that has any, in that branch's own `{workdir}`.
+
+`/code-review --fix` writes to the session's own working tree, which in parallel mode is
+the main checkout sitting on the default branch — the wrong tree — so the review runs
+read-only and the writing is delegated here instead. Zero accepted findings → no spawn.
 
 ```
-Branch {branch} implements issue #{n} in {owner}/{repo} and is open as PR
-#{pr}. The PR's automatic review has already run against it and I have triaged
-its findings myself; below are the ones I accepted. Apply exactly these and
-nothing else. The review itself is not yours to answer: do not reply to,
-resolve, or comment on any review thread, and do not ask for another review.
+Branch {branch} implements issue #{n} in {owner}/{repo} and is, or is about to
+become, a PR. A review has already run against it and I have triaged the
+findings myself; below are the ones I accepted. Apply exactly these and
+nothing else.
 
 Work only inside {workdir} — not any sibling checkout or worktree of the same
 repository. Branch {branch} is already checked out there; do not switch
@@ -30,8 +31,8 @@ Those reads are the ONLY GitHub commands you are permitted to run.
 </context>
 
 <findings>
-{one per line, numbered as review_watch.py numbered them, as `F<n> file:line —
-what is wrong — why it matters`, in my words. Findings I rejected or ruled out of
+{one per line, pre-numbered by me as `F<n> file:line — what is wrong — why it
+matters`. Findings I rejected or ruled out of
 scope are not listed here and must not be inferred.}
 </findings>
 
@@ -71,5 +72,5 @@ FOLLOW-UPS: <defects you saw that are NOT in the list, one per line as
 
 `REJECTED` is read, not skimmed — it is the run's only signal that a finding this
 session accepted did not survive contact with the code, and a rejection that reads like
-a real defect goes back through the same loop with the reason addressed. `FOLLOW-UPS`
+a real defect goes back to the same fix agent, continued, with the reason addressed. `FOLLOW-UPS`
 feeds step 8 like every other one.
