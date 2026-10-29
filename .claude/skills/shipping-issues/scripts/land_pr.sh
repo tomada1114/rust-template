@@ -3,7 +3,7 @@
 # that the issue it was supposed to close actually closed.
 #
 # Usage: land_pr.sh <pr-number> [--issue N] [--method squash|merge|rebase]
-#                   [--head-sha SHA] [--review-log FILE] [--dry-run]
+#                   [--head-sha SHA] [--dry-run]
 #                   [--no-link-check] [--no-ready]
 #
 # Without --method the script picks the first method the repository allows,
@@ -37,17 +37,6 @@
 # ci_watch.sh printed for its PASS; without it the script pins to the head it
 # reads just before it checks the merge state.
 #
-# With --review-log FILE (the output review_watch.py wrote for this PR) the
-# script merges an open PR only when that log is about this PR and its
-# `verdict:` is CLEAN or FINDINGS, or NO_NEW_REVIEW (no review started within
-# the grace after a push) whose `after_push:` is the commit being merged;
-# anything else — PENDING_TIMEOUT (a review still running included),
-# NO_REVIEW, ERROR, a NO_NEW_REVIEW about another push, another PR's log, or
-# no log at all — is `result: REVIEW_UNSETTLED` and nothing is merged. It
-# cannot tell whether FINDINGS were addressed: that triage is the caller's
-# step, and this guard only stops a merge that would land before the PR's
-# review exists.
-#
 # With --dry-run nothing is written: on an already-merged PR whose issue is
 # still open it reports `issue: WOULD_CLOSE` instead of closing the issue.
 #
@@ -76,7 +65,6 @@ PR="${1:-}"
 ISSUE=""
 METHOD=""
 HEAD_SHA=""
-REVIEW_LOG=""
 DRY=0
 LINK_CHECK=1
 READY=1
@@ -86,7 +74,6 @@ while [[ $# -gt 0 ]]; do
     --issue) [[ $# -ge 2 ]] || { echo "--issue needs a value" >&2; exit 2; }; ISSUE="$2"; ISSUE="${ISSUE#\#}"; shift 2 ;;
     --method) [[ $# -ge 2 ]] || { echo "--method needs a value" >&2; exit 2; }; METHOD="$2"; shift 2 ;;
     --head-sha) [[ $# -ge 2 ]] || { echo "--head-sha needs a value" >&2; exit 2; }; HEAD_SHA="$2"; shift 2 ;;
-    --review-log) [[ $# -ge 2 ]] || { echo "--review-log needs a value" >&2; exit 2; }; REVIEW_LOG="$2"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     --no-link-check) LINK_CHECK=0; shift ;;
     --no-ready) READY=0; shift ;;
@@ -114,30 +101,6 @@ if [[ "$state" != "OPEN" && "$state" != "MERGED" ]]; then
   echo "result: NOT_OPEN"; echo "state: $state"; exit 1
 fi
 
-# --- 0.5 the PR's review (merge precondition) --------------------------------
-if [[ -n "$REVIEW_LOG" && "$state" == "OPEN" ]]; then
-  review_verdict=""
-  review_pr=""
-  review_after_push=""
-  if [[ -r "$REVIEW_LOG" ]]; then
-    review_verdict="$(sed -n 's/^verdict: //p' "$REVIEW_LOG" | tail -n 1)"
-    review_pr="$(sed -n 's/^pr: //p' "$REVIEW_LOG" | tail -n 1)"
-    review_after_push="$(sed -n 's/^after_push: //p' "$REVIEW_LOG" | tail -n 1)"
-  fi
-  echo "review: ${review_verdict:-UNREADABLE}"
-  if [[ "$review_pr" != "${PR#\#}" ]] \
-      || [[ "$review_verdict" != "CLEAN" && "$review_verdict" != "FINDINGS" \
-            && "$review_verdict" != "NO_NEW_REVIEW" ]]; then
-    echo "result: REVIEW_UNSETTLED"
-    if [[ -n "$review_pr" && "$review_pr" != "${PR#\#}" ]]; then
-      echo "detail: $REVIEW_LOG is review_watch.py's log for PR #$review_pr, not #$PR — nothing was merged"
-    else
-      echo "detail: the PR's review has no CLEAN, FINDINGS or NO_NEW_REVIEW verdict in $REVIEW_LOG — nothing was merged"
-    fi
-    exit 1
-  fi
-fi
-
 # --- 1. issue link (auto-close precondition) --------------------------------
 if [[ -n "$ISSUE" && $LINK_CHECK -eq 1 && "$state" == "OPEN" ]]; then
   # Inspects only, never edits the PR body.
@@ -157,7 +120,7 @@ if [[ -n "$ISSUE" && $LINK_CHECK -eq 1 && "$state" == "OPEN" ]]; then
     exit 1
   elif [[ $link_rc -ne 0 ]]; then
     # link_check's own detail says which case it is: no closing keyword
-    # (`--fix` appends one), or a keyword GitHub has not linked (step 4's
+    # (`--fix` appends one), or a keyword GitHub has not linked (step 5's
     # `--fix` already re-saved it; the PR is held for a human).
     echo "result: NOT_LINKED"
     link_detail="$(printf '%s\n' "$link_out" | sed -n 's/^detail: //p' | head -n 1)"
@@ -217,19 +180,6 @@ if [[ "$state" == "OPEN" ]]; then
     fi
   fi
   echo "head_sha: $HEAD_SHA"
-
-  # NO_NEW_REVIEW speaks only for the push it waited after: a later push
-  # needs its own start grace before it can merge.
-  if [[ "${review_verdict:-}" == "NO_NEW_REVIEW" ]]; then
-    pushed="$(printf '%s' "$review_after_push" | tr '[:upper:]' '[:lower:]')"
-    pinned="$(printf '%s' "$HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
-    if [[ ! "$pushed" =~ ^[0-9a-f]{7,40}$ ]] \
-        || [[ "$pinned" != "$pushed"* && "$pushed" != "$pinned"* ]]; then
-      echo "result: REVIEW_UNSETTLED"
-      echo "detail: $REVIEW_LOG says no review started after push ${review_after_push:-none}, not the head $HEAD_SHA — re-run review_watch.py --after-push $HEAD_SHA; nothing was merged"
-      exit 1
-    fi
-  fi
 
   # --- 1.8 merge state (merge precondition) ----------------------------------
   # GitHub's own answer to "can this merge right now".

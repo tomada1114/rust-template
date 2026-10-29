@@ -271,9 +271,9 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `smart-commit` | Turning the working tree into Conventional Commits; a refused pre-commit hook |
 | `create-pr` | Opening or updating a pull request: title, body, Release impact, evidence |
 | `triaging-issues` | Filing or labelling an issue: type, priority, blocked, tracking |
-| `shipping-issues` | Claude Code on the developer's machine: taking ranked open issues to merged pull requests — rank, implement (worktrees), PR, the PR's Codex review and its findings, CI, merge |
-| `codex-shipping-issues` | Codex: shipping one issue through a regular PR, up to three Codex review rounds, current-head CI, and the merge the request authorizes, over GitHub MCP |
-| `cloud-claude-shipping-issues` | A Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`): shipping issues serially over REST `gh api` calls — rank, implement, PR, review, CI, merge |
+| `shipping-issues` | Claude Code on the developer's machine: taking ranked open issues to merged pull requests — rank, implement (worktrees), review the branch locally with `/code-review`, PR, CI, merge |
+| `codex-shipping-issues` | Codex: shipping one issue through a regular PR after a read-only fresh-context review of the branch with its findings addressed, current-head CI, and the merge the request authorizes, over GitHub MCP |
+| `cloud-claude-shipping-issues` | A Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`): shipping issues serially over REST `gh api` calls — rank, implement, review the branch, PR, CI, merge |
 | `steering-the-roadmap` | Changing `docs/architecture/roadmap.md` (Now / Next / Later) |
 | `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; a pre-1.0 ratatui minor lands alone |
 | `managing-dependencies` | Adding or changing a crate: the review record, features, licences |
@@ -390,8 +390,7 @@ writes that skill exists to make, for that invocation only.
 - `shipping-issues`: the writes its `SKILL.md` lists — priority and `blocked:` labels
   on open issues, branches and pushes, the pull request, merging it once CI passes,
   the follow-up issues and the design-decision comments it posts, and removing the
-  branches and worktrees it created — never a reply to or resolution of a review thread
-  or an `@codex review` comment.
+  branches and worktrees it created.
 - `cloud-claude-shipping-issues`: the writes its `SKILL.md` lists — pushing its own
   branch; creating the pull request; on that open PR alone, appending `Closes #<n>` to
   its body when missing or retargeting its base to the default branch; merging it once
@@ -400,8 +399,7 @@ writes that skill exists to make, for that invocation only.
   the run takes on, its design-decision comment and then clearing its design block (the
   design-block label and the ship contract's `design=open`); filing and labelling
   follow-up issues; and removing `blocked: dependency` from the issues its merge
-  unblocked — never a branch deletion, a reply to or resolution of a review thread,
-  `@codex review`, or Auto-fix.
+  unblocked — never a branch deletion or Auto-fix.
 
 `codex-shipping-issues` is not a standing exception: Codex's writes come from the
 user's own request in that session (a request to ship an issue through merge covers its

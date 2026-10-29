@@ -44,11 +44,6 @@ Pushing a green PR back through CI for this is fine when the change is genuinely
 that PR's own story. What is not fine is a PR that quietly becomes about something else
 — that is the line, and it is about coherence, not about patch size.
 
-**An accepted `P3` from the PR review's round 2 or 3 is never fixed inline**, even when
-it passes that test: past round 1 the PR takes only `P0`–`P2` fixes
-(the rounds: `pr-ci-merge.md` › "Waiting for the PR review"), so it is filed — and shipped
-this run or left, by the two rules below.
-
 **File it, and ship it in this same run**
 ([SKILL.md step 8c](../SKILL.md#8c-take-the-runs-own-output-back-into-the-queue)) when
 it is a real, separate change — its own branch, its own PR — but nothing about it is

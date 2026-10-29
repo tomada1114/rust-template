@@ -4,18 +4,18 @@ description: >
   Covers shipping one GitHub issue in this repository from Codex (Codex CLI, Codex
   Cloud, or a Codex-managed checkout or linked worktree): the recorded write authority
   and stop point (stop_at=pr or merge), GitHub MCP as the only route to GitHub (no gh),
-  an acceptance-to-check map, the narrowest checks then just check, a regular PR with
-  Closes #N, up to three automatic Codex review rounds with their accepted findings
-  fixed, current-head CI, and the authorized merge. Use when Codex is asked to ship,
-  implement, or take on an issue, ship issue N, open the PR for an issue, land it, or
-  check the evidence of a PR-only run. Not for Claude Code (shipping-issues, or
+  an acceptance-to-check map, the narrowest checks then just check, a read-only
+  fresh-context review of the branch with its findings triaged and fixed, a regular PR
+  with Closes #N, current-head CI, and the authorized merge. Use when Codex is asked to
+  ship, implement, or take on an issue, ship issue N, open the PR for an issue, land it,
+  or check the evidence of a PR-only run. Not for Claude Code (shipping-issues, or
   cloud-claude-shipping-issues in a cloud session).
 ---
 
 # Ship One Issue from Codex
 
-**Owns:** one issue's acceptance, implementation, local verification, regular PR,
-Codex review, CI evidence, and landing at the user's authorized boundary.
+**Owns:** one issue's acceptance, implementation, local verification, pre-PR branch
+review, regular PR, CI evidence, and landing at the user's authorized boundary.
 **Does not own:** Claude Code's shipping workflow (`shipping-issues`), authoring a PR
 on an existing branch (`create-pr`), or the repository's standing permissions.
 
@@ -108,38 +108,32 @@ publishing; it runs `just fmt` first, so commit what it rewrites and run it agai
 user-visible change carries a `CHANGELOG.md` entry under `[Unreleased]`. Diagnose
 failures without weakening gates or hiding unrelated failures. Inspect the entire diff
 against the acceptance map. Record base/head/diff identity, commands, results and
-limitations. Self-review is separate from Codex review.
+limitations. Your own read of the diff is not the review in step 4.
 
-## 4. Publish and observe review with CI
+## 4. Review the branch, then publish and observe CI
 
-Commit only intended files with normal hooks, push this branch, and open a regular
+Before any PR exists, run the read-only fresh-context review in
+[review, CI and landing](references/review-and-ci.md): a reviewer that did not write the
+change reads the branch diff against the issue, you triage every finding, and the
+accepted in-scope ones are fixed and re-verified. One pass; no second review after the
+fixes. No review of the PR is awaited, requested or polled.
+
+Then commit only intended files with normal hooks, push this branch, and open a regular
 PR against the verified default branch. Follow `create-pr`'s template and checks;
 include `Closes #N` only for the issue actually implemented. Update an existing PR
 for this branch instead of creating another. Attach the PR to this chat when the
-host supports PR attachments.
-
-Read [review, CI and landing](references/review-and-ci.md) before publication.
-Wait for the automatic Codex review triggered on opening. Read all its findings, fix
-every accepted one and inspect the correction diff locally. Observe CI while a review
-runs and diagnose failures within scope. Record each round's reviewed commit and
-findings separately from the current head.
-
-After each correction push, wait briefly for a review of the new head. A review that
-starts is the next round: fix its accepted `P0`–`P2` findings and report accepted
-`P3` ones as follow-up candidates. Handle at most three rounds, never request a
-review, repeat affected checks and `just check`, push normally and wait for
-current-head CI. This is the owner's review-round policy; it does not claim the final
-head received cloud review. Repository-required approvals remain separate and cannot
-be bypassed.
+host supports PR attachments. Observe CI on the current head and diagnose failures
+within scope; repeat affected checks and `just check` after any correction, push
+normally and wait for current-head CI. Repository-required approvals remain separate
+and cannot be bypassed.
 
 ## 5. Finish at the authorized boundary
 
-At `stop_at=pr`, finish after acceptance, the settled review rounds with their required
-findings addressed, and current-head CI; preserve the open PR and branch. At
-`stop_at=merge`, proceed to landing as soon as all current gates and required approvals
-pass, without asking again for already authorized merge. Verify remote merged state,
-merge commit and issue closure. Do not switch, pull or clean the user's busy primary
-checkout.
+At `stop_at=pr`, finish after acceptance, the pre-PR review with its accepted findings
+fixed, and current-head CI; preserve the open PR and branch. At `stop_at=merge`, proceed
+to landing as soon as all current gates and required approvals pass, without asking
+again for already authorized merge. Verify remote merged state, merge commit and issue
+closure. Do not switch, pull or clean the user's busy primary checkout.
 
 Pending gates alone do not finish the run. Wait in bounded observations, work on
 in-scope failures between them and keep the user informed. A required inaccessible
@@ -147,11 +141,11 @@ check/review, unmet authorization or unresolved owner decision is a reported blo
 preserve source, PR and worktree. Continue in-scope corrections without an arbitrary
 attempt cap; honor explicit user deadlines and host limits.
 
-Report the issue, PR URL, head SHA, acceptance and local checks, separate Codex review
-and CI evidence, observed merge/issue state, and any missing evidence. Never report PR
-creation as verified landing. Cleanup requires verified merge and explicit cleanup
-authority. Use the host lifecycle for a host-managed worktree. Do not run
-`shipping-issues`' `cleanup_run.sh` in Codex: it uses live `gh` operations. For manual
-worktrees, verify merge evidence through MCP and inspect local state before authorized
-Git cleanup. Verify checkout and registration outcomes; preserve dirty worktrees and
-newer commits.
+Report the issue, PR URL, head SHA, acceptance and local checks, the pre-PR review's
+findings and their triage, CI evidence, observed merge/issue state, and any missing
+evidence. Never report PR creation as verified landing. Cleanup requires verified merge
+and explicit cleanup authority. Use the host lifecycle for a host-managed worktree. Do
+not run `shipping-issues`' `cleanup_run.sh` in Codex: it uses live `gh` operations. For
+manual worktrees, verify merge evidence through MCP and inspect local state before
+authorized Git cleanup. Verify checkout and registration outcomes; preserve dirty
+worktrees and newer commits.

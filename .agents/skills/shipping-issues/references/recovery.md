@@ -11,7 +11,8 @@ few of them.
 - [A sub-agent returned without its report](#a-sub-agent-returned-without-its-report)
 - [A sub-agent stopped before pushing](#a-sub-agent-stopped-before-pushing)
 - [The implementation missed or widened the spec](#the-implementation-missed-or-widened-the-spec)
-- [The PR review did not settle](#the-pr-review-did-not-settle)
+- [`--fix` and why it is serial-mode only](#--fix-and-why-it-is-serial-mode-only)
+- [`/code-review` cannot be launched](#code-review-cannot-be-launched)
 - [CI reports the previous commit](#ci-reports-the-previous-commit)
 - [CI fails](#ci-fails)
 - [`NO_CHECKS`, `ERROR`, and other non-verdicts](#no_checks-error-and-other-non-verdicts)
@@ -70,33 +71,27 @@ tier as the first. Don't re-run the whole task. Up to **2** resume/patch runs on
 the first; a third miss means the issue itself is underspecified, so record
 `--event blocked` and report `NEEDS-CLARIFICATION` instead of spawning again.
 
-## The PR review did not settle
+## `--fix` and why it is serial-mode only
 
-`review_watch.py` printed something other than `CLEAN`, `FINDINGS` or `NO_NEW_REVIEW`.
-None of these is a pass, and none is answered with a local review, an `@codex review`
-comment, or a close/reopen of the PR — each would be a review the owner did not choose.
+`/code-review … --fix` applies findings to _this session's_ working tree — the main
+checkout. In serial mode that is the branch under review, which is the point. In
+parallel mode the branch is checked out in a worktree and the main checkout is sitting
+on the default branch, so `--fix` would write another branch's repairs into the main
+checkout and leave it dirty — the exact state
+[Stop conditions](../SKILL.md#stop-conditions) treats as someone else's work.
 
-- `verdict: PENDING_TIMEOUT` → the watch ended before the review did. Run it again;
-  `pr_age_seconds:` counts from the PR's opening and `push_age_seconds:` from the first
-  `--after-push` call, so slices need no running total. Past 1800 s with the review
-  still `Running` (or no Completed row), treat it as `ERROR`.
-- `verdict: NO_REVIEW` → the bot left no trace within `--grace` of the PR opening: the
-  repository has no Codex integration, or it is not reviewing. Leave the PR open and
-  unmerged, record `--event blocked --field issue=<n> --field reason=no-review`, and put
-  it in the step 10 report. A second `NO_REVIEW` in the same run is a
-  [stop condition](../SKILL.md#stop-conditions): every later PR would wait the same 15
-  minutes for nothing. Whether this repository merges without a PR review is the
-  owner's decision.
-- `verdict: ERROR` → read `detail:`. A failed or cancelled opening review, or a summary
-  naming a commit that is not on the PR, holds the PR the same way
-  (`--field reason=review-error`). A later review that fails is not one: `--after-push`
-  reports `NO_NEW_REVIEW`, and the latest settled round stands. A draft PR was opened
-  wrong: Codex never reviews a draft, and marking it ready is a write this run does not
-  make on its own — hold it and report. An unreadable GitHub read: re-run the watch once
-  before holding.
+The review itself reads `<base>...<branch>` from the shared object store and is safe
+from anywhere; only the writing half is not. So in parallel mode: review each branch
+without `--fix`, triage the whole batch, then spawn one `executor` fix run per branch
+with accepted findings, scoped to that branch's worktree, using
+[agent-review-fix.md](agent-review-fix.md).
 
-A held PR is not a failed issue for the rest of the batch: in `all` mode, skip what
-depends on it and continue, as for any `FAILED` issue.
+## `/code-review` cannot be launched
+
+Host won't let this session run the slash command → one independent, **read-only**
+`architect` sub-agent against the branch, using
+[agent-review-fallback.md](agent-review-fallback.md), triaged the same way. Never
+re-read your own diff and call that a review.
 
 ## CI reports the previous commit
 
