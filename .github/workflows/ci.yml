@@ -45,7 +45,7 @@ jobs:
         with:
           install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest github:EmbarkStudios/cargo-deny github:Boshen/cargo-shear
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
       - name: Format check
         run: cargo fmt --all --check
@@ -84,7 +84,7 @@ jobs:
         with:
           install_args: just typos actionlint shellcheck lefthook github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
       - name: Typos
         run: typos
@@ -124,7 +124,7 @@ jobs:
         with:
           install_args: just aqua:nextest-rs/nextest/cargo-nextest
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
       - name: Clippy (whole workspace)
         run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
@@ -158,7 +158,7 @@ jobs:
           git clone --quiet --no-hardlinks . "$RUNNER_TEMP/bootstrap-smoke"
           mise trust "$RUNNER_TEMP/bootstrap-smoke/mise.toml"
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: ${{ runner.temp }}/bootstrap-smoke -> target
 
