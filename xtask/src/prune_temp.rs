@@ -243,6 +243,12 @@ fn default_claude_base(context: &Context<'_>) -> Option<PathBuf> {
 }
 
 pub(crate) fn main(context: &Context<'_>) -> TaskResult {
+    prune_with(context, |target| fs::remove_dir_all(target))
+}
+
+/// The task, with the removal passed in: a test makes it fail without relying on file
+/// permissions, which do not bind root.
+fn prune_with(context: &Context<'_>, remove: fn(&Path) -> io::Result<()>) -> TaskResult {
     let options = parse_args(&context.argv)?;
     let temp_dir = absolute(&options.temp_dir.clone().map_or_else(
         || {
@@ -273,7 +279,7 @@ pub(crate) fn main(context: &Context<'_>) -> TaskResult {
     }
     for target in targets {
         if !options.dry_run {
-            fs::remove_dir_all(&target).map_err(|error| {
+            remove(&target).map_err(|error| {
                 ScriptError::new(
                     "ERR_PRUNE_REMOVE_FAILED",
                     format!("could not remove {}", target.display()),
@@ -299,14 +305,16 @@ pub(crate) fn main(context: &Context<'_>) -> TaskResult {
 #[cfg(test)]
 mod tests {
     use std::fs::{self, File};
-    use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::io;
+    use std::os::unix::fs::symlink;
     use std::path::{Path, PathBuf};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use tempfile::TempDir;
 
-    use super::{SESSION_IDLE_MS, absolute, claude_slug, main};
-    use crate::context::{RunOptions, RunResult};
+    use super::{SESSION_IDLE_MS, absolute, claude_slug, main, prune_with};
+    use crate::context::{Context, RunOptions, RunResult};
+    use crate::fail::TaskResult;
     use crate::test_support::{Fake, Outcome, env_of, temp_dir, write};
 
     const NOW_MS: u64 = 1_790_726_400_000; // 2026-09-30T00:00:00Z
@@ -555,15 +563,22 @@ mod tests {
     }
 
     #[test]
-    fn reports_a_removal_that_fails() {
+    fn removal_failure_is_reported_whatever_the_user() {
+        fn failing(context: &Context<'_>) -> TaskResult {
+            prune_with(context, |_| Err(io::Error::other("denied")))
+        }
         let tree = fixture();
-        let locked = tree.temp.join("verify-bootstrap-locked");
-        write(&locked, "inner/f", "x");
-        let inner = locked.join("inner");
-        fs::set_permissions(&inner, fs::Permissions::from_mode(0o500)).expect("chmod");
-        let code = prune_tree(&tree, &[]).code();
-        fs::set_permissions(&inner, fs::Permissions::from_mode(0o700)).expect("chmod back");
-        assert_eq!(code, "ERR_PRUNE_REMOVE_FAILED");
+        let target = tree.temp.join("verify-bootstrap-locked");
+        write(&target, "inner/f", "x");
+        let owned = args(&tree, &[]);
+        let argv: Vec<&str> = owned.iter().map(String::as_str).collect();
+        let no_id = |_: &str, _: &[&str], _: &RunOptions| RunResult::exited(1, "", "");
+        let outcome = Fake::at(Path::new(CHECKOUT))
+            .argv(&argv)
+            .run(&no_id)
+            .task(failing);
+        assert_eq!(outcome.code(), "ERR_PRUNE_REMOVE_FAILED");
+        assert!(target.exists());
     }
 
     #[test]
