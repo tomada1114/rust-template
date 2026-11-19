@@ -7,7 +7,9 @@
   is not needed. On Linux, a C toolchain for the linker (`build-essential` on Debian and
   Ubuntu).
 - [rustup](https://rustup.rs/), [mise](https://mise.jdx.dev/), and
-  [Just](https://just.systems/man/en/) (`brew install mise just`).
+  [Just](https://just.systems/man/en/) (`brew install mise just`). mise must be at least
+  the release `mise.toml`'s `min_version` names, the one CI pins; an older mise refuses
+  the file, and `mise self-update` (or `brew upgrade mise`) fixes that.
 
 [CONTRIBUTING.md](../CONTRIBUTING.md) lists what each one provides.
 
