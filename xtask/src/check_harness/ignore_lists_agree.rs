@@ -1,27 +1,27 @@
-//! The tools that read the whole tree skip `.claude/skills/` and read `.agents/skills/`.
-//! The mirror is a generated, byte-identical copy (`just agents-sync`): checking it reports
-//! every finding twice, at a path nobody may edit. The opposite ignore is worse — a
-//! skill's real files checked nowhere, with CI green.
+//! The tools that read the whole tree read `.claude/skills/`, the tree Claude Code loads,
+//! and skip `.agents/skills/`. The two trees are byte-identical (`just agents-check`):
+//! checking both reports every finding twice. The opposite ignore is worse — the skills
+//! Claude Code loads checked nowhere, with CI green.
 //!
 //! Read (required): `typos.toml`'s `[files] extend-exclude` (the `toml` crate), the one
 //! tree-wide ignore list left once the Node toolchain (Prettier, `ESLint`, Vitest) went.
 //! The other tools that read skills — the skills' Python suites and shellcheck in `just
-//! test-scripts`, the skills mirror check — name `.agents/skills/` paths explicitly, so
+//! test-scripts`, the skills mirror check — name `.claude/skills/` paths explicitly, so
 //! they have no ignore list to compare.
 //!
 //! An entry excludes a directory when, with a leading `/`, `./`, or `**/` and a trailing
 //! `/`, `/*`, or `/**` removed, it names that directory or one containing it
-//! (`.claude/skills/**` and `.claude/` both exclude `.claude/skills/`).
+//! (`.agents/skills/**` and `.agents/` both exclude `.agents/skills/`).
 //!
 //! Errors: `ERR_CHECK_INPUT_MISSING`, `ERR_CHECK_INPUT_UNREADABLE` (`typos.toml` does not
-//! parse), `ERR_CHECK_IGNORE_MIRROR` (a tool reads the mirror),
-//! `ERR_CHECK_IGNORE_SOURCE` (a tool skips the real skills).
+//! parse), `ERR_CHECK_IGNORE_MIRROR` (a tool reads the duplicate tree),
+//! `ERR_CHECK_IGNORE_SOURCE` (a tool skips the skills Claude Code loads).
 
 use super::{Input, finding, first_line, read_file};
 use crate::fail::FailureDetails;
 
-const MIRROR: &str = ".claude/skills";
-const SOURCE: &str = ".agents/skills";
+const MIRROR: &str = ".agents/skills";
+const SOURCE: &str = ".claude/skills";
 const TYPOS: &str = "typos.toml";
 
 /// The directory an ignore entry names, with anchors and trailing globs removed.
@@ -55,7 +55,9 @@ fn mirror_violation(path: &str) -> FailureDetails {
     finding(
         "ERR_CHECK_IGNORE_MIRROR",
         format!("{path} does not exclude {MIRROR}/"),
-        format!("typos to skip {MIRROR}/, the generated mirror of {SOURCE}/ (`just agents-sync`)"),
+        format!(
+            "typos to skip {MIRROR}/, a byte-identical copy of {SOURCE}/ (`just agents-check`)"
+        ),
         format!("{path} lets its tool read {MIRROR}/"),
         format!(
             "add `{MIRROR}/` to {path}'s ignore list (a gate change: the changing-gates skill)"
@@ -66,9 +68,9 @@ fn mirror_violation(path: &str) -> FailureDetails {
 fn source_violation(path: &str) -> FailureDetails {
     finding(
         "ERR_CHECK_IGNORE_SOURCE",
-        format!("{path} excludes {SOURCE}/, the skills' real files"),
+        format!("{path} excludes {SOURCE}/, the skills Claude Code loads"),
         format!(
-            "every tool to read {SOURCE}/, where the skills are authored, and skip only the mirror"
+            "every tool to read {SOURCE}/, the skills Claude Code loads, and skip only {MIRROR}/"
         ),
         format!("{path} skips {SOURCE}/"),
         format!("remove the entry that covers {SOURCE}/ from {path}; exclude {MIRROR}/ instead"),
@@ -132,7 +134,7 @@ mod tests {
     use crate::test_support::{temp_dir, write};
 
     const TYPOS: &str =
-        "[files]\nextend-exclude = [\n  \"Cargo.lock\",\n  \".claude/skills/\",\n]\n";
+        "[files]\nextend-exclude = [\n  \"Cargo.lock\",\n  \".agents/skills/\",\n]\n";
 
     fn check(typos: Option<&str>) -> Vec<crate::fail::FailureDetails> {
         let dir = temp_dir();
@@ -150,11 +152,11 @@ mod tests {
     fn passes_when_typos_excludes_the_mirror_and_not_the_source() {
         assert_eq!(check(Some(TYPOS)), []);
         for entry in [
-            "/.claude/skills",
-            ".claude/skills/**",
-            ".claude/",
-            "**/.claude/skills/*",
-            "./.claude/skills",
+            "/.agents/skills",
+            ".agents/skills/**",
+            ".agents/",
+            "**/.agents/skills/*",
+            "./.agents/skills",
         ] {
             assert_eq!(
                 check(Some(&excluding(&format!("\"{entry}\"")))),
@@ -168,7 +170,7 @@ mod tests {
     fn fails_when_typos_reads_the_mirror() {
         for typos in [
             excluding("\"Cargo.lock\""),
-            excluding("\".claude/skills-old/\""),
+            excluding("\".agents/skills-old/\""),
             excluding("\"\""),
             "[default]\nlocale = 'en'\n".to_owned(),
         ] {
@@ -176,7 +178,7 @@ mod tests {
             assert_eq!(codes(&found), ["ERR_CHECK_IGNORE_MIRROR"], "{typos}");
             assert_eq!(
                 summaries(&found),
-                ["typos.toml does not exclude .claude/skills/"]
+                ["typos.toml does not exclude .agents/skills/"]
             );
         }
     }
@@ -184,24 +186,24 @@ mod tests {
     #[test]
     fn fails_when_typos_skips_the_source() {
         for entry in [
-            "\".agents/skills/**\"",
-            "\".agents/\"",
-            "\"/.agents/skills\"",
+            "\".claude/skills/**\"",
+            "\".claude/\"",
+            "\"/.claude/skills\"",
         ] {
-            let found = check(Some(&excluding(&format!("\".claude/skills/\", {entry}"))));
+            let found = check(Some(&excluding(&format!("\".agents/skills/\", {entry}"))));
             assert_eq!(codes(&found), ["ERR_CHECK_IGNORE_SOURCE"], "{entry}");
             assert_eq!(
                 summaries(&found),
-                ["typos.toml excludes .agents/skills/, the skills' real files"]
+                ["typos.toml excludes .claude/skills/, the skills Claude Code loads"]
             );
         }
         assert_eq!(
-            codes(&check(Some(&excluding("\".agents/\"")))),
+            codes(&check(Some(&excluding("\".claude/\"")))),
             ["ERR_CHECK_IGNORE_MIRROR", "ERR_CHECK_IGNORE_SOURCE"]
         );
         assert_eq!(
             check(Some(&excluding(
-                "\".claude/skills/\", \".agents/skillsets/\""
+                "\".agents/skills/\", \".claude/skillsets/\""
             ))),
             []
         );

@@ -127,9 +127,9 @@ prune-temp *args:
 
 # The skills' bundled scripts: shipping-issues' and merging-dependency-prs' Python suites (no floor), and shellcheck
 test-scripts:
-    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agents/skills/shipping-issues/scripts/tests -t .agents/skills/shipping-issues/scripts/tests -p 'test_*.py'
-    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agents/skills/merging-dependency-prs/scripts/tests -t .agents/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
-    shellcheck .agents/skills/shipping-issues/scripts/*.sh
+    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .claude/skills/shipping-issues/scripts/tests -t .claude/skills/shipping-issues/scripts/tests -p 'test_*.py'
+    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .claude/skills/merging-dependency-prs/scripts/tests -t .claude/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
+    shellcheck .claude/skills/shipping-issues/scripts/*.sh
 
 # Regenerate .claude/skills/ as a byte-for-byte copy of .agents/skills/
 agents-sync:

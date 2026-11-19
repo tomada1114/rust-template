@@ -322,10 +322,10 @@ contact_links:
         let mut files: Vec<(&str, Option<&str>)> = vec![
             (".github/ISSUE_TEMPLATE/config.yml", Some(CONFIG)),
             ("AGENTS.md", Some(CLEAN)),
-            (".agents/skills/demo/SKILL.md", Some(CLEAN)),
-            (".agents/skills/demo/references/more.md", Some(CLEAN)),
+            (".claude/skills/demo/SKILL.md", Some(CLEAN)),
+            (".claude/skills/demo/references/more.md", Some(CLEAN)),
             (
-                ".agents/skills/demo/scripts/plan.py",
+                ".claude/skills/demo/scripts/plan.py",
                 Some("# See issue #139.\n"),
             ),
             ("CLAUDE.md", Some(CLEAN)),
@@ -388,17 +388,17 @@ contact_links:
         for (path, text, reference) in [
             ("AGENTS.md", "Excluded from typos (issue #139).", "#139"),
             (
-                ".agents/skills/demo/SKILL.md",
+                ".claude/skills/demo/SKILL.md",
                 "The staged guard (#42) refuses it.",
                 "#42",
             ),
             (
-                ".agents/skills/demo/references/more.md",
+                ".claude/skills/demo/references/more.md",
                 "Tracked here in acme/widgets#7.",
                 "acme/widgets#7",
             ),
             (
-                ".agents/skills/demo/references/deep/x.md",
+                ".claude/skills/demo/references/deep/x.md",
                 "Closes #12",
                 "#12",
             ),
