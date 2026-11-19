@@ -13,7 +13,11 @@
 //! stands for any text, a trailing `:*` is a trailing ` *`, and a trailing ` *` that is
 //! the only wildcard also matches the bare command. Only `allow` is read: `ask` and `deny`
 //! are where these recipes belong. `clean` and `prune-temp` are absent on purpose: they
-//! delete only build output and known-safe temporary directories. The file is optional.
+//! delete only build output and known-safe temporary directories. The same matching
+//! covers the commands outside `just` that need a human ([`HUMAN_COMMANDS`]): `cargo xtask
+//! sync-labels`, `apply-ruleset`, and `bootstrap`, `cargo install`, and `cargo run … tui`,
+//! each also caught when a rule spells it out anywhere (`Bash(cd x && cargo install …)`).
+//! The file is optional.
 //!
 //! Errors: `ERR_CHECK_INPUT_UNREADABLE` (`.claude/settings.json` is not JSON),
 //! `ERR_CHECK_ALLOW_HUMAN_RECIPE` (an `allow` rule admits one of the recipes).
@@ -31,6 +35,32 @@ pub(super) const HUMAN_RECIPES: [&str; 7] = [
     "ruleset",
     "bootstrap",
 ];
+
+/// The commands outside `just` AGENTS.md keeps out of `allow`, each as the label a
+/// finding names and the command lines a rule is matched against: the `cargo xtask` tasks
+/// that write to GitHub or rewrite the repository, an install outside the checkout, and
+/// the full-screen TUI, which takes over a terminal.
+pub(super) const HUMAN_COMMANDS: [&str; 5] = [
+    "cargo xtask sync-labels",
+    "cargo xtask apply-ruleset",
+    "cargo xtask bootstrap",
+    "cargo install",
+    TUI,
+];
+
+const TUI: &str = "cargo run … tui";
+
+/// The command lines a [`HUMAN_COMMANDS`] label stands for.
+fn command_lines(label: &str) -> Vec<String> {
+    if label == TUI {
+        vec![
+            "cargo run -p app -- tui".to_owned(),
+            "cargo run -- tui".to_owned(),
+        ]
+    } else {
+        vec![label.to_owned()]
+    }
+}
 
 const PATH: &str = ".claude/settings.json";
 
@@ -153,6 +183,46 @@ fn admitted(rule: &str) -> Vec<&'static str> {
         .collect()
 }
 
+/// Whether `rule` spells `command` out, bounded by non-name characters on both sides.
+fn names_command(rule: &str, command: &str) -> bool {
+    rule.match_indices(command).any(|(at, _)| {
+        !rule[..at].ends_with(name_char) && !rule[at + command.len()..].starts_with(name_char)
+    })
+}
+
+/// Whether `rule` names `cargo run` with a later `tui` word.
+fn names_tui(rule: &str) -> bool {
+    rule.match_indices("cargo run").any(|(at, _)| {
+        rule[at..]
+            .split(|c: char| !name_char(c))
+            .any(|word| word == "tui")
+    })
+}
+
+/// The labels of [`HUMAN_COMMANDS`] that one `allow` rule admits.
+fn admitted_commands(rule: &str) -> Vec<&'static str> {
+    let Some(matcher) = bash_rule(rule) else {
+        return Vec::new();
+    };
+    HUMAN_COMMANDS
+        .into_iter()
+        .filter(|label| {
+            let spelled = if *label == TUI {
+                names_tui(rule)
+            } else {
+                names_command(rule, label)
+            };
+            spelled
+                || command_lines(label).iter().any(|line| {
+                    ["", "mise exec -- "].iter().any(|prefix| {
+                        matcher.matches(&format!("{prefix}{line}"))
+                            || matcher.matches(&format!("{prefix}{line} x"))
+                    })
+                })
+        })
+        .collect()
+}
+
 /// The 1-based line of the first line holding `needle`, 0 when none does.
 pub(super) fn line_holding(text: &str, needle: &str) -> usize {
     text.split('\n')
@@ -184,23 +254,28 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     };
     let mut violations = Vec::new();
     for rule in allow.iter().filter_map(serde_json::Value::as_str) {
-        let recipes = admitted(rule);
-        if recipes.is_empty() {
+        let named: Vec<String> = admitted(rule)
+            .iter()
+            .map(|recipe| format!("`just {recipe}`"))
+            .chain(
+                admitted_commands(rule)
+                    .iter()
+                    .map(|command| format!("`{command}`")),
+            )
+            .collect();
+        if named.is_empty() {
             continue;
         }
         let quoted = super::yaml::json_string(rule);
         let line = line_holding(&text, &quoted);
-        let named = recipes
-            .iter()
-            .map(|recipe| format!("`just {recipe}`"))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let named = named.join(", ");
         violations.push(finding(
             "ERR_CHECK_ALLOW_HUMAN_RECIPE",
             format!("{PATH}:{line} allows {quoted}, which admits {named}"),
             format!(
-                "no `allow` rule in {PATH} admitting a recipe that needs a human or writes beyond the working tree ({})",
-                HUMAN_RECIPES.join(", ")
+                "no `allow` rule in {PATH} admitting a recipe or command that needs a human or writes beyond the working tree ({}; {})",
+                HUMAN_RECIPES.join(", "),
+                HUMAN_COMMANDS.join(", ")
             ),
             format!("the rule {quoted} runs {named} without a prompt"),
             format!("remove the rule from `allow` in {PATH} (or narrow its wildcard) so the recipe stops for a human"),
@@ -211,7 +286,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HUMAN_RECIPES, admitted, run};
+    use super::{HUMAN_COMMANDS, HUMAN_RECIPES, admitted, admitted_commands, run};
     use crate::check_harness::test_support::{codes, run_at};
     use crate::fail::FailureDetails;
     use crate::test_support::{temp_dir, write};
@@ -321,6 +396,78 @@ mod tests {
             "Bash(just a b labels)",
         ] {
             assert_eq!(admitted(rule), Vec::<&str>::new(), "{rule}");
+        }
+    }
+
+    #[test]
+    fn an_allow_rule_covering_cargo_xtask_admits_the_github_writing_tasks() {
+        let found = check(Some(&settings(&rules(&["Bash(cargo xtask *)"]))));
+        assert_eq!(codes(&found), ["ERR_CHECK_ALLOW_HUMAN_RECIPE"]);
+        assert!(
+            found[0].summary.contains("`cargo xtask sync-labels`"),
+            "{found:?}"
+        );
+        assert!(
+            found[0].summary.contains("`cargo xtask apply-ruleset`"),
+            "{found:?}"
+        );
+        assert!(
+            found[0].summary.contains("`cargo xtask bootstrap`"),
+            "{found:?}"
+        );
+        assert!(!found[0].summary.contains("`cargo install`"), "{found:?}");
+    }
+
+    #[test]
+    fn reports_every_spelling_that_reaches_a_human_command() {
+        for rule in [
+            "Bash",
+            "Bash(*)",
+            "Bash(cargo:*)",
+            "Bash(cargo *)",
+            "Bash(mise exec -- cargo:*)",
+        ] {
+            assert_eq!(admitted_commands(rule), HUMAN_COMMANDS, "{rule}");
+        }
+        for (rule, command) in [
+            ("Bash(cargo xtask sync-labels)", "cargo xtask sync-labels"),
+            (
+                "Bash(cargo xtask apply-ruleset:*)",
+                "cargo xtask apply-ruleset",
+            ),
+            ("Bash(cargo xtask bootstrap --yes)", "cargo xtask bootstrap"),
+            (
+                "Bash(mise exec -- cargo xtask bootstrap)",
+                "cargo xtask bootstrap",
+            ),
+            (
+                "Bash(cd x && cargo xtask sync-labels)",
+                "cargo xtask sync-labels",
+            ),
+            ("Bash(cargo install:*)", "cargo install"),
+            (
+                "Bash(cargo install --locked --path crates/app)",
+                "cargo install",
+            ),
+            ("Bash(cargo run:*)", "cargo run … tui"),
+            ("Bash(cargo run -p app -- tui)", "cargo run … tui"),
+            (
+                "Bash(cargo run --locked -p tide-pool -- tui)",
+                "cargo run … tui",
+            ),
+        ] {
+            assert_eq!(admitted_commands(rule), [command], "{rule}");
+        }
+        for rule in [
+            "Bash(cargo xtask check-harness)",
+            "Bash(cargo xtask sync-labels-old)",
+            "Bash(cargo build:*)",
+            "Bash(cargo nextest run:*)",
+            "Bash(cargo run -p app -- counter show)",
+            "Bash(cargo installer)",
+            "Read(./cargo install)",
+        ] {
+            assert_eq!(admitted_commands(rule), Vec::<&str>::new(), "{rule}");
         }
     }
 

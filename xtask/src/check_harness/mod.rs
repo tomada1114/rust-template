@@ -37,6 +37,7 @@ mod no_issue_references;
 pub(crate) mod product_section;
 mod ruleset_contexts;
 mod settings_allow_list;
+mod settings_hooks;
 mod skills;
 #[cfg(test)]
 mod workflow_fixtures;
@@ -65,7 +66,7 @@ pub(crate) struct Input<'a> {
 type CheckFn = fn(&Input<'_>) -> Vec<FailureDetails>;
 
 /// Every check, by name, in the order they run.
-const CHECKS: [(&str, CheckFn); 15] = [
+const CHECKS: [(&str, CheckFn); 16] = [
     ("advisory-ignores-agree", advisory_ignores_agree::run),
     ("bots-agree", bots_agree::run),
     ("bundle-identifier", bundle_identifier::run),
@@ -78,6 +79,7 @@ const CHECKS: [(&str, CheckFn); 15] = [
     ("product-section", product_section::run),
     ("ruleset-contexts", ruleset_contexts::run),
     ("settings-allow-list", settings_allow_list::run),
+    ("settings-hooks", settings_hooks::run),
     ("skills", skills::run),
     ("workflow-hygiene", workflow_hygiene::run),
     ("workflow-write-scopes", workflow_write_scopes::run),
