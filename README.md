@@ -109,6 +109,17 @@ architecture document or roadmap.
    `v*` tag. From then on every change needs a pull request with the required checks
    green.
 
+### Cloud sessions
+
+Start the app's Claude Code cloud sessions in the same shared Rust environment the
+template uses; the app needs no environment change. The bootstrap removes
+`.claude/cloud/environment-setup.sh`, so the template stays the one source of that
+setup script. To change what a session gets, edit the app's own files: add a Debian
+package to `.claude/cloud/apt-packages.txt` (one package per line), change a tool pin in
+`mise.toml` and `mise.lock` or the toolchain in `rust-toolchain.toml`, or change a step
+in `.claude/cloud/provision.sh`. `provision.sh` keeps a stamp of those files and
+`Cargo.lock`, so the next session start provisions again when one of them changed.
+
 ### A private repository
 
 The workflows assume a public repository. On a private one, three of them need GitHub
