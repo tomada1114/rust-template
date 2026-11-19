@@ -5,9 +5,9 @@ extend-exclude = [
   # Build output, matching .gitignore.
   "target/",
   "coverage/",
-  # Generated mirror of .agents/skills/ (`just agents-sync`); the real files are
-  # checked at their real path.
-  ".claude/skills/",
+  # Byte-identical to .claude/skills/ (`just agents-check`), which typos reads: the
+  # tree Claude Code loads.
+  ".agents/skills/",
 ]
 
 [default.extend-words]

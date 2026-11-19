@@ -1,10 +1,10 @@
-//! Every skill under `.agents/skills/` loads in both Claude Code and Codex CLI, and
+//! Every skill under `.claude/skills/`, the tree Claude Code loads, is well formed, and
 //! `AGENTS.md`'s Skills table indexes exactly those skills. A skill with a stray key, a
 //! mismatched name, or a value Codex CLI's strict YAML parser rejects mirrors cleanly and
 //! then silently never loads; one with no row is never found by a reader.
 //!
-//! For each directory `.agents/skills/<dir>/` (`.claude/skills/` is its byte-identical
-//! mirror, checked by `just agents-check`):
+//! For each directory `.claude/skills/<dir>/` (generated from `.agents/skills/` by `just
+//! agents-sync`, and byte-identical to it, which `just agents-check` asserts):
 //! - `<dir>/SKILL.md` opens with a `---` line and a later `---` line closes the block; the
 //!   block parses as YAML (duplicate keys rejected) into a mapping of exactly `name` and
 //!   `description`. This approximates Codex CLI's own YAML parser, which this check does
@@ -16,14 +16,14 @@
 //!   a trailing YAML comment (an unquoted ` #` silently cuts the value short);
 //! - no file named `SKILL.md` exists below `<dir>/` other than `<dir>/SKILL.md`;
 //! - the body after the closing `---` is at most 200 lines;
-//! - nothing under `.agents/skills/` is a symbolic link (links are not followed).
+//! - nothing under `.claude/skills/` is a symbolic link (links are not followed).
 //!
 //! The index is the first table (lines starting with `|`) after `AGENTS.md`'s `## Skills`
 //! heading and before the next heading, fenced code skipped; each row's first cell, with
 //! backticks stripped, names one skill, and the rows and the directories must agree.
 //!
-//! Errors: `ERR_CHECK_INPUT_MISSING` (no AGENTS.md or .agents/skills/),
-//! `ERR_CHECK_INPUT_UNREADABLE` (.agents/skills is not a directory, or a path under it
+//! Errors: `ERR_CHECK_INPUT_MISSING` (no AGENTS.md or .claude/skills/),
+//! `ERR_CHECK_INPUT_UNREADABLE` (.claude/skills is not a directory, or a path under it
 //! cannot be read),
 //! `ERR_CHECK_SKILL_FRONTMATTER`, `ERR_CHECK_SKILL_DESCRIPTION`, `ERR_CHECK_SKILL_NESTED`,
 //! `ERR_CHECK_SKILL_BODY`, `ERR_CHECK_SKILL_SYMLINK`, `ERR_CHECK_SKILL_INDEX`.
@@ -34,7 +34,7 @@ use super::yaml::{self, Keys, Node, Style, Yaml};
 use super::{Input, finding, list_dir, read_file};
 use crate::fail::FailureDetails;
 
-const SKILLS: &str = ".agents/skills";
+const SKILLS: &str = ".claude/skills";
 const MAX_DESCRIPTION: usize = 1024;
 const MAX_BODY_LINES: usize = 200;
 const MAX_NAME: usize = 64;
@@ -333,7 +333,7 @@ fn symlink_violation(path: &str) -> FailureDetails {
     finding(
         "ERR_CHECK_SKILL_SYMLINK",
         format!("{path} is a symbolic link"),
-        "real files only under .agents/skills/ (git checks a link out as a link only where core.symlinks allows)",
+        "real files only under .claude/skills/ (git checks a link out as a link only where core.symlinks allows)",
         "a symbolic link",
         "replace the link with the file it points to, then `just agents-sync`",
     )
@@ -349,7 +349,7 @@ fn tree_violations(root: &Path, dir: &str) -> Vec<FailureDetails> {
             violations.push(finding(
                 "ERR_CHECK_SKILL_NESTED",
                 format!("{path} is a SKILL.md below a skill's top directory"),
-                "SKILL.md only at .agents/skills/<dir>/SKILL.md, so a host never loads a second skill from a subdirectory",
+                "SKILL.md only at .claude/skills/<dir>/SKILL.md, so a host never loads a second skill from a subdirectory",
                 path.clone(),
                 "rename the nested file for its content (references/<topic>.md), then `just agents-sync`",
             ));
@@ -404,7 +404,7 @@ fn index_violation(summary: String, actual: &str) -> FailureDetails {
     finding(
         "ERR_CHECK_SKILL_INDEX",
         summary,
-        "one row in AGENTS.md's Skills table per directory under .agents/skills/, and no other rows",
+        "one row in AGENTS.md's Skills table per directory under .claude/skills/, and no other rows",
         actual,
         "add, rename, or remove the row in AGENTS.md's Skills table (or the skill directory) in the same commit",
     )
@@ -433,7 +433,7 @@ fn index_violations(agents: &str, dirs: &[String]) -> Vec<FailureDetails> {
             ));
         } else if !dirs.contains(name) {
             violations.push(index_violation(
-                format!("{place}: `{name}` has a row but no .agents/skills/{name}/"),
+                format!("{place}: `{name}` has a row but no .claude/skills/{name}/"),
                 "a row for a skill that does not exist",
             ));
         }
@@ -441,7 +441,7 @@ fn index_violations(agents: &str, dirs: &[String]) -> Vec<FailureDetails> {
     }
     for dir in dirs.iter().filter(|dir| !seen.contains(&dir.as_str())) {
         violations.push(index_violation(
-            format!(".agents/skills/{dir}/ has no row, `{dir}`, in AGENTS.md's Skills table"),
+            format!(".claude/skills/{dir}/ has no row, `{dir}`, in AGENTS.md's Skills table"),
             "a skill no row indexes",
         ));
     }
@@ -475,7 +475,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
         return vec![finding(
             "ERR_CHECK_INPUT_MISSING",
             format!("{} does not exist", absent.join(" and ")),
-            "AGENTS.md and .agents/skills/ under the root",
+            "AGENTS.md and .claude/skills/ under the root",
             format!("missing: {}", absent.join(", ")),
             "run the check against the repository root (--root DIR)",
         )];
@@ -535,7 +535,7 @@ mod tests {
             .map(|row| format!("| {row} | Something |"))
             .collect();
         format!(
-            "# Guide\n\n## Skills\n\nSkills live under `.agents/skills/`.\n\n| Skill | Load it for |\n|---|---|\n{}\n\n### Rules\n\n| Rule | Loads when you touch |\n|---|---|\n| `.claude/rules/rust.md` | Rust |\n\n## Next section\n",
+            "# Guide\n\n## Skills\n\nSkills live under `.claude/skills/`.\n\n| Skill | Load it for |\n|---|---|\n{}\n\n### Rules\n\n| Rule | Loads when you touch |\n|---|---|\n| `.claude/rules/rust.md` | Rust |\n\n## Next section\n",
             rows.join("\n")
         )
     }
@@ -548,9 +548,9 @@ mod tests {
         let agents = index(&["`alpha`", "`beta`"]);
         let mut files: Vec<(&str, Option<&str>)> = vec![
             ("AGENTS.md", Some(&agents)),
-            (".agents/skills/alpha/SKILL.md", Some(&alpha)),
-            (".agents/skills/beta/SKILL.md", Some(&beta)),
-            (".agents/skills/beta/references/notes.md", Some("# Notes\n")),
+            (".claude/skills/alpha/SKILL.md", Some(&alpha)),
+            (".claude/skills/beta/SKILL.md", Some(&beta)),
+            (".claude/skills/beta/references/notes.md", Some("# Notes\n")),
         ];
         for (path, content) in overrides {
             files.retain(|(existing, _)| existing != path);
@@ -611,7 +611,7 @@ mod tests {
             ),
             (skill("- alpha"), "not a mapping"),
         ] {
-            let violations = check(&[(".agents/skills/alpha/SKILL.md", Some(&content))]);
+            let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&content))]);
             assert_eq!(
                 codes(&violations),
                 ["ERR_CHECK_SKILL_FRONTMATTER"],
@@ -627,7 +627,7 @@ mod tests {
         let gamma = skill("name: Gamma_Skill\ndescription: x");
         let violations = check(&[
             ("AGENTS.md", Some(&agents)),
-            (".agents/skills/Gamma_Skill/SKILL.md", Some(&gamma)),
+            (".claude/skills/Gamma_Skill/SKILL.md", Some(&gamma)),
         ]);
         assert_eq!(codes(&violations), ["ERR_CHECK_SKILL_FRONTMATTER"]);
         assert!(
@@ -638,7 +638,7 @@ mod tests {
         let agents = index(&["`alpha`", "`beta`", "`empty`"]);
         let violations = check(&[
             ("AGENTS.md", Some(&agents)),
-            (".agents/skills/empty/references/x.md", Some("x\n")),
+            (".claude/skills/empty/references/x.md", Some("x\n")),
         ]);
         assert_eq!(codes(&violations), ["ERR_CHECK_SKILL_FRONTMATTER"]);
         assert!(violations[0].actual.contains("no SKILL.md"));
@@ -648,19 +648,19 @@ mod tests {
     fn fails_on_a_description_that_would_not_load() {
         let content = skill("name: alpha\ndescription: Covers alpha \u{2014} and more.");
         assert_eq!(
-            codes(&check(&[(".agents/skills/alpha/SKILL.md", Some(&content))])),
+            codes(&check(&[(".claude/skills/alpha/SKILL.md", Some(&content))])),
             ["ERR_CHECK_SKILL_DESCRIPTION"]
         );
         let at = skill(&format!(
             "name: alpha\ndescription: >\n  {}",
             "a".repeat(1024)
         ));
-        assert_eq!(check(&[(".agents/skills/alpha/SKILL.md", Some(&at))]), []);
+        assert_eq!(check(&[(".claude/skills/alpha/SKILL.md", Some(&at))]), []);
         let over = skill(&format!(
             "name: alpha\ndescription: >\n  {}",
             "a".repeat(1025)
         ));
-        let violations = check(&[(".agents/skills/alpha/SKILL.md", Some(&over))]);
+        let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&over))]);
         assert_eq!(codes(&violations), ["ERR_CHECK_SKILL_DESCRIPTION"]);
         assert!(violations[0].actual.contains("1025 characters"));
         for content in [
@@ -670,7 +670,7 @@ mod tests {
             skill("name: alpha\ndescription: > # gone\n  text"),
             skill("name: alpha\ndescription: a plain\n  value # gone"),
         ] {
-            let violations = check(&[(".agents/skills/alpha/SKILL.md", Some(&content))]);
+            let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&content))]);
             assert_eq!(
                 codes(&violations),
                 ["ERR_CHECK_SKILL_DESCRIPTION"],
@@ -680,7 +680,7 @@ mod tests {
         }
         let content = skill("name: alpha\ndescription: >\n  A # inside a block is text.");
         assert_eq!(
-            check(&[(".agents/skills/alpha/SKILL.md", Some(&content))]),
+            check(&[(".claude/skills/alpha/SKILL.md", Some(&content))]),
             []
         );
     }
@@ -689,7 +689,7 @@ mod tests {
     fn reads_comments_only_where_a_yaml_parser_attaches_them() {
         let comment_of = |frontmatter: &str| {
             let content = skill(frontmatter);
-            check(&[(".agents/skills/alpha/SKILL.md", Some(&content))])
+            check(&[(".claude/skills/alpha/SKILL.md", Some(&content))])
                 .into_iter()
                 .find(|found| found.actual.contains("YAML comment"))
                 .map(|found| found.actual)
@@ -728,13 +728,13 @@ mod tests {
         let dir = temp_dir();
         let agents = index(&[]);
         write(dir.path(), "AGENTS.md", &agents);
-        write(dir.path(), ".agents/skills", "not a directory\n");
+        write(dir.path(), ".claude/skills", "not a directory\n");
         let found = run_at(dir.path(), run);
         assert_eq!(codes(&found), ["ERR_CHECK_INPUT_UNREADABLE"]);
         assert!(found[0].summary.contains("not a directory"), "{found:?}");
 
         let dir = fixture(&[]);
-        let file = dir.path().join(".agents/skills/alpha/SKILL.md");
+        let file = dir.path().join(".claude/skills/alpha/SKILL.md");
         let mut permissions = std::fs::metadata(&file).expect("metadata").permissions();
         std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o000);
         std::fs::set_permissions(&file, permissions).expect("chmod");
@@ -751,12 +751,12 @@ mod tests {
     #[test]
     fn fails_on_a_nested_skill_and_a_long_body() {
         let nested = skill("name: alpha\ndescription: x");
-        let violations = check(&[(".agents/skills/beta/references/SKILL.md", Some(&nested))]);
+        let violations = check(&[(".claude/skills/beta/references/SKILL.md", Some(&nested))]);
         assert_eq!(codes(&violations), ["ERR_CHECK_SKILL_NESTED"]);
         assert!(
             violations[0]
                 .summary
-                .contains(".agents/skills/beta/references/SKILL.md")
+                .contains(".claude/skills/beta/references/SKILL.md")
         );
         let body = |lines: usize| {
             (0..lines)
@@ -766,13 +766,13 @@ mod tests {
                 + "\n"
         };
         let at = format!("---\nname: alpha\ndescription: x\n---\n{}", body(200));
-        assert_eq!(check(&[(".agents/skills/alpha/SKILL.md", Some(&at))]), []);
+        assert_eq!(check(&[(".claude/skills/alpha/SKILL.md", Some(&at))]), []);
         let over = format!("---\nname: alpha\ndescription: x\n---\n{}", body(201));
-        let violations = check(&[(".agents/skills/alpha/SKILL.md", Some(&over))]);
+        let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&over))]);
         assert_eq!(codes(&violations), ["ERR_CHECK_SKILL_BODY"]);
         assert!(violations[0].actual.contains("201 lines"));
         let bad = format!("---\nname: alpha\nname: x\n---\n{}", body(201));
-        let violations = check(&[(".agents/skills/alpha/SKILL.md", Some(&bad))]);
+        let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&bad))]);
         assert_eq!(
             codes(&violations),
             ["ERR_CHECK_SKILL_FRONTMATTER", "ERR_CHECK_SKILL_BODY"]
@@ -784,8 +784,8 @@ mod tests {
         let dir = fixture(&[]);
         let root = dir.path();
         std::os::unix::fs::symlink(
-            root.join(".agents/skills/beta/references/notes.md"),
-            root.join(".agents/skills/alpha/link.md"),
+            root.join(".claude/skills/beta/references/notes.md"),
+            root.join(".claude/skills/alpha/link.md"),
         )
         .expect("link");
         let violations = run_at(root, run);
@@ -793,15 +793,15 @@ mod tests {
         assert!(
             violations[0]
                 .summary
-                .contains(".agents/skills/alpha/link.md")
+                .contains(".claude/skills/alpha/link.md")
         );
 
         let agents = index(&["`alpha`", "`beta`", "`gamma`"]);
         let dir = fixture(&[("AGENTS.md", Some(&agents))]);
         let root = dir.path();
         std::os::unix::fs::symlink(
-            root.join(".agents/skills/alpha"),
-            root.join(".agents/skills/gamma"),
+            root.join(".claude/skills/alpha"),
+            root.join(".claude/skills/gamma"),
         )
         .expect("link");
         assert_eq!(codes(&run_at(root, run)), ["ERR_CHECK_SKILL_SYMLINK"]);

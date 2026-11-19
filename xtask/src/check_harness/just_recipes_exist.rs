@@ -516,14 +516,14 @@ body:
                 "## Test Plan\n\n- [ ] `just build` passes\n",
             ),
             (
-                ".agents/skills/demo/SKILL.md",
+                ".claude/skills/demo/SKILL.md",
                 "---\nname: demo\n---\n\nRun `just build`.\n",
             ),
             (
-                ".agents/skills/demo/references/more.md",
+                ".claude/skills/demo/references/more.md",
                 "Iterate with `just test-fast x`.\n",
             ),
-            (".agents/skills/demo/scripts/run.sh", "just not-markdown\n"),
+            (".claude/skills/demo/scripts/run.sh", "just not-markdown\n"),
             (".claude/settings.json", SETTINGS),
         ]
         .into_iter()
@@ -658,8 +658,8 @@ body:
             "CLAUDE.md",
             ".claude/rules/x.md",
             ".github/PULL_REQUEST_TEMPLATE.md",
-            ".agents/skills/demo/SKILL.md",
-            ".agents/skills/demo/references/deep/more.md",
+            ".claude/skills/demo/SKILL.md",
+            ".claude/skills/demo/references/deep/more.md",
             ".claude/agents/x.md",
             ".github/ISSUE_TEMPLATE/legacy.md",
         ] {

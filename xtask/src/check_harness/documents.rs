@@ -53,11 +53,11 @@ pub(super) fn issue_templates(root: &Path) -> Vec<String> {
 
 /// The documents an agent reads as standing instructions, which both document checks
 /// read: `AGENTS.md`, `CLAUDE.md`, every `*.md` under `.claude/rules/`, `.claude/agents/`
-/// (the sub-agent definitions), `docs/`, and `.agents/skills/`, and the issue templates. Every one is optional here; a check that needs one
+/// (the sub-agent definitions), `docs/`, and `.claude/skills/`, and the issue templates. Every one is optional here; a check that needs one
 /// says so itself.
 pub(super) fn standing_documents(root: &Path) -> Vec<String> {
     let mut documents = vec!["AGENTS.md".to_owned(), "CLAUDE.md".to_owned()];
-    for dir in [".claude/rules", ".claude/agents", "docs", ".agents/skills"] {
+    for dir in [".claude/rules", ".claude/agents", "docs", ".claude/skills"] {
         documents.extend(markdown_files(root, dir));
     }
     documents.extend(issue_templates(root));
@@ -210,7 +210,7 @@ mod tests {
                 ".claude/agents/executor.md",
                 "docs/guide.md",
                 "docs/guides/plan.md",
-                ".agents/skills/demo/SKILL.md",
+                ".claude/skills/demo/SKILL.md",
                 ".github/ISSUE_TEMPLATE/task.yml",
             ]
         );
