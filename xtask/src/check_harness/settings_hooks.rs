@@ -83,6 +83,14 @@ fn hooks<'a>(text: &str, settings: &'a Value) -> Result<Vec<Hook<'a>>, Vec<Failu
                 continue;
             };
             for entry in entries {
+                if !entry.is_object() {
+                    problems.push(shape_violation(
+                        text,
+                        "hook entry",
+                        format!("a `{event}` hook entry is not an object"),
+                    ));
+                    continue;
+                }
                 match entry.get("command").and_then(Value::as_str) {
                     Some(command) => found.push(Hook { event, command }),
                     None if entry.get("type").and_then(Value::as_str) == Some("command") => {
@@ -330,6 +338,7 @@ mod tests {
             serde_json::json!({ "Stop": {} }),
             serde_json::json!({ "Stop": [{ "matcher": "x" }] }),
             serde_json::json!({ "Stop": [{ "hooks": [{ "type": "command" }] }] }),
+            serde_json::json!({ "Stop": [{ "hooks": ["sudo true"] }] }),
         ] {
             assert_eq!(
                 codes(&check(Some(&settings(&hooks)), &[])),
