@@ -133,6 +133,7 @@ test-scripts:
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .claude/skills/merging-dependency-prs/scripts/tests -t .claude/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
     shellcheck .claude/skills/shipping-issues/scripts/*.sh
     shellcheck .claude/cloud/*.sh
+    shellcheck .claude/hooks/*.sh
 
 # Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
 labels:
