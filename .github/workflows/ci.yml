@@ -126,9 +126,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
-      - name: Clippy (whole workspace)
-        run: cargo xtask clippy-guard cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-
+      # Clippy runs on Linux only (Rust Core): this job keeps the native compile and the
+      # platform tests, default and all features, for what only macOS shows.
       - name: Platform tests (real adapters, the CLI) on macOS
         run: just test-platform
 

@@ -37,8 +37,10 @@ Documentation that lists what is enforced goes stale, so the claims are checks i
 ## Most CI runs on Ubuntu
 
 macOS runners queue longer. Core, the Linux-buildable crates, the platform tests on
-Linux, the scripts, and the repository lint all run on Ubuntu; one macOS job runs
-workspace clippy and the platform tests against macOS.
+Linux, the scripts, the repository lint, and workspace clippy all run on Ubuntu; one
+macOS job runs the platform tests, default and all features, against macOS. Clippy is
+not repeated there: the macOS-only diagnostics it would add are the accepted cost of a
+shorter queue.
 
 ## This much supply-chain control, scoped to the built targets
 

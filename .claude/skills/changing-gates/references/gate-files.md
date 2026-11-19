@@ -46,7 +46,8 @@ current values.
   (`xtask/src/check_harness/clippy_allow_invalid.rs`, run by `just check-harness`)
   fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` on the key in any `clippy.toml`; an entry
   that genuinely needs it goes in that check's `EXCEPTIONS` with a human's sign-off.
-  CI's Linux and macOS jobs both run the guard, so a path must resolve on both.
+  CI runs the guard in the Linux `Rust Core` job only, so a path must resolve there; a
+  ban that resolves only on macOS goes unchecked in CI.
 
 ## `rustfmt.toml`
 
