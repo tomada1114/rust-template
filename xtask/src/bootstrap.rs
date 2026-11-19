@@ -323,7 +323,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder; each is listed for both skill trees.
-const SKILL_SITES: [(&str, &[Form]); 38] = [
+const SKILL_SITES: [(&str, &[Form]); 37] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
         "authoring-skills/references/convention-examples.md",
@@ -333,7 +333,6 @@ const SKILL_SITES: [(&str, &[Form]); 38] = [
     ("changing-gates/SKILL.md", &[Slug]),
     ("changing-gates/references/gate-files.md", &[Slug]),
     ("changing-gates/references/weakening.md", &[Slug]),
-    ("codex-shipping-issues/SKILL.md", &[Slug]),
     ("create-pr/SKILL.md", &[Slug]),
     ("create-pr/references/release-impact.md", &[Slug]),
     ("designing-clis/SKILL.md", &[SlugSnake, Slug, SlugUpper]),

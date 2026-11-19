@@ -11,8 +11,8 @@ description: >
   worktrees (each has its own cargo target/). Scripts: plan.py,
   ci_watch.sh, land_pr.sh, worktree_setup.sh, file_followup.py, cleanup_run.sh. Use
   when asked to ship the remaining issues, take on the next issue, ship issue N, or
-  clear the ticket backlog. Not for Codex (codex-shipping-issues) or a Claude Code cloud
-  session (cloud-claude-shipping-issues).
+  clear the ticket backlog. Not for a Claude Code cloud session
+  (cloud-claude-shipping-issues).
 ---
 
 # Shipping Issues (Claude Code)
@@ -20,10 +20,10 @@ description: >
 **Owns:** taking open issues to a merged pull request and a closed issue from a local
 Claude Code session. **Does not own:** the label vocabulary and what an issue body must
 hold, and what is in scope (`triaging-issues`, `AGENTS.md` › "Product"); test-first
-work in core (`tdd`); the PR body's content rules (`create-pr`); the same flow from Codex
-(`codex-shipping-issues`) or a Claude Code cloud session, `CLAUDE_CODE_REMOTE=true`
-(`cloud-claude-shipping-issues`), where this skill never runs. **Done:** branch
-reviewed, PR merged, issue CLOSED, nothing deleted or weakened to get there.
+work in core (`tdd`); the PR body's content rules (`create-pr`); the same flow from a
+Claude Code cloud session, `CLAUDE_CODE_REMOTE=true` (`cloud-claude-shipping-issues`),
+where this skill never runs. **Done:** branch reviewed, PR merged, issue CLOSED,
+nothing deleted or weakened to get there.
 
 **Invoking this skill is the sign-off for exactly these remote writes, for this
 invocation, up to and including the merge** (`AGENTS.md` › "Security and human
