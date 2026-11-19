@@ -35,9 +35,8 @@ context — the finders' reads never reach here, only the findings do. Effort co
 much of that runs:
 
 **`medium` is the standing effort, for every branch.** The owner chose it
-over `low`: the implementation is usually an `executor` run at low effort, and a
-one-pass review on top of a low-effort implementation leaves nobody reading the change
-with any depth.
+over `low`: the implementation is usually an `executor` run, the execution tier, and a
+`low` one-pass review on top of it leaves nobody reading the change with any depth.
 
 | effort   | pipeline                                                                      | when                                                                                                                                                                       |
 | -------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
