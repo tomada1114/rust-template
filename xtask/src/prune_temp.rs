@@ -15,10 +15,10 @@
 //!
 //! `--temp-dir` defaults to `TMPDIR` (else the OS temp directory), `--claude-base` to
 //! `/private/tmp/claude-<uid>` on macOS and `/tmp/claude-<uid>` on Linux (the uid from
-//! `id -u`), and `--now` (epoch milliseconds)
-//! to the current time. Symlinks are never followed: a matching entry that does not
-//! resolve inside its expected parent is refused. Prints each path removed (or that would
-//! be, with `--dry-run`), or `nothing to prune`.
+//! `id -u`), and `--now` (epoch milliseconds) to the current time. Symlinks are never
+//! followed: a matching entry that does not resolve inside its expected parent is
+//! refused. Prints each path removed (or that would be, with `--dry-run`), or `nothing to
+//! prune`.
 //!
 //! Git work tree: not required.
 //!
