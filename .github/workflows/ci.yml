@@ -43,6 +43,7 @@ jobs:
       # Rust itself comes from rust-toolchain.toml through the runner's rustup.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
+          version: 2026.11.6
           install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest github:EmbarkStudios/cargo-deny github:Boshen/cargo-shear
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -82,6 +83,7 @@ jobs:
       # the skills mirror and xtask's tests.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
+          version: 2026.11.6
           install_args: just typos actionlint shellcheck lefthook github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -122,6 +124,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
+          version: 2026.11.6
           install_args: just aqua:nextest-rs/nextest/cargo-nextest
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -151,6 +154,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
+          version: 2026.11.6
           install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest shellcheck typos actionlint lefthook
 
       - name: Clone the checkout into a scratch directory
@@ -234,6 +238,7 @@ jobs:
       # zizmor is pinned in mise.toml (Renovate bumps it), not taken from a third-party action.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
+          version: 2026.11.6
           install_args: zizmor
 
       - name: zizmor

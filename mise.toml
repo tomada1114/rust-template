@@ -4,6 +4,9 @@
 # Rust is pinned once, in rust-toolchain.toml.
 # Prebuilt binaries (aqua/github backends) only: the `cargo:` backend compiles from
 # source.
+# mise itself: CI pins the same release on every jdx/mise-action step (`version:`).
+min_version = "2026.11.6"
+
 [tools]
 just = "1.58.0"
 lefthook = "2.1.14"

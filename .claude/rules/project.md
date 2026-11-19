@@ -64,6 +64,9 @@ paths:
   `rust-toolchain.toml`. Each waits 7 days after a release before opening a PR
   (Dependabot's `cooldown`, Renovate's `minimumReleaseAge`), so a compromised fresh
   release has time to be pulled. The two values stay equal (a harness check)
+- mise itself is the exception: `mise.toml`'s `min_version` and the `version:` on every
+  `jdx/mise-action` step name one release, which no bot bumps. Move them together, by
+  hand, to a release at least 7 days old; a harness check fails when the steps disagree
 - CI on the bot's PR is the gate; landing those PRs is the `merging-dependency-prs`
   skill. A clippy or Rust toolchain bump that fires a new finding is fixed in the
   code on that PR, never skipped. A major (or a pre-1.0 minor) of a crate the binary is

@@ -43,6 +43,9 @@
 //!   `just <recipe>` rely on the recipe.
 //!
 //! And once for the repository:
+//! - mise's version: every `jdx/mise-action` step, in a workflow or a composite action,
+//!   sets `with.version`, and all of them the same release, so CI never installs
+//!   whichever mise is newest;
 //! - bot commit prefixes: every Dependabot `updates[].commit-message.prefix` (and
 //!   `prefix-development`), and Renovate's `commitMessagePrefix` (top level and in
 //!   `packageRules`), exist and lead with a type every PR-title check accepts: the `types`
@@ -71,6 +74,8 @@
 //!   an `||` fallback
 //! - `ERR_CHECK_WORKFLOW_UNLOCKED`: an install or cargo command (in a workflow, an action,
 //!   or the justfile) ignores the lockfile
+//! - `ERR_CHECK_WORKFLOW_MISE_VERSION`: a jdx/mise-action step names no mise version, or
+//!   two steps name different ones
 //! - `ERR_CHECK_WORKFLOW_BOT_PREFIX`: a bot's commit prefix is missing or not a PR-title
 //!   type, or a bot config (a JSON5 Renovate one included) cannot be read
 
@@ -168,6 +173,11 @@ const UNLOCKED: Rule = Rule {
     code: "ERR_CHECK_WORKFLOW_UNLOCKED",
     expected: "no `npm install`, and `--locked` on every cargo build/check/clippy/doc/test/bench/run/install/fetch/nextest/llvm-cov/deny/shear before any `--`",
     next: "add the flag, or call the `just` recipe that already carries it; pin a tool in mise.toml instead of installing it from npm",
+};
+const MISE_VERSION: Rule = Rule {
+    code: "ERR_CHECK_WORKFLOW_MISE_VERSION",
+    expected: "every jdx/mise-action step to set `with.version`, and all of them to the same mise release",
+    next: "set `version: <release>` under each jdx/mise-action step's `with:`, the one release mise.toml's `min_version` names",
 };
 const BOT_PREFIX: Rule = Rule {
     code: "ERR_CHECK_WORKFLOW_BOT_PREFIX",
@@ -893,6 +903,52 @@ fn check_steps(sites: &[StepSite<'_>], patterns: &Patterns) -> Vec<FailureDetail
     findings
 }
 
+/// The action that installs mise; without `with.version` it installs the newest release.
+const MISE_ACTION: &str = "jdx/mise-action@";
+
+fn check_mise_versions(sites: &[StepSite<'_>]) -> Vec<FailureDetails> {
+    let mut findings = Vec::new();
+    let mut named: Vec<(String, &str)> = Vec::new();
+    for site in sites {
+        let Some(uses) = site.step.get("uses").and_then(Node::as_str) else {
+            continue;
+        };
+        if !uses.starts_with(MISE_ACTION) {
+            continue;
+        }
+        let version = site.step.get("with").and_then(|with| with.get("version"));
+        match version
+            .and_then(Node::as_str)
+            .filter(|v| !v.trim().is_empty())
+        {
+            Some(version) => named.push((site.at("uses"), version)),
+            None => findings.push(found(
+                &MISE_VERSION,
+                format!(
+                    "{}: {} runs jdx/mise-action without a mise `version`",
+                    site.at("uses"),
+                    site.owner
+                ),
+                format!("with.version: {}", describe(version)),
+            )),
+        }
+    }
+    if let Some((_, first)) = named.first()
+        && named.iter().any(|(_, version)| version != first)
+    {
+        findings.push(found(
+            &MISE_VERSION,
+            "jdx/mise-action steps install different mise releases".to_owned(),
+            named
+                .iter()
+                .map(|(at, version)| format!("{at}: {version}"))
+                .collect::<Vec<_>>()
+                .join("; "),
+        ));
+    }
+    findings
+}
+
 /// One bot commit prefix: where it is, which setting, and its value.
 struct Prefix {
     place: String,
@@ -1079,6 +1135,9 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     let (actions, unreadable_actions) = read_actions(input.root, &workflows);
     let mut findings = unreadable;
     findings.extend(unreadable_actions);
+    let mut sites: Vec<StepSite<'_>> = workflows.iter().flat_map(workflow_steps).collect();
+    sites.extend(actions.iter().flat_map(action_steps));
+    findings.extend(check_mise_versions(&sites));
     for workflow in &workflows {
         findings.extend(check_job_calls(workflow, &patterns));
         findings.extend(check_timeouts(workflow));
@@ -1700,6 +1759,53 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    #[test]
+    fn fails_when_mise_action_names_no_version() {
+        let fetch = "      - run: cargo fetch --locked\n";
+        let with_mise = |with: &str| {
+            ci(
+                fetch,
+                &format!("      - uses: jdx/mise-action@{SHA} # v4.3.0\n{with}{fetch}"),
+            )
+        };
+        let pinned = "        with:\n          version: 2026.11.6\n";
+        assert_eq!(check(&[(CI, Some(&with_mise(pinned)))]), []);
+
+        let found = check(&[(CI, Some(&with_mise("")))]);
+        assert_eq!(codes(&found), ["ERR_CHECK_WORKFLOW_MISE_VERSION"]);
+        assert!(found[0].summary.contains(".github/workflows/ci.yml:26"));
+        for with in [
+            "        with:\n          install: true\n",
+            "        with:\n          version: ''\n",
+            "        with:\n          version: 2026.11\n",
+        ] {
+            assert_eq!(
+                codes(&check(&[(CI, Some(&with_mise(with)))])),
+                ["ERR_CHECK_WORKFLOW_MISE_VERSION"],
+                "{with}"
+            );
+        }
+
+        let action = format!(
+            "name: Setup\ndescription: x\nruns:\n  using: composite\n  steps:\n    - uses: jdx/mise-action@{SHA} # v4.3.0\n      with:\n        version: 2026.11.5\n"
+        );
+        let found = check(&[
+            (CI, Some(&with_mise(pinned))),
+            (".github/actions/local/action.yml", Some(&action)),
+        ]);
+        assert_eq!(codes(&found), ["ERR_CHECK_WORKFLOW_MISE_VERSION"]);
+        assert!(found[0].actual.contains("2026.11.5"), "{found:?}");
+        assert!(found[0].actual.contains("2026.11.6"), "{found:?}");
+        let same = action.replace("2026.11.5", "2026.11.6");
+        assert_eq!(
+            check(&[
+                (CI, Some(&with_mise(pinned))),
+                (".github/actions/local/action.yml", Some(&same)),
+            ]),
+            []
+        );
     }
 
     #[test]
