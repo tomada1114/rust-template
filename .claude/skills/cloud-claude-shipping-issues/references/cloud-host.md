@@ -150,6 +150,15 @@ checked 2026-10-07). Every wait in this skill is a foreground slice under 10 min
 with the call's own timeout raised to cover it, repeated until a verdict or the step's
 total cap — never a background command, which the next item can lose.
 
+The same limit applies to the gates. A cold `just check` builds the workspace several
+ways (clippy, two coverage-instrumented builds, the default and all-features test
+builds), which can outlast one slice, so in a cloud session run `just check` recipe by
+recipe, each in its own slice: `just lint`, `just lint-repo`, `just test-scripts`,
+`just check-harness`, `just test-core`, `just test-xtask`, and `just test-platform`.
+Where the environment ran `.claude/cloud/provision.sh` (`docs/getting-started.md` ›
+"Cloud sessions"), those recipes and their tools exist; where it did not, fall back to
+the raw `cargo` commands "What the session starts with" lists.
+
 ## Run state lives on the VM
 
 After a few minutes idle the VM pauses with its files saved, and a paused VM can be

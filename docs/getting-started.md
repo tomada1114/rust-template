@@ -5,7 +5,9 @@
 - A Mac with Apple Silicon, or Linux.
 - On a Mac, the Xcode Command Line Tools (`xcode-select --install`); the full Xcode app
   is not needed. On Linux, a C toolchain for the linker (`build-essential` on Debian and
-  Ubuntu).
+  Ubuntu), and `pkg-config` and `libssl-dev` for the OpenSSL headers the `openrouter`
+  feature's TLS links against: `just lint`, `just test-core`, and `just test-platform`
+  build with every feature on.
 - [rustup](https://rustup.rs/), [mise](https://mise.jdx.dev/), and
   [Just](https://just.systems/man/en/) (`brew install mise just`). mise must be at least
   the release `mise.toml`'s `min_version` names, the one CI pins; an older mise refuses
@@ -31,6 +33,40 @@ clone runs `mise trust` first (<https://mise.jdx.dev/cli/trust.html>, checked
 3. installs lefthook's pre-commit hook, and fails if it is not in place.
 
 The first `cargo` command installs the Rust toolchain `rust-toolchain.toml` pins.
+
+## Cloud sessions
+
+A Claude Code cloud session (claude.ai/code) runs on an Ubuntu VM that starts without
+`just`, `mise`, or lefthook, and its environment carries `CLAUDE_CODE_REMOTE=true`
+([cloud environments](https://code.claude.com/docs/en/cloud-environments), checked
+2026-10-07). Two files under `.claude/cloud/` provision it instead of `just install`:
+
+- `environment-setup.sh` is the cloud environment's setup script, pasted as-is into the
+  environment's settings on claude.ai/code. It installs a checksum-verified mise and
+  rustup, puts mise's shims and `~/.cargo/bin` on `PATH`, and runs each cloned
+  repository's `.claude/cloud/provision.sh setup` within its time budget. It names no
+  repository, so every repository cut from the template shares one environment.
+- `provision.sh` provisions this checkout. `setup` installs the Debian packages
+  `apt-packages.txt` lists, runs `mise install --locked` against `mise.lock`, installs
+  the `rust-toolchain.toml` toolchain, fetches the crates, installs lefthook's hook, and
+  pre-builds `target/xtask` and then the workspace. `session`, run at the start of a
+  session, does the same install only when a pin file changed since the last run or
+  `just` is missing, always reinstalls the hook, and starts the warm build in the
+  background while `target/xtask` is cold. Outside a cloud session it only says whether the hook is
+  missing, and `just install` stays the local path. Every mode exits 0; a step that
+  failed prints a `WARN(provision)` line.
+
+Where no hook runs the session mode, start it by hand:
+
+```bash
+bash .claude/cloud/provision.sh session
+```
+
+A foreground command in a cloud session has a time limit
+([time limits](https://code.claude.com/docs/en/cloud-environments#time-limits), checked
+2026-10-07), and a cold `just check` builds the workspace several ways, so run it recipe
+by recipe there (`just lint`, `just test-core`, `just test-xtask`, `just test-platform`,
+`just check-harness`) rather than as one command.
 
 ## Everyday commands
 

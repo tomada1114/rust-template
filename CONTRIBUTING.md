@@ -9,7 +9,9 @@ repository, which commands to run, and how a change gets merged.
   platform tests on each.
 - On a Mac, the Xcode Command Line Tools (`xcode-select --install`); the full Xcode app
   is not needed. On Linux, a C toolchain for the linker (`build-essential` on Debian and
-  Ubuntu).
+  Ubuntu), and `pkg-config` and `libssl-dev` for the OpenSSL headers: the `openrouter`
+  feature's TLS links the system OpenSSL, and `just lint`, `just test-core`, and
+  `just test-platform` build with every feature on.
 - [rustup](https://rustup.rs/). It installs the toolchain `rust-toolchain.toml` pins
   (with clippy, rustfmt, and `llvm-tools`) the first time `cargo` runs.
 - [mise](https://mise.jdx.dev/), which installs every other pinned tool from `mise.toml`:

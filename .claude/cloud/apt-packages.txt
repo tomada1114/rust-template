@@ -1,0 +1,3 @@
+# One Debian package per line; provision.sh installs the missing ones (cloud VM, root).
+pkg-config
+libssl-dev
