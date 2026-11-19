@@ -14,7 +14,8 @@
 //! ```
 //!
 //! `--temp-dir` defaults to `TMPDIR` (else the OS temp directory), `--claude-base` to
-//! `/private/tmp/claude-<uid>` (the uid from `id -u`), and `--now` (epoch milliseconds)
+//! `/private/tmp/claude-<uid>` on macOS and `/tmp/claude-<uid>` on Linux (the uid from
+//! `id -u`), and `--now` (epoch milliseconds)
 //! to the current time. Symlinks are never followed: a matching entry that does not
 //! resolve inside its expected parent is refused. Prints each path removed (or that would
 //! be, with `--dry-run`), or `nothing to prune`.
@@ -234,12 +235,24 @@ fn stale_scratchpads(
     Ok(found)
 }
 
-/// `/private/tmp/claude-<uid>`, with the uid `id -u` prints; `None` when it prints none.
+/// Where Claude Code keeps a user's session scratchpads on `os` (a
+/// `std::env::consts::OS` value): `/private/tmp/claude-<uid>` on macOS, and
+/// `/tmp/claude-<uid>` elsewhere (seen on Linux in a cloud session, 2026-11-19).
+fn claude_base_for(os: &str, uid: &str) -> PathBuf {
+    let tmp = if os == "macos" {
+        "/private/tmp"
+    } else {
+        "/tmp"
+    };
+    PathBuf::from(format!("{tmp}/claude-{uid}"))
+}
+
+/// [`claude_base_for`] this OS, with the uid `id -u` prints; `None` when it prints none.
 fn default_claude_base(context: &Context<'_>) -> Option<PathBuf> {
     let result = context.run("id", &["-u"], &RunOptions::default());
     let uid = result.stdout_text().trim().to_owned();
     (result.success() && !uid.is_empty() && uid.bytes().all(|byte| byte.is_ascii_digit()))
-        .then(|| PathBuf::from(format!("/private/tmp/claude-{uid}")))
+        .then(|| claude_base_for(std::env::consts::OS, &uid))
 }
 
 pub(crate) fn main(context: &Context<'_>) -> TaskResult {
@@ -312,7 +325,7 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{SESSION_IDLE_MS, absolute, claude_slug, main, prune_with};
+    use super::{SESSION_IDLE_MS, absolute, claude_base_for, claude_slug, main, prune_with};
     use crate::context::{Context, RunOptions, RunResult};
     use crate::fail::TaskResult;
     use crate::test_support::{Fake, Outcome, env_of, temp_dir, write};
@@ -518,6 +531,27 @@ mod tests {
                 "would remove {}",
                 tree.temp.join("verify-bootstrap-x").display()
             )]
+        );
+    }
+
+    #[test]
+    fn default_claude_base_follows_the_os() {
+        assert_eq!(
+            claude_base_for("macos", "501"),
+            PathBuf::from("/private/tmp/claude-501")
+        );
+        assert_eq!(
+            claude_base_for("linux", "0"),
+            PathBuf::from("/tmp/claude-0")
+        );
+        let here = if cfg!(target_os = "macos") {
+            "/private/tmp/claude-7"
+        } else {
+            "/tmp/claude-7"
+        };
+        assert_eq!(
+            claude_base_for(std::env::consts::OS, "7"),
+            PathBuf::from(here)
         );
     }
 
