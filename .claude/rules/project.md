@@ -6,6 +6,7 @@ paths:
   - "xtask/guard/Cargo.toml"
   - "Cargo.lock"
   - "mise.toml"
+  - "mise.lock"
   - "rust-toolchain.toml"
   - "deny.toml"
   - "osv-scanner.toml"
@@ -71,7 +72,12 @@ paths:
   skill. A clippy or Rust toolchain bump that fires a new finding is fixed in the
   code on that PR, never skipped. A major (or a pre-1.0 minor) of a crate the binary is
   built around is a migration, never a batch merge
-- After changing `mise.toml`, run `mise install`; after changing `rust-toolchain.toml`,
+- `mise.lock` pins each tool's download URL and checksum for `mise.toml`'s
+  `lockfile_platforms` (`macos-arm64`, `linux-x64`), so an install with `--locked`
+  skips the release-metadata lookup. `mise lock` writes it; never hand-edit it.
+  `just lint-repo` and CI run `mise lock` then `git diff --exit-code mise.lock`, so a
+  `mise.toml` change without its refreshed lock fails there; commit the two together
+- After changing `mise.toml`, run `mise lock` and `mise install`; after changing `rust-toolchain.toml`,
   the next `cargo` call installs the new toolchain through rustup (`RUSTUP_AUTO_INSTALL`,
   on by default: https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).
   Then `just check`
