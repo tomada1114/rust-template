@@ -197,7 +197,6 @@ mod tests {
             ".claude/skills/demo/SKILL.md",
             "docs/guide.md",
             "docs/guides/plan.md",
-            ".agents/skills/demo/SKILL.md",
             ".github/ISSUE_TEMPLATE/task.yml",
             ".github/PULL_REQUEST_TEMPLATE.md",
         ]);

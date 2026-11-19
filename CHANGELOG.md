@@ -148,6 +148,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The second skill tree: `.agents/skills/`, `cargo xtask sync-agents`, the
+  `just agents-sync` and `just agents-check` recipes (and `agents-check` in
+  `just check`), the pre-commit skills-mirror job, CI's Skills mirror step, and the
+  harness check that kept typos off the mirror. Skills live only in `.claude/skills/`,
+  edited in place.
+
 - Architecture Decision Records: the decision index, the ADR template, and the
   `recording-architecture-decisions` skill are gone. An app keeps its design as it
   stands now: a change `AGENTS.md` › "Before changing the architecture" lists rewrites

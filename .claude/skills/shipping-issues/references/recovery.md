@@ -196,7 +196,7 @@ Once "not worktree-viable" is concluded, remove that worktree
 later runs skip the probe:
 
 ```bash
-.agents/skills/shipping-issues/scripts/preflight.sh --profile-cache <runstate>/repo-profile.json \
+.claude/skills/shipping-issues/scripts/preflight.sh --profile-cache <runstate>/repo-profile.json \
     --set-worktree-viable no
 ```
 

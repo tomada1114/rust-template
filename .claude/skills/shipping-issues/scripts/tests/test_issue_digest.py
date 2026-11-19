@@ -526,7 +526,7 @@ class ResolveDesignLabelTest(unittest.TestCase):
 
 
 # The repository root, five levels above this file in either skill tree
-# (.agents/skills/... or its .claude/skills/... mirror).
+# (.claude/skills/... or its .claude/skills/... mirror).
 LABELS_YML = Path(__file__).resolve().parents[5] / ".github" / "labels.yml"
 
 

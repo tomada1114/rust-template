@@ -51,7 +51,7 @@ diff changed beyond a bot rebase, or anything in "Stop and ask" needs a fresh ap
 ## Step 1: Survey (read-only)
 
 ```bash
-python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py
+python3 .claude/skills/merging-dependency-prs/scripts/survey_prs.py
 ```
 
 It lists every open bot PR with its ecosystem (`cargo`, `github-actions`, `mise`,

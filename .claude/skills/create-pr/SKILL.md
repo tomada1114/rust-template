@@ -47,7 +47,7 @@ just check
 ```
 
 `just check` runs everything a Mac can run without a human (verify-hooks, fmt, lint,
-lint-repo, agents-check, test-scripts, check-harness, test, test-platform);
+lint-repo, test-scripts, check-harness, test, test-platform);
 the justfile's `check` recipe is the source of truth for the order. It opens no window
 and takes over no terminal (`AGENTS.md` › "Never taking over the developer's Mac"). A cold run takes longer than a
 foreground tool call may last, so under Claude Code start it with `run_in_background`

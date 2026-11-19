@@ -1,14 +1,14 @@
 ---
 name: authoring-skills
 description: >
-  Covers how a skill in this repository is written under .agents/skills/, mirrored into
-  .claude/skills/ by just agents-sync, and kept from silently failing to load, and the
+  Covers how a skill in this repository is written under .claude/skills/ and kept from
+  silently failing to load, and the
   conventions every skill follows: the REQUIRED/BACKGROUND cross-reference markers,
   deletable illustrations, platform-skill scope (link tool docs, never restate them),
   external claims with a URL and a checked date, commands that must exist, never taking
   over the developer's Mac, and explaining Rust for a reader new to it. Use when adding,
-  editing, reviewing, or splitting a SKILL.md or a references/ file, running just
-  agents-sync or just agents-check, fixing a just check-harness failure about a skill,
+  editing, reviewing, or splitting a SKILL.md or a references/ file, fixing a just
+  check-harness failure about a skill,
   deciding whether material belongs in AGENTS.md, a rule, or a skill, or investigating
   why a skill never fires in Claude Code or Codex CLI.
 ---
@@ -21,33 +21,29 @@ is written (`writing-repo-scripts`); which documentation surface a change lands 
 (`updating-docs`); changing a gate's configuration (`changing-gates`); what any one
 skill says about its own subject.
 
-## One source, one generated mirror
+## One tree, edited in place
 
-- Author a skill once, under `.agents/skills/<name>/`, where Codex CLI reads project
-  skills (https://learn.chatgpt.com/docs/build-skills, checked 2026-09-29).
-  `just agents-sync` copies that tree byte for byte into `.claude/skills/`, where Claude
-  Code reads them (https://code.claude.com/docs/en/skills, checked 2026-09-29).
-- Loop: edit the `.agents/` copy, run `just agents-sync`, commit both trees together.
-  Never hand-edit `.claude/skills/`: the next sync overwrites the edit without a word.
-  `just agents-check` fails when the trees differ; the pre-commit hook runs the same
-  check on the staged trees when a commit stages a skill path, so stage both, and CI's
-  `Repo Lint & Harness` job runs it on every PR.
-- The mirror is real files, not a symlink: a symlink is only a link where git checks it
-  out as one (`core.symlinks`, https://git-scm.com/docs/git-config, checked 2026-09-29),
-  and real files let `just agents-check` compare bytes. The sync refuses a symlink.
-- Being generated, the mirror is skipped by `typos`, and `.gitattributes` collapses it
-  in a PR diff. Review and spell-check `.agents/skills/`. Markdown has no formatter
-  here: wrap prose by hand at the width the neighboring skills use. When `typos` flags a real technical term, add
-  it to `typos.toml`'s `[default.extend-words]` rather than rewording around the checker
-  (a gate file: `changing-gates`).
+- Author a skill once, under `.claude/skills/<name>/`, where Claude Code reads project
+  skills (https://code.claude.com/docs/en/skills, checked 2026-09-29), and edit it
+  there: no generated copy exists to keep in step.
+- A skill is real files, not a symlink: a symlink is only a link where git checks it
+  out as one (`core.symlinks`, https://git-scm.com/docs/git-config, checked
+  2026-09-29), and `just check-harness` refuses one under `.claude/skills/`.
+- The pre-commit hook's `typos` job spell-checks a staged skill; CI's tree-wide run
+  skips hidden directories such as `.claude/`, so `mise exec -- typos
+  .claude/skills/<name>` (below) is the check for a skill committed without the hook.
+  Markdown has no formatter here: wrap prose by hand at the width the neighboring
+  skills use. When `typos` flags a real technical term, add it to `typos.toml`'s
+  `[default.extend-words]` rather than rewording around the checker (a gate file:
+  `changing-gates`).
 - Skills live in this repository, never in a committed plugin marketplace: a plugin's
-  skill sits outside `.agents/skills/`, so Codex CLI, `just agents-check`, and CI never
-  see it; an unpinned plugin update changes behavior without a pull request; and a
-  public template cannot ask its users to trust a personal marketplace.
+  skill sits outside `.claude/skills/`, so `just check-harness` and CI never see it; an
+  unpinned plugin update changes behavior without a pull request; and a public template
+  cannot ask its users to trust a personal marketplace.
 
 ## Layout
 
-- One directory level: `.agents/skills/<name>/SKILL.md`, plus optional `references/`,
+- One directory level: `.claude/skills/<name>/SKILL.md`, plus optional `references/`,
   `scripts/`, or `assets/` beneath it. No category folders.
 - No file below a skill's top directory is named `SKILL.md`: a scanner walking the tree
   can take it for a second skill. Name a reference file for its content.
@@ -156,7 +152,7 @@ of an active skill competes with the task for the agent's context.
 
 ## Scripts bundled inside a skill
 
-A script under `.agents/skills/<name>/scripts/` follows `AGENTS.md` › "Repository
+A script under `.claude/skills/<name>/scripts/` follows `AGENTS.md` › "Repository
 scripts": Python on the standard library or shell, with its tests under the skill's
 `scripts/tests/`, which `just test-scripts` runs with no coverage floor. A skill whose
 first suite lands adds its line to the `test-scripts` recipe in the same pull request.
@@ -166,9 +162,8 @@ measure it.
 
 ## Before committing a skill
 
-A matching mirror proves nothing about the source: a `SKILL.md` whose frontmatter does
-not parse, whose `name` differs from its directory, or that carries a third key mirrors
-cleanly and never loads in either host. `just check-harness` covers the mechanical part,
+A `SKILL.md` whose frontmatter does not parse, whose `name` differs from its directory,
+or that carries a third key looks fine in review and never loads. `just check-harness` covers the mechanical part,
 including no reference to this repository's issues or pull requests (`#` and digits, an
 issue or pull-request URL on this repository or relative to it, the word issue, PR, pull
 request, or merge request before a number, `GH-` and digits, or a `gh issue`/`gh pr`
@@ -176,10 +171,8 @@ command given a number; an upstream project's issue URL or `owner/repo#N` passes
 source): a skill states the rule and its reason itself.
 
 ```bash
-just agents-sync
-just agents-check
 just check-harness
-mise exec -- typos .agents/skills/<name>
+mise exec -- typos .claude/skills/<name>
 ```
 
 No check reads the description's wording, the 150-line target, the markers, whether an

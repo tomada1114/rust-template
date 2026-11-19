@@ -4,10 +4,9 @@ description: >
   Covers turning the working tree into Conventional Commits in this repository: the
   branch guard, the judgment the staged guard (cargo xtask check-staged) cannot make,
   grouping changes into atomic commits, the files that must travel together (Cargo.lock
-  with a Cargo.toml, .claude/skills/ with .agents/skills/), the commit types
+  with a Cargo.toml), the commit types
   check-pr-title.yml accepts, and recovering when lefthook's pre-commit hook refuses a
-  commit (ERR_STAGED_BLOCKED_PATH, ERR_STAGED_CREDENTIAL_SHAPED, rustfmt, typos, skills
-  mirror). Use when asked to commit, save changes, stage changes,
+  commit (ERR_STAGED_BLOCKED_PATH, ERR_STAGED_CREDENTIAL_SHAPED, rustfmt, typos). Use when asked to commit, save changes, stage changes,
   commit and push, push my changes, or ship it, or when git commit fails in the hook.
 ---
 
@@ -94,8 +93,7 @@ tells matters more than the commit count: three related one-line edits are one c
 | Tool config (`mise.toml`, `typos.toml`, `.claude/`, an editor file) | `chore` |
 
 Where two rows match one file, the more specific row wins: a Markdown file is `docs`
-wherever it lives (the PR template too), and a skill's mirror under `.claude/skills/`
-is `docs`.
+wherever it lives (the PR template too), and so is a skill under `.claude/skills/`.
 
 These always travel in one commit, whatever the grouping otherwise says:
 
@@ -104,9 +102,6 @@ These always travel in one commit, whatever the grouping otherwise says:
 - **A manifest and its lockfile:** `Cargo.lock` with the `Cargo.toml` that moved it. A
   lockfile committed apart from its manifest is a commit that does not build (`cargo`
   fails under `--locked`).
-- **A skill and its mirror:** `.agents/skills/<name>/` with `.claude/skills/<name>/`
-  after `just agents-sync`. The hook's skills-mirror job compares the two trees as
-  staged, so a commit that stages only one side is refused: stage both.
 
 ## Step 4: Write the commits
 

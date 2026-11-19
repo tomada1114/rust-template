@@ -71,7 +71,7 @@ inside that 300-second window after this run changed something.
 Issue bodies come from the same fetch — one more call, not three:
 
 ```bash
-python3 .agents/skills/shipping-issues/scripts/issue_digest.py --select 3 --with-rank \
+python3 .claude/skills/shipping-issues/scripts/issue_digest.py --select 3 --with-rank \
     --detail-top 3 --body-chars 700
 ```
 

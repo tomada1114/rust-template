@@ -99,9 +99,9 @@ weakening a gate. A tool added to `mise.toml` that a CI job needs is added to th
 
 - `skip: [merge, rebase]` sits on the two style jobs only, never on the hook: the
   commit that concludes a conflicted merge carries a resolution no hook has seen, so the
-  staged guard and the skills mirror run for it, while the style jobs, which CI reruns
+  staged guard runs for it, while the style jobs, which CI reruns
   over the whole tree, skip re-linting everything the other side changed. A `reword` or
-  a `git commit --amend` at an `edit` stop runs the guard and the mirror too, over what
+  a `git commit --amend` at an `edit` stop runs the guard too, over what
   is staged against HEAD at that stop. `xtask/tests/lefthook.rs` drives a real
   conflicted merge and a conflicted rebase stop through the real lefthook.
 - `parallel: true`: every job is check-only, so none depends on another's output. A
@@ -118,9 +118,8 @@ weakening a gate. A tool added to `mise.toml` that a CI job needs is added to th
 
 ## `typos.toml`
 
-An ignore entry takes a path out of the gate for good; the list excludes build output,
-the lockfile, and the generated `.claude/skills/` mirror, and `just check-harness` fails
-unless it excludes that mirror and not `.agents/skills/`. A real technical term goes
+An ignore entry takes a path out of the gate for good; the list excludes build output
+and the lockfile, and nothing else. A real technical term goes
 in `[default.extend-words]` with the reason it is spelled that way.
 
 ## The harness checks, `xtask/src/check_harness/`
@@ -132,8 +131,7 @@ report each violation as an `ERR_CHECK_<WHAT>` with `Expected:`, `Actual:`, and 
 lines. Several keep two lists equal that a human would let drift: the core boundary
 (`AGENTS.md`'s sentence, `deny.toml`'s wrappers, the dependency closure), the bots'
 cooldowns, the advisory ignores of OSV-Scanner and Dependency Review, the bundle
-identifier in `paths.rs` and the justfile, and the ignore lists' treatment of the
-skills mirror.
+identifier in `paths.rs` and the justfile.
 
 - **Adding a claim** is routine: a new module, its entry in `CHECKS`, tests in the
   module, and, for a check that reads a tree, a fixture root under

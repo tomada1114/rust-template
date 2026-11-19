@@ -1,7 +1,7 @@
 //! `lefthook.yml`'s pre-commit hook, run by the real lefthook through a real
 //! `git commit` in a throwaway repository: the commit that concludes a conflicted merge,
 //! or one made at a conflicted rebase stop, carries a resolution no hook has seen, so the
-//! staged guard and the skills mirror must still run for it.
+//! staged guard must still run for it.
 //!
 //! The throwaway repository gets the checkout's `lefthook.yml` (read, never written) and
 //! a `cargo` first on PATH that runs this build's `xtask` for `cargo xtask …`, with the
@@ -28,8 +28,6 @@ fn must<T, E: std::fmt::Display>(result: Result<T, E>, what: &str) -> T {
 fn github_token() -> String {
     ["gh", "p_", &"Z".repeat(36)].concat()
 }
-
-const SKILL: &str = "demo/SKILL.md";
 
 /// The target directory every `cargo xtask` hook command builds into, away from the
 /// workspace's `target/`, whose lock a concurrent build holds.
@@ -196,19 +194,6 @@ fn notes(side: &str) -> Vec<(String, String)> {
     vec![("notes.txt".to_owned(), format!("{side}\n"))]
 }
 
-fn skill(side: &str) -> Vec<(String, String)> {
-    vec![
-        (format!(".agents/skills/{SKILL}"), format!("{side}\n")),
-        (format!(".claude/skills/{SKILL}"), format!("{side}\n")),
-    ]
-}
-
-fn notes_and_skill(side: &str) -> Vec<(String, String)> {
-    let mut files = notes(side);
-    files.extend(skill(side));
-    files
-}
-
 #[test]
 fn a_merge_resolution_with_a_credential_shaped_line_is_refused() {
     let repo = conflicted_merge(notes);
@@ -229,32 +214,9 @@ fn a_merge_resolution_with_a_credential_shaped_line_is_refused() {
 }
 
 #[test]
-fn a_resolved_skill_conflict_staged_without_its_synced_mirror_is_refused() {
-    let repo = conflicted_merge(skill);
-    repo.write(&format!(".agents/skills/{SKILL}"), "resolved\n");
-    repo.write(&format!(".claude/skills/{SKILL}"), "main\n");
-    repo.git(&["add", ".agents", ".claude"]);
-
-    let (ok, output) = repo.run("git", &["commit", "--no-edit"]);
-    assert!(!ok, "{output}");
-    assert!(output.contains("ERR_AGENTS_DRIFT"), "{output}");
-    assert!(
-        output.contains(&format!(".claude/skills/{SKILL}")),
-        "{output}"
-    );
-    assert!(!repo.merge_concluded());
-}
-
-#[test]
 fn a_clean_merge_resolution_concludes_skipping_only_the_style_jobs() {
-    let repo = conflicted_merge(notes_and_skill);
-    for path in [
-        "notes.txt".to_owned(),
-        format!(".agents/skills/{SKILL}"),
-        format!(".claude/skills/{SKILL}"),
-    ] {
-        repo.write(&path, "resolved\n");
-    }
+    let repo = conflicted_merge(notes);
+    repo.write("notes.txt", "resolved\n");
     repo.git(&["add", "--all"]);
 
     let (ok, output) = repo.run("git", &["commit", "--no-edit"]);
@@ -301,7 +263,7 @@ fn every_documented_xtask_hook_builds_in_its_own_target_directory() {
         .map(str::trim)
         .filter(|line| line.starts_with("run:") && line.contains("cargo xtask"))
         .collect();
-    assert_eq!(jobs.len(), 2, "{jobs:?}");
+    assert_eq!(jobs.len(), 1, "{jobs:?}");
     for job in jobs {
         assert!(
             job.starts_with(&format!("run: {HOOK_TARGET_DIR} cargo xtask ")),
@@ -327,11 +289,11 @@ fn every_documented_xtask_hook_builds_in_its_own_target_directory() {
     );
 }
 
-/// A `skip:` or `only:` on the hook, or on the staged guard or the skills mirror, would
+/// A `skip:` or `only:` on the hook, or on the staged guard, would
 /// let a merge or rebase-stop commit through unjudged; the tests above prove the merge
 /// case through a real commit, and this pins every case at the config.
 #[test]
-fn never_skips_the_staged_guard_or_the_skills_mirror() {
+fn never_skips_the_staged_guard() {
     let text = must(
         std::fs::read_to_string(checkout().join("lefthook.yml")),
         "read lefthook.yml",
@@ -345,13 +307,12 @@ fn never_skips_the_staged_guard_or_the_skills_mirror() {
         assert!(hook[key].is_badvalue(), "pre-commit has `{key}`");
     }
     let jobs = hook["jobs"].as_vec().expect("pre-commit has a jobs list");
-    for name in ["staged guard", "skills mirror"] {
-        let job = jobs
-            .iter()
-            .find(|job| job["name"].as_str() == Some(name))
-            .unwrap_or_else(|| panic!("lefthook.yml has no \"{name}\" job"));
-        for key in ["skip", "only"] {
-            assert!(job[key].is_badvalue(), "{name} has `{key}`");
-        }
+    let name = "staged guard";
+    let job = jobs
+        .iter()
+        .find(|job| job["name"].as_str() == Some(name))
+        .unwrap_or_else(|| panic!("lefthook.yml has no \"{name}\" job"));
+    for key in ["skip", "only"] {
+        assert!(job[key].is_badvalue(), "{name} has `{key}`");
     }
 }

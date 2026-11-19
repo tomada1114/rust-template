@@ -56,9 +56,8 @@ checked 2026-10-11); an environment's own setup script may add more. So, at step
   build can outlast one 10-minute slice: build one crate at a time
   (`cargo build --locked -p <crate>`), each in its own slice.
 - No git hook is installed, so before every commit run what lefthook's pre-commit hook
-  would (`lefthook.yml`): `CARGO_TARGET_DIR=target/xtask cargo xtask check-staged`, and
-  `CARGO_TARGET_DIR=target/xtask cargo xtask sync-agents --check --staged` when a skill
-  path is staged. A refusal is fixed, never committed past.
+  would (`lefthook.yml`): `CARGO_TARGET_DIR=target/xtask cargo xtask check-staged`. A
+  refusal is fixed, never committed past.
 
 Never install a tool with a downloaded installer to fill the gap; the environment's
 setup script is the owner's to change.

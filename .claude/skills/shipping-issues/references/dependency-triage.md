@@ -164,7 +164,7 @@ Either way, the same four things happen in the same order:
    — `step=2b` for the critical-path decision, `step=8b` for the sweep, whether that ran
    in the background or inline.
 4. Clear the block:
-   `python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py --clear-design <n>`
+   `python3 .claude/skills/shipping-issues/scripts/apply_priority_labels.py --clear-design <n>`
    — after the comment posted, never before. It removes the label and rewrites a ship
    contract's `design=open` to `design=settled`, since either form alone still holds the
    issue.

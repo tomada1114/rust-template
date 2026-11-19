@@ -70,7 +70,7 @@ by number or with `--include-design` ([step 2b](#2b-decide-a-design-that-gates-t
   a checkout: record each event with `scripts/run_record.py` as it happens, and
   **re-read `<runstate>/run.md` after a compaction**
   ([recovery.md](references/recovery.md#after-a-context-compaction)). Scripts run from
-  the main checkout's root as `.agents/skills/shipping-issues/scripts/<name>` and need
+  the main checkout's root as `.claude/skills/shipping-issues/scripts/<name>` and need
   `git`, `python3`, and `gh`.
 
 ## Workflow
@@ -78,7 +78,7 @@ by number or with `--include-design` ([step 2b](#2b-decide-a-design-that-gates-t
 ### 1. Plan — one call
 
 ```bash
-python3 .agents/skills/shipping-issues/scripts/plan.py --mode <all|single|N> \
+python3 .claude/skills/shipping-issues/scripts/plan.py --mode <all|single|N> \
     [--max-parallel N] [--label L] [--assignee A] [--milestone M] [--include-design] --record
 ```
 

@@ -32,7 +32,7 @@ carry **`Closes #N`** after the summary (a bare `#N` closes nothing) and target 
 (`--event pr-created --field issue=<n> --field pr=<url>`), then:
 
 ```bash
-.agents/skills/shipping-issues/scripts/link_check.sh <pr> --issue <n> --fix
+.claude/skills/shipping-issues/scripts/link_check.sh <pr> --issue <n> --fix
 ```
 
 Run it before step 6's watch starts: every body edit it makes fires the PR's `edited`
@@ -69,7 +69,7 @@ the checks API serves the previous commit's results for a minute or two after a 
 and a stale PASS is worse than a stale FAIL. Then:
 
 ```bash
-.agents/skills/shipping-issues/scripts/ci_watch.sh <pr> --timeout <seconds> > <runstate>/ci/<pr>.log
+.claude/skills/shipping-issues/scripts/ci_watch.sh <pr> --timeout <seconds> > <runstate>/ci/<pr>.log
 grep -E '^(verdict|waited_seconds|head_sha|mergeable|merge_state|review_decision):' <runstate>/ci/<pr>.log
 ```
 
@@ -113,7 +113,7 @@ run.
 ## Merging
 
 ```bash
-.agents/skills/shipping-issues/scripts/land_pr.sh <pr> --issue <n> --head-sha <head_sha>
+.claude/skills/shipping-issues/scripts/land_pr.sh <pr> --issue <n> --head-sha <head_sha>
 ```
 
 `<head_sha>` is the `head_sha:` line of the `PASS` in `<runstate>/ci/<pr>.log` — the

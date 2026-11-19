@@ -19,7 +19,7 @@ default:
     @just --list
 
 # Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
-check: verify-hooks fmt lint lint-repo agents-check test-scripts check-harness test test-platform
+check: verify-hooks fmt lint lint-repo test-scripts check-harness test test-platform
 
 # Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
 lint-repo:
@@ -130,14 +130,6 @@ test-scripts:
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .claude/skills/shipping-issues/scripts/tests -t .claude/skills/shipping-issues/scripts/tests -p 'test_*.py'
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .claude/skills/merging-dependency-prs/scripts/tests -t .claude/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
     shellcheck .claude/skills/shipping-issues/scripts/*.sh
-
-# Regenerate .claude/skills/ as a byte-for-byte copy of .agents/skills/
-agents-sync:
-    cargo xtask sync-agents
-
-# Fail when .claude/skills/ differs from .agents/skills/, listing each path (writes nothing)
-agents-check:
-    cargo xtask sync-agents --check
 
 # Create or update the repository's labels from .github/labels.yml (a GitHub write: a human's step)
 labels:

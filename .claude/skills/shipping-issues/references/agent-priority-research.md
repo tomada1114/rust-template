@@ -18,11 +18,11 @@ your ordering directly, so an unverified claim costs me a full implement/PR/CI
 cycle — and a wrong label costs every later run too.
 
 Read first, in this order:
-  .agents/skills/shipping-issues/references/priority-rubric.md
-  .agents/skills/shipping-issues/references/dependency-triage.md
+  .claude/skills/shipping-issues/references/priority-rubric.md
+  .claude/skills/shipping-issues/references/dependency-triage.md
 
 Then run and read the full-body digest (do not paste its raw output back to me):
-  python3 .agents/skills/shipping-issues/scripts/issue_digest.py {filters}
+  python3 .claude/skills/shipping-issues/scripts/issue_digest.py {filters}
 
 `~P<n>` in the priority column is a suggested tier the script computed but has not
 written; `P2(~P0)` is a written label the signals now say is too low. Run the
@@ -33,7 +33,7 @@ claim you repeat:
   check whether CI/{default_branch} is actually broken, only if an issue claims it
 
 Then write the tiers — one call, both halves:
-  python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py \
+  python3 .claude/skills/shipping-issues/scripts/apply_priority_labels.py \
       --backfill --set <n>=<tier> --set <m>=<tier> --quiet
 
 `--backfill` takes the script's suggestion for every issue you did not examine;

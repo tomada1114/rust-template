@@ -46,7 +46,7 @@ only.
 mkdir -p <runstate>/rest
 gh api --paginate --slurp "repos/{owner}/{repo}/issues?state=open&per_page=100" > <runstate>/rest/issues.json
 gh api --paginate --slurp "repos/{owner}/{repo}/pulls?state=open&per_page=100" > <runstate>/rest/pulls.json
-python3 .agents/skills/shipping-issues/scripts/issue_digest.py --issues-file <runstate>/rest/issues.json \
+python3 .claude/skills/shipping-issues/scripts/issue_digest.py --issues-file <runstate>/rest/issues.json \
     --prs-file <runstate>/rest/pulls.json --limit 100000 --select 3 --with-rank --detail-top 1 --body-chars 700
 ```
 
@@ -247,7 +247,7 @@ report; anything else is a stop, with the issue named as left open behind a merg
 After the merge, fetch the backlog again ([above](#the-backlog-and-the-pick)), then:
 
 ```bash
-python3 .agents/skills/shipping-issues/scripts/issue_digest.py --issues-file <runstate>/rest/issues.json \
+python3 .claude/skills/shipping-issues/scripts/issue_digest.py --issues-file <runstate>/rest/issues.json \
     --prs-file <runstate>/rest/pulls.json --limit 100000 --json --body-chars 0 \
   | python3 -c 'import json, sys; n = int(sys.argv[1]); print(" ".join(str(i["number"]) for i in json.load(sys.stdin)["issues"] if n in i["depends_on"] and "blocked: dependency" in i["stale_dependency_labels"]))' <n>
 ```
@@ -290,7 +290,7 @@ byte, with `apply_priority_labels.py`'s own rewrite (imported, so no `gh` runs):
 
 ```bash
 gh api repos/{owner}/{repo}/issues/<n> > <runstate>/design/<n>-issue.json
-python3 -B -c 'import json, sys; sys.path.insert(0, ".agents/skills/shipping-issues/scripts"); from apply_priority_labels import settle_contract_design; body = json.load(open(sys.argv[1], encoding="utf-8")).get("body") or ""; new = settle_contract_design(body); print("contract: nothing to settle" if new is None else "contract: settled"); new is None or open(sys.argv[2], "w", encoding="utf-8", newline="").write(new)' \
+python3 -B -c 'import json, sys; sys.path.insert(0, ".claude/skills/shipping-issues/scripts"); from apply_priority_labels import settle_contract_design; body = json.load(open(sys.argv[1], encoding="utf-8")).get("body") or ""; new = settle_contract_design(body); print("contract: nothing to settle" if new is None else "contract: settled"); new is None or open(sys.argv[2], "w", encoding="utf-8", newline="").write(new)' \
   <runstate>/design/<n>-issue.json <runstate>/design/<n>-body.md
 gh api -X PATCH repos/{owner}/{repo}/issues/<n> -F body=@<runstate>/design/<n>-body.md --jq .number   # only after "contract: settled"
 ```

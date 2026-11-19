@@ -65,7 +65,7 @@ file that.
 ## The filing call
 
 ```bash
-python3 .agents/skills/shipping-issues/scripts/file_followup.py \
+python3 .claude/skills/shipping-issues/scripts/file_followup.py \
     --title "<repo's title convention>" --body-file <path> \
     --tier P2 --area <area> --touches <paths> --label <type label> \
     --found-while <n> [--blocked-by <n,n>] [--needs-design]

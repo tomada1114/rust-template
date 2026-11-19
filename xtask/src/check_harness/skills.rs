@@ -1,10 +1,9 @@
 //! Every skill under `.claude/skills/`, the tree Claude Code loads, is well formed, and
 //! `AGENTS.md`'s Skills table indexes exactly those skills. A skill with a stray key, a
-//! mismatched name, or a value Codex CLI's strict YAML parser rejects mirrors cleanly and
+//! mismatched name, or a value Codex CLI's strict YAML parser rejects looks fine and
 //! then silently never loads; one with no row is never found by a reader.
 //!
-//! For each directory `.claude/skills/<dir>/` (generated from `.agents/skills/` by `just
-//! agents-sync`, and byte-identical to it, which `just agents-check` asserts):
+//! For each directory `.claude/skills/<dir>/`:
 //! - `<dir>/SKILL.md` opens with a `---` line and a later `---` line closes the block; the
 //!   block parses as YAML (duplicate keys rejected) into a mapping of exactly `name` and
 //!   `description`. This approximates Codex CLI's own YAML parser, which this check does
@@ -38,8 +37,7 @@ const SKILLS: &str = ".claude/skills";
 const MAX_DESCRIPTION: usize = 1024;
 const MAX_BODY_LINES: usize = 200;
 const MAX_NAME: usize = 64;
-const FIX_SKILL: &str =
-    "fix the skill under .agents/skills/ (the authoring-skills skill), then `just agents-sync`";
+const FIX_SKILL: &str = "fix the skill under .claude/skills/ (the authoring-skills skill)";
 
 fn frontmatter_violation(dir: &str, actual: impl Into<String>) -> FailureDetails {
     finding(
@@ -198,7 +196,7 @@ fn skill_file_violations(dir: &str, text: &str) -> Vec<FailureDetails> {
             format!("{SKILLS}/{dir}/SKILL.md is over the {MAX_BODY_LINES}-line body cap"),
             format!("at most {MAX_BODY_LINES} lines after the closing `---` (the target is 150)"),
             format!("{} lines", body.len()),
-            "move tables, long examples, and edge cases into references/ (the authoring-skills skill), then `just agents-sync`",
+            "move tables, long examples, and edge cases into references/ (the authoring-skills skill)",
         ));
     }
 
@@ -335,7 +333,7 @@ fn symlink_violation(path: &str) -> FailureDetails {
         format!("{path} is a symbolic link"),
         "real files only under .claude/skills/ (git checks a link out as a link only where core.symlinks allows)",
         "a symbolic link",
-        "replace the link with the file it points to, then `just agents-sync`",
+        "replace the link with the file it points to",
     )
 }
 
@@ -351,7 +349,7 @@ fn tree_violations(root: &Path, dir: &str) -> Vec<FailureDetails> {
                 format!("{path} is a SKILL.md below a skill's top directory"),
                 "SKILL.md only at .claude/skills/<dir>/SKILL.md, so a host never loads a second skill from a subdirectory",
                 path.clone(),
-                "rename the nested file for its content (references/<topic>.md), then `just agents-sync`",
+                "rename the nested file for its content (references/<topic>.md)",
             ));
         }
     }

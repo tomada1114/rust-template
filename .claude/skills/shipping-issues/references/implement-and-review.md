@@ -33,7 +33,7 @@ installs nothing, since cargo builds on demand into each worktree's own `target/
 
 ```bash
 git switch <default_branch> && git pull --ff-only   # once, before the batch
-.agents/skills/shipping-issues/scripts/worktree_setup.sh --spec <n>:<branch> \
+.claude/skills/shipping-issues/scripts/worktree_setup.sh --spec <n>:<branch> \
     --spec <m>:<branch> --base <default_branch> --root <runstate>/worktrees \
     --log-dir <runstate>/verify
 ```

@@ -48,7 +48,7 @@ just logs           # print the end of the newest app log and exit
 just check          # the local gate, in CI's order; its steps are listed below
 ```
 
-`just check` runs verify-hooks → fmt → lint → lint-repo → agents-check → test-scripts → check-harness → test →
+`just check` runs verify-hooks → fmt → lint → lint-repo → test-scripts → check-harness → test →
 test-platform. It opens no window, takes no focus, raises no prompt, and takes over no
 terminal.
 
@@ -87,7 +87,7 @@ cargo test --doc --locked -p myapp-core
 cargo nextest run --locked -p myapp-test-support -p myapp-platform -p myapp
 cargo nextest run --locked --all-features -p myapp-test-support -p myapp-platform -p myapp
 cargo llvm-cov nextest --locked --no-report -p xtask -p xtask-guard  # just test-xtask (its floors: the recipe's report lines)
-python3 -m unittest discover -s .agents/skills/<skill>/scripts/tests -t .agents/skills/<skill>/scripts/tests  # just test-scripts, per skill (plus shellcheck)
+python3 -m unittest discover -s .claude/skills/<skill>/scripts/tests -t .claude/skills/<skill>/scripts/tests  # just test-scripts, per skill (plus shellcheck)
 cargo nextest run --locked -p myapp-platform -p myapp   # just test-platform
 cargo nextest run --locked --all-features -p myapp-platform -p myapp
 cargo deny --locked check                        # just deny

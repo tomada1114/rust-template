@@ -3,8 +3,8 @@
 
 Run from the repository root:
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
-        -s .agents/skills/merging-dependency-prs/scripts/tests \
-        -t .agents/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
+        -s .claude/skills/merging-dependency-prs/scripts/tests \
+        -t .claude/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
 """
 from __future__ import annotations
 
@@ -165,7 +165,7 @@ class MainTest(TempRoots):
         lines = err.getvalue().splitlines()
         self.assertEqual(lines[0], "ERR_SURVEY_USAGE: unknown argument: --merge")
         self.assertEqual([ln.split(":")[0] for ln in lines[1:]], ["Expected", "Actual", "Next"])
-        self.assertIn("python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py", lines[3])
+        self.assertIn("python3 .claude/skills/merging-dependency-prs/scripts/survey_prs.py", lines[3])
 
     def test_runs_as_a_script(self):
         result = subprocess.run([sys.executable, str(SCRIPT), "--bogus"], capture_output=True,

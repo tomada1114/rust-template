@@ -381,7 +381,7 @@ fn product_section_behaviour(
         .iter()
         .filter(|name| {
             !root
-                .join(".agents/skills")
+                .join(".claude/skills")
                 .join(name)
                 .join("SKILL.md")
                 .is_file()
@@ -1081,7 +1081,7 @@ mod tests {
         write(root, "AGENTS.md", AGENTS);
         write(
             root,
-            ".agents/skills/starting-an-app/SKILL.md",
+            ".claude/skills/starting-an-app/SKILL.md",
             "---\nname: starting-an-app\n---\n",
         );
         write(
@@ -1445,7 +1445,7 @@ mod tests {
                 "CHANGELOG.md",
                 "justfile",
                 "AGENTS.md",
-                ".agents",
+                ".claude",
                 "docs",
             ] {
                 let status = run_command(

@@ -45,8 +45,7 @@ gates are the ones they are.
 
 A gate calls the same command every other layer calls; it never defines a rule of its own.
 The `justfile` is the one definition of each check: `just check` runs the local set
-(verify-hooks, fmt, lint, lint-repo, agents-check, test-scripts, check-harness, test,
-test-platform), CI's jobs run the same recipes or the same `cargo` commands as separate
+(verify-hooks, fmt, lint, lint-repo, test-scripts, check-harness, test, test-platform), CI's jobs run the same recipes or the same `cargo` commands as separate
 steps so a reader sees which step failed, and each `lefthook.yml` job
 runs the same executable and flags as its recipe, narrowed to the staged files. A check
 that lives in only one layer passes there and fails in the others, or the reverse.
@@ -101,8 +100,7 @@ elsewhere, including this skill. Detail, traps, and the judgment each needs are 
 ## The pre-commit hook stays check-only and fast
 
 Enforced by: `lefthook.yml` (no job writes a file). It runs `rustfmt --check` and
-`typos` on the staged files, the skills-mirror check
-when a skill path is staged, and the staged guard on every commit. It never compiles,
+`typos` on the staged files, and the staged guard on every commit. It never compiles,
 runs clippy or a test, or formats and re-stages. That is a decision, not an omission:
 
 - A Rust compile takes far longer than a commit should, and it builds the working tree,
