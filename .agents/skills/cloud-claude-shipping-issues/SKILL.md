@@ -16,8 +16,8 @@ description: >
 
 **Owns:** shipping issues end to end from a Claude Code cloud session — rank, implement,
 branch review, PR, CI, merge, follow-ups, and the session's branch between issues — over REST.
-**Does not own:** the local workflow and its scripts (`shipping-issues`), Codex's
-(`codex-shipping-issues`), or what an issue body and a label mean (`triaging-issues`).
+**Does not own:** the local workflow and its scripts (`shipping-issues`), or what an
+issue body and a label mean (`triaging-issues`).
 **Done:** branch reviewed, PR merged, issue CLOSED, no gate deleted or weakened.
 
 ## Authority

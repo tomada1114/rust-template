@@ -302,7 +302,6 @@ byte-for-byte into `.claude/skills/` (the only path Claude Code reads) by
 | `create-pr` | Opening or updating a pull request: title, body, Release impact, evidence |
 | `triaging-issues` | Filing or labelling an issue: type, priority, blocked, tracking |
 | `shipping-issues` | Claude Code on the developer's machine: taking ranked open issues to merged pull requests — rank, implement (worktrees), review the branch locally with `/code-review`, PR, CI, merge |
-| `codex-shipping-issues` | Codex: shipping one issue through a regular PR after a read-only fresh-context review of the branch with its findings addressed, current-head CI, and the merge the request authorizes, over GitHub MCP |
 | `cloud-claude-shipping-issues` | A Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`): shipping issues serially over REST `gh api` calls — rank, implement, review the branch, PR, CI, merge |
 | `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; a pre-1.0 ratatui minor lands alone |
 | `managing-dependencies` | Adding or changing a crate: the review record, features, licences |
@@ -430,11 +429,6 @@ writes that skill exists to make, for that invocation only.
   follow-up issues; and removing `blocked: dependency` from the issues its merge
   unblocked — never a branch deletion or Auto-fix.
 
-`codex-shipping-issues` is not a standing exception: Codex's writes come from the
-user's own request in that session (a request to ship an issue through merge covers its
-commits, push, PR, review corrections, and the gated merge; a request for a PR stops
-there), never from invoking the skill.
-
 One request is a standing exception too: the human explicitly asking for an issue
 ("file an issue for this") is the sign-off for the `gh issue create` of each issue that
 request asks for, with the labels `triaging-issues` gives it, and for comments on those
@@ -447,15 +441,10 @@ rewrite, `--no-verify`, weakening a gate, a release pipeline or signing, a relea
 a new dependency, `just labels`, or `just ruleset`. A skill that reaches one of those
 stops and asks.
 
-Which shipping skill runs where: in Codex, the repository-local `codex-shipping-issues`,
-which takes precedence over a global skill of the same name; in a Claude Code cloud
-session (`CLAUDE_CODE_REMOTE=true`), `cloud-claude-shipping-issues`, whose REST calls
-the session's GitHub proxy allows where `shipping-issues`' GraphQL calls are refused;
-`shipping-issues` only in a local Claude Code session. In Codex, every remote GitHub
-read and write goes through the connected GitHub MCP integration — never `gh`, directly
-or through a helper that calls it, and never a direct HTTP fallback; a missing MCP
-capability is reported instead. Local checkout, commit, and push stay in git, and a
-check that runs against a mocked `gh` is fine.
+Which shipping skill runs where: in a Claude Code cloud session
+(`CLAUDE_CODE_REMOTE=true`), `cloud-claude-shipping-issues`, whose REST calls the
+session's GitHub proxy allows where `shipping-issues`' GraphQL calls are refused;
+`shipping-issues` only in a local Claude Code session.
 
 ### Never taking over the developer's Mac
 
