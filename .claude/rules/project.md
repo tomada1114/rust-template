@@ -77,8 +77,8 @@ paths:
   skips the release-metadata lookup. `mise lock` writes it; never hand-edit it.
   `just lint-repo` and CI run `mise lock` then `git diff --exit-code mise.lock`, so a
   `mise.toml` change without its refreshed lock fails there; commit the two together
-- After changing `mise.toml`, run `mise lock` and `mise install`; after changing `rust-toolchain.toml`,
-  the next `cargo` call installs the new toolchain through rustup (`RUSTUP_AUTO_INSTALL`,
+- After changing `mise.toml`, run `mise lock` and `mise install`; after changing
+  `rust-toolchain.toml`, the next `cargo` call installs the new toolchain through rustup (`RUSTUP_AUTO_INSTALL`,
   on by default: https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).
   Then `just check`
 
