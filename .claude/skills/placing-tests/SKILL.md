@@ -41,7 +41,7 @@ fewest machines while still able to fail for the behavior:
 | What a TUI state looks like on screen | `#[cfg(test)] mod tests` in `crates/myapp/src/tui/view.rs`, drawn into ratatui's `TestBackend` | `just test-core`, `just test-platform` | none |
 | The real terminal loop (raw mode, the alternate screen, restoring it) | nowhere automated: a human runs `myapp tui` (`building-tuis`) | a human | none |
 | A repository task in `xtask/` | `#[cfg(test)] mod tests` in the task's file, with fakes for its child processes; a run of the built binary in `xtask/tests/` (`CARGO_BIN_EXE_xtask`, with a temporary directory as its root) | `just test-xtask` | `xtask` 85/90, and `xtask/guard/` 90/100 for the staged guard's rules |
-| A skill's bundled Python or shell script | the skill's own suite (`.agents/skills/<name>/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
+| A skill's bundled Python or shell script | the skill's own suite (`.claude/skills/<name>/scripts/tests/test_*.py`; `shellcheck` for `.sh`) | `just test-scripts` | none: no coverage is measured |
 
 A domain decision tested only in a row that no floor measures is in the wrong place:
 move it into core and test it there. The platform crate and the binary translate, so

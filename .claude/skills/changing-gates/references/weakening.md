@@ -38,7 +38,7 @@ green.
 
 | Construct | Why it is weakening |
 |---|---|
-| Adding a path to an ignore list (`typos.toml`, `deny.toml`, `osv-scanner.toml`) | That path leaves the gate for good, and nothing reports it again. The one deliberate entry in `typos.toml` beyond build output and the lockfile is `.agents/skills/`, a byte-identical copy of the `.claude/skills/` tree Claude Code loads, and a harness check keeps it there and keeps `.claude/skills/` out. |
+| Adding a path to an ignore list (`typos.toml`, `deny.toml`, `osv-scanner.toml`) | That path leaves the gate for good, and nothing reports it again. `typos.toml` excludes only build output and the lockfile. |
 | `continue-on-error` on a CI job or step | The job reports success whatever the step did. A step that must not run without a secret is skipped by an `if:` on a step-level condition instead. |
 | `git commit --no-verify` | Skips every pre-commit job, the staged secret guard included, which no CI job reruns. A personal permission file may deny its usual spellings on one host; the rule binds every author. |
 | Widening a workflow's `permissions:` | A compromised step can do more with the token. |

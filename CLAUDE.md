@@ -20,8 +20,7 @@ only records what Claude Code adds on top of them.
   (never edit them by hand); hand a
   step to one by `subagent_type`, never by a bare `model`. A same-named agent in
   `~/.claude/agents/` is shadowed by these inside this repository.
-- **Skills** are read from `.claude/skills/`, a generated mirror of `.agents/skills/`:
-  never hand-edit it; edit the authored copy and run `just agents-sync`.
+- **Skills** live in `.claude/skills/`, the one tree: edit a skill there, in place.
 
 When an instruction in `AGENTS.md` would block something that looks necessary, the
 answer is to fix what made the bypass look necessary, or to ask. It is not to find

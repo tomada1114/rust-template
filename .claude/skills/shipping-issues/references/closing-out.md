@@ -35,9 +35,9 @@ extends the run past its first merge.
 ## Cleanup scope
 
 ```bash
-.agents/skills/shipping-issues/scripts/cleanup_run.sh --branch <name> [--branch <name> ...] \
+.claude/skills/shipping-issues/scripts/cleanup_run.sh --branch <name> [--branch <name> ...] \
     [--remote] [--dry-run] [--worktree-root <runstate>/worktrees] [--merged-only] [--force]
-.agents/skills/shipping-issues/scripts/preflight.sh \
+.claude/skills/shipping-issues/scripts/preflight.sh \
     --profile-cache <runstate>/repo-profile.json --set-worktree-viable <yes|no>
 ```
 

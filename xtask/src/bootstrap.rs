@@ -322,7 +322,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
-/// The skill files carrying a placeholder; each is listed for both skill trees.
+/// The skill files carrying a placeholder, under `.claude/skills/`.
 const SKILL_SITES: [(&str, &[Form]); 37] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
@@ -466,12 +466,9 @@ const REPOSITORY_SITES: [(&str, &[Form]); 52] = [
     ),
 ];
 
-/// `.agents/skills/<path>` and `.claude/skills/<path>`.
-fn both_skill_trees(path: &str) -> [String; 2] {
-    [
-        format!(".agents/skills/{path}"),
-        format!(".claude/skills/{path}"),
-    ]
+/// `.claude/skills/<path>`.
+fn skill_file(path: &str) -> String {
+    format!(".claude/skills/{path}")
 }
 
 /// Every placeholder site: a file and the forms it carries, sorted by path.
@@ -479,11 +476,11 @@ pub(crate) fn sites() -> Vec<(String, &'static [Form])> {
     let mut sites: Vec<(String, &'static [Form])> = REPOSITORY_SITES
         .iter()
         .map(|(file, forms)| ((*file).to_owned(), *forms))
-        .chain(SKILL_SITES.iter().flat_map(|(path, forms)| {
-            both_skill_trees(path)
-                .into_iter()
-                .map(move |file| (file, *forms))
-        }))
+        .chain(
+            SKILL_SITES
+                .iter()
+                .map(|(path, forms)| (skill_file(path), *forms)),
+        )
         .collect();
     sites.sort_by(|a, b| a.0.cmp(&b.0));
     sites
@@ -668,63 +665,60 @@ fn document_edits() -> Vec<TextEdit> {
     ]
 }
 
-/// The edits to the skills, each in both skill trees.
+/// The edits to the skills.
 fn skill_edits() -> Vec<TextEdit> {
     let mut edits = Vec::new();
-    for file in both_skill_trees("starting-an-app/SKILL.md") {
-        edits.push(edit(
+    let file = skill_file("starting-an-app/SKILL.md");
+    edits.push(edit(
+        &file,
+        STARTING_AN_APP_DESCRIPTION,
+        STARTING_AN_APP_DESCRIPTION_IN_AN_APP,
+    ));
+    edits.push(edit(
+        &file,
+        STARTING_AN_APP_RENAME_STEP,
+        STARTING_AN_APP_RENAME_DONE,
+    ));
+    edits.push(edit(
+        &file,
+        "README's \"Using This Template\" is the reader-facing list of the steps below, in the same\norder; the bootstrap removes that section with the rest of the template-only material,\nso this skill is where an app still finds them.\n\n",
+        "",
+    ));
+    let file = skill_file("authoring-skills/SKILL.md");
+    edits.push(edit(
+        &file,
+        "or test depends on a skill's code block. Write placeholder names exactly (`myapp-core`,\n`myapp_core`, `MyApp`, `com.example.myapp`) so the bootstrap's rename finds them.\n",
+        "or test depends on a skill's code block.\n",
+    ));
+    let file = skill_file("updating-docs/SKILL.md");
+    edits.extend([
+        edit(
             &file,
-            STARTING_AN_APP_DESCRIPTION,
-            STARTING_AN_APP_DESCRIPTION_IN_AN_APP,
-        ));
-        edits.push(edit(
+            "rejects, how the\ntemplate becomes an app (`just bootstrap`), how the tool is installed, and",
+            "rejects, how the\ntool is installed, and",
+        ),
+        edit(&file, UPDATING_DOCS_TEMPLATE_SECTION, ""),
+        edit(
             &file,
-            STARTING_AN_APP_RENAME_STEP,
-            STARTING_AN_APP_RENAME_DONE,
-        ));
-        edits.push(edit(
+            "  README.md (Quickstart, Using This Template), AGENTS.md,\n",
+            "  README.md (Quickstart), AGENTS.md,\n",
+        ),
+        edit(
             &file,
-            "README's \"Using This Template\" is the reader-facing list of the steps below, in the same\norder; the bootstrap removes that section with the rest of the template-only material,\nso this skill is where an app still finds them.\n\n",
-            "",
-        ));
-    }
-    for file in both_skill_trees("authoring-skills/SKILL.md") {
-        edits.push(edit(
+            "  steps drifted, when a template-only block is involved, or when deciding that an\n",
+            "  steps drifted, or when deciding that an\n",
+        ),
+        edit(
             &file,
-            "or test depends on a skill's code block. Write placeholder names exactly (`myapp-core`,\n`myapp_core`, `MyApp`, `com.example.myapp`) so the bootstrap's rename finds them.\n",
-            "or test depends on a skill's code block.\n",
-        ));
-    }
-    for file in both_skill_trees("updating-docs/SKILL.md") {
-        edits.extend([
-            edit(
-                &file,
-                "rejects, how the\ntemplate becomes an app (`just bootstrap`), how the tool is installed, and",
-                "rejects, how the\ntool is installed, and",
-            ),
-            edit(&file, UPDATING_DOCS_TEMPLATE_SECTION, ""),
-            edit(
-                &file,
-                "  README.md (Quickstart, Using This Template), AGENTS.md,\n",
-                "  README.md (Quickstart), AGENTS.md,\n",
-            ),
-            edit(
-                &file,
-                "  steps drifted, when a template-only block is involved, or when deciding that an\n",
-                "  steps drifted, or when deciding that an\n",
-            ),
-            edit(
-                &file,
-                "(the Quickstart,\n  what \"Using This Template\" asks), or when",
-                "(the Quickstart),\n  or when",
-            ),
-            edit(
-                &file,
-                "| The tour: what the template is, Quickstart, Using This Template, the layout, links onward |",
-                "| The tour: what the app is, Quickstart, the layout, links onward |",
-            ),
-        ]);
-    }
+            "(the Quickstart,\n  what \"Using This Template\" asks), or when",
+            "(the Quickstart),\n  or when",
+        ),
+        edit(
+            &file,
+            "| The tour: what the template is, Quickstart, Using This Template, the layout, links onward |",
+            "| The tour: what the app is, Quickstart, the layout, links onward |",
+        ),
+    ]);
     edits
 }
 
@@ -758,8 +752,7 @@ pub(crate) const MARKER_FILES: [&str; 1] = ["README.md"];
 
 /// Removed from the app: the skill reference that only describes this task, and this
 /// task and its verifier.
-pub(crate) const REMOVED_PATHS: [&str; 4] = [
-    ".agents/skills/starting-an-app/references/bootstrap.md",
+pub(crate) const REMOVED_PATHS: [&str; 3] = [
     ".claude/skills/starting-an-app/references/bootstrap.md",
     "xtask/src/bootstrap.rs",
     "xtask/src/verify_bootstrap.rs",
@@ -2776,19 +2769,13 @@ mod tests {
     }
 
     #[test]
-    fn lists_each_site_once_and_keeps_the_skill_trees_in_step() {
+    fn lists_each_site_once() {
         let all = sites();
         let mut files: Vec<&String> = all.iter().map(|(file, _)| file).collect();
         files.dedup();
         assert_eq!(files.len(), all.len());
         for (file, forms) in &all {
             assert!(!forms.is_empty(), "{file}");
-            if let Some(rest) = file.strip_prefix(".agents/") {
-                let mirror = all
-                    .iter()
-                    .find(|(other, _)| *other == format!(".claude/{rest}"));
-                assert_eq!(mirror.map(|(_, forms)| *forms), Some(*forms), "{file}");
-            }
         }
         assert!(REMOVED_PATHS.contains(&"xtask/src/bootstrap.rs"));
         assert!(REMOVED_PATHS.contains(&"xtask/src/verify_bootstrap.rs"));
@@ -2930,7 +2917,7 @@ mod tests {
         assert!(agents.contains("cargo test -p tide-pool-core && pkill -x tide-pool"));
         assert!(agents.contains("use tide_pool_core::Counter; tide_pool_lib::run();"));
         assert!(agents.contains("~/Library/Logs/com.example.tide-pool/"));
-        assert!(read(root, ".agents/skills/designing-clis/SKILL.md").contains("TIDE_POOL_TEST=1"));
+        assert!(read(root, ".claude/skills/designing-clis/SKILL.md").contains("TIDE_POOL_TEST=1"));
         assert!(read(root, "CODE_OF_CONDUCT.md").contains("[@ada](https://github.com/ada)"));
         assert!(read(root, "SECURITY.md").contains("https://github.com/ada/tide-pool/security"));
         // The Product section's introduction holds no marker of its own in an app.

@@ -60,7 +60,7 @@ CLI or TUI action. The default build needs no API key.
 
 The layer rules and what is contract are in [AGENTS.md](AGENTS.md)'s Architecture
 section. How each part is built, and why, is written in the skill that owns it under
-`.agents/skills/` (AGENTS.md's Skills table lists them); there is no separate
+`.claude/skills/` (AGENTS.md's Skills table lists them); there is no separate
 architecture document or roadmap.
 
 <!-- template-only -->

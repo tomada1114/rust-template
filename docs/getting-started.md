@@ -138,20 +138,18 @@ your first real core module, so the coverage floor always has code to measure.
       a counter type as the example (each is a parenthetical or its own sentence;
       replace it with your own type or delete it)
 - [ ] `.github/PULL_REQUEST_TEMPLATE.md` — the counter in the example title
-- [ ] The skills under `.agents/skills/` that give the counter as an example —
+- [ ] The skills under `.claude/skills/` that give the counter as an example —
       among them `integrating-system-apis`' `references/file-formats.md`, whose
-      `counter.json` section becomes your own file's — then `just agents-sync` (the
-      `starting-an-app` skill)
+      `counter.json` section becomes your own file's (the `starting-an-app` skill)
 
 Then run `just check`, and this search, which should print nothing:
 
 ```bash
-git grep -nIiE 'counter|test-fast increment' -- . ':(exclude).claude/skills/' \
-  ':(exclude,glob).agents/skills/*/scripts/**' ':(exclude)CHANGELOG.md'
+git grep -nIiE 'counter|test-fast increment' -- . \
+  ':(exclude,glob).claude/skills/*/scripts/**' ':(exclude)CHANGELOG.md'
 ```
 
 It uses `git grep`, which needs nothing beyond the prerequisites. The exclusions are
-words that are not the sample: a skill's bundled scripts, `.claude/skills/` (the mirror
-`just agents-sync` regenerates), and `CHANGELOG.md`, where the entry recording the
-sample's removal names it on purpose. The harness checks under `xtask/` name no counter,
-so the search reads them too.
+words that are not the sample: a skill's bundled scripts and `CHANGELOG.md`, where the
+entry recording the sample's removal names it on purpose. The harness checks under
+`xtask/` name no counter, so the search reads them too.

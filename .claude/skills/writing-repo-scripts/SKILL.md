@@ -4,7 +4,7 @@ description: >
   Covers writing or editing repository automation and its tests: a cargo xtask task
   under xtask/src/ (its Context, RunOptions, git_env and staged_guard_env, ScriptError,
   test_support::Fake, just test-xtask's floors) and a skill's bundled Python or shell
-  script under .agents/skills/*/scripts/ (header comment, stdlib-only Python, a fake gh,
+  script under .claude/skills/*/scripts/ (header comment, stdlib-only Python, a fake gh,
   tests in scripts/tests/ run by just test-scripts). Use when adding a task, a skill
   script, or the just recipe that calls one, a script must refuse or skip outside a git
   work tree, git spawned from a hook acts on the wrong repository (an inherited GIT_DIR
@@ -17,7 +17,7 @@ description: >
 **Owns:** how repository automation is written and tested: a `cargo xtask` task, and a
 script a skill bundles: what each may depend on, how it spawns git, how it behaves
 outside a git work tree, how it reports failure, and how its test is built. **Does not
-own:** how a skill is authored or mirrored (`authoring-skills`); what a gate checks and
+own:** how a skill is authored (`authoring-skills`); what a gate checks and
 which gate runs a task (`changing-gates`); where a test goes and which floor measures it
 (`placing-tests`); a new crate a task would import (`managing-dependencies`).
 
@@ -31,7 +31,7 @@ not restate the list, so the two cannot drift.
   job, or a CI step runs: the gates, the harness checks, the bootstrap, the GitHub
   writes. It is Rust, so it costs the clone no second toolchain, gets the workspace's
   lints, and parses YAML and TOML with real parsers (`yaml-rust2`, `toml`).
-- **A skill's bundled script** (`.agents/skills/<skill>/scripts/`) is a step of that
+- **A skill's bundled script** (`.claude/skills/<skill>/scripts/`) is a step of that
   skill's procedure, in Python or shell (`merging-dependency-prs`' `survey_prs.py`,
   `shipping-issues`' `plan.py` and `worktree_setup.sh`). It travels with the skill, so
   it uses nothing the skill cannot assume: the Python standard library, `git`, and `gh`.

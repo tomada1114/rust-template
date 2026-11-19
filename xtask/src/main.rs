@@ -21,7 +21,6 @@ mod fail;
 mod format_edited_file;
 mod git_env;
 mod prune_temp;
-mod sync_agents;
 mod sync_labels;
 mod verify_bootstrap;
 mod verify_hooks;
@@ -76,11 +75,6 @@ const TASKS: &[TaskEntry] = &[
         "prune-temp",
         "remove temp dirs a bootstrap check left behind (verify-bootstrap-*) and idle Claude Code scratchpads",
         prune_temp::main,
-    ),
-    (
-        "sync-agents",
-        "mirror .agents/skills/ into .claude/skills/ (--check, --check --staged)",
-        sync_agents::main,
     ),
     (
         "sync-labels",

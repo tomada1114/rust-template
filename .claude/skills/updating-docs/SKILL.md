@@ -4,7 +4,7 @@ description: >
   Decides whether a change owes a documentation update and which surface it lands on:
   README.md (Quickstart, Using This Template), AGENTS.md,
   CONTRIBUTING.md, CHANGELOG.md, docs/getting-started.md, docs/openrouter.md, a skill
-  under .agents/skills/ (where how the app is built and why is written, since there is
+  under .claude/skills/ (where how the app is built and why is written, since there is
   no architecture document or roadmap), or a /// rustdoc comment on a pub item in
   myapp-core. Use when triaging whether a pull request needs a document changed or a CHANGELOG
   [Unreleased] entry, when a justfile recipe, a gate, a subcommand or flag, an on-disk
@@ -18,7 +18,7 @@ description: >
 
 **Owns:** whether a change owes a documentation update, and which surface it lands on.
 **Does not own:** the wording rules for `docs/`, `README.md`, `CONTRIBUTING.md`, and
-`CHANGELOG.md` (`.claude/rules/docs.md`); how a skill is written and mirrored
+`CHANGELOG.md` (`.claude/rules/docs.md`); how a skill is written
 (`authoring-skills`); which changes are design changes (`AGENTS.md` › "Before changing
 the architecture"); what a `///` comment says (`writing-rust`).
 
@@ -75,7 +75,7 @@ another's content: a copy is the half that goes stale.
 | `CHANGELOG.md` | The human-curated record of user-visible changes (Keep a Changelog) |
 | `docs/getting-started.md` | First setup, everyday commands, seeing the tool, TCC, removing the example code |
 | `docs/openrouter.md` | Enabling the optional model calls: the key, the model choices, reusing the adapter, its bounds |
-| a skill under `.agents/skills/` | The conventions of one kind of change, and how its subject is built and why, loaded on demand |
+| a skill under `.claude/skills/` | The conventions of one kind of change, and how its subject is built and why, loaded on demand |
 | `///` on a `pub` item in core | That item's contract: why it exists and what it promises |
 
 ## Changes that move two files at once
@@ -172,8 +172,7 @@ Non-obvious behaviour, decisions, and trade-offs. Not what the code, a type, or 
 signature already says: if a reader can get the fact by reading the signature or by
 running the code, it needs no sentence.
 
-## Generated trees are off-limits
+## Build output is off-limits
 
-Never hand-edit or document as source: `.claude/skills/` (the mirror `just agents-sync`
-writes from `.agents/skills/`) and build output (`target/`, `coverage/`). Edit the
-source and regenerate.
+Never hand-edit, commit, or document build output (`target/`, `coverage/`): change the
+source and rebuild.

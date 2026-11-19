@@ -45,8 +45,7 @@ Write:
   owner)
 - `` `AGENTS.md` › "Security and human approval" ``
 
-Avoid: a path into `.claude/skills/` or `.agents/skills/` (the reader may be in the other
-tree, and the path breaks if the skill is renamed); "`AGENTS.md`, line 300" (stale after
+Avoid: a path into `.claude/skills/` (it breaks if the skill is renamed); "`AGENTS.md`, line 300" (stale after
 the first edit above it); a third marker such as `**NOTE:**` or `**SEE ALSO:**` (the two
 markers exist so a reader can tell "must load" from "may skip" at a glance).
 
@@ -85,8 +84,8 @@ there is no command, with the reason; the bindings' API is linked
 
 Write:
 
-- "Codex CLI scans `.agents/skills` from the working directory up to the repository root
-  (https://learn.chatgpt.com/docs/build-skills, checked 2026-09-29)."
+- "Claude Code loads a project's skills from `.claude/skills/`
+  (https://code.claude.com/docs/en/skills, checked 2026-09-29)."
 - "A debug build echoes each log line to stderr with the binary crate's name as its
   target: observed on this Mac with `cargo run --locked -p myapp -- counter show`,
   2026-10-01."

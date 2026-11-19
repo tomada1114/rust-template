@@ -140,11 +140,6 @@ fn reaches_every_other_task() {
         "ERR_STAGED_NOT_A_REPO",
         1,
     );
-    assert_failure(
-        &xtask(root, &["sync-agents", "--staged"], "", &[]),
-        "ERR_AGENTS_USAGE",
-        1,
-    );
     let temp = root.join("tmp").display().to_string();
     let base = root.join("claude").display().to_string();
     let output = xtask(

@@ -11,7 +11,7 @@ Read-only: it runs `gh pr list` and nothing else, and it is the one step of the 
 that runs before the human's approval.
 
 Usage:
-    python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py [--json]
+    python3 .claude/skills/merging-dependency-prs/scripts/survey_prs.py [--json]
 
 Needs `gh`, authenticated against this repository. It works in any directory `gh`
 resolves a repository from; outside one, `gh` fails and so does this script.
@@ -318,7 +318,7 @@ def main(argv: list[str] | None = None, *, root: Path | None = None,
             f"unknown argument: {' '.join(unknown)}",
             "no argument, or --json",
             " ".join(argv),
-            "run `python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py`",
+            "run `python3 .claude/skills/merging-dependency-prs/scripts/survey_prs.py`",
         )
     rows = collect(gh_pull_requests(root, run))
     if "--json" in argv:

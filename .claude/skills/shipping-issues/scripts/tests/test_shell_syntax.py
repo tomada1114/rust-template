@@ -27,7 +27,7 @@ import unittest
 from pathlib import Path
 
 # tests/ -> scripts/ -> shipping-issues/ -> the skills tree this copy sits in
-# (.agents/skills/ in the source, so the .claude/skills/ mirror is not scanned).
+# (.claude/skills/ in the source, so the .claude/skills/ mirror is not scanned).
 SKILLS_ROOT = Path(__file__).resolve().parents[3]
 
 

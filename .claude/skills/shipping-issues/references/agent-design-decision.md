@@ -66,7 +66,7 @@ On DECIDED, write it back to GitHub yourself, in this order:
      alone, without this conversation, starting with `## Design decision`:
      gh issue comment {n} --repo {owner}/{repo} --body-file <file>
   2. only after that comment posted, clear the block:
-     python3 .agents/skills/shipping-issues/scripts/apply_priority_labels.py --clear-design {n}
+     python3 .claude/skills/shipping-issues/scripts/apply_priority_labels.py --clear-design {n}
 On DEFERRED do neither — the issue must stay blocked.
 
 Return exactly:

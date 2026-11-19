@@ -220,7 +220,7 @@ mod tests {
         "Bash(just check)",
         "Bash(just test-fast:*)",
         "Bash(just logs)",
-        "Bash(just agents-sync)",
+        "Bash(just check-harness)",
         "Bash(gh pr view:*)",
         "Bash(gh api -X GET:*)",
         "Read(./just labels)",

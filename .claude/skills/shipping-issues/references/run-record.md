@@ -4,7 +4,7 @@ The persistent log every step appends to, read when setting up `<runstate>` or a
 what a stopped run already landed.
 
 ```bash
-python3 .agents/skills/shipping-issues/scripts/run_record.py --repo <owner>/<repo> --event <kind> \
+python3 .claude/skills/shipping-issues/scripts/run_record.py --repo <owner>/<repo> --event <kind> \
     [--field k=v ...] [--body-file <path>]
 ```
 

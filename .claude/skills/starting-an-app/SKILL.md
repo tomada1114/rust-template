@@ -127,13 +127,13 @@ The counter is a deletable illustration, not the app. The checklist is
 `docs/getting-started.md` › "Removing the example code": it lists every file that holds
 the sample and the search that ends it. On top of it:
 
-- delete or rewrite what the skills under `.agents/skills/` give the counter as an
+- delete or rewrite what the skills under `.claude/skills/` give the counter as an
   example: the sample appears as its own "In the sample" sentences, parentheticals, code
   blocks, or a table column (`integrating-system-apis`), each of which can be deleted or
   rewritten with the app's own names while the rule around it stands. Two files are
   the sample's worked examples throughout and are rewritten with the app's own first
   command, use case, and tests rather than deleted: `writing-tests/references/patterns.md`
-  and `tdd/SKILL.md` Steps 1-3. Then run `just agents-sync`;
+  and `tdd/SKILL.md` Steps 1-3;
 - replace the core module and its tests in the same pull request that removes them, so
   the core coverage floor still measures real code.
 

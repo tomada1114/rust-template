@@ -60,8 +60,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Run from the .claude/skills mirror, a sibling import would leave __pycache__/
-# there, which `just agents-check` reports as drift.
+# A sibling import would otherwise leave __pycache__/ beside the scripts.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from github_cli import gh as run_gh

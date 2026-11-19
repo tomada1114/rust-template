@@ -5,9 +5,6 @@ extend-exclude = [
   # Build output, matching .gitignore.
   "target/",
   "coverage/",
-  # Byte-identical to .claude/skills/ (`just agents-check`), which typos reads: the
-  # tree Claude Code loads.
-  ".agents/skills/",
 ]
 
 [default.extend-words]
