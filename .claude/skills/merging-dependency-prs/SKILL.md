@@ -154,7 +154,7 @@ a lockfile or by merging bot branches:
   `Cargo.toml` changes only when a PR changed a requirement. Read the `Cargo.lock`
   diff: a crate no PR named that moved too is reverted, since only what the bots
   proposed was reviewed; so is a migration's crate, which takes its own branch.
-- **mise:** edit the pin in `mise.toml`, then `mise install` (it must exist here).
+- **mise:** edit the pin in `mise.toml`, then `mise install` and `mise lock` (both must pass).
 - **rust-toolchain:** edit `channel` in `rust-toolchain.toml`; rustup installs it on the
   next `cargo` call (`RUSTUP_AUTO_INSTALL`, on by default:
   https://rust-lang.github.io/rustup/environment-variables.html, checked 2026-09-30).

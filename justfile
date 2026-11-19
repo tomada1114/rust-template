@@ -21,10 +21,12 @@ default:
 # Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
 check: verify-hooks fmt lint lint-repo test-scripts check-harness test test-platform
 
-# Repository lints beside the code: spelling everywhere (typos) and the workflow files (actionlint)
+# Repository lints beside the code: spelling everywhere (typos), the workflow files (actionlint), and a fresh mise.lock
 lint-repo:
     typos
     actionlint
+    mise lock
+    git diff --exit-code mise.lock
 
 # Re-assert the harness's claims about itself (xtask/src/check_harness/, one module per claim)
 check-harness:

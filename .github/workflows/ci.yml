@@ -94,6 +94,12 @@ jobs:
       - name: Actionlint
         run: actionlint
 
+      # mise.lock must match mise.toml: `mise lock` rewrites it, and a diff means it is stale.
+      - name: mise.lock is current
+        run: |
+          mise lock
+          git diff --exit-code mise.lock
+
       - name: Fetch crates (the core-boundary check reads cargo metadata offline)
         run: cargo fetch --locked
 
