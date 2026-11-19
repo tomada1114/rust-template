@@ -12,8 +12,9 @@
 //! - removes the `<!-- template-only -->` … `<!-- /template-only -->` blocks, the
 //!   `Template Bootstrap Smoke` CI job and its required context, the
 //!   `bootstrap` and `verify-bootstrap` recipes and tasks (this file and
-//!   `verify_bootstrap.rs`) and every mention of them, and the skill reference that only
-//!   describes this task, and rewrites the passages outside those blocks that describe the
+//!   `verify_bootstrap.rs`) and every mention of them, the skill reference that only
+//!   describes this task, and the shared cloud environment's setup script
+//!   (`.claude/cloud/environment-setup.sh`), and rewrites the passages outside those blocks that describe the
 //!   template ([`text_edits`]);
 //! - resets CHANGELOG.md to an empty [Unreleased] and Cargo.toml's version to 0.1.0, and
 //!   writes the copyright line into LICENSE (the holder defaults to the author);
@@ -662,6 +663,12 @@ fn document_edits() -> Vec<TextEdit> {
             "`Template Bootstrap Smoke`, `Workflow Security Lint`, `Dependency Review`, and\n`Validate PR title`.",
             "`Workflow Security Lint`, `Dependency Review`, and `Validate PR title`.",
         ),
+        // The app does not carry the shared environment's setup script (REMOVED_PATHS).
+        edit(
+            "docs/getting-started.md",
+            "Two files under `.claude/cloud/` provision it instead of `just install`:\n\n- `environment-setup.sh` is the cloud environment's setup script, pasted as-is into the\n  environment's settings on claude.ai/code. It installs a checksum-verified mise and\n  rustup, puts mise's shims and `~/.cargo/bin` on `PATH`, and runs each cloned\n  repository's `.claude/cloud/provision.sh setup` within its time budget. It names no\n  repository, so every repository cut from the template shares one environment.\n",
+            "The shared Rust environment and `.claude/cloud/` provision it instead of `just install`:\n\n- The shared Rust environment on claude.ai/code has a setup script that installs a\n  checksum-verified mise and rustup, puts mise's shims and `~/.cargo/bin` on `PATH`,\n  and runs each cloned repository's `.claude/cloud/provision.sh setup` within its time\n  budget. It names no repository, so this app needs no environment change: start its\n  sessions in that environment.\n",
+        ),
     ]
 }
 
@@ -757,9 +764,12 @@ fn source_edits() -> Vec<TextEdit> {
 /// Files carrying `<!-- template-only -->` … `<!-- /template-only -->` blocks.
 pub(crate) const MARKER_FILES: [&str; 1] = ["README.md"];
 
-/// Removed from the app: the skill reference that only describes this task, and this
-/// task and its verifier.
-pub(crate) const REMOVED_PATHS: [&str; 3] = [
+/// Removed from the app: the skill reference that only describes this task, this task
+/// and its verifier, and the shared cloud environment's setup script, whose one source is
+/// the template (an app keeps `provision.sh` and `apt-packages.txt`, which the setup
+/// script runs and reads).
+pub(crate) const REMOVED_PATHS: [&str; 4] = [
+    ".claude/cloud/environment-setup.sh",
     ".claude/skills/starting-an-app/references/bootstrap.md",
     "xtask/src/bootstrap.rs",
     "xtask/src/verify_bootstrap.rs",
@@ -1929,7 +1939,7 @@ fn remove_path(path: &Path) -> TaskResult {
     removed.map_err(|error| io_error("removing", path, &error))
 }
 
-const NEXT_STEPS: [&str; 20] = [
+const NEXT_STEPS: [&str; 21] = [
     "The bootstrap and its verifier removed themselves from xtask.",
     "",
     "Next steps:",
@@ -1950,6 +1960,7 @@ const NEXT_STEPS: [&str; 20] = [
     "  6. Once the bootstrap commit is on main: just ruleset (a repository admin's step). It",
     "     applies every .github/rulesets/*.json: the main branch ruleset and the release-tags",
     "     tag ruleset.",
+    "  7. Cloud sessions: start them in the shared Rust environment; this app needs no environment change.",
 ];
 
 enum LocalEnvCopy {
@@ -2271,6 +2282,9 @@ mod tests {
 
     const README: &str = "# MyApp\n\nIntro for MyApp.\n\n<!-- template-only -->\n**Starting from the template?** See below.\n<!-- /template-only -->\n\n## Quickstart\n\n```bash\ngit clone https://github.com/tomada1114/rust-template.git\ncd rust-template\n```\n\nThe data lives in ~/Library/Application Support/com.example.myapp/, and\nmyapp-core holds the logic.\n\n<!-- template-only -->\n## Using This Template\n\nEverything about `just bootstrap`.\n<!-- /template-only -->\n\n## License\n";
 
+    const ENVIRONMENT_SETUP: &str =
+        "#!/usr/bin/env bash\n# the shared cloud environment's setup script\n";
+
     /// A template tree holding every site the task lists: each listed form, each text
     /// edit's anchor, the marker files, the paths it removes, and the crate directories.
     fn template_tree() -> tempfile::TempDir {
@@ -2284,6 +2298,10 @@ mod tests {
             (".github/rulesets/main.json", RULESET.to_owned()),
             ("justfile", justfile()),
             ("README.md", README.to_owned()),
+            (
+                ".claude/cloud/environment-setup.sh",
+                ENVIRONMENT_SETUP.to_owned(),
+            ),
         ]
         .into_iter()
         .map(|(file, text)| (file.to_owned(), text))
@@ -2786,6 +2804,7 @@ mod tests {
         }
         assert!(REMOVED_PATHS.contains(&"xtask/src/bootstrap.rs"));
         assert!(REMOVED_PATHS.contains(&"xtask/src/verify_bootstrap.rs"));
+        assert!(REMOVED_PATHS.contains(&".claude/cloud/environment-setup.sh"));
         assert_eq!(MARKER_FILES, ["README.md"]);
     }
 
@@ -2969,6 +2988,46 @@ mod tests {
         assert_commands_and_next_steps(root, &ran);
     }
 
+    #[test]
+    fn the_app_keeps_the_cloud_files_and_loses_the_bootstrap_rules() {
+        let dir = template_tree();
+        let root = dir.path();
+        let provision = include_str!("../../.claude/cloud/provision.sh");
+        write(root, ".claude/cloud/provision.sh", provision);
+        write(
+            root,
+            ".claude/settings.json",
+            include_str!("../../.claude/settings.json"),
+        );
+        let ran = with_answers(root, &answers(), &ok);
+        if let Err(error) = &ran.result {
+            panic!("{error}");
+        }
+
+        assert_eq!(read(root, ".claude/cloud/provision.sh"), provision);
+        let settings: serde_json::Value =
+            serde_json::from_str(&read(root, ".claude/settings.json")).expect("settings parse");
+        let rules: Vec<&str> = ["allow", "ask", "deny"]
+            .iter()
+            .flat_map(|list| {
+                settings["permissions"][list]
+                    .as_array()
+                    .expect("a permissions list")
+                    .iter()
+                    .map(|rule| rule.as_str().expect("a string rule"))
+            })
+            .collect();
+        assert!(rules.contains(&"Bash(just labels*)"), "{rules:?}");
+        assert!(
+            rules.iter().all(|rule| !rule.contains("bootstrap")),
+            "{rules:?}"
+        );
+        assert!(!root.join(".claude/cloud/environment-setup.sh").exists());
+        assert!(ran.output().contains(
+            "Cloud sessions: start them in the shared Rust environment; this app needs no environment change."
+        ));
+    }
+
     /// The commands a successful run made, in order, and the next steps it printed.
     fn assert_commands_and_next_steps(root: &Path, ran: &Ran) {
         // cargo fetch before anything is written, then the offline lockfile update and fmt.
@@ -2998,6 +3057,7 @@ mod tests {
             "secret scanning",
             "Renovate",
             "push both commits to",
+            "Cloud sessions",
         ] {
             assert!(output.contains(step), "{step}");
         }

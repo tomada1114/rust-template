@@ -98,14 +98,18 @@ Every edit is computed and checked in memory first, so a drifted site list fails
    `Cargo.lock` with `cargo update --workspace --offline`, so no new crate version slips
    into the rename (`ERR_BOOTSTRAP_LOCKFILE`).
 4. Formats the renamed crates with `cargo fmt --all` (`ERR_BOOTSTRAP_FORMAT`).
-5. Deletes the template's own material: this page in both skill trees, and
+5. Deletes the template's own material: this page in both skill trees,
    `xtask/src/bootstrap.rs` and `xtask/src/verify_bootstrap.rs`, whose tests live
-   inside them.
+   inside them, and the shared cloud environment's setup script,
+   `.claude/cloud/environment-setup.sh`, whose one source is the template. The app keeps
+   `provision.sh`, `apt-packages.txt`, the format hook, and `.claude/settings.json`,
+   less its two `bootstrap` ask rules.
 6. Scans for a placeholder left outside the site list and warns about it, then prints
    the next steps: review and commit the rewrite, fill `AGENTS.md` › Product,
    `just check` and push to `main`, `just labels` (and `dependencies` added by hand to
    any Dependabot pull request opened earlier), the GitHub security settings and the
-   Renovate GitHub App, and `just ruleset` (the `main` and `release-tags` rulesets).
+   Renovate GitHub App, `just ruleset` (the `main` and `release-tags` rulesets), and
+   that cloud sessions start in the shared Rust environment with no change.
 
 A failure from step 3 on leaves a half-rewritten clone; see "Running it, and running it
 again" below.
