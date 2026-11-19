@@ -93,7 +93,7 @@ pub(crate) fn main(context: &Context<'_>) -> TaskResult {
                 "no pre-commit hook"
             },
             format!(
-                "run `just install` (it runs `lefthook install`), or set {OPT_OUT}=1 to commit without hooks on purpose"
+                "run `just install` (it runs `lefthook install`); in a cloud session, run `bash .claude/cloud/provision.sh session`; or set {OPT_OUT}=1 to commit without hooks on purpose"
             ),
         ));
     }
@@ -149,6 +149,26 @@ mod tests {
         let error = verify(dir.path(), &[]).failure();
         assert_eq!(error.code(), "ERR_HOOKS_NOT_INSTALLED");
         assert_eq!(error.details.actual, "no pre-commit hook");
+    }
+
+    #[test]
+    fn names_the_cloud_provisioning_script_when_the_hook_is_missing() {
+        let dir = repo(None, None);
+        let error = verify(dir.path(), &[]).failure();
+        assert_eq!(error.code(), "ERR_HOOKS_NOT_INSTALLED");
+        assert!(
+            error
+                .details
+                .next
+                .contains("bash .claude/cloud/provision.sh session"),
+            "{}",
+            error.details.next
+        );
+        assert!(
+            error.details.next.contains("ALLOW_MISSING_GIT_HOOKS=1"),
+            "{}",
+            error.details.next
+        );
     }
 
     #[test]

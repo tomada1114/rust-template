@@ -1,0 +1,114 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(just check)",
+      "Bash(just fmt)",
+      "Bash(just fix)",
+      "Bash(just lint)",
+      "Bash(just lint-repo)",
+      "Bash(just test)",
+      "Bash(just test-core)",
+      "Bash(just test-xtask)",
+      "Bash(just test-fast *)",
+      "Bash(just test-platform)",
+      "Bash(just test-scripts)",
+      "Bash(just check-harness)",
+      "Bash(just verify-hooks)",
+      "Bash(just logs)",
+      "Bash(just deny)",
+      "Bash(cargo build *)",
+      "Bash(cargo check *)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo fmt *)",
+      "Bash(cargo test *)",
+      "Bash(cargo nextest *)",
+      "Bash(cargo llvm-cov *)",
+      "Bash(cargo deny *)",
+      "Bash(cargo shear *)",
+      "Bash(cargo metadata *)",
+      "Bash(cargo tree *)",
+      "Bash(cargo fetch --locked)",
+      "Bash(cargo xtask check-harness*)",
+      "Bash(cargo xtask check-staged)",
+      "Bash(cargo xtask verify-hooks)",
+      "Bash(cargo xtask clippy-guard *)",
+      "Bash(mise exec -- typos *)",
+      "Bash(mise exec -- actionlint*)",
+      "Bash(mise exec -- zizmor *)",
+      "Bash(mise exec -- cargo shear*)",
+      "Bash(bash .claude/cloud/provision.sh session)"
+    ],
+    "ask": [
+      "Bash(just test-local*)",
+      "Bash(just logs-follow*)",
+      "Bash(just install-cli*)",
+      "Bash(just labels*)",
+      "Bash(just ruleset*)",
+      "Bash(just bootstrap*)",
+      "Bash(cargo xtask bootstrap*)",
+      "Bash(cargo xtask sync-labels*)",
+      "Bash(cargo xtask apply-ruleset*)",
+      "Bash(cargo install *)",
+      "Bash(cargo add *)",
+      "Bash(cargo remove *)",
+      "Bash(cargo update*)",
+      "Bash(mise use *)",
+      "Bash(mise upgrade*)",
+      "Bash(git tag *)",
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/settings.local.json)"
+    ],
+    "deny": [
+      "Bash(git commit --no-verify*)",
+      "Bash(git commit * --no-verify*)",
+      "Bash(git commit -n*)",
+      "Bash(LEFTHOOK=0 *)",
+      "Bash(git -c core.hooksPath*)",
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * -f*)",
+      "Bash(cargo run * tui*)",
+      "Bash(*target/debug/* tui*)",
+      "Bash(*target/release/* tui*)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/.envrc.local)",
+      "Read(**/secrets/**)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/*.p8)",
+      "Read(**/.netrc)",
+      "Read(**/id_rsa)",
+      "Read(**/id_ed25519)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/cloud/provision.sh session",
+            "timeout": 300,
+            "statusMessage": "Preparing the toolchain"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-edited-file.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

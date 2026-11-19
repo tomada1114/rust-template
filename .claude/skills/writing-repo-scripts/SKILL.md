@@ -117,7 +117,7 @@ absolute path shortened to `<repo>`):
 ERR_HOOKS_NOT_INSTALLED: lefthook's pre-commit hook is not installed
 Expected: a lefthook pre-commit hook at <repo>/.git/hooks/pre-commit
 Actual: no pre-commit hook
-Next: run `just install` (it runs `lefthook install`), or set ALLOW_MISSING_GIT_HOOKS=1 to commit without hooks on purpose
+Next: run `just install` (it runs `lefthook install`); in a cloud session, run `bash .claude/cloud/provision.sh session`; or set ALLOW_MISSING_GIT_HOOKS=1 to commit without hooks on purpose
 ```
 
 The `Next:` line offers the fix first and the documented opt-out second, so the reader

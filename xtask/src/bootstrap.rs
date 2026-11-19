@@ -744,6 +744,13 @@ fn source_edits() -> Vec<TextEdit> {
         edit("xtask/src/main.rs", "mod verify_bootstrap;\n", ""),
         edit("xtask/src/main.rs", MAIN_BOOTSTRAP_TASK, ""),
         edit("xtask/src/main.rs", MAIN_VERIFY_TASK, ""),
+        // The app has no bootstrap recipe or task, and `just-recipes-exist` fails on a
+        // permission rule naming a recipe the justfile lacks.
+        edit(
+            ".claude/settings.json",
+            "      \"Bash(just bootstrap*)\",\n      \"Bash(cargo xtask bootstrap*)\",\n",
+            "",
+        ),
     ]
 }
 
