@@ -29,7 +29,9 @@ skill says about its own subject.
 - A skill is real files, not a symlink: a symlink is only a link where git checks it
   out as one (`core.symlinks`, https://git-scm.com/docs/git-config, checked
   2026-09-29), and `just check-harness` refuses one under `.claude/skills/`.
-- `typos` spell-checks the skills, and the pre-commit hook runs it on a staged skill.
+- The pre-commit hook's `typos` job spell-checks a staged skill; CI's tree-wide run
+  skips hidden directories such as `.claude/`, so `mise exec -- typos
+  .claude/skills/<name>` (below) is the check for a skill committed without the hook.
   Markdown has no formatter here: wrap prose by hand at the width the neighboring
   skills use. When `typos` flags a real technical term, add it to `typos.toml`'s
   `[default.extend-words]` rather than rewording around the checker (a gate file:
