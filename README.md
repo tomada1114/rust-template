@@ -24,7 +24,8 @@ non-goals.
 
 Prerequisites: macOS on Apple Silicon with the Xcode Command Line Tools
 (`xcode-select --install`), or Linux with a C toolchain for the linker (`build-essential`
-on Debian and Ubuntu); [rustup](https://rustup.rs/), [mise](https://mise.jdx.dev/), and
+on Debian and Ubuntu) and the OpenSSL headers (`pkg-config` and `libssl-dev`);
+[rustup](https://rustup.rs/), [mise](https://mise.jdx.dev/), and
 [Just](https://just.systems/) (`brew install mise just` on a Mac).
 
 ```bash
