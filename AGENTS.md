@@ -2,7 +2,7 @@
 
 This file holds what every agent needs before it knows which task it is on: what the
 app is, how to check a change, where code goes, and which decisions need a human. It is
-the one guide Claude Code and Codex CLI share, and it leaves three things to others:
+the one project guide, and it leaves three things to others:
 
 - **The conventions of one kind of change** belong to a skill under `.claude/skills/`,
   loaded when the work calls for it — [Skills](#skills) says where they live.
@@ -318,8 +318,7 @@ place: there is no second copy to keep in step.
 ### Rules
 
 The files under `.claude/rules/` load by path: each applies while you touch a file
-matching its `paths:` globs. They are Claude Code-only; under
-Codex CLI, read the one that matches the file you are changing.
+matching its `paths:` globs.
 
 | Rule | Loads when you touch |
 |---|---|
@@ -342,10 +341,6 @@ names tiers by role only. `just check-harness` holds each file to a frontmatter 
 | `architect` | complex multi-file implementation, design judgment, review and bug finding, synthesis, a spec that still has holes |
 | `scout` | read-only, judgment-free research: collecting, enumerating, or summarizing without changing any file |
 | `worker` | single-shot, tool-free writing or checking from a complete brief |
-
-These are Claude Code-only: like `.claude/rules/`, Codex CLI
-reads nothing under `.claude/agents/`. Under Codex CLI, a step a skill hands to one of
-these agents runs inline in the main session instead.
 
 ## Security and human approval
 
@@ -373,8 +368,8 @@ of them on one host, but this repository ships none (see "Enforcement layers").
   crates.io or a package-manager tap. The tool has no distribution: it is installed
   from its checkout with `cargo install --path`.
 - Creating or pushing a release tag.
-- Editing a personal permission file — `.claude/settings.local.json`,
-  `~/.claude/settings.json`, or Codex rules under `.codex/` or `~/.codex/rules/` —
+- Editing a personal permission file — `.claude/settings.local.json` or
+  `~/.claude/settings.json` —
   unless the owner asks for it in that session: it decides what an agent may run, so
   changing it changes the agent's own limits, and no review ever sees it.
 - Adding a new crate — see the dependency policy in `.claude/rules/project.md`.
@@ -613,9 +608,8 @@ removing or narrowing its bullet here:
   `.claude/settings.json`: which commands run without a prompt is each person's own
   choice, in their user-level `~/.claude/settings.json` (generic rules: git, `gh`, the
   hook-bypass and force-push denies) or the gitignored `.claude/settings.local.json`
-  (this repository's rules: its `just` recipes, dependency changes), and for Codex CLI
-  in a gitignored `.codex/rules/local.rules`. That choice shapes where a human is
-  consulted rather than what is possible. A personal file should keep at `ask` the
+  (this repository's rules: its `just` recipes, dependency changes). That choice shapes
+  where a human is consulted rather than what is possible. A personal file should keep at `ask` the
   recipes that need a human or write outside the checkout (`test-local`, `logs-follow`,
   `install-cli`) and those that write to GitHub or rewrite the repository
   (`bootstrap`, `labels`, `ruleset`). The same file is where to register
@@ -628,8 +622,8 @@ removing or narrowing its bullet here:
   checkout (rustfmt, fed on stdin so it never rewrites a `mod` child) and reports a
   formatter failure back to the agent (exit 2) — a convenience on that host, not a gate.
   No other file type is formatted: JSON, YAML, and Markdown have no formatter here.
-  Codex CLI, another agent, and a human at a shell are bound by the instructions in this
-  file and by the gates above.
+  A human at a shell, and any tool other than Claude Code, are bound by the instructions
+  in this file and by the gates above.
 - **Nothing runs the `#[ignore]`d tests for you.** A CI runner has no logged-in GUI
   session and cannot be granted a TCC permission or reach a login Keychain, so a test
   that needs one is `#[ignore = "local machine: …"]` and is reported as ignored by

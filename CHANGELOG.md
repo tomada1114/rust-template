@@ -157,6 +157,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Codex CLI support: `AGENTS.md`, `CLAUDE.md`, and the skill harness check describe one
+  host, Claude Code, and `.gitignore` no longer lists `.codex/rules/local.rules`.
+
 - The `cloud-claude-shipping-issues` skill, and `shipping-issues`' planning, labelling,
   filing, landing, worktree, cleanup, and run-record scripts with their references
   (`priority-rubric.md` among them: `triaging-issues` is the one home for what a tier

@@ -1,13 +1,13 @@
 //! Every skill under `.claude/skills/`, the tree Claude Code loads, is well formed, and
 //! `AGENTS.md`'s Skills table indexes exactly those skills. A skill with a stray key, a
-//! mismatched name, or a value Codex CLI's strict YAML parser rejects looks fine and
-//! then silently never loads; one with no row is never found by a reader.
+//! mismatched name, or a value a strict YAML parser rejects looks fine and then
+//! silently never loads; one with no row is never found by a reader.
 //!
 //! For each directory `.claude/skills/<dir>/`:
 //! - `<dir>/SKILL.md` opens with a `---` line and a later `---` line closes the block; the
 //!   block parses as YAML (duplicate keys rejected) into a mapping of exactly `name` and
-//!   `description`. This approximates Codex CLI's own YAML parser, which this check does
-//!   not run: a skill found not to load there gets a test and a rule here;
+//!   `description`. The parse is strict because a skill whose frontmatter does not load
+//!   fails without an error: a skill found not to load gets a test and a rule here;
 //! - `name` is a string equal to `<dir>`: lowercase letters, digits, and single hyphens,
 //!   at most 64 characters (the Agent Skills format);
 //! - `description` is a non-empty string of printable ASCII (tab and newline allowed), at
