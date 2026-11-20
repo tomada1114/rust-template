@@ -310,8 +310,8 @@ Every local layer can be skipped, so these reach `main` only if CI or GitHub sto
 them: `git commit --no-verify` or another hook bypass; a clone where `just install`
 never ran; an edit made through GitHub's web UI or API; a secret whose path and content
 pattern the guard does not know; and any tool other than Claude Code, since a Claude
-Code permission list binds nothing else. A new repository's admin turns GitHub's side on once (secret
-scanning, push protection, the rulesets): `starting-an-app`'
+Code permission list binds nothing else. A new repository's admin turns GitHub's side
+on once (secret scanning, push protection, the rulesets): `starting-an-app`'
 `references/github-settings.md`.
 
 ## Review Checklist
