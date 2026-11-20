@@ -152,8 +152,8 @@ of an active skill competes with the task for the agent's context.
 
 ## Scripts bundled inside a skill
 
-A script under `.claude/skills/<name>/scripts/` follows `AGENTS.md` › "Repository
-scripts": Python on the standard library or shell, with its tests under the skill's
+A script under `.claude/skills/<name>/scripts/` follows `.claude/rules/scripts.md`:
+Python on the standard library or shell, with its tests under the skill's
 `scripts/tests/`, which `just test-scripts` runs with no coverage floor. A skill whose
 first suite lands adds its line to the `test-scripts` recipe in the same pull request.
 **REQUIRED:** `writing-repo-scripts`. Keep it to the skill's own step: logic another

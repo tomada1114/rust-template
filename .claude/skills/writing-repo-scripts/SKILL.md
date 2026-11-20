@@ -21,9 +21,10 @@ own:** how a skill is authored (`authoring-skills`); what a gate checks and
 which gate runs a task (`changing-gates`); where a test goes and which floor measures it
 (`placing-tests`); a new crate a task would import (`managing-dependencies`).
 
-The rules themselves live once, in `AGENTS.md` › "Repository scripts": read it first.
-This skill carries the reasons behind them and worked examples from the tree; it does
-not restate the list, so the two cannot drift.
+The rules themselves live once, in `.claude/rules/scripts.md`, which loads when you
+touch `xtask/` or a skill's `scripts/`: read it first. This skill carries the reasons
+behind them and worked examples from the tree; it does not restate the list, so the two
+cannot drift.
 
 ## Two homes
 
