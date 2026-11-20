@@ -89,7 +89,7 @@ not a passing one.
 **Cause:** the check did not finish in a state the survey vouches for. `CANCELLED` is
 usually a run superseded by a newer event on the same PR (`pr-label.yml` and
 `check-pr-title.yml` cancel in progress); `STARTUP_FAILURE` means the job never started;
-`UNKNOWN` means the rollup entry carried no conclusion.
+`UNKNOWN` means the check carried no conclusion.
 
 **Fix:** none of these is a test result, so do not read the diff for a cause. Open the
 run, find why it did not complete, and `gh run rerun <run-id>` once the approved plan

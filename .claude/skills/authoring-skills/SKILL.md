@@ -120,7 +120,7 @@ A `just <recipe>` is written as typed (`just test-fast <filter>`) and `just chec
 fails on one the `justfile` lacks, so prefer the recipe to the command inside it. Any
 other command, path, crate, type, error code, or environment variable the author runs or
 greps before committing; a pinned tool goes through `mise exec --`. A remote write
-(`git push`, `gh pr create`, `just labels`) appears only with its condition from
+(`git push`, a `gh api -X POST`, `just labels`) appears only with its condition from
 `AGENTS.md` › "Security and human approval"; a skill grants itself nothing.
 
 **Never taking over the machine.** Every step a skill tells an agent to run

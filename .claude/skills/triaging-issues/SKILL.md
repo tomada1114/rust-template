@@ -117,6 +117,27 @@ open. The label is not removed automatically when the blocker closes: whoever la
 blocking issue clears it, by hand, from every issue that named it, in the same pull
 request or right after it. It is nobody else's automated job.
 
+## Filing the issue
+
+Filing is a remote write: it waits for the sign-off `AGENTS.md` › "Security and human
+approval" asks for. The body goes in a file outside the checkout, and the issue is
+created with one REST call, from the checkout's root, where `gh api` fills `{owner}`
+and `{repo}`:
+
+```bash
+gh api -X POST repos/{owner}/{repo}/issues -f title='<title>' -F body=@<file> \
+  -f 'labels[]=<type label>' -f 'labels[]=<another label>' \
+  --jq '"filed: \(.html_url)\nlabels: \([.labels[].name] | join(", "))"'
+```
+
+One `-f 'labels[]=…'` per label, each a label `.github/labels.yml` declares. GitHub
+drops labels without an error when the caller lacks push access
+([create an issue](https://docs.github.com/en/rest/issues/issues#create-an-issue),
+checked 2026-10-07), so compare the reply's `labels:` with what was sent. The call is
+REST because a Claude Code cloud session's GitHub proxy refuses GraphQL, which the
+`gh` subcommand that creates an issue is built on; `shipping-issues`'
+`references/rest-calls.md` spells the other issue and label calls the same way.
+
 ## A problem found outside the task
 
 `AGENTS.md` › "Important Reminders" says a problem found outside the task is recorded,
