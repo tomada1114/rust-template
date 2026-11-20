@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `AGENTS.md` is cut to what every task needs, about a third of its former size, and a
+  new harness check, `guide-size`, fails with `ERR_CHECK_GUIDE_SIZE` when it grows past
+  20,000 bytes. What applies to one kind of file or change moved to where it loads on
+  demand: the enforcement layers and their gaps to `changing-gates`'
+  `references/enforcement-layers.md`, the repository-script contract to
+  `.claude/rules/scripts.md`, and the GitHub settings a new repository must enable to
+  `starting-an-app`' `references/github-settings.md`. `.claude/rules/rust.md` and
+  `testing.md` keep only what no skill states, and `CLAUDE.md` is the one-line import
+  of `AGENTS.md`.
 - Skill frontmatter and descriptions: `just check-harness` accepts the Claude Code keys
   `paths`, `allowed-tools`, `disable-model-invocation`, and `argument-hint` beside
   `name` and `description`, and still fails on any other key. A description is capped
