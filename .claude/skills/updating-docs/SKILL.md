@@ -26,7 +26,7 @@ is a legitimate outcome of this skill, not a step skipped.
 A reader here can observe: what the tool does when run, the `just` recipes and what
 they run, the setup steps and pinned tools, what a gate accepts or rejects, how the
 template becomes an app (`just bootstrap`), how the tool is installed, and
-everything `AGENTS.md` › "What is contract and what is private" lists. That table is
+everything `AGENTS.md` › "What is contract and what is private" lists. That section is
 the one list of what is contract; read it there rather than from a copy.
 
 - `README.md` changes when the first ten minutes with a checkout change (the Quickstart,
@@ -64,7 +64,7 @@ another's content: a copy is the half that goes stale.
 | Surface | Its one job |
 |---|---|
 | `README.md` | The tour: what the template is, Quickstart, Using This Template, the layout, links onward |
-| `AGENTS.md` | The agent-facing guide: Quick Reference, "Validating a change", Architecture, Skills and Rules tables, "Security and human approval", the "Enforcement layers" summary, Review Checklist |
+| `AGENTS.md` | The agent-facing guide: Quick Reference, "Validating a change", Architecture, Skills and Rules tables, "Security and human approval", the "Enforcement layers" summary, Review Checklist; at most 20,000 bytes, so file-scoped text goes to a rule and task-scoped text to a skill |
 | `CONTRIBUTING.md` | Prerequisites, the workflow and its commands without Just, where a change goes, the pull request process, commit messages, the changelog policy |
 | `CHANGELOG.md` | The human-curated record of user-visible changes (Keep a Changelog) |
 | `docs/getting-started.md` | First setup, everyday commands, seeing the tool, TCC, removing the example code |
@@ -89,7 +89,7 @@ Some facts have two readers, and the pull request that moves the fact updates bo
   `references/enforcement-layers.md` (and `AGENTS.md`'s "Validating a change" row when
   the narrowest check moved), as `changing-gates` says;
 - a subcommand, a flag, what goes to stdout or stderr, an exit code, or an on-disk
-  format: the contract table in `AGENTS.md` › Architecture, with the code, and for a
+  format: the contract list in `AGENTS.md` › Architecture, with the code, and for a
   format `integrating-system-apis`' `references/file-formats.md`;
 - a skill added, renamed, removed, or widened: its row in `AGENTS.md`'s Skills table
   (`just check-harness` fails when the names differ, not when a row's wording is stale).

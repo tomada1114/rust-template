@@ -42,6 +42,9 @@ credentials are never included in diagnostic output. An installed binary uses it
 working directory too, so run it from the directory containing the file or export the
 key in your shell.
 
+`.env.local` is configuration, not persisted application state: the running app never
+writes it, so it is no part of the on-disk contract.
+
 ## Model choices in source
 
 `crates/myapp/src/llm.rs` contains the model identifier, reasoning effort, and token

@@ -384,7 +384,7 @@ const REPOSITORY_SITES: [(&str, &[Form]); 52] = [
     (".github/ISSUE_TEMPLATE/bug_report.yml", &[BundleId, Slug]),
     (".github/ISSUE_TEMPLATE/config.yml", &[Repo]),
     (".github/PULL_REQUEST_TEMPLATE.md", &[Slug]),
-    ("AGENTS.md", &[BundleId, SlugSnake, Slug]),
+    ("AGENTS.md", &[BundleId, Slug]),
     ("CODE_OF_CONDUCT.md", &[Owner]),
     ("CONTRIBUTING.md", &[Slug]),
     ("Cargo.toml", &[Slug]),
@@ -601,22 +601,22 @@ fn document_edits() -> Vec<TextEdit> {
         edit("AGENTS.md", PRODUCT_INTRO, PRODUCT_INTRO_IN_AN_APP),
         edit(
             "AGENTS.md",
-            "| `starting-an-app` | Turning the template into a new app: bootstrap, Product section, the tool's shape (subcommands only, or plus `myapp tui`), first design decisions |",
-            "| `starting-an-app` | The app's first decisions: Product section, the tool's shape (subcommands only, or plus `myapp tui`), where it keeps state, removing the sample |",
+            "| `starting-an-app` | Template to app; GitHub settings |",
+            "| `starting-an-app` | The app's first decisions; GitHub settings |",
         ),
         edit(
             "AGENTS.md",
-            "just bootstrap  # Turn the template into a new app (renames, removes template-only files)\n",
+            "just bootstrap  # Turn the template into a new app\n",
             "",
         ),
         edit(
             "AGENTS.md",
-            "just verify-bootstrap    # Bootstrap a scratch clone in a temp directory; fail on anything it leaves behind (template only)\n",
+            "just verify-bootstrap  # Bootstrap a scratch clone; fail on what it leaves behind\n",
             "",
         ),
         edit(
             "AGENTS.md",
-            "| A new file, or a new spelling of a placeholder (`MyApp`, `myapp`, `myapp-core`, `myapp_core`, `com.example.myapp`, the template's owner/repo) — template only: the bootstrap removes this row | `just verify-bootstrap` (it bootstraps a scratch clone in a temporary directory and fails on a placeholder the rename misses, template-only text, or a dangling reference) |\n",
+            "| A new file or placeholder spelling (`MyApp`, `myapp_core`, `com.example.myapp`) | `just verify-bootstrap` |\n",
             "",
         ),
         edit(
@@ -2917,7 +2917,10 @@ mod tests {
 
         let agents = read(root, "AGENTS.md");
         assert!(agents.contains("cargo test -p tide-pool-core && pkill -x tide-pool"));
-        assert!(agents.contains("use tide_pool_core::Counter; tide_pool_lib::run();"));
+        assert!(
+            read(root, "docs/openrouter.md")
+                .contains("use tide_pool_core::Counter; tide_pool_lib::run();")
+        );
         assert!(agents.contains("~/Library/Logs/com.example.tide-pool/"));
         assert!(read(root, ".claude/skills/designing-clis/SKILL.md").contains("TIDE_POOL_TEST=1"));
         assert!(read(root, "CODE_OF_CONDUCT.md").contains("[@ada](https://github.com/ada)"));

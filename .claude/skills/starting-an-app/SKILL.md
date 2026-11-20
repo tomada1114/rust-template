@@ -111,7 +111,7 @@ TCC permission, and any platform the tool adds or drops beyond macOS and Linux. 
 lands in the skill that owns its subject — a file format in `integrating-system-apis`'
 `references/file-formats.md`, a TCC grant in `integrating-system-apis`, a crate's role
 in `AGENTS.md` › Architecture and `designing-core-logic`' reasons — and in the contract
-table in `AGENTS.md` › Architecture when it adds a file format or a data location,
+list in `AGENTS.md` › Architecture when it adds a file format or a data location,
 stating the current design and why, in the present tense; there is no architecture
 document or decision record to file (`updating-docs` › "Design lives in the skills"). A new crate still carries its
 review record and the owner's sign-off (`managing-dependencies`). Every external claim
