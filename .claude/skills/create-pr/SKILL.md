@@ -86,7 +86,8 @@ Read `git diff main..HEAD` for these, each of which feeds a checklist item:
 - **Evidence only a human can produce.** Two kinds, each asked for once, with the exact
   commands; until the output is in the Test Plan, the pull request waits for it. In a
   cloud session, where no human is at the VM, the request is written into the Test Plan
-  as needing a local run instead of asked and waited for.
+  as needing a local run instead of asked in chat; the pull request still waits, unmerged,
+  for the output.
   - A change to an adapter in `crates/myapp-platform/` that has an
     `#[ignore = "local machine: ..."]` test needs `just test-local` output. It is a
     human's recipe, never run by an agent; its checklist item stays unchecked until the

@@ -184,9 +184,10 @@ so in the report and let CI's OSV-Scanner and Dependency Review judge the pull r
 **BACKGROUND:** `managing-dependencies`. `mise.run`, `mise.jdx.dev`, and
 `mise-versions.jdx.dev` are not on the Trusted list either, which is why the cloud
 environment's setup script installs mise from its GitHub release and turns off mise's
-version lookups: a provisioning step that reaches one of them fails with a
-`WARN(provision)` line, never with a different installer. A red check caused by a refused host is the
-environment's, not the issue's: name the host and the failing check in the report.
+version lookups. A missing mise shows as a `WARN(setup)` line from that script or a
+`WARN(provision)` line from `provision.sh`; it is reported, never fixed with another
+installer. A red check caused by a refused host is the environment's, not the issue's:
+name the host and the failing check in the report.
 
 ## A reclaimed VM
 
