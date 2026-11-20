@@ -1,17 +1,13 @@
 ---
 name: shipping-issues
 description: >
-  Covers taking open GitHub issues in this repository to a merged pull request and a
-  closed issue, from a local Claude Code session or a Claude Code cloud session
-  (CLAUDE_CODE_REMOTE=true), over REST gh api calls only: ranking the backlog by its
-  priority: P0-P3 labels and Depends on lines, implementing the pick, reviewing the
-  branch with /code-review before the PR exists, opening a PR that says Closes #N,
-  reading CI per head SHA with scripts/ci_verdict.py (PASS, FAIL, PENDING, EMPTY, MOVED),
-  a squash merge pinned to that head, clearing blocked: dependency on what the merge
-  unblocked, and filing follow-ups. Use when asked to ship the next issue, ship issue N,
-  ship the remaining issues, or clear the ticket backlog; when a gh subcommand answers
-  403 "GitHub GraphQL is not available from Claude Code sessions" while shipping; or
-  when a merged PR left its issue open.
+  Taking open GitHub issues to a merged pull request and a closed issue, from a local
+  or a cloud Claude Code session, over REST gh api calls only: ranking the backlog,
+  implementing the pick, opening the PR, reading CI per head SHA, a squash merge, and
+  follow-ups. It pushes and merges, so it runs only when asked for by name. Use to
+  ship the next issue, a named issue, or the backlog, or when a merged PR left its
+  issue open.
+disable-model-invocation: true
 ---
 
 # Shipping Issues

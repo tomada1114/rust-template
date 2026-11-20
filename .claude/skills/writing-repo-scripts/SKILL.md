@@ -1,15 +1,15 @@
 ---
 name: writing-repo-scripts
 description: >
-  Covers writing or editing repository automation and its tests: a cargo xtask task
-  under xtask/src/ (its Context, RunOptions, git_env and staged_guard_env, ScriptError,
-  test_support::Fake, just test-xtask's floors) and a skill's bundled Python or shell
-  script under .claude/skills/*/scripts/ (header comment, stdlib-only Python, a fake gh,
-  tests in scripts/tests/ run by just test-scripts). Use when adding a task, a skill
-  script, or the just recipe that calls one, a script must refuse or skip outside a git
-  work tree, git spawned from a hook acts on the wrong repository (an inherited GIT_DIR
-  or GIT_INDEX_FILE), writing an ERR_<STAGE>_<WHAT> failure with Expected/Actual/Next
-  lines, stubbing git, gh, or cargo in a test, or an xtask coverage floor fails.
+  Writing or editing repository automation and its tests: a cargo xtask task (Context,
+  git_env, ScriptError) and a skill's bundled Python or shell script with its suite
+  under scripts/tests/. Use when adding a task, a skill script, or the recipe that
+  calls one, writing an ERR_[STAGE]_[WHAT] failure, stubbing git, gh, or cargo in a
+  test, when a script must refuse or skip outside a git work tree, or when an xtask
+  coverage floor fails.
+paths:
+  - "xtask/**"
+  - ".claude/skills/*/scripts/**"
 ---
 
 # Writing Repository Scripts

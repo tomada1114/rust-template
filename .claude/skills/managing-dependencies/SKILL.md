@@ -1,17 +1,12 @@
 ---
 name: managing-dependencies
 description: >
-  Covers whether a crate may be added to this repository and how it is declared: the
-  review record its pull request carries, [workspace.dependencies] as the one place a
-  crate version is written, default features off for a new crate unless needed, and
-  only the features used, which crate may depend on what (myapp-core stays
-  platform-neutral, clap and ratatui stay in the myapp binary, xtask's crates never
-  ship), cargo deny licences, bans, and sources, Dependency Review's licence list, the
-  7-day cooldown applied by eye to a crate added by hand, and removing an unused crate
-  with cargo shear. Use when adding, bumping, or removing a dependency by hand, editing
-  a Cargo.toml's dependencies or a crate's features, cargo deny fails on a licence, a
-  ban, a source, or an advisory, or someone proposes replacing clap or ratatui or moving
-  either to a new major.
+  Whether a crate may be added and how it is declared: the review record its pull
+  request carries, [workspace.dependencies] as the one place a version is written,
+  which crate may depend on what, cargo deny's licences, bans, and sources, and cargo
+  shear. Use when adding, bumping, or removing a dependency by hand, editing a
+  Cargo.toml's dependencies or features, when cargo deny fails, or when someone
+  proposes replacing clap or ratatui.
 ---
 
 # Managing Dependencies

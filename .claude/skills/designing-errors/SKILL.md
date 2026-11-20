@@ -1,18 +1,12 @@
 ---
 name: designing-errors
 description: >
-  Covers how an error is shaped in this Rust CLI/TUI repository: one thiserror enum per
-  core module or port, variants the caller can act on, a payload of small kinds and
-  never std::io::Error or a path, From impls so ? converts, Option versus Err, the
-  binary mapping each variant to wording in crates/myapp/src/wording.rs and to exit code
-  1, the same wording on the tui screen's error line, an optional serialized code
-  (#[serde(tag = "code")]) for --json output, what an error or a tracing field may
-  carry, how an adapter in myapp-platform maps std::io::Error or an OS failure into a
-  core kind, no panic in a subcommand or the TUI (panic = "abort" in release), anyhow,
-  and the ERR_<STAGE>_<WHAT> codes of cargo xtask tasks and skills' scripts. Use when
-  adding or changing an error enum or variant, a Result-returning function or port, a
-  From impl, a match on an error, the wording for an error, a ScriptError code, or when
-  renaming a variant changes the code a --json consumer or a test pins.
+  How an error is shaped: one thiserror enum per core module or port, variants the
+  caller can act on, wording and exit codes mapped in the binary's wording.rs,
+  adapters mapping OS failures into core kinds, and the ERR_[STAGE]_[WHAT] codes of
+  xtask tasks and skill scripts. Use when adding or changing an error enum or variant,
+  a Result-returning function or port, a From impl, a match on an error, or an error's
+  wording.
 ---
 
 # Designing Errors

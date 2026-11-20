@@ -1,18 +1,11 @@
 ---
 name: designing-clis
 description: >
-  Covers the myapp binary's command line in crates/myapp/src/main.rs: the clap derive
-  declaration (a Subcommand enum per noun, doc comments as --help text), the thin
-  handler that composes the real adapters, calls one core method, and prints a view,
-  stdout for data and stderr for error: and warning: lines, exit codes (0 success, 1 the
-  action failed, 2 a clap usage error) through ExitCode, a closed stdout pipe, the
-  wording module crates/myapp/src/wording.rs, a --json form for output a script reads,
-  config and environment precedence (flag, environment variable, config file,
-  Tuning::default) with HOME and XDG_* read only in myapp-platform, and testing the
-  built binary against a temporary HOME in crates/myapp/tests/cli.rs. Use when adding,
-  renaming, or removing a subcommand, flag, or argument, changing what a command prints
-  or its exit code, adding wording for an error variant, adding --json output, a
-  setting, an environment variable, or a config file, or when a cli.rs test fails.
+  The binary's command line: clap subcommands and flags, stdout for data and stderr
+  for diagnostics, exit codes 0, 1, and 2, wording.rs, --json output, and
+  configuration precedence. Use when adding, renaming, or removing a subcommand, flag,
+  or argument, changing what a command prints or its exit code, adding a setting, an
+  environment variable, or a config file, or when a cli.rs test fails.
 ---
 
 # Designing CLIs

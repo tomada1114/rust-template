@@ -1,18 +1,12 @@
 ---
 name: placing-tests
 description: >
-  Decides where a new test goes and what runs and measures it: a #[cfg(test)] mod
-  tests beside core code vs crates/myapp-core/tests/, fakes and <port>_contract
-  functions in crates/myapp-test-support, adapter tests in crates/myapp-platform/tests
-  and #[ignore = "local machine: ..."] for ones that need a human's machine, the
-  binary's command line in crates/myapp/tests/cli.rs, its wording in wording.rs, the
-  TUI's key translation and its TestBackend view tests in crates/myapp/src/tui/, a
-  cargo xtask task's tests, a skill's bundled script suite under its scripts/tests/,
-  and which coverage floor governs it (the llvm-cov floors in the justfile's test-core
-  and test-xtask recipes). Use when adding a test file, choosing between just
-  test-fast, just test-core, just test-platform, just test-xtask, and just
-  test-scripts, when a fake from myapp-test-support will not type-check inside core,
-  or when a coverage floor fails.
+  Where a new test goes and what runs and measures it: beside core code or under a
+  crate's tests/, fakes and contract functions in the test-support crate, adapter
+  tests and the #[ignore]d ones a human runs, the binary's cli.rs, TUI view tests,
+  xtask and skill-script tests, and the coverage floor over each. Use when adding a
+  test file, choosing between just test-fast, test-core, test-platform, test-xtask,
+  and test-scripts, or when a coverage floor fails.
 ---
 
 # Placing Tests

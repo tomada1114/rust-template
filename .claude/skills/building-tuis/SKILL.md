@@ -1,18 +1,13 @@
 ---
 name: building-tuis
 description: >
-  Covers the full-screen terminal UI behind myapp tui: the screen's model and update in
-  myapp-core (a ...Screen value, a ScreenAction per user intent, a ScreenKey that names
-  no terminal library, update(self, action, service) returning the next screen), the
-  binary's crates/myapp/src/tui/ (mod.rs enters raw mode and the alternate screen, runs
-  the event loop, translates crossterm KeyEvent into ScreenKey, and restores the
-  terminal on exit, on an error, and from a panic hook; view.rs draws with ratatui
-  widgets and Style, words from wording.rs, a help line built from core's key table),
-  testing the view with ratatui's TestBackend (assert_buffer_lines, assert_buffer with
-  styles), keys as values, and never taking over the developer's terminal in a check.
-  Use when adding or changing a screen, a key binding, a widget, a style, or the event
-  loop, when touching ratatui, crossterm, raw mode, the alternate screen, or the panic
-  hook, when a TestBackend test fails, or when asked to run or look at myapp tui.
+  The full-screen terminal UI behind the tui subcommand: the screen's state, actions,
+  and keys in core, the ratatui and crossterm loop and view in the binary's src/tui/,
+  restoring the terminal on every way out, and TestBackend view tests. Use when adding
+  or changing a screen, a key binding, a widget, a style, or the event loop, when a
+  TestBackend test fails, or when asked to run or look at the TUI.
+paths:
+  - "crates/myapp/src/tui/**"
 ---
 
 # Building TUIs

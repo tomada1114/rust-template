@@ -1,17 +1,12 @@
 ---
 name: starting-an-app
 description: >
-  Covers turning this template into a new app and its first decisions: just bootstrap
-  (cargo xtask bootstrap), its prompts or flags (display name, slug, bundle identifier,
-  owner/repo, author, copyright holder), the placeholders it rewrites (MyApp, myapp,
-  myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
-  Template Bootstrap Smoke job; AGENTS.md's Product section; the tool's
-  shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
-  and why, written into the skill that owns it; removing the sample counter; installing it with just install-cli;
-  just labels, just ruleset, the GitHub security settings, and private-repository
-  steps. Use when starting an app from this repository, running or changing the
-  bootstrap, a placeholder survived the rename, just check-harness fails on the Product
-  section, or setting up a repository created from the template.
+  Turning this template into a new app and its first decisions: just bootstrap and the
+  names it asks for, just verify-bootstrap, AGENTS.md's Product section, the tool's
+  shape (subcommands only, or plus a TUI), where it keeps state, removing the sample
+  counter, and the GitHub setup (labels, ruleset, security settings). Use when
+  starting an app from this repository, running or changing the bootstrap, or when a
+  placeholder survived the rename.
 ---
 
 # Starting an App

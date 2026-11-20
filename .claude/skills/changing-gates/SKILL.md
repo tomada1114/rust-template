@@ -1,18 +1,12 @@
 ---
 name: changing-gates
 description: >
-  Covers editing a file that enforces rather than implements: Cargo.toml's
-  [workspace.lints], clippy.toml and crates/myapp-core/clippy.toml, rustfmt.toml,
-  deny.toml, osv-scanner.toml, rust-toolchain.toml, mise.toml, lefthook.yml,
-  xtask/src/check_staged.rs and xtask/guard/, xtask/src/clippy_guard.rs, the harness
-  checks in xtask/src/check_harness/ and their EXCEPTIONS lists, the test-core and
-  test-xtask recipes' floors, typos.toml, .github/workflows/*.yml, and
-  .github/rulesets/*.json. Use when a lint, a ban, a floor, a pin, an ignore list, a
-  harness check, a pre-commit job, a CI job or step, or a required check is added,
-  raised, loosened, or removed; when tempted by #[allow], #[expect], #[ignore], a skipped
-  test, a shellcheck disable, an EXCEPTIONS entry, continue-on-error, or --no-verify to
-  get a check green; or when asking which gate would have caught a change, including
-  what none of them sees, such as JSON, YAML, and Markdown, which no formatter checks.
+  Editing a file that enforces rather than implements: lints, clippy bans, coverage
+  floors, tool pins, ignore lists, the pre-commit hook and staged guard, harness
+  checks, workflows, and rulesets. Use when a gate is added, raised, loosened, or
+  removed, when tempted by #[allow], #[ignore], an EXCEPTIONS entry,
+  continue-on-error, or --no-verify to get a check green, or when asking which gate
+  would have caught a change.
 ---
 
 # Changing Gates

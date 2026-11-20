@@ -1,13 +1,11 @@
 ---
 name: smart-commit
 description: >
-  Covers turning the working tree into Conventional Commits in this repository: the
-  branch guard, the judgment the staged guard (cargo xtask check-staged) cannot make,
-  grouping changes into atomic commits, the files that must travel together (Cargo.lock
-  with a Cargo.toml), the commit types
-  check-pr-title.yml accepts, and recovering when lefthook's pre-commit hook refuses a
-  commit (ERR_STAGED_BLOCKED_PATH, ERR_STAGED_CREDENTIAL_SHAPED, rustfmt, typos). Use when asked to commit, save changes, stage changes,
-  commit and push, push my changes, or ship it, or when git commit fails in the hook.
+  Turning the working tree into Conventional Commits: the branch guard, the judgment
+  the staged guard cannot make, grouping changes into atomic commits, files that must
+  travel together, and recovering when the pre-commit hook refuses a commit. Use when
+  asked to commit, save changes, stage changes, commit and push, push my changes, or
+  ship it, or when git commit fails in the hook (an ERR_STAGED_ code, rustfmt, typos).
 ---
 
 # Smart Commit

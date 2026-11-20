@@ -5,14 +5,23 @@
 //!
 //! For each directory `.claude/skills/<dir>/`:
 //! - `<dir>/SKILL.md` opens with a `---` line and a later `---` line closes the block; the
-//!   block parses as YAML (duplicate keys rejected) into a mapping of exactly `name` and
-//!   `description`. The parse is strict because a skill whose frontmatter does not load
-//!   fails without an error: a skill found not to load gets a test and a rule here;
+//!   block parses as YAML (duplicate keys rejected) into a mapping of `name`,
+//!   `description`, and at most the optional Claude Code keys below. The parse is strict
+//!   because a skill whose frontmatter does not load fails without an error: a skill
+//!   found not to load gets a test and a rule here;
+//! - the optional keys are a closed list, so a misspelled or unreviewed one fails:
+//!   `paths` and `allowed-tools` are each a non-empty string or a non-empty list of
+//!   non-empty strings, `disable-model-invocation` is `true` or `false`, and
+//!   `argument-hint` is a non-empty string (quoted when it opens with `[`, which YAML
+//!   otherwise reads as a list);
 //! - `name` is a string equal to `<dir>`: lowercase letters, digits, and single hyphens,
 //!   at most 64 characters (the Agent Skills format);
 //! - `description` is a non-empty string of printable ASCII (tab and newline allowed), at
-//!   most 1,024 characters once trailing whitespace is dropped, and neither value carries
+//!   most 500 characters once trailing whitespace is dropped, and neither value carries
 //!   a trailing YAML comment (an unquoted ` #` silently cuts the value short);
+//! - the descriptions of every skill in the tree together are at most 9,000 characters:
+//!   the host lists them in one budget it shares with a person's own skills and plugins,
+//!   and drops the descriptions that overflow it, after which a skill loads by name only;
 //! - no file named `SKILL.md` exists below `<dir>/` other than `<dir>/SKILL.md`;
 //! - the body after the closing `---` is at most 200 lines;
 //! - nothing under `.claude/skills/` is a symbolic link (links are not followed).
@@ -24,8 +33,9 @@
 //! Errors: `ERR_CHECK_INPUT_MISSING` (no AGENTS.md or .claude/skills/),
 //! `ERR_CHECK_INPUT_UNREADABLE` (.claude/skills is not a directory, or a path under it
 //! cannot be read),
-//! `ERR_CHECK_SKILL_FRONTMATTER`, `ERR_CHECK_SKILL_DESCRIPTION`, `ERR_CHECK_SKILL_NESTED`,
-//! `ERR_CHECK_SKILL_BODY`, `ERR_CHECK_SKILL_SYMLINK`, `ERR_CHECK_SKILL_INDEX`.
+//! `ERR_CHECK_SKILL_FRONTMATTER`, `ERR_CHECK_SKILL_DESCRIPTION`, `ERR_CHECK_SKILL_LISTING`,
+//! `ERR_CHECK_SKILL_NESTED`, `ERR_CHECK_SKILL_BODY`, `ERR_CHECK_SKILL_SYMLINK`,
+//! `ERR_CHECK_SKILL_INDEX`.
 
 use std::path::Path;
 
@@ -34,7 +44,15 @@ use super::{Input, finding, list_dir, read_file};
 use crate::fail::FailureDetails;
 
 const SKILLS: &str = ".claude/skills";
-const MAX_DESCRIPTION: usize = 1024;
+const MAX_DESCRIPTION: usize = 500;
+const MAX_LISTING: usize = 9000;
+/// The Claude Code keys a skill may carry beside `name` and `description`.
+const OPTIONAL_KEYS: [&str; 4] = [
+    "paths",
+    "allowed-tools",
+    "disable-model-invocation",
+    "argument-hint",
+];
 const MAX_BODY_LINES: usize = 200;
 const MAX_NAME: usize = 64;
 const FIX_SKILL: &str = "fix the skill under .claude/skills/ (the authoring-skills skill)";
@@ -44,7 +62,8 @@ fn frontmatter_violation(dir: &str, actual: impl Into<String>) -> FailureDetails
         "ERR_CHECK_SKILL_FRONTMATTER",
         format!("{SKILLS}/{dir}/SKILL.md has a frontmatter that would not load as a skill"),
         format!(
-            "a --- block of strict YAML holding exactly `name: {dir}` and a non-empty string `description`"
+            "a --- block of strict YAML holding `name: {dir}`, a non-empty string `description`, and no other key than {}",
+            optional_keys()
         ),
         actual,
         FIX_SKILL,
@@ -54,15 +73,40 @@ fn frontmatter_violation(dir: &str, actual: impl Into<String>) -> FailureDetails
 fn description_violation(dir: &str, actual: impl Into<String>) -> FailureDetails {
     finding(
         "ERR_CHECK_SKILL_DESCRIPTION",
-        format!(
-            "{SKILLS}/{dir}/SKILL.md has a frontmatter value that would not load in both hosts"
-        ),
+        format!("{SKILLS}/{dir}/SKILL.md has a frontmatter value that would not load as written"),
         format!(
             "a printable-ASCII description of at most {MAX_DESCRIPTION} characters, and no YAML comment cutting a value short"
         ),
         actual,
         format!("{FIX_SKILL} (quote the value, or use `description: >`)"),
     )
+}
+
+fn optional_keys() -> String {
+    OPTIONAL_KEYS
+        .iter()
+        .map(|key| format!("`{key}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn filled(node: &Node) -> bool {
+    node.as_str().is_some_and(|text| !text.trim().is_empty())
+}
+
+/// What is wrong with the value of the optional key `key`, if anything.
+fn optional_key_problem(key: &str, value: &Node) -> Option<String> {
+    let shape = match key {
+        "disable-model-invocation" => value.as_bool().is_none().then_some("`true` or `false`"),
+        "argument-hint" => (!filled(value)).then_some("a non-empty string"),
+        _ => {
+            let items = value.items();
+            let list = value.is_seq() && !items.is_empty() && items.iter().all(filled);
+            (!filled(value) && !list)
+                .then_some("a non-empty string or a non-empty list of non-empty strings")
+        }
+    }?;
+    Some(format!("`{key}` is not {shape}"))
 }
 
 fn name_shape(name: &str) -> bool {
@@ -164,8 +208,73 @@ fn value_comment(lines: &[&str], key: usize, end: usize, value: &Node) -> Option
     }
 }
 
-/// Checks one SKILL.md's frontmatter and body length.
-fn skill_file_violations(dir: &str, text: &str) -> Vec<FailureDetails> {
+/// Checks each frontmatter key, and returns the `name` and `description` values found.
+fn key_violations<'a>(
+    dir: &str,
+    pairs: &'a [(Node, Node)],
+    block: &[&str],
+    flow: bool,
+    violations: &mut Vec<FailureDetails>,
+) -> (Option<&'a Node>, Option<&'a Node>) {
+    let mut name = None;
+    let mut description = None;
+    for (index, (key, value)) in pairs.iter().enumerate() {
+        let label = key.scalar_text().unwrap_or_else(|| key.to_json());
+        if OPTIONAL_KEYS.contains(&label.as_str()) {
+            violations.extend(
+                optional_key_problem(&label, value)
+                    .map(|problem| frontmatter_violation(dir, problem)),
+            );
+            continue;
+        }
+        if label != "name" && label != "description" {
+            violations.push(frontmatter_violation(
+                dir,
+                format!(
+                    "unexpected key `{label}` (beside `name` and `description`, only {} are allowed)",
+                    optional_keys()
+                ),
+            ));
+            continue;
+        }
+        // A flow mapping (`{name: x, description: y}`) shares its lines between keys, and
+        // its values carry no comment this reads.
+        let end = pairs
+            .get(index + 1)
+            .map_or(block.len(), |(next, _)| next.line - 1);
+        let comment = if flow {
+            None
+        } else {
+            value_comment(block, key.line - 1, end, value)
+        };
+        if let Some(comment) = comment {
+            violations.push(description_violation(
+                dir,
+                format!("`{label}` is followed by a YAML comment (`{comment}`), which drops that text from the value"),
+            ));
+        }
+        if label == "name" {
+            name = Some(value);
+        } else {
+            description = Some(value);
+        }
+    }
+    (name, description)
+}
+
+/// Checks one SKILL.md's frontmatter and body length, and returns with the violations
+/// the length its description adds to the listing (0 when it has none to measure).
+fn skill_file_violations(dir: &str, text: &str) -> (Vec<FailureDetails>, usize) {
+    let mut listed = 0;
+    let violations = frontmatter_and_body_violations(dir, text, &mut listed);
+    (violations, listed)
+}
+
+fn frontmatter_and_body_violations(
+    dir: &str,
+    text: &str,
+    listed: &mut usize,
+) -> Vec<FailureDetails> {
     let lines: Vec<&str> = text.split('\n').collect();
     if lines.first() != Some(&"---") {
         return vec![frontmatter_violation(
@@ -226,42 +335,12 @@ fn skill_file_violations(dir: &str, text: &str) -> Vec<FailureDetails> {
         return found;
     };
 
-    let mut name = None;
-    let mut description = None;
-    for (index, (key, value)) in pairs.iter().enumerate() {
-        let label = key.scalar_text().unwrap_or_else(|| key.to_json());
-        if label != "name" && label != "description" {
-            violations.push(frontmatter_violation(
-                dir,
-                format!("unexpected key `{label}` (only `name` and `description` are allowed)"),
-            ));
-            continue;
-        }
-        // A flow mapping (`{name: x, description: y}`) shares its lines between keys, and
-        // its values carry no comment this reads.
-        let end = pairs
-            .get(index + 1)
-            .map_or(block.len(), |(next, _)| next.line - 1);
-        let comment = if flow {
-            None
-        } else {
-            value_comment(block, key.line - 1, end, value)
-        };
-        if let Some(comment) = comment {
-            violations.push(description_violation(
-                dir,
-                format!("`{label}` is followed by a YAML comment (`{comment}`), which drops that text from the value"),
-            ));
-        }
-        if label == "name" {
-            name = Some(value);
-        } else {
-            description = Some(value);
-        }
-    }
-
+    let (name, description) = key_violations(dir, pairs, block, flow, &mut violations);
     violations.extend(name_violation(dir, name));
     violations.extend(description_violations(dir, description));
+    *listed = description
+        .and_then(Node::as_str)
+        .map_or(0, description_length);
     violations
 }
 
@@ -279,6 +358,41 @@ fn name_violation(dir: &str, name: Option<&Node>) -> Option<FailureDetails> {
         Some(Some(_)) => return None,
     };
     Some(frontmatter_violation(dir, problem))
+}
+
+/// A description's length as the caps count it: trailing whitespace dropped.
+fn description_length(text: &str) -> usize {
+    text.trim_end().encode_utf16().count()
+}
+
+/// The finding when the tree's descriptions together are over the listing cap: the total
+/// and the longest ones, as (skill, length).
+fn listing_violation(mut lengths: Vec<(String, usize)>) -> Option<FailureDetails> {
+    let total: usize = lengths.iter().map(|(_, length)| length).sum();
+    if total <= MAX_LISTING {
+        return None;
+    }
+    lengths.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let longest: Vec<String> = lengths
+        .iter()
+        .take(5)
+        .map(|(name, length)| format!("{name} ({length})"))
+        .collect();
+    Some(finding(
+        "ERR_CHECK_SKILL_LISTING",
+        format!(
+            "the descriptions under {SKILLS}/ are together over the {MAX_LISTING}-character listing cap"
+        ),
+        format!(
+            "at most {MAX_LISTING} characters of description across every skill, so the host's skill listing keeps each one"
+        ),
+        format!(
+            "{total} characters in {} skills; the longest: {}",
+            lengths.len(),
+            longest.join(", ")
+        ),
+        "shorten the longest descriptions to what the skill covers and when to load it (the authoring-skills skill)",
+    ))
 }
 
 /// What is wrong with the frontmatter's `description`.
@@ -301,7 +415,7 @@ fn description_violations(dir: &str, description: Option<&Node>) -> Vec<FailureD
                     "`description` holds a non-ASCII or non-printable character (an em dash or a curly quote, say)",
                 ));
             }
-            let length = text.encode_utf16().count();
+            let length = description_length(text);
             if length > MAX_DESCRIPTION {
                 found.push(description_violation(
                     dir,
@@ -500,6 +614,7 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
     });
 
     let mut violations = Vec::new();
+    let mut lengths = Vec::new();
     for (name, link) in &entries {
         if *link {
             violations.push(symlink_violation(&format!("{SKILLS}/{name}")));
@@ -507,10 +622,15 @@ pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
         }
         match read_file(input.root, &format!("{SKILLS}/{name}/SKILL.md")) {
             None => violations.push(frontmatter_violation(name, "the directory has no SKILL.md")),
-            Some(text) => violations.extend(skill_file_violations(name, &text)),
+            Some(text) => {
+                let (found, listed) = skill_file_violations(name, &text);
+                violations.extend(found);
+                lengths.push((name.clone(), listed));
+            }
         }
         violations.extend(tree_violations(input.root, name));
     }
+    violations.extend(listing_violation(lengths));
     let dirs: Vec<String> = entries.into_iter().map(|(name, _)| name).collect();
     violations.extend(index_violations(&agents, &dirs));
     violations
@@ -576,8 +696,16 @@ mod tests {
     fn fails_on_each_frontmatter_fault() {
         for (content, actual) in [
             (
-                skill("name: alpha\ndescription: x\npaths: src/**"),
-                "unexpected key `paths`",
+                skill("name: alpha\ndescription: x\nwhen_to_use: always"),
+                "unexpected key `when_to_use`",
+            ),
+            (
+                skill("name: alpha\ndescription: x\nmodel: opus"),
+                "unexpected key `model`",
+            ),
+            (
+                skill("name: alpha\ndescription: x\n? [a]\n: b"),
+                "unexpected key `[\"a\"]`",
             ),
             (skill("name: alfa\ndescription: x"), "`name` is `alfa`"),
             (skill("description: x"), "no `name`"),
@@ -651,16 +779,16 @@ mod tests {
         );
         let at = skill(&format!(
             "name: alpha\ndescription: >\n  {}",
-            "a".repeat(1024)
+            "a".repeat(500)
         ));
         assert_eq!(check(&[(".claude/skills/alpha/SKILL.md", Some(&at))]), []);
         let over = skill(&format!(
             "name: alpha\ndescription: >\n  {}",
-            "a".repeat(1025)
+            "a".repeat(501)
         ));
         let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&over))]);
         assert_eq!(codes(&violations), ["ERR_CHECK_SKILL_DESCRIPTION"]);
-        assert!(violations[0].actual.contains("1025 characters"));
+        assert!(violations[0].actual.contains("501 characters"));
         for content in [
             skill("name: alpha\ndescription: Use it #now to see"),
             skill("name: alpha # the name\ndescription: x"),
@@ -681,6 +809,118 @@ mod tests {
             check(&[(".claude/skills/alpha/SKILL.md", Some(&content))]),
             []
         );
+    }
+
+    #[test]
+    fn passes_on_each_optional_claude_code_key() {
+        for frontmatter in [
+            "paths:\n  - \"crates/alpha/**\"\n  - \"xtask/**\"",
+            "paths: crates/alpha/**, xtask/**",
+            "allowed-tools: Read Grep",
+            "allowed-tools:\n  - Read\n  - Bash(git status *)",
+            "disable-model-invocation: true",
+            "disable-model-invocation: false # asked for by name",
+            "argument-hint: \"[issue-number]\"",
+            "paths: [\"a/**\"]\nallowed-tools: Read\ndisable-model-invocation: true\nargument-hint: \"[n]\"",
+        ] {
+            let content = skill(&format!("name: alpha\ndescription: x\n{frontmatter}"));
+            assert_eq!(
+                check(&[(".claude/skills/alpha/SKILL.md", Some(&content))]),
+                [],
+                "{frontmatter}"
+            );
+        }
+    }
+
+    #[test]
+    fn fails_on_an_optional_key_of_the_wrong_type() {
+        for (frontmatter, actual) in [
+            ("paths: 42", "`paths` is not"),
+            ("paths: \"\"", "`paths` is not"),
+            ("paths: []", "`paths` is not"),
+            ("paths:\n  - src/**\n  - 42", "`paths` is not"),
+            ("paths:\n  - src/**\n  - \" \"", "`paths` is not"),
+            ("paths:\n  glob: src/**", "`paths` is not"),
+            ("allowed-tools: true", "`allowed-tools` is not"),
+            ("allowed-tools:\n  - [Read]", "`allowed-tools` is not"),
+            (
+                "disable-model-invocation: \"true\"",
+                "`disable-model-invocation` is not `true` or `false`",
+            ),
+            (
+                "disable-model-invocation: yes",
+                "`disable-model-invocation` is not `true` or `false`",
+            ),
+            (
+                "argument-hint: [issue-number]",
+                "`argument-hint` is not a non-empty string",
+            ),
+            (
+                "argument-hint: \"\"",
+                "`argument-hint` is not a non-empty string",
+            ),
+        ] {
+            let content = skill(&format!("name: alpha\ndescription: x\n{frontmatter}"));
+            let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&content))]);
+            assert_eq!(
+                codes(&violations),
+                ["ERR_CHECK_SKILL_FRONTMATTER"],
+                "{frontmatter}"
+            );
+            assert!(
+                violations[0].actual.contains(actual),
+                "{frontmatter}: {}",
+                violations[0].actual
+            );
+        }
+    }
+
+    #[test]
+    fn fails_when_the_descriptions_together_pass_the_listing_cap() {
+        let described = |length: usize| {
+            skill(&format!(
+                "name: {{name}}\ndescription: >\n  {}",
+                "a".repeat(length)
+            ))
+        };
+        let names: Vec<String> = (1..=17).map(|n| format!("full{n:02}")).collect();
+        let listing = |last: usize| {
+            let mut rows: Vec<String> = vec!["`alpha`".to_owned(), "`beta`".to_owned()];
+            rows.extend(names.iter().map(|name| format!("`{name}`")));
+            let rows: Vec<&str> = rows.iter().map(String::as_str).collect();
+            let agents = index(&rows);
+            let mut files: Vec<(String, String)> = vec![
+                ("AGENTS.md".to_owned(), agents),
+                (
+                    ".claude/skills/alpha/SKILL.md".to_owned(),
+                    described(250).replace("{name}", "alpha"),
+                ),
+                (
+                    ".claude/skills/beta/SKILL.md".to_owned(),
+                    described(last).replace("{name}", "beta"),
+                ),
+            ];
+            files.extend(names.iter().map(|name| {
+                (
+                    format!(".claude/skills/{name}/SKILL.md"),
+                    described(500).replace("{name}", name),
+                )
+            }));
+            let overrides: Vec<(&str, Option<&str>)> = files
+                .iter()
+                .map(|(path, content)| (path.as_str(), Some(content.as_str())))
+                .collect();
+            check(&overrides)
+        };
+        assert_eq!(listing(250), []);
+        let violations = listing(251);
+        assert_eq!(codes(&violations), ["ERR_CHECK_SKILL_LISTING"]);
+        assert!(
+            violations[0].actual.contains("9001 characters"),
+            "{}",
+            violations[0].actual
+        );
+        assert!(violations[0].actual.contains("full01 (500)"));
     }
 
     #[test]

@@ -1,15 +1,12 @@
 ---
 name: tdd
 description: >
-  Red-green-refactor for this repository: decide where the code lives (myapp-core by
-  default, then the subcommand or the TUI layer in crates/myapp), write a failing test
-  first, prove it fails with just test-fast <filter> (cargo nextest in myapp-core),
-  implement the minimum in core, refactor, then re-check the coverage floor with just
-  test-core, the binary and adapters with just test-platform, and just lint. Use
-  PROACTIVELY when implementing a feature, changing behavior, fixing a bug (regression
-  test first), adding a function, a type, a state transition, a subcommand, a flag, a
-  key binding, or a screen; when asked for TDD or test-first; or when a coverage floor
-  fails after a change.
+  Red-green-refactor here: decide where the code lives (core by default), write a
+  failing test first, prove it fails with just test-fast, implement the minimum,
+  refactor, then re-check the coverage floor with just test-core. Use PROACTIVELY when
+  implementing a feature, changing behavior, fixing a bug (regression test first), or
+  adding a function, a type, a subcommand, a flag, or a screen, when asked for TDD or
+  test-first.
 ---
 
 # TDD Workflow

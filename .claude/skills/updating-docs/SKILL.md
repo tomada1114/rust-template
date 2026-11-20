@@ -1,17 +1,11 @@
 ---
 name: updating-docs
 description: >
-  Decides whether a change owes a documentation update and which surface it lands on:
-  README.md (Quickstart, Using This Template), AGENTS.md,
-  CONTRIBUTING.md, CHANGELOG.md, docs/getting-started.md, docs/openrouter.md, a skill
-  under .claude/skills/ (where how the app is built and why is written, since there is
-  no architecture document or roadmap), or a /// rustdoc comment on a pub item in
-  myapp-core. Use when triaging whether a pull request needs a document changed or a CHANGELOG
-  [Unreleased] entry, when a justfile recipe, a gate, a subcommand or flag, an on-disk
-  format, or an architecture boundary moved and it is unclear which file owns it, when
-  the setup
-  steps drifted, when a template-only block is involved, or when deciding that an
-  internal refactor needs no documentation change.
+  Whether a change owes a documentation update and which file owns it: README.md,
+  AGENTS.md, CONTRIBUTING.md, CHANGELOG.md, docs/, a skill under .claude/skills/, or a
+  rustdoc comment in core. Use when deciding whether a pull request needs a document
+  changed or a CHANGELOG entry, when a recipe, a gate, a subcommand, or an on-disk
+  format moved and it is unclear which file owns it, or when the setup steps drifted.
 ---
 
 # Updating Documentation

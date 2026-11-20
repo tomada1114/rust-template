@@ -1,18 +1,12 @@
 ---
 name: writing-rust
 description: >
-  Covers the Rust a newcomer needs to change this codebase safely, in crates/*/src:
-  ownership and borrowing (&str in, String out, clone a small value rather than add a
-  lifetime, Arc and Mutex for shared ports), Result and the ? operator instead of
-  unwrap or expect, Option and let-else, enums with an exhaustive match
-  (wildcard_enum_match_arm), modules and pub(crate), traits as Send + Sync ports, serde
-  derives, the clap derive and ratatui idioms the binary uses, reading compiler errors
-  (E0382 use of moved value, E0499, E0502, E0505, E0597 borrow conflicts, E0277 trait
-  bound not satisfied, E0004 non-exhaustive match, E0308 mismatched types), and fixing
-  a clippy pedantic finding instead of adding #[allow]. Use when writing or reviewing a
-  .rs file, when cargo build, just lint, or just test-fast fails with a compiler error
-  or a clippy warning, when the borrow checker objects, or when reaching for unwrap,
-  println!, a lifetime annotation, unsafe, or #[allow(clippy::...)].
+  The Rust a newcomer needs to change this codebase safely: ownership and borrowing,
+  Result and ? instead of unwrap, Option and let-else, enums with an exhaustive match,
+  traits as ports, the clap and ratatui idioms the binary uses, and reading compiler
+  errors. Use when writing or reviewing a .rs file, when a build or just lint fails
+  with a compiler error or a clippy warning, or when reaching for unwrap, a lifetime,
+  unsafe, or #[allow].
 ---
 
 # Writing Rust

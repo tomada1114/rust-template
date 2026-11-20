@@ -1,19 +1,14 @@
 ---
 name: designing-core-logic
 description: >
-  Covers how logic in crates/myapp-core is shaped so it stays deterministic and
-  tested: time, randomness, the environment, files, and processes reached only through
-  ports or arguments (the Clock port and UnixMillis; core's clippy.toml bans on clock
-  reads, env, std::fs and Path queries, sockets, standard streams, processes, exit,
-  unscoped threads, sleep, and printing), when a new port is justified, tunable
-  numbers in one Tuning struct, state transitions that take self and return a new
-  value or a typed error, a service running load, decide, save, a ...View struct that
-  a subcommand prints and a TUI frame draws, a ...Screen value for a TUI's state, no
-  async in core, and the patterns not adopted. Use when adding a type, a rule, a use
-  case, a screen's state, a timer, a debounce, a threshold, a limit, or anything
-  random or time-dependent to core, when clippy reports a disallowed method or type in
-  core, or when reaching for async, a repository trait, a DI container, an event bus,
-  or a TUI framework.
+  How logic in the core crate stays deterministic and tested: time, randomness, the
+  environment, files, and processes only through ports or arguments, when a new port
+  is justified, one Tuning struct, transitions that return a new value or a typed
+  error, and view types. Use when adding a type, a rule, a use case, a timer, or a
+  threshold to core, when clippy reports a disallowed method there, or when reaching
+  for async or a repository trait.
+paths:
+  - "crates/myapp-core/src/**"
 ---
 
 # Designing Core Logic
