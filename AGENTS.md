@@ -37,6 +37,8 @@ answer to "is this in scope?". Fill in every `TODO:` below right after the renam
 
 ```bash
 just install  # Pinned tools (mise) and lefthook's git hooks
+# Cloud: the setup script and SessionStart hook run provision.sh instead
+bash .claude/cloud/provision.sh session  # By hand in a multi-repo session or project thread
 just verify-hooks  # Fail when the pre-commit hook is missing
 just fmt
 just fix  # rustfmt's fixes only
@@ -50,11 +52,11 @@ just test-scripts  # Skills' Python suites and shellcheck
 just check-harness  # The harness's claims about itself
 just logs  # Print the end of the newest app log
 just deny  # cargo deny
-just check  # Every check a Mac runs without a human
+just check  # Every check a machine runs without a human
 just clean
 just prune-temp  # Remove leftover temp dirs and idle scratchpads
 just verify-bootstrap  # Bootstrap a scratch clone; fail on what it leaves behind
-# A human's recipes: an agent runs them only when asked
+# A human's recipes: only when asked, never in a cloud session
 just test-local  # The #[ignore]d tests
 just logs-follow  # Never ends
 just install-cli  # Install the binary into ~/.cargo/bin
@@ -76,7 +78,7 @@ opens a window or takes focus.
 | `crates/myapp-test-support/`, `crates/myapp/` | `just test-core`, then `just test-platform`; the terminal loop needs the human's `myapp tui` run |
 | `xtask/`, a harness check | `cargo nextest run -p xtask -p xtask-guard`, then `just test-xtask`, `just lint`, `just check-harness` |
 | `lefthook.yml` | `just test-xtask`, then `just verify-hooks` |
-| A recipe, skill, workflow, label, issue form, ruleset, `## Product`, core's forbidden-crate lists (`deny.toml`'s `wrappers`), a committed `.claude/settings.json` (if one is added) | `just check-harness`; for a workflow also `mise exec -- actionlint` and `mise exec -- zizmor .`, for a skill's scripts `just test-scripts` |
+| A recipe, skill, workflow, label, issue form, ruleset, `## Product`, core's forbidden-crate lists (`deny.toml`'s `wrappers`), `.claude/settings.json` | `just check-harness`; for a workflow also `mise exec -- actionlint` and `mise exec -- zizmor .`, for a skill's scripts `just test-scripts` |
 | Markdown, `.github/labels.yml`, an issue form | `mise exec -- typos <file>` |
 | `Cargo.toml`, `Cargo.lock`, `deny.toml` | `just deny`, `mise exec -- cargo shear`, `just lint`, `just test` |
 | `mise.toml`, `rust-toolchain.toml` | `mise install`, then `just check` |
@@ -227,8 +229,8 @@ which is fine to read). If a task seems to need one, ask the human for the non-s
 fact instead.
 
 Get a human's sign-off before any of these. This section is the rule itself, not a
-check: a personal permission file may stop a few of them on one host, but this
-repository ships none (the permission-list gap in `changing-gates`'
+check: the committed `.claude/settings.json`, which personal files add to, stops a few
+of them in Claude Code only (the permission-list gap in `changing-gates`'
 `references/enforcement-layers.md`).
 
 - Adding a release pipeline or anything it would need (a workflow that builds or
@@ -238,8 +240,10 @@ repository ships none (the permission-list gap in `changing-gates`'
   `~/.claude/settings.json`) unless the owner asks for it in that session: it decides
   what an agent may run, and no review ever sees it.
 - Adding a new crate (the dependency policy is in `.claude/rules/project.md`).
-- Weakening any gate: lowering a coverage floor, relaxing a lint, or widening a
-  workflow's `permissions:`. If a gate looks wrong, say so and let a human decide. So
+- Weakening any gate: lowering a coverage floor, relaxing a lint, widening a workflow's
+  `permissions:`, or, in the committed `.claude/settings.json` (a gate file, changed
+  only in a reviewed PR), loosening a `deny` or `ask` or widening `allow`. If a gate
+  looks wrong, say so and let a human decide. So
   is any of these, used to make a failing check pass: `#[allow(…)]` or
   `#[expect(…)]` on a lint; `unsafe`, or lifting `unsafe_code = "forbid"`; `#[ignore]`
   or `skip` on a failing test; excluding a file from coverage, or adding a path to an
@@ -283,13 +287,13 @@ None of them covers anything else: a force push or other history rewrite,
 `--no-verify`, weakening a gate, a release pipeline or signing, a release tag, a new
 dependency, `just labels`, or `just ruleset`. A skill that reaches one stops and asks.
 
-### Never taking over the developer's Mac
+### Never taking over the machine
 
-The owner develops on the Mac the checks run on, often beside an unattended agent.
-Nothing a routine check runs — `just check` and every recipe in it, the pre-commit
-hook, a PostToolUse hook, any step an agent runs to verify its work — may show a
-window, take keyboard focus, move the pointer, raise a permission, Keychain, or
-Gatekeeper prompt, or take over a terminal.
+Checks run on the owner's own machine, often beside an unattended agent. Nothing a
+routine check runs — `just check` and every recipe in it, the pre-commit hook, a
+PostToolUse hook, any step an agent runs to verify its work — may show a window, take
+keyboard focus, move the pointer, raise a permission, Keychain, or Gatekeeper prompt, or
+take over a terminal.
 
 - Never run `myapp tui` (`cargo run -p myapp -- tui` included). No check needs a TTY:
   the TUI is tested through ratatui's `TestBackend` (`building-tuis`). When only the
@@ -302,6 +306,9 @@ Gatekeeper prompt, or take over a terminal.
   `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`.
 - Never trigger an installer or a `sudo` prompt; report the command for the human
   (`running-the-app`).
+- A cloud session has no human at the VM: instead of asking, leave it unrun and name it
+  in the PR as needing a local run. Never run a human's recipe there, even when asked:
+  report that it needs a local machine.
 
 ## Enforcement layers
 
@@ -318,8 +325,8 @@ bytes outside `## Product`.
 Every local layer can be skipped, so these reach `main` only if CI or GitHub stops
 them: `git commit --no-verify` or another hook bypass; a clone where `just install`
 never ran; an edit made through GitHub's web UI or API; a secret whose path and content
-pattern the guard does not know; and any tool other than Claude Code, since a Claude
-Code permission list binds nothing else. A new repository's admin turns GitHub's side
+pattern the guard does not know; and any tool other than Claude Code, the
+only one `.claude/settings.json` binds. A new repository's admin turns GitHub's side
 on once (secret scanning, push protection, the rulesets): `starting-an-app`'
 `references/github-settings.md`.
 

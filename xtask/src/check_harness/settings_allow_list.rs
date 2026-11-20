@@ -1,4 +1,4 @@
-//! A committed `.claude/settings.json`, if one is added, has an `allow` list that admits
+//! The committed `.claude/settings.json` has an `allow` list that admits
 //! none of the recipes that need a human or write beyond the working tree (the
 //! `changing-gates` skill's `references/enforcement-layers.md`), so adding one to `allow` fails here instead of relying on
 //! review to notice it.

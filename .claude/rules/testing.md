@@ -16,4 +16,4 @@ below. The skills hold everything else, and nothing here restates them.
 - A red test is fixed in the code. An `#[ignore]`, a `skip`, or a loosened assertion to
   get it out of the way is weakening a gate (`AGENTS.md` › "Security and human
   approval"), and no test opens a window, takes focus, raises a prompt, or takes over a
-  terminal (`AGENTS.md` › "Never taking over the developer's Mac")
+  terminal (`AGENTS.md` › "Never taking over the machine")

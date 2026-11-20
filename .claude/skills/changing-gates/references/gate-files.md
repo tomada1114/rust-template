@@ -158,8 +158,8 @@ How a check's code is written, and its coverage floor, is `writing-repo-scripts`
 functions 90 over `xtask` and `xtask-guard`, then lines 90 and functions 100 over
 `xtask/guard/` alone, from one test run), `lint` runs clippy through `clippy-guard` with
 `-D warnings`, and `check` lists the local gate. Recipe names are contract
-for `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, the skills, and a committed
-`.claude/settings.json` if one is added, all of which `just check-harness` reads. In that
+for `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, the skills, and the committed
+`.claude/settings.json`, all of which `just check-harness` reads. In that
 settings file, `settings-allow-list` keeps the human recipes and the `cargo xtask` tasks
 that write to GitHub or rewrite the repository, `cargo install`, and `cargo run … tui`
 out of `allow`, and `settings-hooks` holds every hook command to scripts that exist, a

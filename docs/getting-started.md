@@ -56,7 +56,10 @@ A Claude Code cloud session (claude.ai/code) runs on an Ubuntu VM that starts wi
   missing, and `just install` stays the local path. Every mode exits 0; a step that
   failed prints a `WARN(provision)` line.
 
-Where no hook runs the session mode, start it by hand:
+The committed `.claude/settings.json` registers `provision.sh session` as the
+`SessionStart` hook, with the permission list a cloud session runs under: it reads no
+personal settings file. In a multi-repo session or a project thread, where that hook
+does not run, start the session mode by hand first:
 
 ```bash
 bash .claude/cloud/provision.sh session
@@ -67,6 +70,10 @@ A foreground command in a cloud session has a time limit
 2026-10-07), and a cold `just check` builds the workspace several ways, so run it recipe
 by recipe there (`just lint`, `just test-core`, `just test-xtask`, `just test-platform`,
 `just check-harness`) rather than as one command.
+
+No human is at the VM. A step that needs one (`just test-local`, `just logs-follow`,
+`just install-cli`, a `myapp tui` run) is never run in a cloud session, even when asked:
+the agent leaves it unrun and names it in the pull request as needing a local run.
 
 ## Everyday commands
 

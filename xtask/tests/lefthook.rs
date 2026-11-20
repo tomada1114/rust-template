@@ -271,22 +271,24 @@ fn every_documented_xtask_hook_builds_in_its_own_target_directory() {
         );
     }
 
-    let layers = ".claude/skills/changing-gates/references/enforcement-layers.md";
-    let layers = must(
-        std::fs::read_to_string(checkout().join(layers)),
-        "read the enforcement layers",
+    // The format hook is the committed wrapper `.claude/settings.json` registers.
+    let wrapper = must(
+        std::fs::read_to_string(checkout().join(".claude/hooks/format-edited-file.sh")),
+        "read the format hook",
     );
-    let format_hook: Vec<&str> = layers
+    let format_hook: Vec<&str> = wrapper
         .lines()
-        .filter(|line| line.contains("cd \"$CLAUDE_PROJECT_DIR\""))
+        .filter(|line| line.contains("\"${run[@]}\"") && !line.contains("run=("))
         .collect();
     assert_eq!(format_hook.len(), 1, "{format_hook:?}");
     assert!(
-        format_hook[0].contains(&format!(
-            "cd \"$CLAUDE_PROJECT_DIR\" && {HOOK_TARGET_DIR} mise exec -- cargo xtask format-edited-file`"
-        )),
+        format_hook[0].ends_with(&format!("| {HOOK_TARGET_DIR} \"${{run[@]}}\"")),
         "{}",
         format_hook[0]
+    );
+    assert!(
+        wrapper.contains("run=(cargo xtask format-edited-file)"),
+        "{wrapper}"
     );
 }
 

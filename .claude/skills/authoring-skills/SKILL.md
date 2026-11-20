@@ -123,8 +123,8 @@ greps before committing; a pinned tool goes through `mise exec --`. A remote wri
 (`git push`, `gh pr create`, `just labels`) appears only with its condition from
 `AGENTS.md` › "Security and human approval"; a skill grants itself nothing.
 
-**Never taking over the developer's Mac.** Every step a skill tells an agent to run
-follows `AGENTS.md` › "Never taking over the developer's Mac": on its own an agent runs
+**Never taking over the machine.** Every step a skill tells an agent to run
+follows `AGENTS.md` › "Never taking over the machine": on its own an agent runs
 only what shows no window, takes no focus, raises no prompt, and takes over no terminal,
 with the tests, `just test-platform`, and `just logs` as its evidence. A human's recipe
 (`just test-local`, `just logs-follow`, `just install-cli`) is marked as one wherever a

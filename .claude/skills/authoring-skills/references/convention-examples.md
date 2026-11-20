@@ -20,9 +20,10 @@ an issue number).
 Why this split: the repository is developed with coding agents, often unattended.
 `AGENTS.md` gives every one of them the architecture, the gates, and the hard
 prohibitions; path-scoped rules and skills carry the procedures, loaded only when the
-work calls for them. Which commands an agent runs without a prompt is each person's own
-choice, so no permission file is committed (`changing-gates`' `references/enforcement-layers.md`): the
-gates and `AGENTS.md`, not a permission list, are what bind every author.
+work calls for them. The committed `.claude/settings.json` holds the permission list
+and hooks every Claude Code session starts with, a cloud session included, and binds no
+other tool (`changing-gates`' `references/enforcement-layers.md`): the gates and
+`AGENTS.md`, not a permission list, are what bind every author.
 
 ## Descriptions
 
@@ -115,12 +116,13 @@ destructive or remote one, confirm the subcommand and flags with `--help`. A pin
 is written `mise exec -- typos <file>`, never a bare `typos`, which may be a different
 version or absent.
 
-## Never taking over the developer's Mac
+## Never taking over the machine
 
 Write: "For evidence that the change works, run `just test-platform`, then `just logs`.
 When only a logged-in Mac can show it, ask the human to run `just test-local` (a human's
 recipe: it may raise a Keychain or privacy prompt) and put its output in the pull
-request."
+request; in a cloud session, leave it unrun and name it in the pull request as needing a
+local run."
 
 Avoid: "Run `just test-local` to check the Keychain adapter." An unattended agent
 following that raises a prompt on top of the owner's work and takes focus. Likewise

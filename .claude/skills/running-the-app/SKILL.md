@@ -27,7 +27,7 @@ substitute for a test.
 ## What an agent runs on its own
 
 Nothing here opens a window, takes focus, raises a prompt, or takes over a terminal
-(`AGENTS.md` › "Never taking over the developer's Mac"). This is the default, and
+(`AGENTS.md` › "Never taking over the machine"). This is the default, and
 usually enough. Nothing here starts an installer or a `sudo` prompt either: when a
 tool is missing, report the command for the human to run, as `just install` does for
 the Xcode Command Line Tools.
