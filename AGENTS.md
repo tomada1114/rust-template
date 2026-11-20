@@ -76,7 +76,7 @@ opens a window or takes focus.
 | `crates/myapp-test-support/`, `crates/myapp/` | `just test-core`, then `just test-platform`; the terminal loop needs the human's `myapp tui` run |
 | `xtask/`, a harness check | `cargo nextest run -p xtask -p xtask-guard`, then `just test-xtask`, `just lint`, `just check-harness` |
 | `lefthook.yml` | `just test-xtask`, then `just verify-hooks` |
-| A recipe, skill, workflow, label, issue form, ruleset, `## Product`, `.claude/settings.json` | `just check-harness`; for a workflow also `mise exec -- actionlint` and `mise exec -- zizmor .`, for a skill's scripts `just test-scripts` |
+| A recipe, skill, workflow, label, issue form, ruleset, `## Product`, a committed `.claude/settings.json` (if one is added) | `just check-harness`; for a workflow also `mise exec -- actionlint` and `mise exec -- zizmor .`, for a skill's scripts `just test-scripts` |
 | Markdown | `mise exec -- typos <file>` |
 | `Cargo.toml`, `Cargo.lock`, `deny.toml` | `just deny`, `mise exec -- cargo shear`, `just lint`, `just test` |
 | `mise.toml`, `rust-toolchain.toml` | `mise install`, then `just check` |
@@ -105,9 +105,10 @@ opens a window or takes focus.
   `core-foundation*`, `security-framework*`, or `myapp-platform`. Those lists change
   together, and `just check-harness` fails when they differ.
 - I/O, time, the environment, and processes reach core only through ports or arguments,
-  and core never sleeps, logs, builds a user-facing sentence, or starts a thread that
-  outlives the call. `crates/myapp-core/clippy.toml` lists the banned calls; `just lint`
-  enforces it.
+  and core never sleeps or starts a thread that outlives the call:
+  `crates/myapp-core/clippy.toml` lists the banned calls, and `just lint` enforces it.
+- Core logs nothing and builds no user-facing sentence. The optional model calls (the
+  `openrouter` feature) are `docs/openrouter.md`'s.
 - `target/` and `coverage/` are build output: never edit or commit them.
 
 ### What is contract and what is private
