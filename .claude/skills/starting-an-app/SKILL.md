@@ -51,12 +51,13 @@ so this skill is where an app still finds them.
 6. **Labels**: `just labels` creates `.github/labels.yml`'s labels on the new
    repository. Run it before the first issue is filed from a form, so every label the
    forms apply exists. Dependabot skips a label `.github/dependabot.yml` names that the
-   repository lacks (`AGENTS.md` › "GitHub settings a new repository must enable" has
-   the source), so add `dependencies` by hand to any Dependabot pull request opened
+   repository lacks ([references/github-settings.md](references/github-settings.md)
+   has the source), so add `dependencies` by hand to any Dependabot pull request opened
    before this step. It writes to GitHub: a human's step, or an agent's with the
    owner's sign-off.
 7. **Security settings and the Renovate App**, turned on by the repository's admin:
-   `AGENTS.md` › "GitHub settings a new repository must enable".
+   **REQUIRED:** [references/github-settings.md](references/github-settings.md),
+   which lists each one and why.
 8. **Replace the sample** with the app, in the order of the sections below: the tool's
    shape, where it keeps state, writing those decisions down, then removing the sample.
 9. **Ruleset, last**: once the bootstrap commit is on `main`, a repository admin runs
