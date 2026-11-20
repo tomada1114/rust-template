@@ -233,9 +233,10 @@ current head, and act on the last `verdict:`:
 | `ERROR` | Run the script once more; a second `ERROR` is a stop, reported with its `ERR_CI_GH` lines. |
 
 Where a host will not let the script start `gh` itself, read the same two endpoints
-with one bare call each and apply the script's rule by hand (the script's own `gh`
-calls ran from a sandboxed local session: observed on this Mac with
-`ci_verdict.py <pr>` on a merged pull request, 2026-11-19):
+with one bare call each and apply the script's rule by hand. One read of the script
+from a local session did reach GitHub (observed on this Mac with `ci_verdict.py <pr>`
+on a merged pull request, which printed `PASS` at its first read, 2026-11-19); its
+waiting loop has not been observed under a sandbox:
 
 ```bash
 gh api --paginate "repos/{owner}/{repo}/commits/<head_sha>/check-runs?per_page=100" \
@@ -268,8 +269,9 @@ and `gh api repos/{owner}/{repo}/actions/runs/<run_id>/jobs --jq '.jobs[] | "\(.
 and a job's log is `gh api repos/{owner}/{repo}/actions/jobs/<job_id>/logs`, a redirect
 to a short-lived download
 ([download job logs](https://docs.github.com/en/rest/actions/workflow-jobs#download-job-logs-for-a-workflow-run),
-checked 2026-10-07). A log is long: read its end, around the first error, never the
-whole of it.
+checked 2026-10-07). That call prints the whole log, and no pipe may trim it, so make
+it only when the recipe does not reproduce the failure, and read from the first error
+on.
 
 ## The merge
 

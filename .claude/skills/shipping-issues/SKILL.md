@@ -123,8 +123,9 @@ branch: no PR opens, and the run stops with the question.
 `git status --short` prints nothing, then `git push -u origin <branch>` as a command of
 its own. [Create a ready PR](references/rest-calls.md#opening-the-pr) against the
 default branch, its body filled from `.github/PULL_REQUEST_TEMPLATE.md` with
-**`Closes #<n>`** on its own line (**REQUIRED:** `create-pr` for the body's content
-rules). Check the reply, then [read the PR](references/rest-calls.md#reading-the-pr):
+**`Closes #<n>`** on its own line. `create-pr` owns what the body and its Release
+impact line must say; the gate and the creating call are this skill's, never that
+skill's. Check the reply, then [read the PR](references/rest-calls.md#reading-the-pr):
 a missing closing keyword or a wrong base is
 [repaired](references/rest-calls.md#repairing-the-prs-closing-link) before CI is read.
 No review of the PR is requested or awaited.
