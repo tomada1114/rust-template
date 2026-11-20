@@ -1,7 +1,10 @@
 # The REST calls
 
 Every GitHub read and write this skill makes, spelled as a `gh api` call, with what each
-reply means for the run. The same spelling serves both hosts: a cloud session's proxy
+reply means for the run. Two kinds are spelled in the skill that owns them and only
+pointed to here: the calls that open, read, and update a pull request (`create-pr`'
+`references/rest-calls.md`) and the call that creates an issue (`triaging-issues` ›
+"Filing the issue"). The same spelling serves both hosts: a cloud session's proxy
 refuses GraphQL (`hosts.md` › "A 403 from the proxy"), so no step uses a `gh` subcommand
 other than `gh api` on a REST path, a hand-built GraphQL query, or the issue-search
 endpoint. A built-in GitHub tool that performs the same REST operation may stand in for
@@ -151,65 +154,32 @@ misread. The tier label and the rest of the issue stay as they are.
 
 Write the body to a file from `.github/PULL_REQUEST_TEMPLATE.md`: the summary, then
 **`Closes #<n>`** on its own line, then the Release impact line, the test plan, and the
-checklist, each box ticked only when true. Then:
-
-```bash
-gh api -X POST repos/{owner}/{repo}/pulls -f title='<conventional-commit title>' \
-  -f head=<branch> -f base=<default> -F body=@<file> \
-  --jq '"pr: \(.number)\nurl: \(.html_url)\nhead_sha: \(.head.sha)\nbase: \(.base.ref)\ndraft: \(.draft)"'
-```
-
-Leaving out `draft` creates the PR ready
-([create a pull request](https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request),
-checked 2026-10-07), and a draft could not be merged. Check the reply: `base:` is the
-default branch and `draft: false`. A 422 that says a pull request already exists for
-the branch: list it with
-`gh api "repos/{owner}/{repo}/pulls?head=<owner>:<branch>&state=open" --jq '.[] | "\(.number) \(.title)"'`.
-One this run opened for the same issue is the PR to continue; anything else is a stop.
+checklist, each box ticked only when true. Create the PR with the call in `create-pr`'
+`references/rest-calls.md` › "Opening the PR", the one home of the pull-request
+spellings; `<default>` is the default branch that reading
+[the repository](#the-repository) printed. Check the reply as that section says. Where it answers that a pull request
+already exists for the branch, one this run opened for the same issue is the PR to
+continue; anything else is a stop.
 
 ## Reading the PR
 
-```bash
-gh api repos/{owner}/{repo}/pulls/<pr> \
-  --jq '"state: \(.state)\nmerged: \(.merged)\ndraft: \(.draft)\nhead_sha: \(.head.sha)\nbase: \(.base.ref)\nmergeable: \(.mergeable)\nmergeable_state: \(.mergeable_state)\ncloses: \((.body // "") | test("(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?):? +#<n>\\b"))"'
-```
-
-`mergeable` is `true` or `false` once GitHub has computed it and `null` while it is
-still computing; read again after a few seconds
-([get a pull request](https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request),
-checked 2026-10-07). GitHub reads a closing keyword only in a pull request that targets
-the default branch
-([linking a pull request to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue),
-checked 2026-11-19), so `closes: false` or a `base:` other than the default branch
-means the merge would leave the issue open:
+Read it with the call in `create-pr`' `references/rest-calls.md` › "Reading the PR",
+`<n>` the issue being shipped. `closes: false` or a `base:` other than the default
+branch means the merge would leave the issue open:
 [repair it](#repairing-the-prs-closing-link).
 
 ## Repairing the PR's closing link
 
-The only edits this skill makes to a PR, and only to the open PR it created for `#<n>`.
-**`closes: false`** means the body has no closing keyword for `#<n>`: append one, never
-a second. Print the body, write it to a file with a blank line and `Closes #<n>` added
-at the end, and send it:
+The only edits this skill makes to a PR, and only to the open PR it created for `#<n>`:
+the two repairs in `create-pr`' `references/rest-calls.md` › "Updating the PR".
+**`closes: false`** gets `Closes #<n>` appended to the body, never a second closing
+keyword. **A `base:` other than the default branch** is retargeted. The title and the
+rest of the body are never rewritten here.
 
-```bash
-gh api repos/{owner}/{repo}/pulls/<pr> --jq '.body // ""'
-gh api -X PATCH repos/{owner}/{repo}/pulls/<pr> -F body=@<file> \
-  --jq '"closes: \((.body // "") | test("(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?):? +#<n>\\b"))"'
-```
-
-**A `base:` other than the default branch** is retargeted:
-
-```bash
-gh api -X PATCH repos/{owner}/{repo}/pulls/<pr> -f base=<default> --jq '"base: \(.base.ref)"'
-```
-
-`body` and `base` are fields of the update call
-([update a pull request](https://docs.github.com/en/rest/pulls/pulls#update-a-pull-request),
-checked 2026-10-07). Each edit fires the PR's `edited` workflows and a retarget re-runs
-its checks, so make them before the CI read, and read CI again after one. One attempt
-each: a reply that still reads `closes: false` or the wrong `base:` is a stop. Whether
-GitHub has linked the keyword is not a REST fact, so the issue's state is checked after
-the merge instead ([closing an issue GitHub left open](#closing-an-issue-github-left-open)).
+Make the repairs before the CI read, and read CI again after one. One attempt each: a
+reply that still reads `closes: false` or the wrong `base:` is a stop. Whether GitHub
+has linked the keyword is not a REST fact, so the issue's state is checked after the
+merge instead ([closing an issue GitHub left open](#closing-an-issue-github-left-open)).
 
 ## The CI verdict
 
@@ -348,17 +318,7 @@ The body file holds what `triaging-issues` asks of a body, then a `## Dependenci
 section with one `Depends on #N` line per blocker (only when there is one), the line
 `*Found while shipping #<n>.*` after a `---` rule, and the ship contract as the last
 line: `<!-- ship: tier=P2 area=<area> blocked-by=none touches=<paths or *> design=settled -->`.
-Then:
-
-```bash
-gh api -X POST repos/{owner}/{repo}/issues -f title='<title>' -F body=@<file> \
-  -f 'labels[]=<type label>' -f 'labels[]=priority: P2' \
-  --jq '"filed: \(.html_url)\nlabels: \([.labels[].name] | join(", "))"'
-```
-
-Add `-f 'labels[]=blocked: dependency'` with a `Depends on` line, and
-`-f 'labels[]=blocked: design'` with `design=open`. GitHub drops labels without an
-error when the caller lacks push access
-([create an issue](https://docs.github.com/en/rest/issues/issues#create-an-issue),
-checked 2026-10-07), so compare the reply's `labels:` with what was sent; a difference
-is a report line, never a second write.
+Then create it with the call in `triaging-issues` › "Filing the issue", with the type
+label and `priority: P2`; add `blocked: dependency` with a `Depends on` line, and
+`blocked: design` with `design=open`. Compare the reply's `labels:` with what was sent,
+as that section says; a difference is a report line, never a second write.

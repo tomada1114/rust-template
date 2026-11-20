@@ -31,9 +31,10 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 2. Present the plan: the exact PR numbers to merge, which go individually, which into
    a combined branch, and which become a migration branch (and the failure mode
    admitting each one not `CLEAN` and green, Step 3), which are held and why, every
-   major bump named, every `@dependabot rebase` comment and `gh run rerun` the plan
-   already needs (`references/failure-modes.md` F7-F9), and any migration or issue the
-   plan would propose (below).
+   major bump named, each superseded PR's closing comment and close (Step 5), every
+   `@dependabot rebase` comment and `gh run rerun` the plan already needs
+   (`references/failure-modes.md` F7-F9), and any migration or issue the plan would
+   propose (below).
 3. Get one explicit approval for the listed batch, then run it without asking per merge.
 
 The approval covers only the listed PRs, only for this invocation. Of the rebase
@@ -52,23 +53,22 @@ It lists every open bot PR with its ecosystem (`cargo`, `github-actions`, `mise`
 `rust-toolchain`), the versions it moves and their level (below 1.0.0 a minor move
 counts as major, as Cargo's caret ranges treat it), the check verdict, the merge state,
 and the touched files; then the files two PRs contest. Add `--json` to compute over the
-rows. With no bot PR open, say so and stop.
+rows. With no bot PR open, say so and stop. Like every GitHub call in this skill it is
+REST `gh api` alone ([references/github-calls.md](references/github-calls.md)).
 
-`checks=PASSING` is an allow-list verdict: only `SUCCESS`, `NEUTRAL`, and `SKIPPED` pass,
-and any other conclusion, including one the script has never seen, is listed under
-`HELD`. An unknown CI state holds a PR; it is never waved through.
+`checks=PASSING` is an allow-list verdict over the head commit's check runs and commit
+statuses: only `SUCCESS`, `NEUTRAL`, and `SKIPPED` pass, and any other conclusion,
+including one the script has never seen, is listed under `HELD`. An unknown CI state
+holds a PR; it is never waved through. Nor is `merge=UNKNOWN` (GitHub has not computed
+the merge state yet): run the survey again.
 
 Minor and patch bumps arrive grouped (`cargo-minor-and-patch`, `actions-minor-and-patch`)
 and majors one per PR (`.github/dependabot.yml`). Dependabot counts a 0.x minor as a minor
 (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
 `groups` › `update-types`, checked 2026-09-30), so it rides in a group; the survey shows
 that row's level as `major` and marks the bump `(major)`: name it in the plan as a major
-and read its release notes (review checklist). Read a grouped PR's diff in full:
-
-```bash
-gh pr diff <number>
-gh pr checks <number>
-```
+and read its release notes (review checklist). Read a grouped PR's
+[diff](references/github-calls.md#a-prs-diff) in full.
 
 ## Step 2: Review every PR before the plan
 
@@ -127,12 +127,9 @@ In ascending PR number, one at a time. After each merge the rest go `BEHIND`: co
 `@dependabot rebase` (or tick the rebase box Renovate puts in its PR body), then
 re-check after the rebase. The approval covers that rebase, because an approved merge
 caused it ("The approval gate"); a rebase or rerun for any other reason that the plan
-did not list needs a fresh approval. Never merge on checks older than the PR's last push.
-
-```bash
-gh pr checks <number>
-gh pr merge <number> --squash --delete-branch
-```
+did not list needs a fresh approval. Never merge on checks older than the PR's last
+push: **REQUIRED:** [the verdict and the merge](references/github-calls.md#the-verdict-and-the-merge),
+a squash merge pinned to the head whose checks passed.
 
 ## Step 4b: The combined branch
 
@@ -174,15 +171,10 @@ it before the combined branch, which then rebases onto it.
 
 ## Step 5: Land and clean up
 
-Merge the combined or migration PR only on green, then close each superseded PR with a
-pointer. Close nothing before every replacement has merged; if one is abandoned, the
-originals stay open.
-
-```bash
-gh pr checks <replacement-number> --watch
-gh pr merge <replacement-number> --squash --delete-branch
-gh pr close <number> --comment "Superseded by #<replacement-number>." --delete-branch
-```
+Merge the combined or migration PR only on green, as in Step 4a, then
+[close each superseded PR](references/github-calls.md#closing-a-superseded-pr): a
+pointer comment, then the close. Close nothing before every replacement has merged; if
+one is abandoned, the originals stay open.
 
 ## Stop and ask, outside any batch approval
 
@@ -199,7 +191,8 @@ gh pr close <number> --comment "Superseded by #<replacement-number>." --delete-b
 - A clap or ratatui major, before a human approves its migration.
 - Anything the review checklist marks as held for the human.
 
-Never `--admin`, `--no-verify`, a force push, or unpinning a SHA-pinned Action for a bump.
+Never an admin bypass, `--no-verify`, a force push, or unpinning a SHA-pinned Action for
+a bump.
 
 ## Report
 

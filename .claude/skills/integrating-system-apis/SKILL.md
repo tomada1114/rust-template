@@ -182,7 +182,7 @@ no machine could have verified anyway.
 - [ ] OS-specific code and its crates are behind `cfg(target_os = …)`. No local run
       proves it for the other OS: on a Mac the macOS `cfg` is true, so `just lint` and
       `just test-core` pass with it misplaced. CI's `Rust Core` (Linux) and `macOS`
-      jobs are the check; read both results on the pull request (`gh pr checks`).
+      jobs are the check; read both results in the pull request's checks.
 - [ ] Every `unsafe` block has a `// SAFETY:` comment, inside the one module the
       written-down design allows; no `unsafe impl Send`/`Sync`.
 - [ ] The port's fake and contract function exist; the contract runs against the fake

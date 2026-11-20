@@ -254,7 +254,7 @@ of them in Claude Code only (the permission-list gap in `changing-gates`'
   script wrapper) is forbidden. The same holds for any instruction here that blocks
   something that looks necessary: fix what made the bypass look necessary, or ask;
   never look for another spelling.
-- Any write to a remote: `git push`, `gh pr create`, or any other. `just labels` and
+- Any write to a remote: `git push`, a `gh api` write, or any other. `just labels` and
   `just ruleset` only create or update what `.github/labels.yml` and
   `.github/rulesets/*.json` declare, and each still needs sign-off before its first run
   against the live repository (`starting-an-app`' `references/github-settings.md`).
@@ -277,11 +277,11 @@ writes that skill exists to make, for that invocation only.
   reply to or resolution of a review thread, a comment requesting a review, or Auto-fix.
 
 One request is a standing exception too: the human explicitly asking for an issue
-("file an issue for this") is the sign-off for the `gh issue create` of each issue that
-request asks for, with the labels `triaging-issues` gives it, and for comments on those
-issues in the same request. An issue the agent would file from a friction it noticed on
-its own, or from one the human raised without asking for an issue, is drafted in the
-reply and waits for a yes.
+("file an issue for this") is the sign-off for the `gh api -X POST …/issues` call that
+creates each issue it asks for, with the labels `triaging-issues` gives it, and for
+comments on those issues in the same request. An issue the agent would file from a
+friction it noticed on its own, or from one the human raised without asking for an
+issue, is drafted in the reply and waits for a yes.
 
 None of them covers anything else: a force push or other history rewrite,
 `--no-verify`, weakening a gate, a release pipeline or signing, a release tag, a new

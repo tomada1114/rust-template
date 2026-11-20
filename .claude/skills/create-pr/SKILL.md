@@ -25,13 +25,19 @@ cat .github/PULL_REQUEST_TEMPLATE.md
 git log main..HEAD --oneline
 git diff --stat main..HEAD
 git status --short
-gh pr list --head "$(git rev-parse --abbrev-ref HEAD)" --json number,title,url
 ```
+
+Then look for
+[the open PR for the branch](references/rest-calls.md#the-open-pr-for-a-branch). Every
+GitHub call this skill makes is a REST `gh api` call, run alone, spelled once in
+**REQUIRED:** [references/rest-calls.md](references/rest-calls.md): a Claude Code cloud
+session's GitHub proxy refuses the GraphQL the `gh` pull-request subcommands are built
+on, so one spelling serves both hosts.
 
 - On `main`: stop. A pull request comes from a feature branch.
 - Uncommitted changes: stop. **REQUIRED:** `smart-commit` first, since the gate would
   judge a tree the pull request does not contain.
-- A pull request already open for this branch: update it (`gh pr edit`), never open a
+- A pull request already open for this branch: update it in Step 5, never open a
   second one.
 
 ## Step 1: The gate
@@ -137,19 +143,20 @@ skill exists to make; invoking it is the sign-off for them, for this invocation 
 (`AGENTS.md` › "Security and human approval", standing exceptions). Nothing else on that
 list is covered: no force push, no merge.
 
+Write the body to a file under the scratchpad directory (or `$TMPDIR`), never inside
+the checkout, so its Markdown and backticks never pass through the shell. Push, as a
+command of its own:
+
 ```bash
 git push -u origin <current-branch>
-
-gh pr create --base main --title "<title>" --body "$(cat <<'EOF'
-<body>
-EOF
-)"
-
-gh pr edit <number> --title "<title>" --body "$(cat <<'EOF'
-<body>
-EOF
-)"
 ```
 
-Pass the body through a quoted heredoc so its Markdown and backticks survive the shell.
+Then one call, with the title from Step 3 and the body file:
+
+- **No pull request yet:** [open it](references/rest-calls.md#opening-the-pr), a
+  `POST` to `repos/{owner}/{repo}/pulls` with `base` the default branch, `main`. Check
+  the reply as that section says.
+- **One already open:** [update it](references/rest-calls.md#updating-the-pr), a
+  `PATCH` to `repos/{owner}/{repo}/pulls/<number>` with the new title and body.
+
 Print the PR URL when done.
