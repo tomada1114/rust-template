@@ -1,11 +1,11 @@
 # The GitHub calls
 
-The GitHub calls this skill makes outside its survey script, each a REST `gh api` call.
-A Claude Code cloud session's GitHub proxy refuses GraphQL, and with it the `gh`
-subcommands that show, check, merge, and close a pull request (`shipping-issues`'
-`references/hosts.md` › "A 403 from the proxy"), so nothing here uses one. Run each call
-from the checkout's root, where `gh api` fills `{owner}` and `{repo}` itself, one call
-per command: no pipe, no `$(...)`, no redirect, no chain.
+How this skill reads a pull request's diff, reads its checks, merges it, and closes it,
+each a REST `gh api` call. A Claude Code cloud session's GitHub proxy refuses GraphQL,
+and with it the `gh` subcommands that show, check, merge, and close a pull request
+(`shipping-issues`' `references/hosts.md` › "A 403 from the proxy"), so none of these
+steps uses one. Run each call from the checkout's root, where `gh api` fills `{owner}`
+and `{repo}` itself, one call per command: no pipe, no `$(...)`, no redirect, no chain.
 
 A call with another home is pointed to, never spelled again: the CI verdict and the
 merge are `shipping-issues`', and opening the combined or migration PR is `create-pr`'s.
@@ -31,7 +31,8 @@ python3 .claude/skills/shipping-issues/scripts/ci_verdict.py <number>
 ```
 
 The script reads the PR's current head and that commit's checks, waits out a running
-one (one foreground slice, 480 s by default), and prints `verdict:` and `head_sha:`; its
+one (one foreground slice, 480 s by default, so raise the call's own timeout to
+600000 ms), and prints `verdict:` and `head_sha:`; its
 header states the rule, which holds a PR on any conclusion other than success, neutral,
 or skipped, as the survey does. Only `verdict: PASS` is green. `PENDING` or `EMPTY`: run
 it again; a check that never reports is F8 or F9 in `failure-modes.md`. `FAIL`: diagnose

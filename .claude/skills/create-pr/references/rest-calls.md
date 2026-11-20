@@ -30,10 +30,11 @@ gh api "repos/{owner}/{repo}/pulls?head={owner}:<branch>&state=open" \
 
 No output means the branch has no open pull request. `head` takes `<owner>:<branch>`
 ([list pull requests](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests),
-checked 2026-11-19); a filter GitHub cannot parse is ignored and every open pull request
-comes back, so a reply naming another branch's PR means the filter was misspelled, never
-that the PR is this branch's. A branch pushed from a fork has the fork's owner in place
-of `{owner}`.
+checked 2026-11-19). A `head` without the owner and colon is ignored, and every open
+pull request comes back (observed on this Mac with that call against this repository,
+as was `{owner}` being filled inside the query string, 2026-11-19), so a reply naming
+another branch's PR means the filter was misspelled, never that the PR is this
+branch's. A branch pushed from a fork has the fork's owner in place of `{owner}`.
 
 ## Opening the PR
 

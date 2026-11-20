@@ -31,7 +31,7 @@ Merging is a remote write, and this skill is not one of the standing exceptions 
 2. Present the plan: the exact PR numbers to merge, which go individually, which into
    a combined branch, and which become a migration branch (and the failure mode
    admitting each one not `CLEAN` and green, Step 3), which are held and why, every
-   major bump named, each superseded PR's closing comment and close (Step 5), every
+   major bump named, each superseded PR's comment, close, and any branch deletion, every
    `@dependabot rebase` comment and `gh run rerun` the plan already needs
    (`references/failure-modes.md` F7-F9), and any migration or issue the plan would
    propose (below).
@@ -53,8 +53,9 @@ It lists every open bot PR with its ecosystem (`cargo`, `github-actions`, `mise`
 `rust-toolchain`), the versions it moves and their level (below 1.0.0 a minor move
 counts as major, as Cargo's caret ranges treat it), the check verdict, the merge state,
 and the touched files; then the files two PRs contest. Add `--json` to compute over the
-rows. With no bot PR open, say so and stop. Like every GitHub call in this skill it is
-REST `gh api` alone ([references/github-calls.md](references/github-calls.md)).
+rows. With no bot PR open, say so and stop. It reads over REST `gh api` alone, as do
+the diff, checks, merge, and close below
+([references/github-calls.md](references/github-calls.md)).
 
 `checks=PASSING` is an allow-list verdict over the head commit's check runs and commit
 statuses: only `SUCCESS`, `NEUTRAL`, and `SKIPPED` pass, and any other conclusion,
@@ -128,8 +129,9 @@ In ascending PR number, one at a time. After each merge the rest go `BEHIND`: co
 re-check after the rebase. The approval covers that rebase, because an approved merge
 caused it ("The approval gate"); a rebase or rerun for any other reason that the plan
 did not list needs a fresh approval. Never merge on checks older than the PR's last
-push: **REQUIRED:** [the verdict and the merge](references/github-calls.md#the-verdict-and-the-merge),
-a squash merge pinned to the head whose checks passed.
+push: **REQUIRED:**
+[the verdict and the merge](references/github-calls.md#the-verdict-and-the-merge), a
+squash merge pinned to the head whose checks passed.
 
 ## Step 4b: The combined branch
 

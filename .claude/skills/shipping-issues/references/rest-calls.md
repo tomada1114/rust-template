@@ -156,10 +156,10 @@ Write the body to a file from `.github/PULL_REQUEST_TEMPLATE.md`: the summary, t
 **`Closes #<n>`** on its own line, then the Release impact line, the test plan, and the
 checklist, each box ticked only when true. Create the PR with the call in `create-pr`'
 `references/rest-calls.md` › "Opening the PR", the one home of the pull-request
-spellings; `<default>` is the default branch that reading
-[the repository](#the-repository) printed. Check the reply as that section says. Where it answers that a pull request
-already exists for the branch, one this run opened for the same issue is the PR to
-continue; anything else is a stop.
+spellings; `<default>` is the default branch that reading [the
+repository](#the-repository) printed. Check the reply as that section says. Where it
+answers that a pull request already exists for the branch, one this run opened for the
+same issue is the PR to continue; anything else is a stop.
 
 ## Reading the PR
 
