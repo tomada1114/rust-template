@@ -1,17 +1,12 @@
 ---
 name: running-the-app
 description: >
-  Covers seeing a change work in the real myapp binary without taking over the
-  developer's machine or terminal: just test-platform and just logs as an agent's own
-  evidence; cargo run --locked -p myapp -- <subcommand> for a read-only run, and the
-  built binary against a scratch HOME for anything that writes; the log line a debug
-  build echoes to stderr; reading the daily log files (~/Library/Logs on macOS,
-  $XDG_STATE_HOME/myapp/logs on Linux); myapp tui run by the human, never by an agent,
-  since it takes over the terminal; what to ask a human for, once; and the evidence a pull
-  request carries for behavior no gate asserts. Use when asked to run, launch, start,
-  try, or look at the tool or its TUI, when a change must be verified in the running
-  binary rather than in tests, when a log line is the only observable, or when deciding
-  what to paste into a pull request.
+  Seeing a change work in the real binary without taking over the developer's machine:
+  just test-platform and just logs as an agent's own evidence, a subcommand run
+  against a scratch HOME, the log files, the TUI run by the human only, and the
+  evidence a pull request carries. Use when asked to run, launch, start, try, or look
+  at the tool or its TUI, or when a change must be verified in the running binary or
+  by a log line.
 ---
 
 # Running the App

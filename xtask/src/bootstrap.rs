@@ -324,7 +324,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder, under `.claude/skills/`.
-const SKILL_SITES: [(&str, &[Form]); 32] = [
+const SKILL_SITES: [(&str, &[Form]); 31] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
         "authoring-skills/references/convention-examples.md",
@@ -363,7 +363,6 @@ const SKILL_SITES: [(&str, &[Form]); 32] = [
     ("starting-an-app/SKILL.md", &[Slug]),
     ("tdd/SKILL.md", &[Slug]),
     ("triaging-issues/SKILL.md", &[Slug]),
-    ("updating-docs/SKILL.md", &[Slug]),
     ("writing-rust/SKILL.md", &[Slug]),
     ("writing-rust/references/clap-and-ratatui.md", &[Slug]),
     (
@@ -496,27 +495,21 @@ fn edit(file: &str, find: &'static str, replace: &'static str) -> TextEdit {
 }
 
 const STARTING_AN_APP_DESCRIPTION: &str = "description: >
-  Covers turning this template into a new app and its first decisions: just bootstrap
-  (cargo xtask bootstrap), its prompts or flags (display name, slug, bundle identifier,
-  owner/repo, author, copyright holder), the placeholders it rewrites (MyApp, myapp,
-  myapp-core, myapp_core, com.example.myapp), just verify-bootstrap and the
-  Template Bootstrap Smoke job; AGENTS.md's Product section; the tool's
-  shape, subcommands only or subcommands plus the myapp tui screen; where it keeps state
-  and why, written into the skill that owns it; removing the sample counter; installing it with just install-cli;
-  just labels, just ruleset, the GitHub security settings, and private-repository
-  steps. Use when starting an app from this repository, running or changing the
-  bootstrap, a placeholder survived the rename, just check-harness fails on the Product
-  section, or setting up a repository created from the template.
+  Turning this template into a new app and its first decisions: just bootstrap and the
+  names it asks for, just verify-bootstrap, AGENTS.md's Product section, the tool's
+  shape (subcommands only, or plus a TUI), where it keeps state, removing the sample
+  counter, and the GitHub setup (labels, ruleset, security settings). Use when
+  starting an app from this repository, running or changing the bootstrap, or when a
+  placeholder survived the rename.
 ";
 
 const STARTING_AN_APP_DESCRIPTION_IN_AN_APP: &str = "description: >
-  Covers the first decisions of this app, cut from the template by its bootstrap:
-  AGENTS.md's Product section; the tool's shape, subcommands only or
-  subcommands plus the myapp tui screen; where it keeps state and why, written into the
-  skill that owns it; removing the sample counter; installing it with just install-cli; just labels, just
-  ruleset, the GitHub security settings, and private-repository steps. Use when
-  starting the app's first feature, a name the rename missed turns up, just
-  check-harness fails on the Product section, or setting up the repository on GitHub.
+  The first decisions of this app, cut from the template by its bootstrap: AGENTS.md's
+  Product section, the tool's shape (subcommands only, or plus a TUI), where it keeps
+  state, removing the sample counter, and the GitHub setup (labels, ruleset, security
+  settings). Use when starting the app's first feature, when a name the rename missed
+  turns up, when just check-harness fails on the Product section, or when setting up
+  the repository on GitHub.
 ";
 
 const STARTING_AN_APP_RENAME_STEP: &str =
@@ -697,16 +690,6 @@ fn skill_edits() -> Vec<TextEdit> {
             "rejects, how the\ntool is installed, and",
         ),
         edit(&file, UPDATING_DOCS_TEMPLATE_SECTION, ""),
-        edit(
-            &file,
-            "  README.md (Quickstart, Using This Template), AGENTS.md,\n",
-            "  README.md (Quickstart), AGENTS.md,\n",
-        ),
-        edit(
-            &file,
-            "  steps drifted, when a template-only block is involved, or when deciding that an\n",
-            "  steps drifted, or when deciding that an\n",
-        ),
         edit(
             &file,
             "(the Quickstart,\n  what \"Using This Template\" asks), or when",

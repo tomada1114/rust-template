@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Skill frontmatter and descriptions: `just check-harness` accepts the Claude Code keys
+  `paths`, `allowed-tools`, `disable-model-invocation`, and `argument-hint` beside
+  `name` and `description`, and still fails on any other key. A description is capped
+  at 500 characters (was 1,024), and `ERR_CHECK_SKILL_LISTING` fails when every
+  skill's description together passes 9,000, so Claude Code's skill listing keeps each
+  one. Every skill's description is rewritten to fit; `building-tuis`,
+  `designing-core-logic`, `integrating-system-apis`, and `writing-repo-scripts` load
+  by `paths`, and `shipping-issues` and `merging-dependency-prs` run only when asked
+  for by name.
+
 - **Breaking for anyone who ran the old scripts:** `shipping-issues` is one skill for a
   local Claude Code session and a Claude Code cloud session, and reaches GitHub over
   REST `gh api` calls only. The branch is reviewed with `/code-review` before its PR

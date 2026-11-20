@@ -1,17 +1,12 @@
 ---
 name: writing-tests
 description: >
-  Covers how one Rust test is written: naming it after behavior, an expected value
-  that is independent of the implementation, asserting an error variant (assert_eq! on
-  an Err variant) instead of its message, the contract suite a port's fake and real
-  adapter share (<port>_contract in myapp-test-support), fakes such as FixedClock,
-  InMemoryCounterStore, and FailingCounterStore instead of mocks, an injected clock and
-  never a sleep, tempfile::tempdir per test, the built myapp binary run with a
-  temporary HOME (exit code, stdout, last stderr line), a TUI view drawn into ratatui's
-  TestBackend (assert_buffer_lines, assert_buffer for styles), and keys as values
-  (KeyEvent::new_with_kind, ScreenKey). Use when writing or reviewing a #[test], a file
-  under crates/*/tests, a test module in crates/myapp/src, the regression test for a
-  bug, a flaky or ignored test, or the missing test a coverage floor asks for.
+  How one Rust test is written: naming it after behavior, an expected value
+  independent of the implementation, asserting an error variant instead of its
+  message, the contract suite a port's fake and adapter share, fakes instead of mocks,
+  an injected clock and never a sleep, the built binary under a temporary HOME, and a
+  TUI view drawn into TestBackend. Use when writing or reviewing a #[test], the
+  regression test for a bug, or a flaky or ignored test.
 ---
 
 # Writing Tests

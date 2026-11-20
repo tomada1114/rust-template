@@ -1,18 +1,13 @@
 ---
 name: integrating-system-apis
 description: >
-  Covers reaching the OS from crates/myapp-platform on macOS and Linux: the port in
-  myapp-core first, an adapter per OS behind cfg(target_os = "macos") or
-  cfg(target_os = "linux") with one contract suite, the data and log directories
-  (~/Library, XDG_DATA_HOME, XDG_STATE_HOME), choosing the mechanism (the standard
-  library, then a system command through std::process::Command such as launchctl,
-  plutil, or defaults, then a binding crate such as objc2), unsafe and the // SAFETY:
-  comment once a signed-off change lifts unsafe_code = "forbid" for myapp-platform,
-  MainThreadMarker, C callbacks, TCC-gated APIs (Accessibility, Input Monitoring,
-  Screen Recording, AXIsProcessTrustedWithOptions) and the terminal as the responsible
-  process, and what can be tested where. Use when adding or changing an adapter that reaches the OS, an
-  OS-specific crate or code path, writing unsafe, spawning a system tool, porting an
-  adapter to Linux, or when a permission prompt never answers or a test needs a grant.
+  Reaching macOS or Linux from the platform crate: the port in core first, an adapter
+  per OS behind cfg(target_os), choosing between the standard library, a system
+  command, and a binding crate such as objc2, unsafe and its sign-off, and TCC-gated
+  APIs. Use when adding or changing an adapter that reaches the OS, spawning a system
+  tool, or when a permission prompt never answers or a test needs a grant.
+paths:
+  - "crates/myapp-platform/**"
 ---
 
 # Integrating System APIs

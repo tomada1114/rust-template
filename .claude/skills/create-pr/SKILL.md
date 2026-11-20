@@ -1,17 +1,11 @@
 ---
 name: create-pr
 description: >
-  Covers opening or updating a pull request in this repository: the preconditions (a
-  clean feature branch), just check as the gate, a Conventional Commits title that
-  check-pr-title.yml accepts, a body filled from .github/PULL_REQUEST_TEMPLATE.md
-  (Summary, Test Plan, Checklist), the Release impact line and its MAJOR/MINOR/PATCH
-  call against what a user of the tool depends on (the command line, on-disk formats,
-  data and log locations, rust-version), the evidence only a human can produce (just
-  test-local output for a myapp-platform adapter, the human's run of myapp tui for a
-  change only a real terminal shows), the CHANGELOG.md entry under [Unreleased], and gh
-  pr create / gh pr edit. Use when asked to open, create, submit, or update a PR or pull
-  request, request review, or decide whether a change needs a release or which version
-  bump it deserves.
+  Opening or updating a pull request here: just check as the gate, a Conventional
+  Commits title, the body from the pull request template, the Release impact line and
+  its MAJOR/MINOR/PATCH call, the evidence only a human can produce, and the
+  CHANGELOG.md entry. Use when asked to open, create, submit, or update a PR or pull
+  request, request review, or decide which version bump a change deserves.
 ---
 
 # Create PR

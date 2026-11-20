@@ -1,18 +1,12 @@
 ---
 name: merging-dependency-prs
 description: >
-  Covers landing the Dependabot and Renovate pull requests already open in this
-  repository: Dependabot's cargo (Cargo.lock, Cargo.toml) and github-actions bumps,
-  grouped as cargo-minor-and-patch and actions-minor-and-patch, and Renovate's mise.toml
-  and rust-toolchain.toml bumps. Surveys them with scripts/survey_prs.py, runs the
-  security review (release notes, workflow permissions and SHA pins, maintainer changes,
-  crates whose build.rs or proc-macro runs at build time), treats a ratatui or crossterm
-  minor (pre-1.0, so breaking) and a clap major as migrations landed alone and checked
-  against the TestBackend view tests, asks the human for one approval of a listed batch,
-  then merges or builds one combined branch. Use when clearing a backlog of bump PRs,
-  when a bot PR fails CI after a clippy or Rust toolchain bump, when a grouped cargo PR
-  carries a 0.x minor marked (major), or when several dependency PRs contest Cargo.lock
-  or mise.toml.
+  Landing the open Dependabot and Renovate pull requests: surveying them, the security
+  review, a ratatui or crossterm minor or a clap major landed alone as a migration,
+  one human approval of a listed batch, then merging or building one combined branch.
+  It merges, so it runs only when asked for by name. Use to clear a backlog of bump
+  PRs, or when a bot PR fails CI or several contest Cargo.lock or mise.toml.
+disable-model-invocation: true
 ---
 
 # Merging Dependency PRs

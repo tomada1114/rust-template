@@ -1,16 +1,11 @@
 ---
 name: authoring-skills
 description: >
-  Covers how a skill in this repository is written under .claude/skills/ and kept from
-  silently failing to load, and the
-  conventions every skill follows: the REQUIRED/BACKGROUND cross-reference markers,
-  deletable illustrations, platform-skill scope (link tool docs, never restate them),
-  external claims with a URL and a checked date, commands that must exist, never taking
-  over the developer's Mac, and explaining Rust for a reader new to it. Use when adding,
-  editing, reviewing, or splitting a SKILL.md or a references/ file, fixing a just
-  check-harness failure about a skill,
-  deciding whether material belongs in AGENTS.md, a rule, or a skill, or investigating
-  why a skill never fires in Claude Code.
+  How a skill under .claude/skills/ is written so that it loads: the frontmatter and
+  its allowed keys, the description and listing caps, layout, and the conventions
+  every skill follows. Use when adding, editing, reviewing, or splitting a SKILL.md or
+  a references/ file, when just check-harness fails on a skill, when deciding whether
+  material belongs in AGENTS.md, a rule, or a skill, or when a skill never fires.
 ---
 
 # Authoring Skills
@@ -53,18 +48,25 @@ skill says about its own subject.
 
 ## Frontmatter
 
-Exactly two keys, `name` and `description`, the description a folded block scalar
-(`description: >`). No third key: `just check-harness` refuses one, and a skill that
-loads on its `description` alone fires on the same work wherever it is read.
+Two required keys, `name` and `description`, the description a folded block scalar
+(`description: >`), and at most four optional Claude Code keys; `just check-harness`
+refuses any other, so a misspelled or unreviewed key fails instead of being ignored.
 
 - `name` equals the directory name: lowercase letters, digits, and single hyphens, at
   most 64 characters (https://agentskills.io/specification, checked 2026-09-29).
-- `description` is printable ASCII (no em dash, no curly quote), at most 1,024
-  characters (same source). Claude Code truncates its listing at 1,536 (the host page
-  above), so specific beats long.
+- `description` is printable ASCII (no em dash, no curly quote), at most 500
+  characters, and every skill's description together at most 9,000
+  (`ERR_CHECK_SKILL_LISTING`). Claude Code lists them in one budget shared with a
+  person's own skills and plugins and drops the descriptions that overflow it, after
+  which a skill loads by name only (https://code.claude.com/docs/en/skills, checked
+  2026-11-19). The same page shows `<` and `>` as entities: write `[name]` instead.
 - It is a retrieval string in English: what the skill covers, then when to load it,
   naming the files, commands, error codes, and phrases that should trigger it. It never
   summarizes the skill's own steps.
+- The optional keys (same page): `paths`, a list of quoted globs for the files that
+  activate the skill, where its scope is a directory; `disable-model-invocation: true`
+  where the skill writes to a remote and must be asked for by name;
+  `allowed-tools`; and `argument-hint`, quoted.
 
 ## What belongs in a skill
 
@@ -161,7 +163,7 @@ measure it.
 ## Before committing a skill
 
 A `SKILL.md` whose frontmatter does not parse, whose `name` differs from its directory,
-or that carries a third key looks fine in review and never loads. `just check-harness` covers the mechanical part,
+or that carries a key outside the allowed list looks fine in review and never loads. `just check-harness` covers the mechanical part,
 including no reference to this repository's issues or pull requests (`#` and digits, an
 issue or pull-request URL on this repository or relative to it, the word issue, PR, pull
 request, or merge request before a number, `GH-` and digits, or a `gh issue`/`gh pr`

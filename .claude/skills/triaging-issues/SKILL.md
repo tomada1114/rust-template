@@ -1,17 +1,12 @@
 ---
 name: triaging-issues
 description: >
-  Covers this repository's issue vocabulary: the type, priority, blocked, on hold, and
-  tracking labels declared in .github/labels.yml and synced by just labels, what
-  priority: P0-P3, blocked: design, blocked: dependency, blocked: external, on hold,
-  tracking, and security mean, and what an issue body must contain (a path:line such as
-  crates/myapp-platform/src/paths.rs:31, an observable close condition, a Depends on #N
-  line). Use when filing a GitHub issue, triaging or re-prioritizing the backlog,
-  choosing between bug, enhancement, documentation, chore, and security, marking a
-  tracking issue, editing .github/labels.yml or an issue form under
-  .github/ISSUE_TEMPLATE/, running just labels, recording a problem found outside the
-  task, routing a friction or idea that came up while using the app, or when asked what
-  to work on next or for the app's direction.
+  This repository's issue vocabulary: the type, priority, blocked, on hold, and
+  tracking labels in .github/labels.yml, what each means, and what an issue body must
+  contain (a path:line, an observable close condition, a Depends on line). Use when
+  filing a GitHub issue, triaging or re-prioritizing the backlog, editing labels.yml
+  or an issue form, recording a problem found outside the task, or when asked what to
+  work on next.
 ---
 
 # Triaging Issues
