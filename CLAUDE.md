@@ -2,8 +2,8 @@
 
 # Claude Code Specifics
 
-The shared, tool-agnostic instructions are in `AGENTS.md`, imported above. This file
-only records what Claude Code adds on top of them.
+The project's instructions are in `AGENTS.md`, imported above. This file only records
+Claude Code's own mechanics on top of them.
 
 - **Rules load by path.** `.claude/rules/*.md` apply while you touch a file matching
   their `paths:` globs (`AGENTS.md` › Rules lists them). They restate nothing a gate
