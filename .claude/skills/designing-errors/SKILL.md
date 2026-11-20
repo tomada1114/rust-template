@@ -26,7 +26,7 @@ A caller branches on the variant, because it only changes on purpose. The text i
 `#[error("…")]` is for a developer reading a log, and may be reworded in any pull
 request. So a test, a `match`, or the binary's wording never compares message text: it
 names the variant. In the sample, that is `Err(CounterError::AtMaximum)`.
-`.claude/rules/testing.md` holds the same rule for tests.
+`writing-tests` holds the same rule for tests.
 
 ## Where an error type lives, and its shape
 

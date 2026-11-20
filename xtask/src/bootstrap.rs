@@ -379,7 +379,7 @@ const SKILL_SITES: [(&str, &[Form]); 32] = [
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
 const REPOSITORY_SITES: [(&str, &[Form]); 52] = [
     (".claude/rules/project.md", &[Slug]),
-    (".claude/rules/rust.md", &[SlugSnake, Slug]),
+    (".claude/rules/rust.md", &[Slug]),
     (".claude/rules/testing.md", &[Slug]),
     (".github/ISSUE_TEMPLATE/bug_report.yml", &[BundleId, Slug]),
     (".github/ISSUE_TEMPLATE/config.yml", &[Repo]),

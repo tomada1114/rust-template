@@ -331,7 +331,7 @@ Before submitting a PR:
 - Do what has been asked; nothing more, nothing less. Prefer editing an existing file
   to creating one, and never create a documentation file unless asked
 - A comment carries only a non-obvious why, a trap, or an external constraint; default
-  to none. A `///` on a public item is its contract and stays (`.claude/rules/rust.md`)
+  to none. A `///` on a public item is its contract and stays (`writing-rust`)
 - A problem found outside the task is recorded, not fixed: file an issue as
   `triaging-issues` says, or, where filing is not yours to do (it is a remote write),
   list it in the pull request description. Never widen the pull request to fix it

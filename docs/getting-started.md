@@ -163,16 +163,10 @@ your first real core module, so the coverage floor always has code to measure.
 
 - [ ] `README.md` — the introduction's counter sentence and the
       `just test-fast increment` example
-- [ ] `AGENTS.md` — the `just test-fast increment` example, the counter examples in
-      Architecture (`JsonFileCounterStore`, `CounterStore`, `CounterView`), and the
-      counter's types, `counter.json`, and `counter` subcommand in its "What is contract
-      and what is private" table
+- [ ] `AGENTS.md` — the `just test-fast increment` example
 - [ ] `CONTRIBUTING.md`, the `justfile`'s `test-fast` comment, and this page — the
       `just test-fast increment` examples, "Seeing the app"'s `counter.json` and `myapp`
       commands, and this checklist
-- [ ] `.claude/rules/rust.md` and `.claude/rules/testing.md` — the sentences that give
-      a counter type as the example (each is a parenthetical or its own sentence;
-      replace it with your own type or delete it)
 - [ ] `.github/PULL_REQUEST_TEMPLATE.md` — the counter in the example title
 - [ ] The skills under `.claude/skills/` that give the counter as an example —
       among them `integrating-system-apis`' `references/file-formats.md`, whose
