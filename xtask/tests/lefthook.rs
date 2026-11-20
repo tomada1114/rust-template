@@ -253,7 +253,7 @@ fn a_rebase_stop_resolution_with_a_credential_shaped_line_is_refused() {
 }
 
 #[test]
-fn every_documented_xtask_hook_builds_in_its_own_target_directory() {
+fn every_xtask_hook_builds_in_its_own_target_directory() {
     let lefthook = must(
         std::fs::read_to_string(checkout().join("lefthook.yml")),
         "read lefthook.yml",

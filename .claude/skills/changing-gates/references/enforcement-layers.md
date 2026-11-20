@@ -92,7 +92,7 @@ removing or narrowing its bullet here:
   in `AGENTS.md` › "Never taking over the machine" holds because every recipe in
   `just check` was written to it. The committed `.claude/settings.json` denies
   `myapp tui` and asks before a human's recipe, for Claude Code alone and only as
-  spelled; no gate reads what a personal permission file allows another tool. A new
+  spelled; nothing stops another tool, or a human's own shell. A new
   recipe or test that shows a window, takes focus, raises a prompt, or takes over a
   terminal is caught only by review.
 - **No gate runs the real terminal loop.** `myapp tui`'s loop — raw mode, the alternate
