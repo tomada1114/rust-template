@@ -64,7 +64,7 @@ another's content: a copy is the half that goes stale.
 | Surface | Its one job |
 |---|---|
 | `README.md` | The tour: what the template is, Quickstart, Using This Template, the layout, links onward |
-| `AGENTS.md` | The agent-facing guide: Quick Reference, "Validating a change", Architecture, Skills and Rules tables, "Security and human approval", the "Enforcement layers" summary, Review Checklist; at most 20,000 bytes, so file-scoped text goes to a rule and task-scoped text to a skill |
+| `AGENTS.md` | The agent-facing guide: Quick Reference, "Validating a change", Architecture, Skills and Rules tables, "Security and human approval", the "Enforcement layers" summary, Review Checklist; at most 20,000 bytes outside `## Product`, so file-scoped text goes to a rule and task-scoped text to a skill |
 | `CONTRIBUTING.md` | Prerequisites, the workflow and its commands without Just, where a change goes, the pull request process, commit messages, the changelog policy |
 | `CHANGELOG.md` | The human-curated record of user-visible changes (Keep a Changelog) |
 | `docs/getting-started.md` | First setup, everyday commands, seeing the tool, TCC, removing the example code |

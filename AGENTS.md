@@ -247,30 +247,31 @@ repository ships none (see "Enforcement layers").
 - Any write to a remote: `git push`, `gh pr create`, or any other. `just labels` and
   `just ruleset` only create or update what `.github/labels.yml` and
   `.github/rulesets/*.json` declare, and each still needs sign-off before its first run
-  against the live repository.
+  against the live repository (`starting-an-app`' `references/github-settings.md`).
 
 Standing exceptions: invoking one of these skills is the sign-off for the remote
 writes that skill exists to make, for that invocation only.
 
 - `smart-commit`, when asked to push: pushing the commits it made to the current branch.
 - `create-pr`: pushing the current branch and creating or updating its pull request.
-- `shipping-issues`: adding a missing `priority:` label to an open issue; removing
+- `shipping-issues`: adding a missing `priority:` tier label to an open issue; removing
   `blocked: dependency` from issues its merge unblocked; for a design-held issue it
-  takes on, posting its `## Design decision` comment, then clearing `blocked: design`
+  takes on, posting its `## Design decision` comment and then clearing `blocked: design`
   and the ship contract's `design=open`; creating and pushing its own branches (in a
-  cloud session, only the designated branch); creating the pull request and, on that
-  open PR alone, appending a missing `Closes #<n>` or retargeting its base to the
-  default branch; merging it once CI passes for the current head; closing, with a
-  comment naming the PR, the issue that merged PR was meant to close when GitHub left it
-  open; filing and labelling follow-up issues; and removing the local branches and
-  worktrees it created. Never a force-push, a remote branch deletion, a reply to or
-  resolution of a review thread, a comment requesting a review, or Auto-fix.
+  cloud session, only the session's designated branch); creating the pull request; on
+  that open PR alone, appending `Closes #<n>` when missing or retargeting its base to
+  the default branch; merging it once CI passes for the current head; closing, with a
+  back-reference comment naming the PR, the issue that merged PR was meant to close when
+  GitHub left it open; filing and labelling follow-up issues; and removing the local
+  branches and worktrees it created — never a force-push, a remote branch deletion, a
+  reply to or resolution of a review thread, a comment requesting a review, or Auto-fix.
 
-The human explicitly asking for an issue ("file an issue for this") is the sign-off for
-creating each issue that request asks for, with `triaging-issues`' labels, and for
-comments on those issues in the same request. An issue from a friction the agent
-noticed, or one the human raised without asking for an issue, is drafted in the reply
-and waits for a yes.
+One request is a standing exception too: the human explicitly asking for an issue
+("file an issue for this") is the sign-off for the `gh issue create` of each issue that
+request asks for, with the labels `triaging-issues` gives it, and for comments on those
+issues in the same request. An issue the agent would file from a friction it noticed on
+its own, or from one the human raised without asking for an issue, is drafted in the
+reply and waits for a yes.
 
 None of them covers anything else: a force push or other history rewrite,
 `--no-verify`, weakening a gate, a release pipeline or signing, a release tag, a new
@@ -285,15 +286,16 @@ window, take keyboard focus, move the pointer, raise a permission, Keychain, or
 Gatekeeper prompt, or take over a terminal.
 
 - Never run `myapp tui` (`cargo run -p myapp -- tui` included). No check needs a TTY:
-  the TUI is tested through ratatui's `TestBackend`. When only the real terminal shows
-  a change, ask the human to run it (`running-the-app`).
+  the TUI is tested through ratatui's `TestBackend` (`building-tuis`). When only the
+  real terminal shows a change, ask the human to run it (`running-the-app`).
 - For evidence, use the tests, `just test-platform`, a plain subcommand run against a
   scratch `HOME` (`running-the-app`), and `just logs`.
 - `just test-local`, `just logs-follow`, and `just install-cli` are a human's to start:
   never run one unless asked.
 - A test that needs a GUI session, a TCC grant, or the Keychain is
   `#[ignore = "local machine: <what it needs>"]` and runs only in `just test-local`.
-- Never trigger an installer or a `sudo` prompt; report the command for the human.
+- Never trigger an installer or a `sudo` prompt; report the command for the human
+  (`running-the-app`).
 
 ## Enforcement layers
 
@@ -302,7 +304,8 @@ hook on the staged files (`rustfmt --check`, `typos`, the staged guard); `just c
 (the lints, core's bans and boundary, the coverage floors, the harness checks); CI,
 with the same recipes and the security workflows; and this file for the rest.
 `changing-gates`' `references/enforcement-layers.md` has each layer's row and the gaps
-left open on purpose; a gate change updates it.
+left open on purpose; a gate change updates it. `guide-size` caps this file at 20,000
+bytes outside `## Product`.
 
 ### What no local gate sees
 

@@ -52,8 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AGENTS.md` is cut to what every task needs, about a third of its former size, and a
   new harness check, `guide-size`, fails with `ERR_CHECK_GUIDE_SIZE` when it grows past
-  20,000 bytes. What applies to one kind of file or change moved to where it loads on
-  demand: the enforcement layers and their gaps to `changing-gates`'
+  20,000 bytes, not counting the `## Product` section, which is each app's own. What
+  applies to one kind of file or change moved to where it loads on demand: the
+  enforcement layers and their gaps to `changing-gates`'
   `references/enforcement-layers.md`, the repository-script contract to
   `.claude/rules/scripts.md`, and the GitHub settings a new repository must enable to
   `starting-an-app`' `references/github-settings.md`. `.claude/rules/rust.md` and

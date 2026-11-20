@@ -34,3 +34,15 @@ label set:
   (<https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference>,
   `labels`, checked 2026-09-30), so add `dependencies` by hand to any Dependabot pull
   request opened before that.
+
+## The two tasks that write these
+
+Both are remote writes, so each needs a human's sign-off before its first run against
+the live repository, the same as any other (`AGENTS.md` › "Security and human
+approval"); no standing exception covers either.
+
+- `just labels` runs `cargo xtask sync-labels`: it only ever creates or updates a label
+  `.github/labels.yml` declares, and never deletes one.
+- `just ruleset` runs `cargo xtask apply-ruleset`: it only ever creates or updates the
+  rulesets `.github/rulesets/*.json` name (`main` and `release-tags`), each by its own
+  name, never deletes one, and needs repository admin permissions to succeed.
