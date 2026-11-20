@@ -17,8 +17,9 @@
 //! - `name` is a string equal to `<dir>`: lowercase letters, digits, and single hyphens,
 //!   at most 64 characters (the Agent Skills format);
 //! - `description` is a non-empty string of printable ASCII (tab and newline allowed), at
-//!   most 500 characters once trailing whitespace is dropped, and neither value carries
-//!   a trailing YAML comment (an unquoted ` #` silently cuts the value short);
+//!   most 500 characters once trailing whitespace is dropped, and no string value (the
+//!   name, the description, or an optional key's) carries a trailing YAML comment (an
+//!   unquoted ` #` silently cuts the value short);
 //! - the descriptions of every skill in the tree together are at most 9,000 characters:
 //!   the host lists them in one budget it shares with a person's own skills and plugins,
 //!   and drops the descriptions that overflow it, after which a skill loads by name only;
@@ -220,14 +221,13 @@ fn key_violations<'a>(
     let mut description = None;
     for (index, (key, value)) in pairs.iter().enumerate() {
         let label = key.scalar_text().unwrap_or_else(|| key.to_json());
-        if OPTIONAL_KEYS.contains(&label.as_str()) {
+        let optional = OPTIONAL_KEYS.contains(&label.as_str());
+        if optional {
             violations.extend(
                 optional_key_problem(&label, value)
                     .map(|problem| frontmatter_violation(dir, problem)),
             );
-            continue;
-        }
-        if label != "name" && label != "description" {
+        } else if label != "name" && label != "description" {
             violations.push(frontmatter_violation(
                 dir,
                 format!(
@@ -238,11 +238,12 @@ fn key_violations<'a>(
             continue;
         }
         // A flow mapping (`{name: x, description: y}`) shares its lines between keys, and
-        // its values carry no comment this reads.
+        // its values carry no comment this reads. A comment after a `true` or `false`
+        // cuts nothing, so only a string value is read for one.
         let end = pairs
             .get(index + 1)
             .map_or(block.len(), |(next, _)| next.line - 1);
-        let comment = if flow {
+        let comment = if flow || value.as_str().is_none() {
             None
         } else {
             value_comment(block, key.line - 1, end, value)
@@ -255,7 +256,7 @@ fn key_violations<'a>(
         }
         if label == "name" {
             name = Some(value);
-        } else {
+        } else if !optional {
             description = Some(value);
         }
     }
@@ -265,22 +266,15 @@ fn key_violations<'a>(
 /// Checks one SKILL.md's frontmatter and body length, and returns with the violations
 /// the length its description adds to the listing (0 when it has none to measure).
 fn skill_file_violations(dir: &str, text: &str) -> (Vec<FailureDetails>, usize) {
-    let mut listed = 0;
-    let violations = frontmatter_and_body_violations(dir, text, &mut listed);
-    (violations, listed)
-}
-
-fn frontmatter_and_body_violations(
-    dir: &str,
-    text: &str,
-    listed: &mut usize,
-) -> Vec<FailureDetails> {
     let lines: Vec<&str> = text.split('\n').collect();
     if lines.first() != Some(&"---") {
-        return vec![frontmatter_violation(
-            dir,
-            "SKILL.md does not start with a `---` line",
-        )];
+        return (
+            vec![frontmatter_violation(
+                dir,
+                "SKILL.md does not start with a `---` line",
+            )],
+            0,
+        );
     }
     let Some(close) = lines
         .iter()
@@ -288,10 +282,13 @@ fn frontmatter_and_body_violations(
         .position(|line| *line == "---")
         .map(|at| at + 1)
     else {
-        return vec![frontmatter_violation(
-            dir,
-            "the frontmatter block is never closed with a `---` line",
-        )];
+        return (
+            vec![frontmatter_violation(
+                dir,
+                "the frontmatter block is never closed with a `---` line",
+            )],
+            0,
+        );
     };
 
     let mut violations = Vec::new();
@@ -318,7 +315,7 @@ fn frontmatter_and_body_violations(
                 format!("the block does not parse as YAML: {}", error.message),
             )];
             found.extend(violations);
-            return found;
+            return (found, 0);
         }
     };
     let flow = block
@@ -332,16 +329,16 @@ fn frontmatter_and_body_violations(
             "the block is not a mapping of keys",
         )];
         found.extend(violations);
-        return found;
+        return (found, 0);
     };
 
     let (name, description) = key_violations(dir, pairs, block, flow, &mut violations);
     violations.extend(name_violation(dir, name));
     violations.extend(description_violations(dir, description));
-    *listed = description
+    let listed = description
         .and_then(Node::as_str)
         .map_or(0, description_length);
-    violations
+    (violations, listed)
 }
 
 /// What is wrong with the frontmatter's `name`, if anything.
@@ -795,6 +792,8 @@ mod tests {
             skill("name: alpha\ndescription: 'quoted' # gone"),
             skill("name: alpha\ndescription: > # gone\n  text"),
             skill("name: alpha\ndescription: a plain\n  value # gone"),
+            skill("name: alpha\ndescription: x\nargument-hint: issue number # gone"),
+            skill("name: alpha\ndescription: x\npaths: src/** # gone"),
         ] {
             let violations = check(&[(".claude/skills/alpha/SKILL.md", Some(&content))]);
             assert_eq!(
