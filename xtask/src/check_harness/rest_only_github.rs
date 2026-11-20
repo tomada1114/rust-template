@@ -1,19 +1,20 @@
-//! The skills that reach GitHub over REST alone name no `gh` command built on GraphQL. A
-//! Claude Code cloud session's GitHub proxy answers GraphQL with a 403, and with it every
-//! `gh` subcommand built on GraphQL and the issue-search endpoint, so a step spelled with
-//! one works on a developer's machine and stops the same run in a cloud session.
+//! The skills and the guide reach GitHub over REST alone: they name no `gh` command built
+//! on GraphQL. A Claude Code cloud session's GitHub proxy answers GraphQL with a 403, and
+//! with it every `gh` subcommand built on GraphQL and the issue-search endpoint, so a step
+//! spelled with one works on a developer's machine and stops the same run in a cloud
+//! session.
 //!
-//! Read: every `*.md` file under each directory in [`SCOPES`], recursively, every line
-//! (prose, code spans, and code blocks alike). Not read: a skill's scripts and tests,
-//! which are code and are exercised by their own suite.
+//! Read: every `*.md` file under [`SKILLS`], recursively, and [`GUIDE`], every line (prose,
+//! code spans, and code blocks alike). Not read: a skill's scripts and tests. A line scan
+//! cannot see a command a script builds as an argument list, so each script's own suite
+//! pins the calls it makes, against a fake `gh` that refuses any other.
 //!
 //! A line fails when it contains one of [`FORBIDDEN`], case-sensitively, where the
 //! character before the match is not a letter, a digit, `_`, `-`, or `/` (so `though pr`
 //! and a longer path ending in the same words do not match).
 //!
-//! Errors: `ERR_CHECK_INPUT_MISSING` (a scope holds no Markdown file: the skill moved, and
-//! the list in this file must follow it), `ERR_CHECK_GRAPHQL_GH` (one per line and
-//! command).
+//! Errors: `ERR_CHECK_INPUT_MISSING` (no Markdown file under [`SKILLS`], or no [`GUIDE`]),
+//! `ERR_CHECK_GRAPHQL_GH` (one per line and command).
 
 use super::documents::markdown_files;
 use super::{Input, finding, read_file};
@@ -21,9 +22,10 @@ use crate::fail::FailureDetails;
 
 const THIS: &str = "xtask/src/check_harness/rest_only_github.rs";
 
-/// The skill directories held to REST-only `gh api` calls. A skill joins the list once
-/// its documents are rewritten to that spelling.
-const SCOPES: [&str; 1] = [".claude/skills/shipping-issues"];
+/// Where the skills live: every Markdown file under it is held to REST-only calls.
+const SKILLS: &str = ".claude/skills";
+/// The guide every session reads, held to the same spelling.
+const GUIDE: &str = "AGENTS.md";
 
 /// What a document in scope may not name, each with what it is.
 const FORBIDDEN: [(&str, &str); 6] = [
@@ -49,61 +51,80 @@ fn names(line: &str, needle: &str) -> bool {
         .any(|(start, _)| !line[..start].chars().next_back().is_some_and(joins))
 }
 
-/// The check's violations under the root, for the given scopes.
-fn scan(input: &Input<'_>, scopes: &[&str]) -> Vec<FailureDetails> {
+/// A finding for each forbidden command `text`, the content of `file`, names.
+fn scan(file: &str, text: &str) -> Vec<FailureDetails> {
     let mut violations = Vec::new();
-    for scope in scopes {
-        let files = markdown_files(input.root, scope);
-        if files.is_empty() {
-            violations.push(finding(
-                "ERR_CHECK_INPUT_MISSING",
-                format!("{scope} holds no Markdown file to check"),
-                format!("the skill's SKILL.md and references under {scope}"),
-                "no *.md file there",
-                format!("restore the skill, or update SCOPES in {THIS} when it moved"),
-            ));
-            continue;
-        }
-        for file in files {
-            let text = read_file(input.root, &file).unwrap_or_default();
-            for (index, line) in text.lines().enumerate() {
-                for (needle, what) in FORBIDDEN {
-                    if !names(line, needle) {
-                        continue;
-                    }
-                    violations.push(finding(
-                        "ERR_CHECK_GRAPHQL_GH",
-                        format!("{file}:{} names `{}`", index + 1, needle.trim_end()),
-                        "every GitHub call in the skill spelled as a REST `gh api repos/{owner}/{repo}/…` call",
-                        format!("{} ({what})", line.trim()),
-                        format!(
-                            "spell the step as a REST `gh api` call, and describe a refused command in words rather than naming it ({THIS} lists them)"
-                        ),
-                    ));
-                }
+    for (index, line) in text.lines().enumerate() {
+        for (needle, what) in FORBIDDEN {
+            if !names(line, needle) {
+                continue;
             }
+            violations.push(finding(
+                "ERR_CHECK_GRAPHQL_GH",
+                format!("{file}:{} names `{}`", index + 1, needle.trim_end()),
+                "every GitHub call spelled as a REST `gh api repos/{owner}/{repo}/…` call",
+                format!("{} ({what})", line.trim()),
+                format!(
+                    "spell the step as a REST `gh api` call, and describe a refused command in words rather than naming it ({THIS} lists them)"
+                ),
+            ));
         }
     }
     violations
 }
 
-/// Every forbidden command named under [`SCOPES`].
+fn missing(what: String, expected: &str, actual: &str) -> FailureDetails {
+    finding(
+        "ERR_CHECK_INPUT_MISSING",
+        what,
+        expected,
+        actual,
+        "run the check against the repository root (--root DIR)",
+    )
+}
+
+/// Every forbidden command named in a skill's Markdown or in the guide.
 pub(super) fn run(input: &Input<'_>) -> Vec<FailureDetails> {
-    scan(input, &SCOPES)
+    let mut violations = Vec::new();
+    let files = markdown_files(input.root, SKILLS);
+    if files.is_empty() {
+        violations.push(missing(
+            format!("{SKILLS} holds no Markdown file to check"),
+            "each skill's SKILL.md and references under it",
+            "no *.md file there",
+        ));
+    }
+    for file in files {
+        let text = read_file(input.root, &file).unwrap_or_default();
+        violations.extend(scan(&file, &text));
+    }
+    match read_file(input.root, GUIDE) {
+        Some(text) => violations.extend(scan(GUIDE, &text)),
+        None => violations.push(missing(
+            format!("{GUIDE} does not exist"),
+            "the guide at the root",
+            "no such file",
+        )),
+    }
+    violations
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SCOPES, run};
+    use super::{GUIDE, SKILLS, run};
     use crate::check_harness::test_support::{codes, run_at};
     use crate::fail::FailureDetails;
     use crate::test_support::{temp_dir, write};
 
-    /// The check against a tree whose skill holds `files`, as (path under the skill, text).
+    const SKILL: &str = ".claude/skills/create-pr";
+
+    /// The check against a tree with a clean guide whose one skill holds `files`, as
+    /// (path under the skill, text).
     fn check(files: &[(&str, &str)]) -> Vec<FailureDetails> {
         let dir = temp_dir();
+        write(dir.path(), GUIDE, "Fine.\n");
         for (path, text) in files {
-            write(dir.path(), &format!("{}/{path}", SCOPES[0]), text);
+            write(dir.path(), &format!("{SKILL}/{path}"), text);
         }
         run_at(dir.path(), run)
     }
@@ -137,7 +158,7 @@ mod tests {
             assert_eq!(codes(&found), ["ERR_CHECK_GRAPHQL_GH"], "{line}");
             assert_eq!(
                 found[0].summary,
-                format!("{}/SKILL.md:2 names `{named}`", SCOPES[0])
+                format!("{SKILL}/SKILL.md:2 names `{named}`")
             );
             assert!(found[0].actual.starts_with(line), "{found:?}");
         }
@@ -172,9 +193,50 @@ mod tests {
     }
 
     #[test]
-    fn fails_when_the_skill_is_absent() {
-        let found = check(&[]);
+    fn reads_every_skill_under_the_skills_directory() {
+        let dir = temp_dir();
+        write(dir.path(), GUIDE, "Fine.\n");
+        write(dir.path(), &format!("{SKILLS}/one/SKILL.md"), "Fine.\n");
+        write(
+            dir.path(),
+            &format!("{SKILLS}/two/references/calls.md"),
+            "`gh pr merge <pr>`\n",
+        );
+        let found = run_at(dir.path(), run);
+        assert_eq!(codes(&found), ["ERR_CHECK_GRAPHQL_GH"]);
+        assert_eq!(
+            found[0].summary,
+            format!("{SKILLS}/two/references/calls.md:1 names `gh pr`")
+        );
+    }
+
+    #[test]
+    fn reads_the_guide() {
+        let dir = temp_dir();
+        write(dir.path(), &format!("{SKILL}/SKILL.md"), "Fine.\n");
+        write(
+            dir.path(),
+            GUIDE,
+            "Fine.\nThe sign-off for the `gh issue create` of each issue.\n",
+        );
+        let found = run_at(dir.path(), run);
+        assert_eq!(codes(&found), ["ERR_CHECK_GRAPHQL_GH"]);
+        assert_eq!(found[0].summary, "AGENTS.md:2 names `gh issue`");
+    }
+
+    #[test]
+    fn fails_when_no_skill_holds_a_markdown_file() {
+        let found = check(&[("scripts/survey.py", "# no document\n")]);
         assert_eq!(codes(&found), ["ERR_CHECK_INPUT_MISSING"]);
-        assert!(found[0].summary.contains(SCOPES[0]), "{found:?}");
+        assert!(found[0].summary.contains(SKILLS), "{found:?}");
+    }
+
+    #[test]
+    fn fails_when_the_guide_is_absent() {
+        let dir = temp_dir();
+        write(dir.path(), &format!("{SKILL}/SKILL.md"), "Fine.\n");
+        let found = run_at(dir.path(), run);
+        assert_eq!(codes(&found), ["ERR_CHECK_INPUT_MISSING"]);
+        assert!(found[0].summary.contains(GUIDE), "{found:?}");
     }
 }
