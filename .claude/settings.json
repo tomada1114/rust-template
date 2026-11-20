@@ -54,9 +54,7 @@
       "Bash(cargo update*)",
       "Bash(mise use *)",
       "Bash(mise upgrade*)",
-      "Bash(git tag *)",
-      "Edit(/.claude/settings.json)",
-      "Edit(/.claude/settings.local.json)"
+      "Bash(git tag *)"
     ],
     "deny": [
       "Bash(git commit --no-verify*)",
