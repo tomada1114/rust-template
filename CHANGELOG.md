@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking for anyone who ran the old scripts:** `shipping-issues` is one skill for a
+  local Claude Code session and a Claude Code cloud session, and reaches GitHub over
+  REST `gh api` calls only. The branch is reviewed with `/code-review` before its PR
+  exists, CI is read per head SHA by the skill's one script, `ci_verdict.py`, and the
+  merge is a squash pinned to that head. The skill deletes no remote branch: turn on
+  the repository's "Automatically delete head branches" setting (`AGENTS.md` › "GitHub
+  settings a new repository must enable"). A new harness check, `rest-only-github`,
+  fails when the skill's documents name a `gh` subcommand built on GraphQL.
+
 - CodeQL also analyzes `python`, covering the skills' bundled scripts (the
   `shipping-issues` and `merging-dependency-prs` scripts call `gh` and parse pull-request
   text).
@@ -147,6 +156,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migrations land on their own PRs.
 
 ### Removed
+
+- The `cloud-claude-shipping-issues` skill, and `shipping-issues`' planning, labelling,
+  filing, landing, worktree, cleanup, and run-record scripts with their references
+  (`priority-rubric.md` among them: `triaging-issues` is the one home for what a tier
+  means). `just test-scripts` no longer runs shellcheck over a skill's scripts, since
+  no skill ships a shell script.
 
 - The second skill tree: `.agents/skills/`, `cargo xtask sync-agents`, the
   `just agents-sync` and `just agents-check` recipes (and `agents-check` in

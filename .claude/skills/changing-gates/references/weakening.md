@@ -31,7 +31,7 @@ green.
 | Construct | What it does | Do instead |
 |---|---|---|
 | `skip` on a failing test (`unittest.skip`, `self.skipTest`) in a skill's `scripts/tests/` | `just test-scripts` reports it as skipped and goes green with the failure still there. | Fix the script, or the test if its oracle is wrong. |
-| `# shellcheck disable=…` to get `just test-scripts` green | Silences that finding for the next command. | Fix the script. A directive that stays carries its reason on the same line, as the one in `shipping-issues`' `worktree_setup.sh` does. |
+| `# shellcheck disable=…` to get `just test-scripts` green | Silences that finding for the next command. | Fix the script. A directive that stays carries its reason on the same line. |
 | Removing a suite from the `test-scripts` recipe | That skill's scripts stop being tested at all, with nothing reporting it. | Fix the suite. |
 
 ## Everywhere

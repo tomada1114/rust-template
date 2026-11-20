@@ -36,6 +36,7 @@ pub(crate) mod just_recipes_exist;
 mod labels_declared;
 mod no_issue_references;
 pub(crate) mod product_section;
+mod rest_only_github;
 mod ruleset_contexts;
 mod settings_allow_list;
 mod settings_hooks;
@@ -67,7 +68,7 @@ pub(crate) struct Input<'a> {
 type CheckFn = fn(&Input<'_>) -> Vec<FailureDetails>;
 
 /// Every check, by name, in the order they run.
-const CHECKS: [(&str, CheckFn); 17] = [
+const CHECKS: [(&str, CheckFn); 18] = [
     ("advisory-ignores-agree", advisory_ignores_agree::run),
     ("agent-tiers", agent_tiers::run),
     ("bots-agree", bots_agree::run),
@@ -79,6 +80,7 @@ const CHECKS: [(&str, CheckFn); 17] = [
     ("labels-declared", labels_declared::run),
     ("no-issue-references", no_issue_references::run),
     ("product-section", product_section::run),
+    ("rest-only-github", rest_only_github::run),
     ("ruleset-contexts", ruleset_contexts::run),
     ("settings-allow-list", settings_allow_list::run),
     ("settings-hooks", settings_hooks::run),

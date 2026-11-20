@@ -50,9 +50,8 @@ just check
 lint-repo, test-scripts, check-harness, test, test-platform);
 the justfile's `check` recipe is the source of truth for the order. It opens no window
 and takes over no terminal (`AGENTS.md` › "Never taking over the developer's Mac"). A cold run takes longer than a
-foreground tool call may last, so under Claude Code start it with `run_in_background`
-and wait for the completion notice; under Codex CLI give the command a timeout that
-covers a full build.
+foreground tool call may last, so start it with `run_in_background` and wait for the
+completion notice.
 
 Any failure stops the pull request. Report the failing step and its first error, and fix
 the cause; a failing gate is never worked around (`AGENTS.md` › "Security and human
