@@ -3,12 +3,15 @@
 
 For the `merging-dependency-prs` skill: each open bot PR's ecosystem (cargo,
 github-actions, mise, or rust-toolchain), the versions it moves and their semver level,
-its check rollup, its merge state, the files it touches, and the files two of them
+its check verdict, its merge state, the files it touches, and the files two of them
 contest. It marks each major bump, a 0.x minor (a ratatui minor, say) included, even
 inside a grouped PR.
 
-Read-only: it runs `gh pr list` and nothing else, and it is the one step of the skill
-that runs before the human's approval.
+Read-only: it runs `gh api` GETs on REST paths and nothing else, which a Claude Code
+cloud session's proxy admits where it refuses GraphQL, and it is the one step of the
+skill that runs before the human's approval. One call lists the open pull requests;
+then, for each bot PR only, four more read what that listing leaves out: the PR itself
+(its merge state), its files, and its head commit's check runs and commit statuses.
 
 Usage:
     python3 .claude/skills/merging-dependency-prs/scripts/survey_prs.py [--json]
@@ -21,7 +24,7 @@ Standard library only, Python 3.9 or later.
 Errors (first stderr line `ERR_<STAGE>_<WHAT>: <summary>`, then `Expected:`, `Actual:`,
 and `Next:` lines; exit 1):
     ERR_SURVEY_USAGE  an unknown argument
-    ERR_SURVEY_GH     `gh` missing, failing, or printing something other than a JSON list
+    ERR_SURVEY_GH     `gh` missing, failing, or printing something other than the JSON asked for
 """
 from __future__ import annotations
 
@@ -30,16 +33,21 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
-# The `gh pr list --json` fields the survey reads.
-FIELDS = ",".join([
-    "number", "title", "body", "author", "headRefName", "mergeStateStatus",
-    "statusCheckRollup", "files", "url",
-])
+REPO = "repos/{owner}/{repo}"  # `gh api` fills both from the checkout's remote.
+# What the survey reads of each open pull request in the listing.
+LISTING = ("{number, title, body, html_url, user: {login: .user.login}, "
+           "head: {ref: .head.ref, sha: .head.sha}}")
+SHA = re.compile(r"[0-9a-f]{40}")
+# GitHub computes a PR's merge state when the PR is first read and answers `unknown`
+# until it has: read again this many times, this many seconds apart, before printing it.
+MERGE_STATE_RETRIES = 2
+MERGE_STATE_WAIT = 2
 
 # Dependabot, one dependency: "bump serde from 1.0.228 to 1.0.229", or "update clap
 # requirement from 4.5 to 5.0".
@@ -64,6 +72,7 @@ LEVEL_ORDER = ["unknown", "patch", "minor", "major"]
 # The only conclusions that let a PR through: an allow-list, so a conclusion this script
 # has never seen (STARTUP_FAILURE, STALE, one GitHub adds later) holds the PR instead of
 # passing it. SKIPPED is how a conditional job says "not applicable".
+# States arrive in lower case from REST and are compared in upper case.
 PASSING_STATES = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 PENDING_STATES = {"PENDING", "IN_PROGRESS", "QUEUED", "WAITING", "EXPECTED"}
 
@@ -151,7 +160,8 @@ def highest_level(levels: list[str]) -> str:
 
 
 def check_summary(rollup: list) -> dict:
-    """One verdict for a check rollup, failing closed; `failing` names each check held."""
+    """One verdict for a head's check runs and commit statuses together, failing closed;
+    `failing` names each check held."""
     if not rollup:
         return {"state": "NONE", "failing": []}
     failing: list[str] = []
@@ -214,23 +224,36 @@ def _number(value: Any) -> int | float:
         return 0
 
 
+def author_of(pull: Any) -> str:
+    """The PR's author, an app named `app/<slug>` (REST's login is `<slug>[bot]`)."""
+    login = _text(_field(pull, "user"), "login") or ""
+    return f"app/{login[:-len('[bot]')]}" if login.endswith("[bot]") else login
+
+
+def is_bot_pr(pull: Any) -> bool:
+    author = author_of(pull)
+    return "dependabot" in author or "renovate" in author
+
+
 def collect(pulls: list) -> list[dict]:
-    """One row per open Dependabot or Renovate PR, in PR-number order."""
+    """One row per open Dependabot or Renovate PR, in PR-number order. Each pull is the
+    listing's element, with `mergeable_state`, `files` (paths), `check_runs`, and
+    `statuses` added by the reads of that PR."""
     rows = []
     for pull in pulls:
-        author = _text(_field(pull, "author"), "login") or ""
-        if "dependabot" not in author and "renovate" not in author:
+        if not is_bot_pr(pull):
             continue
+        author = author_of(pull)
         title = _text(pull, "title") or ""
-        branch = _text(pull, "headRefName") or ""
-        files = [p for p in ((_text(f, "path") or "") for f in _list(pull, "files")) if p]
+        branch = _text(_field(pull, "head"), "ref") or ""
+        files = [p for p in _list(pull, "files") if isinstance(p, str) and p]
         bumps = parse_bumps(title, _text(pull, "body") or "")
-        checks = check_summary(_list(pull, "statusCheckRollup"))
-        merge_state = _text(pull, "mergeStateStatus")
+        checks = check_summary(_list(pull, "check_runs") + _list(pull, "statuses"))
+        merge_state = _text(pull, "mergeable_state")
         rows.append({
             "number": _number(_field(pull, "number") or 0),
             "title": title,
-            "url": _text(pull, "url") or "",
+            "url": _text(pull, "html_url") or "",
             "branch": branch,
             "author": author,
             "ecosystem": ecosystem_of(branch, files),
@@ -238,7 +261,7 @@ def collect(pulls: list) -> list[dict]:
             "level": highest_level([semver_level(b["from"], b["to"]) for b in bumps]),
             "checks": checks["state"],
             "failingChecks": checks["failing"],
-            "mergeState": "?" if merge_state is None else merge_state,
+            "mergeState": "?" if merge_state is None else merge_state.upper(),
             "files": files,
         })
     return sorted(rows, key=lambda r: r["number"])
@@ -282,32 +305,96 @@ def run_gh(args: list[str], cwd: Path) -> tuple[int | None, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
-def gh_pull_requests(root: Path, run: Callable = run_gh) -> list:
-    status, stdout, stderr = run(
-        ["pr", "list", "--state", "open", "--limit", "100", "--json", FIELDS], root)
+def gh_api(path: str, jq: str, root: Path, run: Callable) -> list:
+    """Every JSON value `gh api <path> --jq <jq> --paginate` prints, in order. A GET:
+    nothing here passes a field or a method, which is what would make it a write."""
+    status, stdout, stderr = run(["api", path, "--jq", jq, "--paginate"], root)
 
     def failure(actual: str) -> ScriptError:
         return ScriptError(
             "ERR_SURVEY_GH",
-            "`gh pr list` did not return the open pull requests",
-            "the GitHub CLI on PATH, authenticated, printing a JSON list",
+            f"cannot read {path}",
+            "the GitHub CLI on PATH, authenticated, answering `gh api` with the JSON asked for",
             actual,
-            "run `gh auth status` and confirm this checkout has a GitHub remote",
+            "run `gh auth status` and confirm this checkout has a GitHub remote; a 403 "
+            "from a cloud session's proxy is a stop",
         )
 
     if status != 0:
-        raise failure(stderr.strip() or f"exit status {'null' if status is None else status}")
-    try:
-        parsed = json.loads("[]" if stdout == "" else stdout)
-    except ValueError:
-        raise failure(f"output that is not JSON: {stdout[:120]}") from None
-    if not isinstance(parsed, list):
-        raise failure(f"JSON that is not a list: {stdout[:120]}")
-    return parsed
+        lines = (stderr or stdout).strip().splitlines()
+        raise failure(lines[0] if lines else f"exit status {'null' if status is None else status}")
+    values, decoder, at = [], json.JSONDecoder(), 0
+    while at < len(stdout):
+        if stdout[at].isspace():
+            at += 1
+            continue
+        try:
+            value, at = decoder.raw_decode(stdout, at)
+        except ValueError:
+            raise failure(f"output that is not JSON: {stdout[at:at + 120]}") from None
+        values.append(value)
+    return values
+
+
+def merge_state(path: str, root: Path, run: Callable, sleep: Callable[[float], None]) -> Any:
+    """The PR's `mergeable_state`, read again while GitHub still answers `unknown`."""
+    state = None
+    for attempt in range(MERGE_STATE_RETRIES + 1):
+        if attempt:
+            sleep(MERGE_STATE_WAIT)
+        read = gh_api(path, "{mergeable_state}", root, run)
+        if len(read) != 1 or not isinstance(read[0], dict):
+            raise unexpected_shape(path, read)
+        state = read[0].get("mergeable_state")
+        if state != "unknown":
+            break
+    return state
+
+
+def unexpected_shape(path: str, actual: Any) -> ScriptError:
+    return ScriptError(
+        "ERR_SURVEY_GH",
+        f"cannot read {path}",
+        "the fields the survey asked `gh api` for",
+        f"an unexpected shape: {json.dumps(actual)[:120]}",
+        "run that `gh api` read on its own to see what GitHub answers",
+    )
+
+
+def gh_pull_requests(root: Path, run: Callable = run_gh,
+                     sleep: Callable[[float], None] = time.sleep) -> list:
+    """The open pull requests, each bot PR with what the listing leaves out."""
+    listing = f"{REPO}/pulls?state=open&per_page=100"
+    pulls = gh_api(listing, f".[] | {LISTING}", root, run)
+
+    for pull in pulls:
+        number = _field(pull, "number")
+        if not isinstance(number, int) or isinstance(number, bool):
+            raise unexpected_shape(listing, pull)
+        if not is_bot_pr(pull):
+            continue
+        # Checks are read by head SHA, so no other commit's results count; without one
+        # there is nothing to read them for, and no checks must never look like a pass.
+        sha = _text(_field(pull, "head"), "sha")
+        if sha is None or not SHA.fullmatch(sha):
+            raise unexpected_shape(listing, pull)
+        one = f"{REPO}/pulls/{number}"
+        pull["mergeable_state"] = merge_state(one, root, run, sleep)
+        # One array per page: `--jq` prints a bare string unquoted, which is not JSON.
+        pages = gh_api(f"{one}/files?per_page=100", "[.[].filename]", root, run)
+        pull["files"] = [path for page in pages if isinstance(page, list) for path in page]
+        pull["check_runs"] = gh_api(
+            f"{REPO}/commits/{sha}/check-runs?per_page=100",
+            ".check_runs[] | {name, status, conclusion}", root, run)
+        pull["statuses"] = gh_api(
+            f"{REPO}/commits/{sha}/status?per_page=100",
+            ".statuses[] | {context, state}", root, run)
+    return pulls
 
 
 def main(argv: list[str] | None = None, *, root: Path | None = None,
-         run: Callable = run_gh, log: Callable[[str], None] = print) -> None:
+         run: Callable = run_gh, log: Callable[[str], None] = print,
+         sleep: Callable[[float], None] = time.sleep) -> None:
     """Survey and print; raises ScriptError on a usage or `gh` failure."""
     argv = sys.argv[1:] if argv is None else argv
     root = REPO_ROOT if root is None else Path(root)
@@ -320,7 +407,7 @@ def main(argv: list[str] | None = None, *, root: Path | None = None,
             " ".join(argv),
             "run `python3 .claude/skills/merging-dependency-prs/scripts/survey_prs.py`",
         )
-    rows = collect(gh_pull_requests(root, run))
+    rows = collect(gh_pull_requests(root, run, sleep))
     if "--json" in argv:
         log(json.dumps({"rows": rows, "contested": contested_files(rows)},
                        indent=2, ensure_ascii=False))
