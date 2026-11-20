@@ -25,7 +25,9 @@
 use super::{Input, finding, read_file};
 use crate::fail::FailureDetails;
 
-/// The recipes AGENTS.md keeps out of `allow`: they need a human or write beyond the tree.
+/// The recipes the check-harness row in the `changing-gates` skill's
+/// `references/enforcement-layers.md` keeps out of `allow`: they need a human or write
+/// beyond the tree.
 pub(super) const HUMAN_RECIPES: [&str; 7] = [
     "test-local",
     "logs-follow",
@@ -36,7 +38,7 @@ pub(super) const HUMAN_RECIPES: [&str; 7] = [
     "bootstrap",
 ];
 
-/// The commands outside `just` AGENTS.md keeps out of `allow`, each as the label a
+/// The commands outside `just` that row keeps out of `allow`, each as the label a
 /// finding names and the command lines a rule is matched against: the `cargo xtask` tasks
 /// that write to GitHub or rewrite the repository, an install outside the checkout, and
 /// the full-screen TUI, which takes over a terminal.

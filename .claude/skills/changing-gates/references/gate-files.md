@@ -32,7 +32,8 @@ current values.
 - Core also denies `clippy::wildcard_enum_match_arm` in its source, so a `match` on a
   core enum names every variant and a new variant is a compile error wherever a decision
   is owed.
-- Core's ban list and `AGENTS.md`'s description of it change together. Adding a ban is
+- Core's ban list and its `clippy.toml` row in
+  [enforcement-layers.md](enforcement-layers.md) change together. Adding a ban is
   the routine direction; removing one is weakening a gate.
 - A `path` clippy cannot resolve (a typo, an item a Rust release renamed or moved, a
   `std::os::unix` path on another target) is only a configuration warning, which

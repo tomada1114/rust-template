@@ -6,7 +6,7 @@
 //! `myapp-test-support` (fakes). See `AGENTS.md` › Architecture.
 
 // Every `match` on a core enum names each variant, so adding a variant is a compile
-// error at every place that must decide what it means (`.claude/rules/testing.md`).
+// error at every place that must decide what it means (the `writing-rust` skill).
 #![deny(clippy::wildcard_enum_match_arm)]
 
 pub mod counter;
