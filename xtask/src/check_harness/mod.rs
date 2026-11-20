@@ -31,6 +31,8 @@ mod clippy_allow_invalid;
 mod core_boundary;
 mod documents;
 mod expressions;
+#[cfg(test)]
+mod guide_size;
 mod just_check_matches_ci;
 pub(crate) mod just_recipes_exist;
 mod labels_declared;
