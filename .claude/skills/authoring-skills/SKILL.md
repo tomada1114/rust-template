@@ -10,7 +10,7 @@ description: >
   editing, reviewing, or splitting a SKILL.md or a references/ file, fixing a just
   check-harness failure about a skill,
   deciding whether material belongs in AGENTS.md, a rule, or a skill, or investigating
-  why a skill never fires in Claude Code or Codex CLI.
+  why a skill never fires in Claude Code.
 ---
 
 # Authoring Skills
@@ -54,16 +54,14 @@ skill says about its own subject.
 ## Frontmatter
 
 Exactly two keys, `name` and `description`, the description a folded block scalar
-(`description: >`). No third key: Claude Code's `paths` would gate auto-loading on a
-glob, but Codex CLI has no such key and matches on `description` alone, so the same skill
-would fire on different work in each host.
+(`description: >`). No third key: `just check-harness` refuses one, and a skill that
+loads on its `description` alone fires on the same work wherever it is read.
 
 - `name` equals the directory name: lowercase letters, digits, and single hyphens, at
   most 64 characters (https://agentskills.io/specification, checked 2026-09-29).
 - `description` is printable ASCII (no em dash, no curly quote), at most 1,024
-  characters (same source). Claude Code truncates its listing at 1,536 and Codex CLI
-  shortens descriptions when many skills compete for context (the host pages above), so
-  specific beats long.
+  characters (same source). Claude Code truncates its listing at 1,536 (the host page
+  above), so specific beats long.
 - It is a retrieval string in English: what the skill covers, then when to load it,
   naming the files, commands, error codes, and phrases that should trigger it. It never
   summarizes the skill's own steps.
@@ -75,8 +73,8 @@ would fire on different work in each host.
   subject extends that skill rather than starting a near-duplicate.
 - One home per rule. A prohibition every agent needs whatever its task (never weaken a
   gate, never bypass a hook) stays in `AGENTS.md`, and a skill points at it. A short
-  per-file rule goes in `.claude/rules/`, which only Claude Code loads, so a skill must
-  still read correctly for a Codex CLI agent that never saw the rule.
+  per-file rule goes in `.claude/rules/`, which loads by path, so a skill must still
+  read correctly for an agent that never touched a matching file.
 - What a config enforces gets one line, `Enforced by: <file> "<setting>".`, and the skill
   spends its words on the judgment the config cannot express.
 - Every skill opens with an ownership block like the one above (`**Owns:**` /
@@ -140,7 +138,7 @@ follow `AGENTS.md`; any other is explained in a clause on first use. The languag
 linked, not taught (The Rust Book, https://doc.rust-lang.org/book/).
 
 **Sub-agent steps.** A step handed to `executor`, `architect`, `scout`, or `worker` names the tier
-by `subagent_type` and still works when a Codex CLI agent runs it inline.
+by `subagent_type` and still works when the main session runs it inline.
 
 ## Size
 

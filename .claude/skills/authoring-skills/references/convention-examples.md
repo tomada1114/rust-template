@@ -141,8 +141,8 @@ tell whether a diff that breaks it matters.
 
 ## Sub-agent steps
 
-Write: "Hand the review to `architect` (`subagent_type: architect`); under Codex CLI,
-run the same review inline before merging."
+Write: "Hand the review to `architect` (`subagent_type: architect`); where no sub-agent
+can be started, run the same review inline before merging."
 
 Avoid: a step that only works if a sub-agent exists, such as "the architect sub-agent
 will post its findings", with no inline path.

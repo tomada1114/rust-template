@@ -324,7 +324,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder, under `.claude/skills/`.
-const SKILL_SITES: [(&str, &[Form]); 37] = [
+const SKILL_SITES: [(&str, &[Form]); 32] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
         "authoring-skills/references/convention-examples.md",
@@ -359,14 +359,6 @@ const SKILL_SITES: [(&str, &[Form]); 37] = [
     ("placing-tests/SKILL.md", &[Slug]),
     ("running-the-app/SKILL.md", &[SlugSnake, Slug]),
     ("shipping-issues/SKILL.md", &[Slug]),
-    (
-        "shipping-issues/references/agent-implementation.md",
-        &[Slug],
-    ),
-    ("shipping-issues/references/closing-out.md", &[Slug]),
-    ("shipping-issues/references/cost-discipline.md", &[Slug]),
-    ("shipping-issues/references/dependency-triage.md", &[Slug]),
-    ("shipping-issues/references/pr-ci-merge.md", &[Slug]),
     ("shipping-issues/references/ship-contract.md", &[Slug]),
     ("starting-an-app/SKILL.md", &[Slug]),
     ("tdd/SKILL.md", &[Slug]),

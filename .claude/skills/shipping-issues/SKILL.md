@@ -2,215 +2,209 @@
 name: shipping-issues
 description: >
   Covers taking open GitHub issues in this repository to a merged pull request and a
-  closed issue from Claude Code on the developer's machine: ranking them by their
-  priority: P0-P3 labels (backfilling a missing tier), implementing the top one,
-  reviewing the branch locally with /code-review and fixing its accepted findings,
-  opening a PR that says Closes #N, watching CI to green, merging with no approval
-  pause, and returning the checkout to main. With "all" it works through every
-  ready issue in dependency order, independent ones in at most two parallel git
-  worktrees (each has its own cargo target/). Scripts: plan.py,
-  ci_watch.sh, land_pr.sh, worktree_setup.sh, file_followup.py, cleanup_run.sh. Use
-  when asked to ship the remaining issues, take on the next issue, ship issue N, or
-  clear the ticket backlog. Not for a Claude Code cloud session
-  (cloud-claude-shipping-issues).
+  closed issue, from a local Claude Code session or a Claude Code cloud session
+  (CLAUDE_CODE_REMOTE=true), over REST gh api calls only: ranking the backlog by its
+  priority: P0-P3 labels and Depends on lines, implementing the pick, reviewing the
+  branch with /code-review before the PR exists, opening a PR that says Closes #N,
+  reading CI per head SHA with scripts/ci_verdict.py (PASS, FAIL, PENDING, EMPTY, MOVED),
+  a squash merge pinned to that head, clearing blocked: dependency on what the merge
+  unblocked, and filing follow-ups. Use when asked to ship the next issue, ship issue N,
+  ship the remaining issues, or clear the ticket backlog; when a gh subcommand answers
+  403 "GitHub GraphQL is not available from Claude Code sessions" while shipping; or
+  when a merged PR left its issue open.
 ---
 
-# Shipping Issues (Claude Code)
+# Shipping Issues
 
-**Owns:** taking open issues to a merged pull request and a closed issue from a local
-Claude Code session. **Does not own:** the label vocabulary and what an issue body must
-hold, and what is in scope (`triaging-issues`, `AGENTS.md` › "Product"); test-first
-work in core (`tdd`); the PR body's content rules (`create-pr`); the same flow from a
-Claude Code cloud session, `CLAUDE_CODE_REMOTE=true` (`cloud-claude-shipping-issues`),
-where this skill never runs. **Done:** branch reviewed, PR merged, issue CLOSED,
-nothing deleted or weakened to get there.
+**Owns:** taking open issues to a merged pull request and a closed issue, on either
+host: pick, implement, branch review, PR, CI, merge, dependents, follow-ups, cleanup.
+**Does not own:** the label vocabulary, what a priority tier means, and what an issue
+body must hold (`triaging-issues`); what is in scope (`AGENTS.md` › "Product"); the PR
+body's content rules and the Release impact line (`create-pr`); the commit itself
+(`smart-commit`); test-first work (`tdd`).
+**Done:** branch reviewed, PR merged, issue closed, no gate deleted or weakened.
 
-**Invoking this skill is the sign-off for exactly these remote writes, for this
-invocation, up to and including the merge** (`AGENTS.md` › "Security and human
-approval", standing exceptions): `priority:` and `blocked:` labels on open issues,
-pushing its own branches, creating the PR, merging it, filing and labelling follow-up
-issues, step 8b's design comments, and deleting its own branches and worktrees at
-cleanup. Anything else stops and asks: a force-push, a hook bypass, a weakened gate, a
-new dependency, `just labels`, `just ruleset`, or a release tag. The
-step 4 review plus step 6's `PASS` for the current head is the go-ahead: merge in that
-same turn, with no "shall I merge?". The only
-pauses are the [stop conditions](#stop-conditions), a tied top two (step 2),
-`NO_CHECKS` (step 6), and a PR held for a human's evidence (step 7).
+## Authority
+
+Invoking this skill is the sign-off for exactly these writes, for this invocation
+(`AGENTS.md` › "Security and human approval", standing exceptions):
+
+`shipping-issues`: adding a missing `priority:` tier label to an open issue; removing `blocked: dependency` from issues its merge unblocked; for a design-held issue it takes on, posting its `## Design decision` comment and then clearing `blocked: design` and the ship contract's `design=open`; creating and pushing its own branches (in a cloud session, only the session's designated branch); creating the pull request; on that open PR alone, appending `Closes #<n>` when missing or retargeting its base to the default branch; merging it once CI passes for the current head; closing, with a back-reference comment naming the PR, the issue that merged PR was meant to close when GitHub left it open; filing and labelling follow-up issues; and removing the local branches and worktrees it created — never a force-push, a remote branch deletion, a reply to or resolution of a review thread, a comment requesting a review, or Auto-fix.
+
+Anything else stops and asks: a hook bypass, a weakened gate, a new dependency,
+`just labels`, `just ruleset`, a release tag. The go-ahead to merge is a settled
+[step 4](#4-review-the-branch) review plus `PASS` for the current head: merge in that
+same turn, with no "shall I merge?". The only pauses are the
+[stop conditions](#stop-conditions).
 
 ## Modes
 
 | Argument | Behavior |
-|---|---|
-| _(none)_ | Ship the top shippable issue, then only **its own output** ([step 8c](#8c-take-the-runs-own-output-back-into-the-queue)), never the wider backlog. |
-| `all` | Every shippable issue in dependency-then-priority order; independent ones implemented in parallel worktrees, review → PR → CI → merge, the PRs one at a time. |
-| a number, e.g. `42` | That issue, once nothing it depends on is open. |
-
-A count sets `--max-parallel`, default **2**: each worktree of this Cargo workspace
-builds into its own `target/` from cold, gigabytes each (5.3 GB: observed on this Mac
-with `du -sh target`, 2026-09-29). Other hints are `plan.py` filters. A `blocked: design`
-issue (or `design=open` in its [ship contract](references/ship-contract.md)) ships only
-by number or with `--include-design` ([step 2b](#2b-decide-a-design-that-gates-the-pick)).
+| --- | --- |
+| _(none)_ | Ship the top-ranked shippable issue. |
+| a number | Ship that issue, once nothing it depends on is open. |
+| `all` | Ship every shippable issue, one at a time, re-ranking after each merge. |
 
 ## Working rules
 
-- **One checkout, one writer**, fixed once per batch at step 1: **serial** works in the
-  main checkout; **parallel** gives each issue `<runstate>/worktrees/<n>` and leaves the
-  main checkout clean. All GitHub traffic stays in this session, one PR at a time.
-- **Nothing waits on the user mid-run.** Never `rm`: `mv` into `<runstate>/holding/<n>/`
-  ([closing-out.md](references/closing-out.md#approval-gated-commands)).
-- **Never take over the Mac.** No step or sub-agent runs `myapp tui` or a human's recipe
-  (`just test-local`, and the rest `AGENTS.md` › "Never taking over the developer's Mac"
-  lists); the tests, `just test-platform`, and `just logs` are the run's evidence.
-- **No local baseline, no full `just check` before the PR**: CI is the gate every PR
-  merges through. Implementers run the narrowest check that can fail (`AGENTS.md` ›
-  "Validating a change").
-- **Tiers by name.** A brief goes to the tier [cost-discipline.md](references/cost-discipline.md#tier-assignment)
-  assigns, by `subagent_type`, never a bare model; a patch round continues that agent.
-- **State lives in `<runstate>`** ([run-record.md](references/run-record.md)), never in
-  a checkout: record each event with `scripts/run_record.py` as it happens, and
-  **re-read `<runstate>/run.md` after a compaction**
-  ([recovery.md](references/recovery.md#after-a-context-compaction)). Scripts run from
-  the main checkout's root as `.claude/skills/shipping-issues/scripts/<name>` and need
-  `git`, `python3`, and `gh`.
+- **REST only.** Every GitHub read and write is one `gh api repos/{owner}/{repo}/…`
+  call from [rest-calls.md](references/rest-calls.md), on both hosts, so the spelling a
+  cloud session needs is the one every local run exercises. A `gh` subcommand that is
+  not `gh api` on a REST path is never used; a 403 that names GraphQL or repository
+  scope stops the run ([hosts.md](references/hosts.md#a-403-from-the-proxy)).
+- **One call per command**: no pipe, no `$(...)`, no redirect, no chain. A body goes
+  into a file under the scratchpad (or `$TMPDIR`), written with the file tool, and is
+  sent with `-F body=@<file>`; nothing is written inside the checkout.
+- **Serial.** One issue start to finish, one PR at a time. Parallel worktrees only when
+  the user asks, and only locally ([hosts.md](references/hosts.md#branches-and-worktrees)).
+- **No run state.** Nothing is recorded outside GitHub and git: after a compaction or
+  on a fresh VM, rebuild from the open PR on the run's branch, its checks, and the
+  issue's state before writing anything.
+- **No local baseline and no full `just check` before the PR**: CI is the gate every PR
+  merges through; run the narrowest check that can fail (`AGENTS.md` › "Validating a
+  change").
+- **Never take over the machine.** No step runs `myapp tui` or a human's recipe
+  (`AGENTS.md` › "Never taking over the developer's Mac").
 
 ## Workflow
 
-### 1. Plan — one call
+### 1. Preflight
 
-```bash
-python3 .claude/skills/shipping-issues/scripts/plan.py --mode <all|single|N> \
-    [--max-parallel N] [--label L] [--assignee A] [--milestone M] [--include-design] --record
-```
+Read [hosts.md](references/hosts.md) once per run and tell the host apart, then read
+[the repository](references/rest-calls.md#the-repository) for its default branch and
+merge settings. Three git commands: `git status --short` (a dirty tree holds work this
+run did not make: stop and ask), `git branch --show-current`, and
+`git fetch origin <default>`. The starting branch is the host's
+([hosts.md](references/hosts.md#branches-and-worktrees)).
 
-Read the block; do not re-derive it ([plan-output.md](references/plan-output.md)).
-`preflight: BLOCKED` and `existing-worktrees: BLOCKED` stop the run; ask about
-`tree: DIRTY` **now**. `verify-check:` is never run as a baseline. `needs-design:` feeds
-step 8b; `stale-labels:` runs unasked; `labels: COMPLETE` skips step 2.
+### 2. Pick
 
-### 2. Label the unlabeled — only when the plan says so
-
-Three or fewer: read them against [priority-rubric.md](references/priority-rubric.md)
-and run `apply_priority_labels.py --backfill --set N=P0 --quiet`. More, tangled edges, or
-a close top two: [agent-priority-research.md](references/agent-priority-research.md).
-Re-plan (`--refresh --record`) and **proceed without asking** unless the top two tie on
-every axis. A declared label the repository lacks stops labelling: a human runs
-`just labels`.
-
-### 2b. Decide a design that gates the pick
-
-Only for a design-blocked pick: settle, record, and clear it before step 3 ([how](references/dependency-triage.md#deciding-a-held-design)).
-
-### 2c. Confirm the proposed batch
-
-The plan proposes; this step decides. Check each issue's real reach against `touches=`,
-and look for what a script cannot see: two issues both editing `Cargo.toml`, a workflow,
-the subcommand enum in `crates/myapp/src/main.rs`, or core's re-exports in
-`crates/myapp-core/src/lib.rs` (a `CHANGELOG.md` entry is not a collision;
-[dependency-triage.md](references/dependency-triage.md#parallel-vs-sequential-all-mode)).
-Take the narrower grouping on any disagreement; shrinking never needs asking.
+List [the backlog](references/rest-calls.md#the-backlog-and-the-pick) and rank it by
+reading the projection: never a `tracking` or `on hold` issue, never one carrying a
+`blocked:` label or a `Depends on` line whose issue is still open; then tier (`P0`
+first), then oldest. `triaging-issues` says what each label and tier means. An issue
+with no tier gets one by that rubric, [written as a label](references/rest-calls.md#a-missing-priority-tier),
+before it is ranked. A design-held issue (`blocked: design`, or `design=open` in its
+[ship contract](references/ship-contract.md)) is taken only by number, and
+[its design is settled first](references/rest-calls.md#settling-a-held-design).
+Nothing shippable → report what holds each issue and stop.
 
 ### 3. Implement
 
-**Read [implement-and-review.md](references/implement-and-review.md) first.** Cut the
-branch from an up-to-date `main` (parallel: `worktree_setup.sh` as the plan's `next:`
-prints it, without `--verify`, the first worktree alone;
-[worktree-parallelism.md](references/worktree-parallelism.md)). Run
-[agent-implementation.md](references/agent-implementation.md) per issue — `executor`, or
-`architect` when foundational — a batch in one message, and **judge each result here**,
-`ACCEPTANCE` first. A `not-met` line, an unaccepted `UNRESOLVED` call, or a user-visible
-change with no `CHANGELOG.md` entry goes back; at most 2 patch rounds on the same tier,
-and a third miss is `NEEDS-CLARIFICATION`.
+Read [the issue and every comment](references/rest-calls.md#one-issue) and write an
+acceptance-to-check map before editing. Take the branch the host gives
+([hosts.md](references/hosts.md#branches-and-worktrees)). Implement with the skills
+`AGENTS.md` routes the change to (**REQUIRED:** `tdd` for a behavior change), inline or
+handed to `executor` (`subagent_type: executor`; `architect` when the change carries a
+design judgment) with the issue, the map, and the checks to run. Judge the result
+against the map: a criterion that is `not-met` goes back, not into the PR. Run the
+narrowest checks that can fail, then commit with **REQUIRED:** `smart-commit`. A
+user-visible change carries its `CHANGELOG.md` entry. What falls outside the issue goes
+to [step 9](#9-file-the-follow-ups), never into this diff.
 
 ### 4. Review the branch
 
-Before any PR exists, one pass, no re-review. `/code-review medium <branch> --fix` (effort first, branch second): `medium`
-always, `high` only for a change that can lose or corrode existing data or when the user
-asked, never `low`, `xhigh`, `max` or `ultra` ([why](references/cost-discipline.md#code-review-effort)).
-**`--fix` is serial-mode only** ([why](references/recovery.md#--fix-and-why-it-is-serial-mode-only)):
-in parallel mode review without it, one `executor` per branch with accepted findings
-(`F1`, `F2`, …) from [agent-review-fix.md](references/agent-review-fix.md). No
-`/code-review` → [agent-review-fallback.md](references/agent-review-fallback.md). Triage,
-fix pass, record: [implement-and-review.md](references/implement-and-review.md#running-the-review).
+Before any PR exists, once per branch: `/code-review medium <branch>` (effort first,
+branch second; never a PR-number target, never `--comment`). `high` only when the change
+can lose user data or alters a contract (`AGENTS.md` › "What is contract and what is
+private"); never another effort. If the host cannot launch `/code-review`, hand
+`git diff <default>...HEAD` and the issue to one read-only `architect`
+(`subagent_type: architect`) in a context that did not write the change; never re-read
+your own diff and call it a review.
+
+Classify every finding with a one-line reason that holds against the code: **accepted**
+(real, and this issue's), **rejected** (wrong on reading the code), or **out of scope**
+(real, not this diff's: step 9). Fix the accepted ones, re-run the narrowest check, and
+commit; there is no second pass. A finding that needs the owner's decision holds the
+branch: no PR opens, and the run stops with the question.
 
 ### 5. Open the PR
 
-Serial from here to step 7. `git status --short` in the worktree must be empty and the
-pushed head equal the local head; a dirty tree goes back to the implementer. Open a regular, non-draft PR against `main` from the PR template: summary,
-**`Closes #N`**, the Release impact line (`create-pr`), and the test plan, ticking only
-what ran. Record it; `link_check.sh <pr> --issue <n> --fix` ([pr-ci-merge.md](references/pr-ci-merge.md#opening-the-pr)).
-No PR review is awaited.
+`git status --short` prints nothing, then `git push -u origin <branch>` as a command of
+its own. [Create a ready PR](references/rest-calls.md#opening-the-pr) against the
+default branch, its body filled from `.github/PULL_REQUEST_TEMPLATE.md` with
+**`Closes #<n>`** on its own line. `create-pr` owns what the body and its Release
+impact line must say; the gate and the creating call are this skill's, never that
+skill's. Check the reply, then [read the PR](references/rest-calls.md#reading-the-pr):
+a missing closing keyword or a wrong base is
+[repaired](references/rest-calls.md#repairing-the-prs-closing-link) before CI is read.
+No review of the PR is requested or awaited.
 
-### 6. CI to green
+### 6. CI
 
-Once the new head shows among the PR's runs, run `ci_watch.sh <pr>` (default 3600 s: a
-required job may take its full 30 minutes after a runner queue) into
-`<runstate>/ci/<pr>.log` with `run_in_background`, never a hand-rolled sleep loop
-([pr-ci-merge.md](references/pr-ci-merge.md#waiting-inside-the-command-timeout)). `FAIL`
-→ [agent-ci-repair.md](references/agent-ci-repair.md), 3 attempts at most; anything else
-→ [recovery.md](references/recovery.md#no_checks-error-and-other-non-verdicts).
+```bash
+python3 .claude/skills/shipping-issues/scripts/ci_verdict.py <pr> --sha <head_sha>
+```
 
-### 7. Merge and confirm the issue closed
+One foreground slice (480 s by default; raise the call's own timeout to 600000 ms),
+repeated per [the verdict table](references/rest-calls.md#the-ci-verdict): `PASS` →
+step 7; `FAIL` → repair, at most 3 times; `PENDING` past 3600 s or `EMPTY` 600 s after
+the push → stop and ask; `MOVED` → watch the new head; `ERROR` → once more, then stop.
+A test deleted, skipped, or weakened to get a `PASS` is a failed repair.
 
-A PR whose change needs `just test-local` output or a human's `myapp tui` run is
-**held**, not merged: comment what the human should run, record `--event blocked`, and
-move on ([pr-ci-merge.md](references/pr-ci-merge.md#merging)). Otherwise, on `PASS` for
-the current head, run **in that same turn**
-`land_pr.sh <pr> --issue <n> --head-sha <sha>`, `<sha>` from the CI log's `head_sha:`, and read `result:` and `issue:` against
-[landing-outcomes.md](references/landing-outcomes.md). Then
-`git switch main && git pull --ff-only`, re-plan with `--refresh`, and run its
-`stale-labels:` command: clearing what the merge unblocked is the lander's job
-(`triaging-issues`). Then take the next issue.
+### 7. Merge and confirm
 
-### 8. Close out the findings the run turned up
+A PR whose change needs evidence only a human can produce (`just test-local` output, a
+run of `myapp tui`) is held, open, and named in the report; it is not merged.
+Otherwise, in the same turn as the `PASS`: read the PR once more (`closes: true`, base
+the default branch), [squash-merge pinned to the head CI passed](references/rest-calls.md#the-merge),
+and read the issue. Still open after 10 s →
+[close it with a back-reference comment](references/rest-calls.md#closing-an-issue-github-left-open).
+A 409 means the head moved: back to step 6 for the new head, never the old `sha` again.
 
-**Fix it in the open diff** · **file it and ship it this run** · **file it and leave
-it**, in that order. **Read [filing-followups.md](references/filing-followups.md) before
-filing anything**; file right after the PR that surfaced it lands.
+### 8. Unblock dependents
 
-### 8b. Unblock held designs in the background
+List the backlog again and
+[remove `blocked: dependency`](references/rest-calls.md#issues-the-merge-unblocked) from
+each open issue whose last open dependency was this one. A stale label on an issue that
+does not depend on this one is left, and reported.
 
-Every issue filed `--needs-design`, plus step 1's `needs-design:`, gets one `architect`
-in the background with [agent-design-decision.md](references/agent-design-decision.md)
-([queue and recording](references/delegation-templates.md#design-decision-step-8b)), at
-most 3 in flight, while shipping goes on. `DEFERRED` keeps the label; its question goes
-to step 10.
+### 9. File the follow-ups
 
-### 8c. Take the run's own output back into the queue
+Prefer, in order: fix it in the open diff (a sibling of the defect being fixed, found
+before the merge, covered by the same tests); file it; do not file a restatement or a
+speculation. Verify the defect against the code first.
+[File](references/rest-calls.md#a-follow-up-issue) right after the merge that surfaced
+it, with a body that meets `triaging-issues` and ends with a
+[ship contract](references/ship-contract.md).
 
-Re-plan (`--refresh --allow-existing-worktrees`) and ship this run's own follow-ups and
-newly `DECIDED` issues through steps 3–8 when all hold: **depth 1**, **ready** on the
-[readiness gate](references/dependency-triage.md#readiness-gate), and
-**[budget left](references/cost-discipline.md#run-budget)**
-([how](references/closing-out.md#re-queueing-the-runs-own-output)). Otherwise name it at
-step 10; never wait on a design still in flight.
+### 10. Clean up
 
-### 9. Clean up
+Return the checkout to the default branch's state the way the host does
+([hosts.md](references/hosts.md#after-the-merge)): locally, switch back, fast-forward,
+and remove by name only the local branches and worktrees this run created; in a cloud
+session, merge the default branch into the session's branch. Never a remote branch
+deletion on either host. In `all` mode, return to step 2 without pausing; an issue that
+fails before its first commit is skipped with its reason, and so is anything depending
+on it.
 
-**Once, after the last merge, script only.** From `main`, run `cleanup_run.sh` with
-**every branch this run created as `--branch <name>`** — without it every merged-PR
-branch goes, other people's included — plus `--worktree-root <runstate>/worktrees` when
-the run made worktrees. **Deferred approvals come last, in one ask**, as the final tool
-call ([details](references/closing-out.md#cleanup-scope)).
+### 11. Report
 
-### 10. Report
+No prescribed format, but never omit:
 
-Never omit [these facts](references/closing-out.md#what-the-report-must-not-omit): above
-all every held PR, an issue open behind a merged PR, a `not-met` criterion, and every
-`DEFERRED` question.
+- an issue left open behind a merged PR, a PR left held, and every stop, with its reason;
+- per PR: how the branch was reviewed (effort, or the fallback), the findings accepted,
+  rejected, and filed, and any acceptance criterion that shipped `not-met`;
+- every write beyond push, PR, and merge: a tier label added, a design decided (its
+  comment URL), a PR body or base repaired, an issue closed by hand, labels cleared;
+- follow-ups filed (URL and labels), what was fixed inline instead, and what was
+  checked and deliberately not filed;
+- a check the host could not run, and any action left for the owner (reconnecting
+  GitHub, clearing Auto-fix, running `just labels`).
 
 ## Stop conditions
 
-Stop the whole run and report when: the plan is `BLOCKED`, a dependency cycle needs a
-human to break it, a merge conflict needs a product decision, the repository requires
-linear history (`--event blocked --field reason=linear-history`), the same CI failure
-survives the retry ceiling on two different issues, or a fix
-needs a write this skill's sign-off does not cover.
+Stop the run and report when:
 
-Also stop on **a change this run did not make**: a dirty main checkout no step touched,
-a branch moved underneath you, `main` ahead of the last merge, a worktree under this
-run's root it did not create. Prove it is not yours (compare the hunks against your own
-branches), leave it exactly as found (no stash, no restore, no commit), record
-`--event blocked --field reason=<...>`, and ask.
-
-In `all` mode one failed issue does not stop the run: mark it FAILED, skip its
-dependents, continue. A `DEFERRED` design never stops a run.
+- a call answers 403 for GraphQL or repository scope, or a push or every call fails the
+  same way after one retry ([hosts.md](references/hosts.md));
+- nothing is shippable, or the named issue is not ready;
+- a review finding or a held design needs the owner's decision;
+- CI is `PENDING` past 3600 s, `EMPTY` 600 s after the push, `FAIL` a fourth time, or
+  `ERROR` twice; or the merge is refused for a reason other than a moved head;
+- the merged issue is still open after the close by hand, or a PR repair left its body
+  or base wrong;
+- a conflict needs a product decision;
+- the checkout, a branch, or the default branch changed in a way this run did not make:
+  leave it exactly as found (no stash, no restore, no commit) and ask;
+- a fix needs a write the [Authority](#authority) section does not cover.

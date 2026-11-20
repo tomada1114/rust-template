@@ -71,7 +71,7 @@ just test-core     # myapp-core with its 80/80 floors, its doctests, and the Lin
 just test-xtask    # The xtask crate's tests with its floors (85/90; the guard's rules 90/100)
 just test-fast increment  # One core test or a group of them, no floor (iteration only)
 just test-platform # Platform adapter and CLI tests against the real OS, macOS or Linux (no human)
-just test-scripts  # The skills' bundled Python suites and shellcheck over their shell scripts (no floor)
+just test-scripts  # The skills' bundled Python suites, and shellcheck over .claude/cloud/ and .claude/hooks/ (no floor)
 just check-harness # Re-assert the harness's claims about itself (cargo xtask check-harness)
 just logs          # Print the end of the newest app log and exit
 just deny          # cargo deny: advisories, licences, bans, sources
@@ -297,8 +297,7 @@ place: there is no second copy to keep in step.
 | `smart-commit` | Turning the working tree into Conventional Commits; a refused pre-commit hook |
 | `create-pr` | Opening or updating a pull request: title, body, Release impact, evidence |
 | `triaging-issues` | Filing or labelling an issue: type, priority, blocked, tracking |
-| `shipping-issues` | Claude Code on the developer's machine: taking ranked open issues to merged pull requests — rank, implement (worktrees), review the branch locally with `/code-review`, PR, CI, merge |
-| `cloud-claude-shipping-issues` | A Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`): shipping issues serially over REST `gh api` calls — rank, implement, review the branch, PR, CI, merge |
+| `shipping-issues` | Taking ranked open issues to merged pull requests, from a local session or a Claude Code cloud session, over REST `gh api` calls only — pick, implement, review the branch with `/code-review`, PR, CI verdict, merge, follow-ups |
 | `merging-dependency-prs` | Landing open Dependabot and Renovate pull requests; a pre-1.0 ratatui minor lands alone |
 | `managing-dependencies` | Adding or changing a crate: the review record, features, licences |
 | `changing-gates` | Editing a file that enforces: lints, floors, hooks, harness checks, workflows, the ruleset |
@@ -412,19 +411,17 @@ writes that skill exists to make, for that invocation only.
 - `smart-commit`, when asked to push: pushing the commits it made to the current
   branch.
 - `create-pr`: pushing the current branch and creating or updating its pull request.
-- `shipping-issues`: the writes its `SKILL.md` lists — priority and `blocked:` labels
-  on open issues, branches and pushes, the pull request, merging it once CI passes,
-  the follow-up issues and the design-decision comments it posts, and removing the
-  branches and worktrees it created.
-- `cloud-claude-shipping-issues`: the writes its `SKILL.md` lists — pushing its own
-  branch; creating the pull request; on that open PR alone, appending `Closes #<n>` to
-  its body when missing or retargeting its base to the default branch; merging it once
-  CI passes; closing by hand, with a back-reference comment naming the PR, the issue
-  that merged PR was meant to close when GitHub left it open; for the design-held issue
-  the run takes on, its design-decision comment and then clearing its design block (the
-  design-block label and the ship contract's `design=open`); filing and labelling
-  follow-up issues; and removing `blocked: dependency` from the issues its merge
-  unblocked — never a branch deletion or Auto-fix.
+- `shipping-issues`: adding a missing `priority:` tier label to an open issue; removing
+  `blocked: dependency` from issues its merge unblocked; for a design-held issue it
+  takes on, posting its `## Design decision` comment and then clearing `blocked: design`
+  and the ship contract's `design=open`; creating and pushing its own branches (in a
+  cloud session, only the session's designated branch); creating the pull request; on
+  that open PR alone, appending `Closes #<n>` when missing or retargeting its base to
+  the default branch; merging it once CI passes for the current head; closing, with a
+  back-reference comment naming the PR, the issue that merged PR was meant to close when
+  GitHub left it open; filing and labelling follow-up issues; and removing the local
+  branches and worktrees it created — never a force-push, a remote branch deletion, a
+  reply to or resolution of a review thread, a comment requesting a review, or Auto-fix.
 
 One request is a standing exception too: the human explicitly asking for an issue
 ("file an issue for this") is the sign-off for the `gh issue create` of each issue that
@@ -437,11 +434,6 @@ None of them covers anything else in the list above: a force push or other histo
 rewrite, `--no-verify`, weakening a gate, a release pipeline or signing, a release tag,
 a new dependency, `just labels`, or `just ruleset`. A skill that reaches one of those
 stops and asks.
-
-Which shipping skill runs where: in a Claude Code cloud session
-(`CLAUDE_CODE_REMOTE=true`), `cloud-claude-shipping-issues`, whose REST calls the
-session's GitHub proxy allows where `shipping-issues`' GraphQL calls are refused;
-`shipping-issues` only in a local Claude Code session.
 
 ### Never taking over the developer's Mac
 
@@ -486,7 +478,8 @@ Every local layer can be skipped, so these reach `main` only if CI or GitHub sto
 
 "Use this template" copies files, not settings, so a repository's admin sets these up
 once: the security switches under Settings › Advanced Security (Code security on older
-UIs), the `main` ruleset, the Renovate App, and the label set:
+UIs), the `main` ruleset, the Renovate App, automatic head-branch deletion, and the
+label set:
 
 - **Secret scanning** and **Push protection** — the server-side layer for secrets that
   the staged guard misses or a bypass skips; push protection blocks a detected secret
@@ -506,6 +499,9 @@ UIs), the `main` ruleset, the Renovate App, and the label set:
   installed on the repository: without it `.github/renovate.json` does nothing, so
   `mise.toml` and `rust-toolchain.toml` are never bumped — Dependabot covers only cargo
   and Actions.
+- **Automatically delete head branches** (Settings › General; the repository's
+  `delete_branch_on_merge`): `shipping-issues` deletes no remote branch on either host,
+  so without it every merged pull request leaves its head branch behind.
 - The label set, created by `just labels` as soon as the repository exists.
   `.github/dependabot.yml` names its `labels` explicitly, and Dependabot then ignores
   one the repository does not define rather than creating it
@@ -553,9 +549,10 @@ examples, are in the `writing-repo-scripts` skill:
   that is meaningless outside one skips with a one-line notice instead. Each script's
   header states which it does.
 - Every script has tests under its skill's `scripts/tests/`, run by `just test-scripts`
-  (part of `just check` and CI's `Repo Lint & Harness` job) with no coverage floor, with
-  shellcheck over its shell scripts. A test works in a temp directory or a throwaway
-  repository, never the real checkout, and shares no state with any other test.
+  (part of `just check` and CI's `Repo Lint & Harness` job) with no coverage floor; a
+  skill that ships a shell script adds a shellcheck line for it to that recipe. A test
+  works in a temp directory or a throwaway repository, never the real checkout, and
+  shares no state with any other test.
 
 ## Enforcement layers
 
@@ -570,7 +567,7 @@ The rules in this file are enforced by these layers, from mechanical to procedur
 | `crates/myapp-core/clippy.toml`, core's `#![deny(clippy::wildcard_enum_match_arm)]`, `cargo xtask clippy-guard` (every clippy run in `just lint` and CI goes through it), and `cargo xtask check-harness`'s `clippy-allow-invalid` check | `just lint`, `just check`, and CI's clippy steps; the check in `just check-harness` and CI's `Repo Lint & Harness` job | every author | in core, none of the calls `clippy.toml` lists: the print macros and standard streams, `std::fs`'s types and free functions, `Path`'s file-system queries, `std::os::unix::fs`'s `symlink`, `chown`, `fchown`, `lchown`, and `chroot`, `std::net`'s and `std::os::unix::net`'s sockets and address lookups, clock reads (`now`, `elapsed`), `std::env`'s argument, variable, and directory functions, `Command`, `exit`, `abort`, the process and parent-process ids, `thread::available_parallelism`, `thread::spawn`, `thread::Builder::spawn`, `thread::sleep`, or `thread::park_timeout` (`thread::scope` is allowed, since it cannot outlive the call); every `match` on a core enum is exhaustive; and every `path` in a `clippy.toml` names an item clippy resolves on that job's target — clippy only warns about one that does not, and `-D warnings` lets that pass, so the guard fails with `ERR_CLIPPY_BAN_UNRESOLVED` instead of letting the ban silently do nothing, and with `ERR_CLIPPY_CONFIG_INVALID` on any other diagnostic in a `clippy.toml` (a deprecated or unknown key); and no `clippy.toml` sets `allow-invalid`, which would hide that warning from the guard, so the check fails with `ERR_CHECK_CLIPPY_ALLOW_INVALID` apart from its human-approved exception list (empty) |
 | `[workspace.lints]` in `Cargo.toml` | `just lint` and CI (`-D warnings`) | every author | `unsafe_code = "forbid"` in every crate; clippy `all` and `pedantic`; `unwrap_used`/`expect_used` outside tests; `missing_docs` on public items |
 | Coverage floors | `just test-core`, `just test-xtask`, `just check`, and CI | every author | `myapp-core` lines 80 / functions 80; `xtask` with `xtask-guard` 85 / 90; `xtask/guard/` 90 / 100 |
-| `cargo xtask check-harness` (`xtask/src/check_harness/`; `just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/`, the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked` on every lockfile-resolving cargo command and no `npm install` there and in every justfile recipe, and one mise `version` named by every `jdx/mise-action` step); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `cargo` or `just`, apart from a reasoned exception list; the Dependabot and Renovate cooldowns agree; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; each `.claude/agents/` tier file's frontmatter, with its `name`, `model`, and `effort`; every applied label is declared once, and every label `.github/workflows/pr-label.yml`'s `TYPE_LABELS` map applies has a release-notes category and every PR-title type a key there; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/`, a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`) nor `cargo xtask sync-labels`, `apply-ruleset`, or `bootstrap`, `cargo install`, or `cargo run … tui`, its hook commands name only scripts that exist, run `.claude/cloud/provision.sh` on `SessionStart`, and carry no `--no-verify`, `sudo`, or URL, and it sets no `enabledPlugins`; and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |
+| `cargo xtask check-harness` (`xtask/src/check_harness/`; `just check-harness`, part of `just check`) | `just check-harness`, `just check`, and CI's `Repo Lint & Harness` job | every author | the harness's claims about itself stay true — this file exists, and every `just <recipe>` it, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, the pull request template, `.claude/rules/`, `.claude/agents/`, `docs/`, the skills, and the issue forms name exists; workflow hygiene, in the workflows and the repository's composite actions (SHA pins with a `# vX.Y.Z` comment, `timeout-minutes`, least-privilege `permissions`, `persist-credentials: false`, `concurrency` — top-level or per job — that never cancels a `main` run, no `pull_request_target`, no `continue-on-error`, `set +e`, or `|| true`-style fallback, `--locked` on every lockfile-resolving cargo command and no `npm install` there and in every justfile recipe, and one mise `version` named by every `jdx/mise-action` step); `shipping-issues`' documents name no `gh` subcommand built on GraphQL, no GraphQL query, and no issue-search call, which a cloud session's proxy refuses (`rest-only-github`); no job holding a write scope or `id-token: write`, its own or inherited from the workflow's `permissions`, checks out the repository, runs `jdx/mise-action` or a local action, calls a remote reusable workflow, or runs `cargo` or `just`, apart from a reasoned exception list; the Dependabot and Renovate cooldowns agree; the bundle identifier is one value in `myapp-platform`'s `BUNDLE_IDENTIFIER` and the justfile's `bundle_id`; no `clippy.toml` sets `allow-invalid` (the clippy row above); `osv-scanner.toml`'s GHSA ignores and Dependency Review's `allow-ghsas` list the same advisories; every required context in `.github/rulesets/main.json` names a job that runs on every pull request (no paths filter, no branch filter excluding a branch the ruleset gates — the default branch, read from `ci.yml`'s push branches or `origin/HEAD` only where a required job filters branches, or every branch under `~ALL` — default activity types, no `if:` that can be false); `just check` matches the steps CI runs unconditionally (no `if:`, `continue-on-error`, or `||` fallback) apart from a reasoned exception list; skills' frontmatter, size, and the Skills table; each `.claude/agents/` tier file's frontmatter, with its `name`, `model`, and `effort`; every applied label is declared once, and every label `.github/workflows/pr-label.yml`'s `TYPE_LABELS` map applies has a release-notes category and every PR-title type a key there; the core boundary lists agree and `myapp-test-support` is dev-only; no reference to this repository's issues or pull requests (`#` and digits, bare or after this repository's owner/repo — an upstream `owner/repo#N`, like its URL, is a source — an issue or pull-request URL on this repository or relative to it, the word issue, PR, pull request, or merge request before a number, `GH-` and digits, a `gh issue`/`gh pr` command given a number) in this file, `CLAUDE.md`, `.claude/rules/`, `.claude/agents/`, `docs/`, a skill, or an issue form; a committed `.claude/settings.json`, if one is added, names only recipes the justfile defines, its `allow` admits none of the recipes that need a human or write beyond the working tree (`test-local`, `logs-follow`, `install-cli`, `install`, `labels`, `ruleset`, `bootstrap`) nor `cargo xtask sync-labels`, `apply-ruleset`, or `bootstrap`, `cargo install`, or `cargo run … tui`, its hook commands name only scripts that exist, run `.claude/cloud/provision.sh` on `SessionStart`, and carry no `--no-verify`, `sudo`, or URL, and it sets no `enabledPlugins`; and the `## Product` section stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |
 | CI (`.github/workflows/ci.yml` and the security workflows) | push to `main` and every pull request | everyone | the full gate: `Rust Core` (fmt, workspace clippy, core tests with floors, doctests, `just test-platform`, `cargo deny`, `cargo shear`), `Repo Lint & Harness` (typos, actionlint, skill script tests, xtask tests with floors, harness checks), `macOS` (`just test-platform`, default and all features), `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there), `Workflow Security Lint` (zizmor), plus Dependency Review, the PR-title check, CodeQL, OSV-Scanner, Scorecard, and a weekly gitleaks scan |
 | This file | read at session start | every agent | everything else — the reasons behind the rules above |
 

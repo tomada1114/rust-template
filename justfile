@@ -127,11 +127,10 @@ clean:
 prune-temp *args:
     cargo xtask prune-temp {{ args }}
 
-# The skills' bundled scripts: shipping-issues' and merging-dependency-prs' Python suites (no floor), and shellcheck over them and .claude/cloud/'s provisioning scripts
+# The skills' bundled scripts: shipping-issues' and merging-dependency-prs' Python suites (no floor), and shellcheck over .claude/cloud/'s provisioning scripts and .claude/hooks/
 test-scripts:
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .claude/skills/shipping-issues/scripts/tests -t .claude/skills/shipping-issues/scripts/tests -p 'test_*.py'
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .claude/skills/merging-dependency-prs/scripts/tests -t .claude/skills/merging-dependency-prs/scripts/tests -p 'test_*.py'
-    shellcheck .claude/skills/shipping-issues/scripts/*.sh
     shellcheck .claude/cloud/*.sh
     shellcheck .claude/hooks/*.sh
 

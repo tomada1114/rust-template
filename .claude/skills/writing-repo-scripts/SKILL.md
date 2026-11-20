@@ -33,8 +33,8 @@ not restate the list, so the two cannot drift.
   lints, and parses YAML and TOML with real parsers (`yaml-rust2`, `toml`).
 - **A skill's bundled script** (`.claude/skills/<skill>/scripts/`) is a step of that
   skill's procedure, in Python or shell (`merging-dependency-prs`' `survey_prs.py`,
-  `shipping-issues`' `plan.py` and `worktree_setup.sh`). It travels with the skill, so
-  it uses nothing the skill cannot assume: the Python standard library, `git`, and `gh`.
+  `shipping-issues`' `ci_verdict.py`). It travels with the skill, so it uses nothing
+  the skill cannot assume: the Python standard library, `git`, and `gh`.
 
 ## A task in `cargo xtask`
 
@@ -105,9 +105,9 @@ guard names a path and a rule, never the text).
   covers an I/O error no code names (`ERR_INTERNAL_UNEXPECTED`).
 - In a bundled Python script, raise a `ScriptError` whose `report()` prints the same
   four lines to stderr, exit 1, and turn any other exception into
-  `ERR_INTERNAL_UNEXPECTED`; `survey_prs.py` is the worked example. `shipping-issues`'
-  scripts predate the contract and report through their own exit codes; a new script
-  follows the contract.
+  `ERR_INTERNAL_UNEXPECTED`; `survey_prs.py` is the worked example. A script whose
+  answer is a verdict, not a failure, may give each verdict its own exit code beside
+  that contract, listed in its header (`shipping-issues`' `ci_verdict.py`).
 - List every code in the header's `Errors:` block.
 
 `cargo xtask verify-hooks` in a clone where `just install` never ran (the checkout's
@@ -171,13 +171,12 @@ untested new file counts as 0%, so it pulls the number down from the moment it e
   that records every call), so no test reaches GitHub. Run the script's `main()`
   in-process with the fake's environment; a test that needs files works in a
   `tempfile.TemporaryDirectory()`, never the real checkout.
-- `just test-scripts` runs each skill's suite with no coverage floor, and shellcheck
-  over `shipping-issues`' shell scripts. A skill that gains its first suite adds its line
-  to the `test-scripts` recipe in the same pull request.
+- `just test-scripts` runs each skill's suite with no coverage floor. A skill that
+  gains its first suite adds its line to the `test-scripts` recipe in the same pull
+  request, and one that ships a shell script adds a `shellcheck` line for it there.
 - **A shell script parses under bash 3.2**, macOS's `/bin/bash`, which a
   `#!/usr/bin/env bash` script runs under on a Mac without Homebrew's bash first on
-  PATH. `shipping-issues`' `tests/test_shell_syntax.py` parses its scripts with
-  `/bin/bash -n`, which only a run on a Mac checks: Linux's `/bin/bash` is bash 5.
+  PATH. `/bin/bash -n <script>` on a Mac checks it: Linux's `/bin/bash` is bash 5.
 
 ## Adding a task or a script
 
