@@ -21,9 +21,10 @@ own:** how a skill is authored (`authoring-skills`); what a gate checks and
 which gate runs a task (`changing-gates`); where a test goes and which floor measures it
 (`placing-tests`); a new crate a task would import (`managing-dependencies`).
 
-The rules themselves live once, in `AGENTS.md` › "Repository scripts": read it first.
-This skill carries the reasons behind them and worked examples from the tree; it does
-not restate the list, so the two cannot drift.
+The rules themselves live once, in `.claude/rules/scripts.md`, which loads when you
+touch `xtask/` or a skill's `scripts/`: read it first. This skill carries the reasons
+behind them and worked examples from the tree; it does not restate the list, so the two
+cannot drift.
 
 ## Two homes
 
@@ -185,8 +186,9 @@ A new one usually lands with more than its own file:
 - its tests, and for a task its row in `xtask/src/main.rs`'s `TASKS`;
 - a `justfile` recipe if people run it by hand, the recipe's line in `AGENTS.md`'s Quick
   Reference, and its command in `CONTRIBUTING.md`'s "Without Just";
-- a "Validating a change" row when no row covers it, and an "Enforcement layers" row
-  when it enforces something. **REQUIRED:** `changing-gates` for a task a gate runs.
+- a "Validating a change" row in `AGENTS.md` when no row covers it, and a row in
+  `changing-gates`' `references/enforcement-layers.md` when it enforces something.
+  **REQUIRED:** `changing-gates` for a task a gate runs.
 
 Check a task with `cargo nextest run -p xtask -p xtask-guard` while iterating, then
 `just test-xtask` (the floors) and `just lint`; check a bundled script with

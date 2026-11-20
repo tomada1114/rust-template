@@ -48,8 +48,8 @@ fields of the repository object
 ([get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository),
 checked 2026-10-07). `allow_squash_merge: false` is a stop: this skill merges by squash
 only. `delete_branch_on_merge: false` is a report line, not a stop: the merged head
-branch stays on the remote until the owner turns the setting on (`AGENTS.md` › "GitHub
-settings a new repository must enable"), because this skill deletes no remote branch.
+branch stays on the remote until the owner turns the setting on
+(`starting-an-app`' `references/github-settings.md`), because this skill deletes no remote branch.
 
 ## The backlog and the pick
 

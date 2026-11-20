@@ -50,8 +50,8 @@ reclaimed VM, which continues that PR ([below](#a-reclaimed-vm)).
 ## After the merge
 
 No remote branch is deleted on either host: the repository's `delete_branch_on_merge`
-setting removes a merged head branch (`AGENTS.md` › "GitHub settings a new repository
-must enable"), and a cloud session's proxy refuses a branch deletion and a push of
+setting removes a merged head branch (`starting-an-app`' `references/github-settings.md`),
+and a cloud session's proxy refuses a branch deletion and a push of
 anything other than a branch, such as a tag
 ([GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
 checked 2026-10-07).

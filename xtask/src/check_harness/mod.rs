@@ -31,6 +31,7 @@ mod clippy_allow_invalid;
 mod core_boundary;
 mod documents;
 mod expressions;
+mod guide_size;
 mod just_check_matches_ci;
 pub(crate) mod just_recipes_exist;
 mod labels_declared;
@@ -68,13 +69,14 @@ pub(crate) struct Input<'a> {
 type CheckFn = fn(&Input<'_>) -> Vec<FailureDetails>;
 
 /// Every check, by name, in the order they run.
-const CHECKS: [(&str, CheckFn); 18] = [
+const CHECKS: [(&str, CheckFn); 19] = [
     ("advisory-ignores-agree", advisory_ignores_agree::run),
     ("agent-tiers", agent_tiers::run),
     ("bots-agree", bots_agree::run),
     ("bundle-identifier", bundle_identifier::run),
     ("clippy-allow-invalid", clippy_allow_invalid::run),
     ("core-boundary", core_boundary::run),
+    ("guide-size", guide_size::run),
     ("just-check-matches-ci", just_check_matches_ci::run),
     ("just-recipes-exist", just_recipes_exist::run),
     ("labels-declared", labels_declared::run),

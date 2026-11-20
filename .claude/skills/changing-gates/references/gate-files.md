@@ -32,7 +32,8 @@ current values.
 - Core also denies `clippy::wildcard_enum_match_arm` in its source, so a `match` on a
   core enum names every variant and a new variant is a compile error wherever a decision
   is owed.
-- Core's ban list and `AGENTS.md`'s description of it change together. Adding a ban is
+- Core's ban list and its `clippy.toml` row in
+  [enforcement-layers.md](enforcement-layers.md) change together. Adding a ban is
   the routine direction; removing one is weakening a gate.
 - A `path` clippy cannot resolve (a typo, an item a Rust release renamed or moved, a
   `std::os::unix` path on another target) is only a configuration warning, which
@@ -137,7 +138,7 @@ identifier in `paths.rs` and the justfile.
 - **Adding a claim** is routine: a new module, its entry in `CHECKS`, tests in the
   module, and, for a check that reads a tree, a fixture root under
   `xtask/tests/fixtures/` per failure mode, so a test points `--root` at it instead of
-  at the real checkout. Its row in `AGENTS.md` › "Enforcement layers" changes with it.
+  at the real checkout. Its row in [enforcement-layers.md](enforcement-layers.md) changes with it.
 - **Removing a check, or narrowing what it reads** (a file it skips, a pattern it no
   longer matches) is weakening a gate.
 - **An `EXCEPTIONS` entry** (`just_check_matches_ci.rs`, `workflow_write_scopes.rs`,

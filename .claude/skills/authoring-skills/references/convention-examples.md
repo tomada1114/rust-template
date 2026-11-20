@@ -21,7 +21,7 @@ Why this split: the repository is developed with coding agents, often unattended
 `AGENTS.md` gives every one of them the architecture, the gates, and the hard
 prohibitions; path-scoped rules and skills carry the procedures, loaded only when the
 work calls for them. Which commands an agent runs without a prompt is each person's own
-choice, so no permission file is committed (`AGENTS.md` › "Enforcement layers"): the
+choice, so no permission file is committed (`changing-gates`' `references/enforcement-layers.md`): the
 gates and `AGENTS.md`, not a permission list, are what bind every author.
 
 ## Descriptions

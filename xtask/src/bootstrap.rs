@@ -324,7 +324,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder, under `.claude/skills/`.
-const SKILL_SITES: [(&str, &[Form]); 31] = [
+const SKILL_SITES: [(&str, &[Form]); 32] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
         "authoring-skills/references/convention-examples.md",
@@ -332,6 +332,7 @@ const SKILL_SITES: [(&str, &[Form]); 31] = [
     ),
     ("building-tuis/SKILL.md", &[Slug]),
     ("changing-gates/SKILL.md", &[Slug]),
+    ("changing-gates/references/enforcement-layers.md", &[Slug]),
     ("changing-gates/references/gate-files.md", &[Slug]),
     ("changing-gates/references/weakening.md", &[Slug]),
     ("create-pr/SKILL.md", &[Slug]),
@@ -378,12 +379,12 @@ const SKILL_SITES: [(&str, &[Form]); 31] = [
 /// Bootstrap Smoke runs) fails on a placeholder in a file this list does not name.
 const REPOSITORY_SITES: [(&str, &[Form]); 52] = [
     (".claude/rules/project.md", &[Slug]),
-    (".claude/rules/rust.md", &[SlugSnake, Slug]),
+    (".claude/rules/rust.md", &[Slug]),
     (".claude/rules/testing.md", &[Slug]),
     (".github/ISSUE_TEMPLATE/bug_report.yml", &[BundleId, Slug]),
     (".github/ISSUE_TEMPLATE/config.yml", &[Repo]),
     (".github/PULL_REQUEST_TEMPLATE.md", &[Slug]),
-    ("AGENTS.md", &[BundleId, SlugSnake, Slug]),
+    ("AGENTS.md", &[BundleId, Slug]),
     ("CODE_OF_CONDUCT.md", &[Owner]),
     ("CONTRIBUTING.md", &[Slug]),
     ("Cargo.toml", &[Slug]),
@@ -600,22 +601,22 @@ fn document_edits() -> Vec<TextEdit> {
         edit("AGENTS.md", PRODUCT_INTRO, PRODUCT_INTRO_IN_AN_APP),
         edit(
             "AGENTS.md",
-            "| `starting-an-app` | Turning the template into a new app: bootstrap, Product section, the tool's shape (subcommands only, or plus `myapp tui`), first design decisions |",
-            "| `starting-an-app` | The app's first decisions: Product section, the tool's shape (subcommands only, or plus `myapp tui`), where it keeps state, removing the sample |",
+            "| `starting-an-app` | Template to app; GitHub settings |",
+            "| `starting-an-app` | The app's first decisions; GitHub settings |",
         ),
         edit(
             "AGENTS.md",
-            "just bootstrap  # Turn the template into a new app (renames, removes template-only files)\n",
+            "just bootstrap  # Turn the template into a new app\n",
             "",
         ),
         edit(
             "AGENTS.md",
-            "just verify-bootstrap    # Bootstrap a scratch clone in a temp directory; fail on anything it leaves behind (template only)\n",
+            "just verify-bootstrap  # Bootstrap a scratch clone; fail on what it leaves behind\n",
             "",
         ),
         edit(
             "AGENTS.md",
-            "| A new file, or a new spelling of a placeholder (`MyApp`, `myapp`, `myapp-core`, `myapp_core`, `com.example.myapp`, the template's owner/repo) — template only: the bootstrap removes this row | `just verify-bootstrap` (it bootstraps a scratch clone in a temporary directory and fails on a placeholder the rename misses, template-only text, or a dangling reference) |\n",
+            "| A new file or placeholder spelling (`MyApp`, `myapp_core`, `com.example.myapp`) | `just verify-bootstrap` |\n",
             "",
         ),
         edit(
@@ -624,22 +625,22 @@ fn document_edits() -> Vec<TextEdit> {
             "(`com.example.myapp`)",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             "stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |",
             "holds no `TODO:` |",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             "`labels`, `ruleset`, `bootstrap`)",
             "`labels`, `ruleset`)",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             "(`bootstrap`, `labels`, `ruleset`)",
             "(`labels`, `ruleset`)",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             " `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there),",
             "",
         ),
@@ -2916,7 +2917,10 @@ mod tests {
 
         let agents = read(root, "AGENTS.md");
         assert!(agents.contains("cargo test -p tide-pool-core && pkill -x tide-pool"));
-        assert!(agents.contains("use tide_pool_core::Counter; tide_pool_lib::run();"));
+        assert!(
+            read(root, "docs/openrouter.md")
+                .contains("use tide_pool_core::Counter; tide_pool_lib::run();")
+        );
         assert!(agents.contains("~/Library/Logs/com.example.tide-pool/"));
         assert!(read(root, ".claude/skills/designing-clis/SKILL.md").contains("TIDE_POOL_TEST=1"));
         assert!(read(root, "CODE_OF_CONDUCT.md").contains("[@ada](https://github.com/ada)"));

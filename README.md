@@ -100,7 +100,9 @@ architecture document or roadmap.
    and security updates. Install the Renovate GitHub App on the repository
    (<https://github.com/apps/renovate>, checked 2026-09-30): `.github/renovate.json` is
    only its configuration, so without it nothing bumps `mise.toml` or
-   `rust-toolchain.toml`.
+   `rust-toolchain.toml`. The `starting-an-app` skill's
+   [GitHub settings reference](.claude/skills/starting-an-app/references/github-settings.md)
+   lists every setting and why it is needed.
 8. Replace the sample counter with your app, following the `starting-an-app` skill; it
    lists what to delete and the first decisions to record.
 9. Repository admin only, once the bootstrap commit is on `main`: run `just ruleset`.

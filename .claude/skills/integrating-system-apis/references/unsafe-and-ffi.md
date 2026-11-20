@@ -125,4 +125,4 @@ pointer the registration passed in.
 | `` `*mut c_void` cannot be sent between threads safely `` (E0277, a missing trait: <https://doc.rust-lang.org/error_codes/E0277.html>) | Do not send it. Keep the registration on its thread; send the value the callback built. |
 | a framework type is not `Send`, and the port needs `Send + Sync` | Translate to a core value inside the adapter; never `unsafe impl Send`. |
 | a closure passed to C cannot capture | Use a plain `extern "C" fn` and put the state behind the context pointer. |
-| a borrow-checker error inside FFI code | Restructure the safe code around the block; `unsafe` is never the fix for a borrow error (`.claude/rules/rust.md` › "Unsafe"). |
+| a borrow-checker error inside FFI code | Restructure the safe code around the block; `unsafe` is never the fix for a borrow error (`.claude/rules/rust.md` › "Rules"). |

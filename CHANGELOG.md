@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `AGENTS.md` is cut to what every task needs, about a third of its former size, and a
+  new harness check, `guide-size`, fails with `ERR_CHECK_GUIDE_SIZE` when it grows past
+  20,000 bytes, not counting the `## Product` section, which is each app's own. What
+  applies to one kind of file or change moved to where it loads on demand: the
+  enforcement layers and their gaps to `changing-gates`'
+  `references/enforcement-layers.md`, the repository-script contract to
+  `.claude/rules/scripts.md`, and the GitHub settings a new repository must enable to
+  `starting-an-app`' `references/github-settings.md`. `.claude/rules/rust.md` and
+  `testing.md` keep only what no skill states, and `CLAUDE.md` is the one-line import
+  of `AGENTS.md`.
 - Skill frontmatter and descriptions: `just check-harness` accepts the Claude Code keys
   `paths`, `allowed-tools`, `disable-model-invocation`, and `argument-hint` beside
   `name` and `description`, and still fails on any other key. A description is capped
@@ -65,8 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   REST `gh api` calls only. The branch is reviewed with `/code-review` before its PR
   exists, CI is read per head SHA by the skill's one script, `ci_verdict.py`, and the
   merge is a squash pinned to that head. The skill deletes no remote branch: turn on
-  the repository's "Automatically delete head branches" setting (`AGENTS.md` › "GitHub
-  settings a new repository must enable"). A new harness check, `rest-only-github`,
+  the repository's "Automatically delete head branches" setting (`starting-an-app`'
+  `references/github-settings.md`). A new harness check, `rest-only-github`,
   fails when the skill's documents name a `gh` subcommand built on GraphQL.
 
 - CodeQL also analyzes `python`, covering the skills' bundled scripts (the

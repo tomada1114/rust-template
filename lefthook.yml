@@ -10,7 +10,8 @@
 #
 # Installed by `just install` (`lefthook install`); `just verify-hooks` fails while it is
 # missing. `git commit --no-verify` skips every job below; CI reruns all but the staged
-# guard, which no CI job reruns over a pull request's diff (AGENTS.md's gaps).
+# guard, which no CI job reruns over a pull request's diff (the gaps in
+# .claude/skills/changing-gates/references/enforcement-layers.md).
 
 pre-commit:
   # The commit that concludes a conflicted merge, or a `git commit` at a rebase stop,
@@ -23,7 +24,8 @@ pre-commit:
   # it too, over what that stop newly stages (nothing, for a reword). The guard reads
   # every staged blob through one `git cat-file --batch`, so a large merge costs one git
   # process, not one per file. `git rebase --continue` commits a resolution without running
-  # pre-commit at all; see AGENTS.md's gaps.
+  # pre-commit at all; see the gaps in
+  # .claude/skills/changing-gates/references/enforcement-layers.md.
   # xtask/tests/lefthook.rs runs this file's hook through real merge and rebase commits.
   parallel: true
   jobs:

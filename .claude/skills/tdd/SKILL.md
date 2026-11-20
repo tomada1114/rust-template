@@ -17,8 +17,7 @@ which file a test goes in and which floor measures it (`placing-tests`);
 how a test body is written (`writing-tests`); how core logic is shaped
 (`designing-core-logic`); the commit itself (`smart-commit`).
 
-Test first is how every change to Rust in this repository is made
-(`.claude/rules/testing.md`). Never write the implementation before a failing test
+Test first is how every change to Rust in this repository is made. Never write the implementation before a failing test
 exists: a test written after the code tends to assert what the code does, not what it
 should do.
 

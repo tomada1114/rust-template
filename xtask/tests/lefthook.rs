@@ -271,11 +271,12 @@ fn every_documented_xtask_hook_builds_in_its_own_target_directory() {
         );
     }
 
-    let agents = must(
-        std::fs::read_to_string(checkout().join("AGENTS.md")),
-        "read AGENTS.md",
+    let layers = ".claude/skills/changing-gates/references/enforcement-layers.md";
+    let layers = must(
+        std::fs::read_to_string(checkout().join(layers)),
+        "read the enforcement layers",
     );
-    let format_hook: Vec<&str> = agents
+    let format_hook: Vec<&str> = layers
         .lines()
         .filter(|line| line.contains("cd \"$CLAUDE_PROJECT_DIR\""))
         .collect();
