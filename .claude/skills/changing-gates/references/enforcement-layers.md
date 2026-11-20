@@ -90,9 +90,10 @@ removing or narrowing its bullet here:
   runs, and review is what notices when it does not.
 - **Nothing mechanical keeps a routine check from taking over the machine.** The rule
   in `AGENTS.md` › "Never taking over the machine" holds because every recipe in
-  `just check` was written to it. The committed `.claude/settings.json` denies
-  `myapp tui` and asks before a human's recipe, for Claude Code alone and only as
-  spelled; nothing stops another tool, or a human's own shell. A new
+  `just check` was written to it. The committed `.claude/settings.json` denies running
+  the TUI through `cargo run` or a `target/` binary (not an installed `myapp` on PATH)
+  and asks before a human's recipe, for Claude Code alone and only as spelled; nothing
+  stops another tool, or a human's own shell. A new
   recipe or test that shows a window, takes focus, raises a prompt, or takes over a
   terminal is caught only by review.
 - **No gate runs the real terminal loop.** `myapp tui`'s loop — raw mode, the alternate
