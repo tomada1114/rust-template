@@ -3,8 +3,10 @@
 The detail behind `smart-commit`'s last section.
 
 `lefthook.yml` defines the pre-commit hook, installed by `just install` and checked by
-`just verify-hooks`. Its jobs run in parallel over the staged files and only check:
-none rewrites a file, so a failure leaves the commit unmade and the index as it was. The
+`just verify-hooks`. In a cloud session the `SessionStart` hook installs it instead
+(`.claude/cloud/provision.sh session` runs `lefthook install` at every start), and a
+failed install prints a `WARN(provision)` line. The hook's jobs run in parallel over the
+staged files and only check: none rewrites a file, so a failure leaves the commit unmade and the index as it was. The
 skill does not re-run these checks itself; it responds to the one that failed.
 
 ## Recovery, whatever failed
