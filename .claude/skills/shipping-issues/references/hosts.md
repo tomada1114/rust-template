@@ -96,7 +96,8 @@ The checks are the same `just` recipes on both hosts (`AGENTS.md` › "Validatin
 change"). Locally `just install` provides them. A cloud session is provisioned by the
 committed `SessionStart` hook, which runs `.claude/cloud/provision.sh session`
 (`docs/getting-started.md` › "Cloud sessions"): `just`, the mise-pinned tools, and
-lefthook's pre-commit hook are there once it has run. If `just` is missing, run
+lefthook's pre-commit hook are there once it has run; `just verify-hooks` confirms the
+hook before the first commit. If `just` is missing, run
 `bash .claude/cloud/provision.sh session` once and read its `WARN(provision)` lines; a
 tool it could not install is named in the report with the check that was not run, and
 is never replaced with a downloaded installer.
@@ -180,7 +181,11 @@ the run's PRs, stop and ask the owner to clear the toggle.
 Under a cloud session's default Trusted level, `api.osv.dev` answered 403 (observed
 2026-10-07), so a local vulnerability lookup for a new dependency cannot run there. Say
 so in the report and let CI's OSV-Scanner and Dependency Review judge the pull request.
-**BACKGROUND:** `managing-dependencies`. A red check caused by a refused host is the
+**BACKGROUND:** `managing-dependencies`. `mise.run`, `mise.jdx.dev`, and
+`mise-versions.jdx.dev` are not on the Trusted list either, which is why the cloud
+environment's setup script installs mise from its GitHub release and turns off mise's
+version lookups: a provisioning step that reaches one of them fails with a
+`WARN(provision)` line, never with a different installer. A red check caused by a refused host is the
 environment's, not the issue's: name the host and the failing check in the report.
 
 ## A reclaimed VM

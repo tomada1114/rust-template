@@ -113,7 +113,8 @@ documentation, not a restatement of it.
 **External claims.** A version, availability, default, limit, or policy claim about an
 external tool carries `(<URL>, checked YYYY-MM-DD)`, and the author opened that page on
 that date. A link that only explains a concept needs no date. An observed fact says so:
-"observed on this Mac with `<command>`, YYYY-MM-DD". A claim that is neither is dropped.
+"observed on this Mac with `<command>`, YYYY-MM-DD", or "observed in a cloud session with
+`<command>`, YYYY-MM-DD". A claim that is neither is dropped.
 
 **Commands that exist.** Every command a skill tells the reader to run works here today.
 A `just <recipe>` is written as typed (`just test-fast <filter>`) and `just check-harness`

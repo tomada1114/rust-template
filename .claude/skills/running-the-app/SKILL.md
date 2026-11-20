@@ -102,6 +102,10 @@ with `tail` on the log under the scratch directory (`$scratch/Library/Logs/<bund
 on macOS, `$scratch/.local/state/myapp/logs/` on Linux); `just logs` reads the real
 `HOME`'s directory instead. `just logs-follow` never ends and is the human's.
 
+In a cloud session no human is at the VM, so nothing waits for an answer: write the same
+request (the commands, the keys, what to look for) into the pull request's Test Plan as
+needing a local run, leave its checklist item unchecked, and carry on.
+
 ## Putting the tool in a known state
 
 Do not add a flag or an environment switch only to look at a state. A state you only
@@ -123,7 +127,8 @@ command, not a paraphrase, and paste:
   observable is a log line;
 - what the human saw in `myapp tui`, with a screenshot for anything a person looks at;
 - `just test-local` output, run by a human, for a change to an adapter with an
-  `#[ignore = "local machine: …"]` test (`AGENTS.md` › "Review Checklist").
+  `#[ignore = "local machine: …"]` test (`AGENTS.md` › "Review Checklist"). A cloud
+  session never runs it: the Test Plan names it as needing a local run instead.
 
 Redact before pasting: a personal name or a home directory path (`/Users/<name>/…`,
 `/home/<name>/…`, a scratch directory under it), and say that you did. A pull request
