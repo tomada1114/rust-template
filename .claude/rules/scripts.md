@@ -2,11 +2,14 @@
 paths:
   - "xtask/**"
   - ".claude/skills/*/scripts/**"
+  - ".claude/hooks/**"
+  - ".claude/cloud/**"
 ---
 
 The contract every piece of repository automation keeps: a `cargo xtask` task and a
 script a skill bundles. The reasons behind it, with worked examples, are in the
-`writing-repo-scripts` skill, which restates none of it.
+`writing-repo-scripts` skill, which restates none of it. The shell scripts under
+`.claude/hooks/` and `.claude/cloud/` keep the bundled-script contract too.
 
 ## A `cargo xtask` task
 

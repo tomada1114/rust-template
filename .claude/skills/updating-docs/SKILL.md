@@ -81,7 +81,9 @@ Some facts have two readers, and the pull request that moves the fact updates bo
 - a design change `AGENTS.md` › "Before changing the architecture" lists: the skill that
   owns the subject, `AGENTS.md` › Architecture when it moves a layer rule or the
   contract, and › Product when it moves what the app is, each rewritten in place to
-  state the current design and why; there is no separate record of the decision, and
+  state the current design and why (what it protects and, where it matters, the
+  alternative it rules out and why), which the owner reviews with the change; there is
+  no separate record of the decision, and
   git history holds what the text said before;
 - a `just` recipe added, renamed, or removed: the `justfile`, `AGENTS.md`'s Quick
   Reference, and `CONTRIBUTING.md`'s "Without Just" when it lists that recipe;

@@ -76,8 +76,8 @@ opens a window or takes focus.
 | `crates/myapp-test-support/`, `crates/myapp/` | `just test-core`, then `just test-platform`; the terminal loop needs the human's `myapp tui` run |
 | `xtask/`, a harness check | `cargo nextest run -p xtask -p xtask-guard`, then `just test-xtask`, `just lint`, `just check-harness` |
 | `lefthook.yml` | `just test-xtask`, then `just verify-hooks` |
-| A recipe, skill, workflow, label, issue form, ruleset, `## Product`, a committed `.claude/settings.json` (if one is added) | `just check-harness`; for a workflow also `mise exec -- actionlint` and `mise exec -- zizmor .`, for a skill's scripts `just test-scripts` |
-| Markdown | `mise exec -- typos <file>` |
+| A recipe, skill, workflow, label, issue form, ruleset, `## Product`, core's forbidden-crate lists (`deny.toml`'s `wrappers`), a committed `.claude/settings.json` (if one is added) | `just check-harness`; for a workflow also `mise exec -- actionlint` and `mise exec -- zizmor .`, for a skill's scripts `just test-scripts` |
+| Markdown, `.github/labels.yml`, an issue form | `mise exec -- typos <file>` |
 | `Cargo.toml`, `Cargo.lock`, `deny.toml` | `just deny`, `mise exec -- cargo shear`, `just lint`, `just test` |
 | `mise.toml`, `rust-toolchain.toml` | `mise install`, then `just check` |
 | A new file or placeholder spelling (`MyApp`, `myapp_core`, `com.example.myapp`) | `just verify-bootstrap` |
@@ -139,8 +139,10 @@ review catches it. A user-visible change to any owes a `CHANGELOG.md` entry.
 The design is recorded once per subject, as it stands now: in the skill that owns it,
 in [Architecture](#architecture) for the layer rules and the contract, and in Product
 for scope. A design change, any of the below, is hard to reverse, so its pull request
-also rewrites that skill or section: the current design and its reasoning, in the
-present tense, replacing the old sentences, never as a dated entry:
+also rewrites that skill or section, which the owner reviews with the change: the
+current design and its reasoning (what it protects and, where it matters, the
+alternative it rules out and why), in the present tense, replacing the old sentences,
+never as a dated entry:
 
 - a new crate in the workspace, a new dependency (runtime or dev), or a new port in core;
 - where and in what format the tool keeps state, or a settings file or environment
@@ -199,14 +201,15 @@ enforces.
 | `.claude/rules/testing.md` | `crates/*/tests/**`, `crates/myapp-test-support/**` |
 | `.claude/rules/project.md` | manifests, lockfiles, tool pins, and gate configs |
 | `.claude/rules/docs.md` | `docs/**/*.md`, `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md` |
-| `.claude/rules/scripts.md` | `xtask/**`, `.claude/skills/*/scripts/**` |
+| `.claude/rules/scripts.md` | `xtask/**`, `.claude/skills/*/scripts/**`, `.claude/hooks/**`, `.claude/cloud/**` |
 
 ### Sub-agents
 
 `.claude/agents/` defines the tiers `executor`, `architect`, `scout`, and `worker`:
 each file carries its model, effort, and instructions (its description says what it
 takes), is maintained here by hand, and shadows a same-named agent in
-`~/.claude/agents/`. Delegate by `subagent_type`, never a bare `model`.
+`~/.claude/agents/`. Delegate by `subagent_type`, never a bare `model`; prose names
+tiers by role only.
 
 ## Security and human approval
 
@@ -225,7 +228,8 @@ fact instead.
 
 Get a human's sign-off before any of these. This section is the rule itself, not a
 check: a personal permission file may stop a few of them on one host, but this
-repository ships none (see "Enforcement layers").
+repository ships none (the permission-list gap in `changing-gates`'
+`references/enforcement-layers.md`).
 
 - Adding a release pipeline or anything it would need (a workflow that builds or
   uploads artifacts, signing or notarization, a repository secret, publishing to
@@ -243,7 +247,9 @@ repository ships none (see "Enforcement layers").
   assertion; `continue-on-error` in CI; `git commit --no-verify`.
 - Working around a command a permission file, a hook, or a human denied: re-spelling
   it (`git -C . …`, `bash -c '…'`, bundled short flags such as `-anm`, an alias or
-  script wrapper) is forbidden. Fix what made the bypass look necessary, or ask.
+  script wrapper) is forbidden. The same holds for any instruction here that blocks
+  something that looks necessary: fix what made the bypass look necessary, or ask;
+  never look for another spelling.
 - Any write to a remote: `git push`, `gh pr create`, or any other. `just labels` and
   `just ruleset` only create or update what `.github/labels.yml` and
   `.github/rulesets/*.json` declare, and each still needs sign-off before its first run
@@ -332,10 +338,12 @@ Before submitting a PR:
 ## Important Reminders
 
 - Write all code, docs, commits, and PRs in English
-- Do what has been asked; nothing more, nothing less. Prefer editing an existing file
-  to creating one, and never create a documentation file unless asked
-- A comment carries only a non-obvious why, a trap, or an external constraint; default
-  to none. A `///` on a public item is its contract and stays (`writing-rust`)
+- Do what has been asked; nothing more, nothing less. NEVER create files unless
+  absolutely necessary: prefer editing an existing file, and never create a
+  documentation file unless asked
+- A comment carries only a non-obvious why, a trap, or an external constraint: default
+  to none, and keep the rest to a line or two. A `///` on a public item is its contract
+  and stays (`writing-rust`)
 - A problem found outside the task is recorded, not fixed: file an issue as
   `triaging-issues` says, or, where filing is not yours to do (it is a remote write),
   list it in the pull request description. Never widen the pull request to fix it
