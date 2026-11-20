@@ -608,8 +608,8 @@ removing or narrowing its bullet here:
   `.claude/settings.json`: which commands run without a prompt is each person's own
   choice, in their user-level `~/.claude/settings.json` (generic rules: git, `gh`, the
   hook-bypass and force-push denies) or the gitignored `.claude/settings.local.json`
-  (this repository's rules: its `just` recipes, dependency changes). That choice shapes where a human is
-  consulted rather than what is possible. A personal file should keep at `ask` the
+  (this repository's rules: its `just` recipes, dependency changes). That choice shapes
+  where a human is consulted rather than what is possible. A personal file should keep at `ask` the
   recipes that need a human or write outside the checkout (`test-local`, `logs-follow`,
   `install-cli`) and those that write to GitHub or rewrite the repository
   (`bootstrap`, `labels`, `ruleset`). The same file is where to register
