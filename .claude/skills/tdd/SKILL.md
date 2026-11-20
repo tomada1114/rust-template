@@ -121,7 +121,7 @@ the change can fail:
 
 Before the pull request, `just check` runs everything a machine runs without a human.
 None of these recipes opens a window, takes focus, or takes over a terminal
-(`AGENTS.md` › "Never taking over the developer's Mac").
+(`AGENTS.md` › "Never taking over the machine").
 
 If a coverage floor fails, write the tests for the code you added. Never lower a floor,
 exclude a file from coverage, or move logic out of core to escape the floor: each is

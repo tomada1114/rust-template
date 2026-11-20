@@ -1,5 +1,5 @@
-//! Every `just <recipe>` the documents name exists, and every recipe a committed
-//! `.claude/settings.json`, if one is added, permits exists, so a renamed or removed
+//! Every `just <recipe>` the documents name exists, and every recipe the committed
+//! `.claude/settings.json` permits exists, so a renamed or removed
 //! recipe cannot leave a document pointing at nothing or a permission rule that can never
 //! match.
 //!

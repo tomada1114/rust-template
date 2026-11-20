@@ -60,7 +60,7 @@ same turn, with no "shall I merge?". The only pauses are the
   merges through; run the narrowest check that can fail (`AGENTS.md` › "Validating a
   change").
 - **Never take over the machine.** No step runs `myapp tui` or a human's recipe
-  (`AGENTS.md` › "Never taking over the developer's Mac").
+  (`AGENTS.md` › "Never taking over the machine").
 
 ## Workflow
 

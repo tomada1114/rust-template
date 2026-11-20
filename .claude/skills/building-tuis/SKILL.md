@@ -125,7 +125,7 @@ handed to core as a value; core still never sleeps or reads the clock
 
 ## Never taking over the developer's terminal
 
-`AGENTS.md` › "Never taking over the developer's Mac" holds for terminals too. No check,
+`AGENTS.md` › "Never taking over the machine" holds for terminals too. No check,
 hook, or step an agent runs on its own enables raw mode, enters the alternate screen,
 reads a key from a real terminal, or runs `myapp tui`. Running the screen is a human's
 step: when a change shows only in a real terminal (the restore after a crash, a resize,

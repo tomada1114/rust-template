@@ -30,6 +30,23 @@ mise trust     # approve mise.toml (asked once per clone)
 just install   # mise install, lefthook install, verify-hooks
 ```
 
+### Cloud sessions
+
+A Claude Code cloud session (claude.ai/code) skips all of the above: the VM is
+provisioned by its environment's setup script and by the `SessionStart` hook the
+committed `.claude/settings.json` registers, which run `.claude/cloud/provision.sh` in
+place of `just install` (it installs the Debian packages, `pkg-config` and `libssl-dev`
+among them, the pinned tools, and lefthook's hook).
+[Getting Started](docs/getting-started.md#cloud-sessions) has the detail. No human is at
+that VM, so an agent there never runs a recipe or a step that needs one: it leaves it
+unrun and says in the pull request that it needs a local run.
+
+`.claude/settings.json` also carries the permission list every Claude Code session
+starts with and the hook that formats an edited `.rs` file. It is a gate file, changed
+only in a reviewed pull request; your own `~/.claude/settings.json` or the gitignored
+`.claude/settings.local.json` adds to it. If one of those registers the format hook
+too, remove that copy, or the formatter runs twice on every edit.
+
 ## Development workflow
 
 ```bash
@@ -60,7 +77,7 @@ synthetic credentials. On Linux these checks also need the OpenSSL development
 headers and `pkg-config`; see [OpenRouter](docs/openrouter.md).
 
 These recipes are for a human and are never part of `just check`; an agent runs them
-only when you ask:
+only when you ask, and never in a cloud session:
 
 ```bash
 just test-local         # the #[ignore]d tests that need a logged-in Mac, a TCC grant, or the Keychain

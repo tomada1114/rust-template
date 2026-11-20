@@ -36,9 +36,10 @@ A skill's bundled scripts (Python and shell, under `.claude/skills/<skill>/scrip
 keep the same contract, whoever writes them:
 
 - Pinned tools are called by bare name; the caller provides PATH (`mise exec -- …`
-  locally, `jdx/mise-action` in CI). `python3` and `gh`, like `git`, are assumed on PATH
-  rather than pinned by mise; a script's tests stub `gh` out, so `just check` never needs
-  the real binary.
+  locally, `jdx/mise-action` in CI, and mise's shims first on PATH in a Claude Code
+  cloud VM, where `.claude/cloud/provision.sh` puts them). `python3` and `gh`, like
+  `git`, are assumed on PATH rather than pinned by mise; a script's tests stub `gh` out,
+  so `just check` never needs the real binary.
 - Real parsers for structured files (`tomllib`, `json`), never a regex over YAML or TOML.
 - Spawned git gets an environment with every `GIT_*` variable stripped, as
   `xtask/src/git_env.rs`'s `git_env` does: inside a hook, git's exported variables

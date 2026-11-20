@@ -26,7 +26,10 @@ Prerequisites: macOS on Apple Silicon with the Xcode Command Line Tools
 (`xcode-select --install`), or Linux with a C toolchain for the linker (`build-essential`
 on Debian and Ubuntu) and the OpenSSL headers (`pkg-config` and `libssl-dev`);
 [rustup](https://rustup.rs/), [mise](https://mise.jdx.dev/), and
-[Just](https://just.systems/) (`brew install mise just` on a Mac).
+[Just](https://just.systems/) (`brew install mise just` on a Mac). A Claude Code cloud
+session needs none of this by hand: its environment's setup script and the committed
+`SessionStart` hook provision the VM
+([Cloud sessions](docs/getting-started.md#cloud-sessions)).
 
 ```bash
 git clone https://github.com/tomada1114/rust-template.git

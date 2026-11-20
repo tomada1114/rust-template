@@ -1,9 +1,9 @@
 # Task runner. Every recipe is a thin call into cargo (`cargo xtask` included) or a pinned tool.
 # `just --list` shows them all.
 #
-# Never taking over the developer's Mac: recipes a human starts on purpose (test-local,
+# Never taking over the machine: recipes a human starts on purpose (test-local,
 # logs-follow, install-cli) are never part of `just check`, and an agent runs them only
-# when the human asks.
+# when the human asks, and never in a cloud session.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -18,7 +18,7 @@ log_dir := if os() == "macos" { env("HOME", "") / "Library/Logs" / bundle_id } e
 default:
     @just --list
 
-# Everything a Mac runs without a human, in CI's order (opens no window; see the note above)
+# Everything a machine runs without a human (macOS, Linux, a cloud VM), in CI's order (opens no window; see the note above)
 check: verify-hooks fmt lint lint-repo test-scripts check-harness test test-platform
 
 # Repository lints beside the code: spelling everywhere (typos), the workflow files (actionlint), and a fresh mise.lock

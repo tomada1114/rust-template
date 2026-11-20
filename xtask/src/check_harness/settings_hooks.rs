@@ -1,4 +1,4 @@
-//! A committed `.claude/settings.json`, if one is added, runs only hooks that are safe to
+//! The committed `.claude/settings.json` runs only hooks that are safe to
 //! run in every session: a hook command executes without a prompt, so review is the only
 //! other thing that would notice one that went wrong.
 //!

@@ -85,7 +85,7 @@ of glue.
 - A test that needs a logged-in GUI session, a TCC grant, or the Keychain carries
   `#[ignore = "local machine: <what it needs>"]`. It is reported as ignored everywhere
   else, and only `just test-local` runs it — a human's recipe, because it may raise a
-  prompt (`AGENTS.md` › "Never taking over the developer's Mac"). A real terminal is
+  prompt (`AGENTS.md` › "Never taking over the machine"). A real terminal is
   not among what it can supply: the TUI's terminal loop has no automated test at all
   (`building-tuis`). A pull request that changes such an adapter carries that
   output. Never an `#[ignore]` without the reason, and never one on a test that merely

@@ -120,7 +120,7 @@ run asks again.
 
 Every TCC step needs a person: the prompt is a system window, and System Settings is
 another app, which an agent never drives (`AGENTS.md` › "Never taking over the
-developer's Mac"). Ask once, in one message, before the loop starts:
+machine"). Ask once, in one message, before the loop starts:
 
 - which permission, and for which program: usually the terminal that runs `myapp` or
   `just test-local` (see "Which program holds the grant");
