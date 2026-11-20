@@ -136,9 +136,14 @@ squash merge pinned to the head whose checks passed.
 ## Step 4b: The combined branch
 
 ```bash
-git switch main && git pull --ff-only
+git switch main
+git pull --ff-only
 git switch -c deps/combined-<yyyy-mm-dd>
 ```
+
+Run each as its own call: a sandbox's excluded-command list matches the whole command
+line, so a `git pull` chained to another command stays sandboxed and cannot reach the
+remote.
 
 Apply each PR's version change with the tool that owns the file, never by hand-editing
 a lockfile or by merging bot branches:
