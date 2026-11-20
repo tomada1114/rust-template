@@ -100,3 +100,14 @@ removing or narrowing its bullet here:
   starts it. Keeping `crates/myapp/src/tui/mod.rs` thin is the mitigation: the screen's
   state and keys are core's, and its drawing is `TestBackend`-tested, so a pull request
   that changes the loop itself carries the human's run as evidence.
+
+## Claude Code permissions and the format hook
+
+Permissions and the format hook are personal. This repository commits no
+`.claude/settings.json`: which commands run without a prompt, and whether
+`cargo xtask format-edited-file` runs as a `PostToolUse` hook after each edit, are each
+person's choice in `~/.claude/settings.json` or the gitignored
+`.claude/settings.local.json`. The gap above that starts "This repository ships no
+Claude Code permission list" says what such a file should keep at `ask` and how to
+register the hook, and `AGENTS.md` › "Security and human approval" says when you may
+edit one: only when the owner asks for it in that session.
