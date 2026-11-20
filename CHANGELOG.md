@@ -115,10 +115,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   named failures. The PR labeller uses an inline `gh`/`jq` step with no checkout;
   the labels-declared harness check reads its `TYPE_LABELS` map.
 
-- The committed `.claude/settings.json` is removed: Claude Code permissions and the
-  format-on-edit hook now live in each person's user-level `~/.claude/settings.json` or
-  the gitignored `.claude/settings.local.json`, and Codex CLI's personal rules in a
-  gitignored `.codex/rules/local.rules` (see `AGENTS.md`).
+- `.claude/settings.json` is committed as a gate file: a permissions baseline, the
+  `SessionStart` hook that provisions a cloud session, and the format-on-edit hook.
+  Personal files (`~/.claude/settings.json`, the gitignored
+  `.claude/settings.local.json`) add rules to it, and a personal copy of the format hook
+  should be removed, or the formatter runs twice.
 - `just ruleset` now creates or updates every ruleset under `.github/rulesets/`, the
   `release-tags` tag ruleset as well as `main`, each by its own name, and never deletes
   one; the setup steps in `AGENTS.md`, `README.md`, and the bootstrap's next steps name
