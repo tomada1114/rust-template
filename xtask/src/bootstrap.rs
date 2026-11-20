@@ -324,7 +324,7 @@ fn form_value(form: Form, answers: &Answers, names: &Names) -> String {
 use Form::{BundleId, Name, Owner, Repo, RepoName, Slug, SlugSnake, SlugUpper};
 
 /// The skill files carrying a placeholder, under `.claude/skills/`.
-const SKILL_SITES: [(&str, &[Form]); 31] = [
+const SKILL_SITES: [(&str, &[Form]); 32] = [
     ("authoring-skills/SKILL.md", &[Slug]),
     (
         "authoring-skills/references/convention-examples.md",
@@ -332,6 +332,7 @@ const SKILL_SITES: [(&str, &[Form]); 31] = [
     ),
     ("building-tuis/SKILL.md", &[Slug]),
     ("changing-gates/SKILL.md", &[Slug]),
+    ("changing-gates/references/enforcement-layers.md", &[Slug]),
     ("changing-gates/references/gate-files.md", &[Slug]),
     ("changing-gates/references/weakening.md", &[Slug]),
     ("create-pr/SKILL.md", &[Slug]),
@@ -624,22 +625,22 @@ fn document_edits() -> Vec<TextEdit> {
             "(`com.example.myapp`)",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             "stays a `TODO:` skeleton in the template and holds no `TODO:` once `cargo xtask bootstrap` has run |",
             "holds no `TODO:` |",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             "`labels`, `ruleset`, `bootstrap`)",
             "`labels`, `ruleset`)",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             "(`bootstrap`, `labels`, `ruleset`)",
             "(`labels`, `ruleset`)",
         ),
         edit(
-            "AGENTS.md",
+            &skill_file("changing-gates/references/enforcement-layers.md"),
             " `Template Bootstrap Smoke` (the bootstrap run on a throwaway copy, then `just check` there),",
             "",
         ),

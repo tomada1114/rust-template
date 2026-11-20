@@ -51,8 +51,9 @@ So a new check is several edits, not one:
 3. the matching `ci.yml` step (`just check-harness` fails while `just check` and CI's
    steps differ outside a reasoned exception list);
 4. the pre-commit job, only when it is fast, check-only, and judged on staged files;
-5. its row in `AGENTS.md` › "Enforcement layers", and a "Validating a change" row when
-   it becomes the narrowest check for some kind of change (`updating-docs`).
+5. its row in [references/enforcement-layers.md](references/enforcement-layers.md), and a
+   "Validating a change" row in `AGENTS.md` when it becomes the narrowest check for some
+   kind of change (`updating-docs`).
 
 ## The gate files
 
@@ -129,12 +130,13 @@ crate has no look-around, so a rule that would need one says it another way
 
 ## What no gate here sees
 
-`AGENTS.md` › "Enforcement layers" names the gaps and the reasons they stay open: the
+[references/enforcement-layers.md](references/enforcement-layers.md) lists every layer
+(when it fires, whom it binds, what it holds), then the gaps and the reasons they stay open: the
 `#[ignore]`d tests only a human runs, `--no-verify` and the hook's other bypasses, a
 ruleset that may not be applied, and a new recipe or test that takes over the Mac or a
 terminal (`myapp tui`, raw mode, the alternate screen). A gate
 proposed to close any gap is a real gate change and belongs in its pull request as one,
-with its "Enforcement layers" row updated or removed.
+with its row and its gap there updated or removed.
 
 No formatter checks JSON, YAML, or Markdown. That is a choice to keep the toolchain to
 Rust's own tools plus a few pinned binaries, not an oversight: `typos` still reads

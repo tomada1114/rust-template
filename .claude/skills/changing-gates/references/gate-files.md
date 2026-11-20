@@ -137,7 +137,7 @@ identifier in `paths.rs` and the justfile.
 - **Adding a claim** is routine: a new module, its entry in `CHECKS`, tests in the
   module, and, for a check that reads a tree, a fixture root under
   `xtask/tests/fixtures/` per failure mode, so a test points `--root` at it instead of
-  at the real checkout. Its row in `AGENTS.md` › "Enforcement layers" changes with it.
+  at the real checkout. Its row in [enforcement-layers.md](enforcement-layers.md) changes with it.
 - **Removing a check, or narrowing what it reads** (a file it skips, a pattern it no
   longer matches) is weakening a gate.
 - **An `EXCEPTIONS` entry** (`just_check_matches_ci.rs`, `workflow_write_scopes.rs`,

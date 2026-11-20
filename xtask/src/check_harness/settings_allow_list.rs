@@ -1,6 +1,6 @@
 //! A committed `.claude/settings.json`, if one is added, has an `allow` list that admits
-//! none of the recipes that need a human or write beyond the working tree (AGENTS.md ›
-//! "Enforcement layers"), so adding one to `allow` fails here instead of relying on
+//! none of the recipes that need a human or write beyond the working tree (the
+//! `changing-gates` skill's `references/enforcement-layers.md`), so adding one to `allow` fails here instead of relying on
 //! review to notice it.
 //!
 //! An `allow` rule admits a recipe when it names `just <recipe>` anywhere, with any global

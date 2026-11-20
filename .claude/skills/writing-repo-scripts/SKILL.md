@@ -185,8 +185,9 @@ A new one usually lands with more than its own file:
 - its tests, and for a task its row in `xtask/src/main.rs`'s `TASKS`;
 - a `justfile` recipe if people run it by hand, the recipe's line in `AGENTS.md`'s Quick
   Reference, and its command in `CONTRIBUTING.md`'s "Without Just";
-- a "Validating a change" row when no row covers it, and an "Enforcement layers" row
-  when it enforces something. **REQUIRED:** `changing-gates` for a task a gate runs.
+- a "Validating a change" row in `AGENTS.md` when no row covers it, and a row in
+  `changing-gates`' `references/enforcement-layers.md` when it enforces something.
+  **REQUIRED:** `changing-gates` for a task a gate runs.
 
 Check a task with `cargo nextest run -p xtask -p xtask-guard` while iterating, then
 `just test-xtask` (the floors) and `just lint`; check a bundled script with
