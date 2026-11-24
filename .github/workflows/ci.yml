@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
 
       # Rust itself comes from rust-toolchain.toml through the runner's rustup.
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           version: 2026.11.6
           install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest github:EmbarkStudios/cargo-deny github:Boshen/cargo-shear
@@ -81,7 +81,7 @@ jobs:
 
       # Rust comes from rust-toolchain.toml through the runner's rustup: `cargo xtask` runs
       # xtask's tests and the harness checks.
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           version: 2026.11.6
           install_args: just typos actionlint shellcheck lefthook github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest
@@ -125,7 +125,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           version: 2026.11.6
           install_args: just aqua:nextest-rs/nextest/cargo-nextest
@@ -154,7 +154,7 @@ jobs:
           # Full history, so the local clone below is made from a non-shallow source.
           fetch-depth: 0
 
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           version: 2026.11.6
           install_args: just github:taiki-e/cargo-llvm-cov aqua:nextest-rs/nextest/cargo-nextest shellcheck typos actionlint lefthook
@@ -238,7 +238,7 @@ jobs:
           persist-credentials: false
 
       # zizmor is pinned in mise.toml (Renovate bumps it), not taken from a third-party action.
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           version: 2026.11.6
           install_args: zizmor
